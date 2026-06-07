@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -67,7 +66,8 @@ import {
   Fingerprint,
   MapPin,
   TrendingUp,
-  RefreshCw
+  RefreshCw,
+  Lock
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -466,15 +466,42 @@ export default function AdminPaginasPage() {
                        <div className="p-8 pb-20">
                           <TabsContent value="geral" className="space-y-8 mt-0">
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome de Exibição</Label><Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required /></div>
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-[10px] font-black uppercase opacity-60">Nome de Exibição</Label>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                      <Switch checked={editingOrg?.showName ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showName: v})} />
+                                    </div>
+                                  </div>
+                                  <Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required />
+                                </div>
                                 <div className="space-y-2">
                                    <Label className="text-[10px] font-black uppercase opacity-60 flex items-center justify-between">Username exclusivo (@) <span className="text-[8px] text-secondary font-black italic">ALTERAÇÃO ADMIN</span></Label>
                                    <Input value={editingOrg?.username || ""} onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "")})} className="rounded-xl h-11 border-dashed border-secondary/40 font-bold" />
                                 </div>
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Slug (URL)</Label><Input value={editingOrg?.slug || ""} onChange={e => setEditingOrg({...editingOrg, slug: e.target.value.toLowerCase().replace(/\s+/g, "-")})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label><Input value={editingOrg?.type || ""} onChange={e => setEditingOrg({...editingOrg, type: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                      <Switch checked={editingOrg?.showType ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showType: v})} />
+                                    </div>
+                                  </div>
+                                  <Input value={editingOrg?.type || ""} onChange={e => setEditingOrg({...editingOrg, type: e.target.value})} className="rounded-xl h-11" />
+                                </div>
                              </div>
-                             <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bio / Descrição</Label><Textarea value={editingOrg?.bio || ""} onChange={e => setEditingOrg({...editingOrg, bio: e.target.value})} className="min-h-[100px] rounded-xl resize-none" /></div>
+                             <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-[10px] font-black uppercase opacity-60">Bio / Descrição</Label>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                    <Switch checked={editingOrg?.showBio ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showBio: v})} />
+                                  </div>
+                                </div>
+                                <Textarea value={editingOrg?.bio || ""} onChange={e => setEditingOrg({...editingOrg, bio: e.target.value})} className="min-h-[100px] rounded-xl resize-none" />
+                             </div>
                              <Separator className="border-dashed" />
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Selo Verificado</Label><div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-dashed"><ShieldCheck className="w-5 h-5 text-blue-500" /><span className="text-xs font-bold uppercase flex-1">Oficial</span><Switch checked={editingOrg?.verified || false} onCheckedChange={v => setEditingOrg({...editingOrg, verified: v})} /></div></div>
@@ -513,30 +540,131 @@ export default function AdminPaginasPage() {
                           </TabsContent>
 
                           <TabsContent value="fiscal" className="space-y-8 mt-0">
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label><Input value={editingOrg?.legalName || ""} onChange={e => setEditingOrg({...editingOrg, legalName: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label><Input value={editingOrg?.cnpj || ""} onChange={e => setEditingOrg({...editingOrg, cnpj: e.target.value})} className="rounded-xl h-11" placeholder="00.000.000/0000-00" /></div>
+                             <div className="space-y-6">
+                               <div className="space-y-2">
+                                 <Label className="text-[10px] font-black uppercase opacity-60">Tipo de Organização</Label>
+                                 <Select value={editingOrg?.tipoOrganizacao || "individual"} onValueChange={v => setEditingOrg({...editingOrg, tipoOrganizacao: v})}>
+                                    <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                                    <SelectContent className="rounded-xl">
+                                       <SelectItem value="individual">Pessoa Física</SelectItem>
+                                       <SelectItem value="company">Pessoa Jurídica</SelectItem>
+                                    </SelectContent>
+                                 </Select>
+                               </div>
+
+                               {editingOrg?.tipoOrganizacao === 'individual' ? (
+                                 <div className="space-y-4">
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Fingerprint className="w-3 h-3" /> CPF (Titular)</Label>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                          <Switch checked={editingOrg?.showCpf ?? false} onCheckedChange={v => setEditingOrg({...editingOrg, showCpf: v})} />
+                                        </div>
+                                      </div>
+                                      <Input value={editingOrg?.cpf || ""} onChange={e => setEditingOrg({...editingOrg, cpf: e.target.value})} className="rounded-xl h-11 font-mono" placeholder="000.000.000-00" />
+                                    </div>
+                                 </div>
+                               ) : (
+                                 <div className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                       <div className="space-y-2">
+                                         <div className="flex items-center justify-between">
+                                           <Label className="text-[10px] font-black uppercase opacity-60">Razão Social</Label>
+                                           <div className="flex items-center gap-2">
+                                              <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                              <Switch checked={editingOrg?.showLegalName ?? false} onCheckedChange={v => setEditingOrg({...editingOrg, showLegalName: v})} />
+                                           </div>
+                                         </div>
+                                         <Input value={editingOrg?.razaoSocial || editingOrg?.legalName || ""} onChange={e => setEditingOrg({...editingOrg, razaoSocial: e.target.value})} className="rounded-xl h-11" />
+                                       </div>
+                                       <div className="space-y-2">
+                                          <div className="flex items-center justify-between">
+                                            <Label className="text-[10px] font-black uppercase opacity-60">CNPJ</Label>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                              <Switch checked={editingOrg?.showCnpj ?? false} onCheckedChange={v => setEditingOrg({...editingOrg, showCnpj: v})} />
+                                            </div>
+                                          </div>
+                                          <Input value={editingOrg?.cnpj || ""} onChange={e => setEditingOrg({...editingOrg, cnpj: e.target.value})} className="rounded-xl h-11 font-mono" placeholder="00.000.000/0000-00" />
+                                       </div>
+                                    </div>
+                                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome Fantasia</Label><Input value={editingOrg?.nomeFantasia || editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, nomeFantasia: e.target.value})} className="rounded-xl h-11" /></div>
+                                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Lock className="w-3 h-3" /> CPF do Representante Legal (Privado)</Label><Input value={editingOrg?.representanteLegalCpf || ""} onChange={e => setEditingOrg({...editingOrg, representanteLegalCpf: e.target.value})} className="rounded-xl h-11 font-mono" placeholder="000.000.000-00" /></div>
+                                 </div>
+                               )}
                              </div>
                           </TabsContent>
 
                           <TabsContent value="endereco" className="space-y-8 mt-0">
                              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">CEP</Label><Input value={editingOrg?.cep || ""} onChange={e => setEditingOrg({...editingOrg, cep: e.target.value})} onBlur={handleCepBlur} className="rounded-xl h-11" /></div>
-                                <div className="md:col-span-3 space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Rua / Logradouro</Label><Input value={editingOrg?.street || ""} onChange={e => setEditingOrg({...editingOrg, street: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="md:col-span-3 space-y-2">
+                                   <div className="flex items-center justify-between">
+                                     <Label className="text-[10px] font-black uppercase opacity-60">Rua / Logradouro</Label>
+                                     <div className="flex items-center gap-2">
+                                       <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                       <Switch checked={editingOrg?.showAddress ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showAddress: v})} />
+                                     </div>
+                                   </div>
+                                   <Input value={editingOrg?.street || ""} onChange={e => setEditingOrg({...editingOrg, street: e.target.value})} className="rounded-xl h-11" />
+                                </div>
                              </div>
                              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nº</Label><Input value={editingOrg?.number || ""} onChange={e => setEditingOrg({...editingOrg, number: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={editingOrg?.neighborhood || ""} onChange={e => setEditingOrg({...editingOrg, neighborhood: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label><div className="flex gap-2"><Input value={editingOrg?.city || ""} readOnly className="rounded-xl h-11 bg-muted/30" /><Input value={editingOrg?.state || ""} readOnly className="rounded-xl h-11 bg-muted/30 w-14" /></div></div>
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                      <Switch checked={editingOrg?.showNeighborhood ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showNeighborhood: v})} />
+                                    </div>
+                                  </div>
+                                  <Input value={editingOrg?.neighborhood || ""} onChange={e => setEditingOrg({...editingOrg, neighborhood: e.target.value})} className="rounded-xl h-11" />
+                                </div>
+                                <div className="space-y-2">
+                                   <div className="flex items-center justify-between">
+                                     <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
+                                     <div className="flex items-center gap-2">
+                                       <span className="text-[8px] font-bold uppercase opacity-40">Público</span>
+                                       <Switch checked={editingOrg?.showState ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showState: v})} />
+                                     </div>
+                                   </div>
+                                   <div className="flex gap-2"><Input value={editingOrg?.city || ""} readOnly className="rounded-xl h-11 bg-muted/30" /><Input value={editingOrg?.state || ""} readOnly className="rounded-xl h-11 bg-muted/30 w-14" /></div>
+                                </div>
                              </div>
                           </TabsContent>
 
                           <TabsContent value="social" className="space-y-8 mt-0">
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp</Label><Input value={editingOrg?.phone || ""} onChange={e => setEditingOrg({...editingOrg, phone: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail Público</Label><Input value={editingOrg?.contactEmail || ""} onChange={e => setEditingOrg({...editingOrg, contactEmail: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site</Label><Input value={editingOrg?.website || ""} onChange={e => setEditingOrg({...editingOrg, website: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-3"><Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram</Label><Input value={editingOrg?.instagram || ""} onChange={e => setEditingOrg({...editingOrg, instagram: e.target.value})} className="rounded-xl h-11" /></div>
+                                <div className="space-y-3">
+                                   <div className="flex items-center justify-between">
+                                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp</Label>
+                                     <Switch checked={editingOrg?.showPhone ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showPhone: v})} />
+                                   </div>
+                                   <Input value={editingOrg?.phone || ""} onChange={e => setEditingOrg({...editingOrg, phone: e.target.value})} className="rounded-xl h-11" />
+                                </div>
+                                <div className="space-y-3">
+                                   <div className="flex items-center justify-between">
+                                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail Público</Label>
+                                     <Switch checked={editingOrg?.showEmail ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showEmail: v})} />
+                                   </div>
+                                   <Input value={editingOrg?.contactEmail || ""} onChange={e => setEditingOrg({...editingOrg, contactEmail: e.target.value})} className="rounded-xl h-11" />
+                                </div>
+                                <div className="space-y-3">
+                                   <div className="flex items-center justify-between">
+                                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site</Label>
+                                     <Switch checked={editingOrg?.showWebsite ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showWebsite: v})} />
+                                   </div>
+                                   <Input value={editingOrg?.website || ""} onChange={e => setEditingOrg({...editingOrg, website: e.target.value})} className="rounded-xl h-11" />
+                                </div>
+                                <div className="space-y-3">
+                                   <div className="flex items-center justify-between">
+                                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram</Label>
+                                     <Switch checked={editingOrg?.showInstagram ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showInstagram: v})} />
+                                   </div>
+                                   <Input value={editingOrg?.instagram || ""} onChange={e => setEditingOrg({...editingOrg, instagram: e.target.value})} className="rounded-xl h-11" />
+                                </div>
                              </div>
                           </TabsContent>
 
@@ -659,7 +787,7 @@ function OrgMembersList({ orgId }: { orgId: string }) {
                     <AvatarFallback className="font-black bg-muted">{m.profile?.name?.charAt(0) || "U"}</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col">
-                     <span className="text-sm font-bold text-primary truncate max-w-[150px]">{m.profile?.name || "Usuário"}</span>
+                     <span className="font-bold text-sm font-primary truncate max-w-[150px]">{m.profile?.name || "Usuário"}</span>
                      <span className="text-[10px] text-secondary font-black uppercase">@{m.profile?.username}</span>
                   </div>
                </div>
