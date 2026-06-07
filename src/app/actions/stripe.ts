@@ -73,3 +73,56 @@ export async function createCheckoutSession(data: any) {
 export async function finalizeCheckoutSession(sessionId: string) {
   return { success: true };
 }
+
+/**
+ * Cria uma sessão de checkout para recarga de saldo de anúncios de uma marca.
+ */
+export async function createAdBalanceTopUpSession(data: any) {
+  try {
+    const db = getAdminDb();
+    const head = await headers();
+    const origin = head.get('origin') || 'https://viby.club';
+    const stripe = await getStripeInstance(db);
+
+    const { orgId, orgUsername, userEmail, baseAmount, totalToPay, couponCode, transactionId } = data;
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl',
+            product_data: {
+              name: 'Recarga Saldo Viby Ads',
+              description: `Marca: @${orgUsername}`,
+            },
+            unit_amount: Math.round(totalToPay * 100),
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      customer_email: userEmail,
+      success_url: `${origin}/dashboard/organizacoes/${orgUsername}/finance?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/dashboard/organizacoes/${orgUsername}/finance?canceled=true`,
+      metadata: {
+        type: 'ad_topup',
+        orgId,
+        transactionId,
+        baseAmount: baseAmount.toString(),
+        totalToPay: totalToPay.toString(),
+        couponCode: couponCode || ''
+      },
+    });
+
+    return { success: true, url: session.url };
+  } catch (error: any) {
+    console.error("[Stripe Ads TopUp Error]", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function finalizeAdTopUpSession(sessionId: string) {
+  // O processamento real é feito via Webhook, esta função serve como gatilho de UI.
+  return { success: true };
+}

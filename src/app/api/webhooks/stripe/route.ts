@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
@@ -38,6 +37,7 @@ export async function POST(req: Request) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         
+        // 1. Caso seja checkout de Ingressos (Pedido)
         if (session.metadata?.type === 'order_checkout' && session.metadata?.orderId) {
           const orderId = session.metadata.orderId;
           const orderRef = db.collection("orders").doc(orderId);
@@ -104,6 +104,60 @@ export async function POST(req: Request) {
             });
           }
         }
+        
+        // 2. Caso seja recarga de saldo de anúncios (Viby Ads)
+        if (session.metadata?.type === 'ad_topup' && session.metadata?.orgId) {
+          const { orgId, baseAmount, couponCode, totalToPay } = session.metadata;
+          const amount = parseFloat(baseAmount);
+          const orgRef = db.collection("organizations").doc(orgId);
+          
+          await db.runTransaction(async (transaction) => {
+            const orgSnap = await transaction.get(orgRef);
+            if (orgSnap.exists) {
+              transaction.update(orgRef, {
+                adBalance: admin.firestore.FieldValue.increment(amount),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+              
+              // Registra transação no extrato da organização
+              const txRef = orgRef.collection("transactions").doc();
+              transaction.set(txRef, {
+                type: 'ad_topup',
+                amount: amount,
+                totalCharged: parseFloat(totalToPay),
+                status: 'completed',
+                couponCode: couponCode || null,
+                stripeSessionId: session.id,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+
+              // Registra entrada no Ledger Fiscal (ERP)
+              const taxRef = db.collection("tax_ads").doc();
+              transaction.set(taxRef, {
+                orgId,
+                orgName: orgSnap.data()?.name || 'Marca',
+                adTitle: 'Recarga Saldo Ads',
+                grossValue: amount,
+                netValue: amount,
+                taxValue: Number((amount * 0.11).toFixed(2)),
+                nfStatus: 'pendente',
+                status: 'ativo',
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+
+              // Se usou cupom, incrementa o uso
+              if (couponCode) {
+                 const couponQ = await db.collection("ad_coupons").where("code", "==", couponCode).limit(1).get();
+                 if (!couponQ.empty) {
+                    transaction.update(couponQ.docs[0].ref, {
+                       currentUses: admin.firestore.FieldValue.increment(1),
+                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                 }
+              }
+            }
+          });
+        }
         break;
       }
 
@@ -127,6 +181,7 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ received: true });
   } catch (error: any) {
+    console.error("[Stripe Webhook Error]", error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
