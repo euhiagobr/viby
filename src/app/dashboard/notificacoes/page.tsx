@@ -13,7 +13,6 @@ import {
   AtSign, 
   CheckCircle2, 
   Inbox,
-  Trash2,
   ArrowRight,
   BadgeCheck
 } from "lucide-react"
@@ -34,7 +33,6 @@ export default function NotificacoesPage() {
 
   const notificationsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
-    // Removendo orderBy do Firestore para garantir que notificações antigas sem o campo createdAt apareçam
     return query(
       collection(db, "notifications"),
       where("targetUid", "==", user.uid),
@@ -44,7 +42,6 @@ export default function NotificacoesPage() {
 
   const { data: rawNotifications, loading } = useCollection<any>(notificationsQuery)
 
-  // Ordenação em memória para resiliência de dados
   const notifications = React.useMemo(() => {
     if (!rawNotifications) return []
     return [...rawNotifications].sort((a, b) => {
@@ -54,7 +51,6 @@ export default function NotificacoesPage() {
     })
   }, [rawNotifications])
 
-  // Marcar como lida automaticamente ao carregar
   React.useEffect(() => {
     if (!db || !notifications || notifications.length === 0) return
 
@@ -78,18 +74,6 @@ export default function NotificacoesPage() {
     })
     await batch.commit()
     toast({ title: t('common.success') })
-  }
-
-  const handleDeleteNotification = async (id: string) => {
-    if (!db) return
-    try {
-      const nRef = doc(db, "notifications", id)
-      const batch = writeBatch(db)
-      batch.delete(nRef)
-      await batch.commit()
-    } catch (e) {
-      toast({ variant: "destructive", title: t('common.error_occurred') })
-    }
   }
 
   const formatTime = (ts: any) => {
@@ -118,7 +102,7 @@ export default function NotificacoesPage() {
         </Button>
       </div>
 
-      <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
+      <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
         <CardContent className="p-0">
           {loading ? (
             <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
@@ -172,14 +156,6 @@ export default function NotificacoesPage() {
                               {formatTime(n.createdAt)}
                             </span>
                          </div>
-                         <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => handleDeleteNotification(n.id)}
-                            className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-destructive/10"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
                       </div>
 
                       <div className="text-sm font-medium text-foreground/90 leading-relaxed pr-8">
