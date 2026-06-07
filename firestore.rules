@@ -44,7 +44,8 @@ service cloud.firestore {
     // --- REGRAS POR COLEÇÃO ---
 
     match /users/{userId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId)
                     || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'followingCount', 'totalXp', 'level']));
@@ -100,6 +101,13 @@ service cloud.firestore {
         allow create: if isSignedIn();
         allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       }
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.targetUid || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.targetUid);
+      allow delete: if isAdmin();
     }
 
     match /qr_scans/{id} {
@@ -196,7 +204,8 @@ service cloud.firestore {
     }
 
     match /support_tickets/{id} {
-      allow read, update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
       allow create: if isSignedIn();
     }
 
