@@ -66,92 +66,76 @@ export default function AdminTicketResponsePage() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) {
-      console.warn('ETAPA 1: Seleção (ADMIN) - Nenhum arquivo encontrado.');
-      return;
+    if (!file || !storage || !user || !auth) return;
+
+    // AUDITORIA FINAL - ESTADO DO TOKEN
+    console.group('AUDITORIA FINAL - STORAGE UPLOAD (ADMIN)');
+    console.log('Auth Instance App:', auth.app.name);
+    console.log('Storage Instance App:', storage.app.name);
+    console.log('Current User (Hook):', user.uid);
+    console.log('Current User (Auth SDK):', auth.currentUser?.uid || 'NULL');
+    console.log('Is Token Valid?:', !!auth.currentUser);
+    console.groupEnd();
+
+    if (!auth.currentUser) {
+       toast({ variant: "destructive", title: "Erro de Sessão", description: "Sua sessão de autenticação não foi reconhecida pelo Storage. Tente recarregar a página." });
+       return;
     }
 
-    console.log('ETAPA 1: Seleção do arquivo (ADMIN)', {
-      name: file.name,
-      type: file.type,
-      size: `${(file.size / 1024 / 1024).toFixed(2)} MB`
-    });
-
-    if (!storage || !user) {
-      console.error('ETAPA 3: Preparação (ADMIN) - Erro de contexto', { storage: !!storage, user: !!user });
-      return;
-    }
-
-    // ETAPA 2: Validação
     if (attachments.length >= MAX_SUPPORT_FILES) {
-      console.warn('ETAPA 2: Validação falhou (ADMIN) - Limite atingido');
       toast({ variant: "destructive", title: "Limite atingido", description: `Máximo de ${MAX_SUPPORT_FILES} arquivos permitidos.` });
       return;
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      console.warn('ETAPA 2: Validação falhou (ADMIN) - Tamanho excedido');
       toast({ variant: "destructive", title: "Arquivo muito grande", description: "O limite é de 5MB por arquivo." });
       return;
     }
-
-    console.log('ETAPA 2: Validação concluída (ADMIN)');
 
     setUploadProgress(0)
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
       const filePath = `support/${user.uid}/replies/${Date.now()}_${safeName}`;
       
-      console.log('ETAPA 3: Preparação (ADMIN)', { path: filePath, adminId: user.uid });
-
       const storageRef = ref(storage, filePath);
-      console.log('ETAPA 4: Iniciando upload Storage (ADMIN)');
+      console.log('ETAPA 4: Chamando uploadBytesResumable (ADMIN)');
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed', 
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log(`ETAPA 4: Progresso (ADMIN) - ${progress.toFixed(2)}%`);
           setUploadProgress(progress);
         },
         (error) => {
-          console.error('ETAPA 4: ERRO UPLOAD STORAGE (ADMIN)', {
+          console.error('ETAPA 4: ERRO UPLOAD (ADMIN)', {
             code: error.code,
             message: error.message,
-            error
+            uid: auth.currentUser?.uid
           });
-          toast({ variant: "destructive", title: "Erro no upload", description: "Verifique suas permissões de acesso." });
+          toast({ variant: "destructive", title: "Erro no upload", description: `Falha: ${error.code}` });
           setUploadProgress(null);
         },
         async () => {
-          console.log('ETAPA 4: Sucesso no upload (ADMIN)');
           try {
-            console.log('ETAPA 5: Obtendo URL (ADMIN)');
             const url = await getDownloadURL(uploadTask.snapshot.ref);
-            console.log('ETAPA 5: URL obtida (ADMIN)', { url });
             setAttachments(prev => [...prev, url]);
             setUploadProgress(null);
             toast({ title: "Arquivo anexado!" });
           } catch (urlErr: any) {
-            console.error('ETAPA 5: ERRO URL (ADMIN)', { message: urlErr.message });
+            console.error('ETAPA 5: ERRO URL (ADMIN)', urlErr);
           }
         }
       )
     } catch (err: any) {
-      console.error('UPLOAD ERROR (ADMIN/TRY)', { error: err });
+      console.error('UPLOAD ERROR (ADMIN/TRY)', err);
       setUploadProgress(null);
     }
   }
 
   const handleSendResponse = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('ETAPA 6: Preparando Resposta (ADMIN)');
     if (!db || !user || !ticketRef) return
-
-    if (!response.trim() && attachments.length === 0) {
-      console.warn('ETAPA 6: Resposta vazia ignorada (ADMIN)');
-      return;
-    }
+    if (!response.trim() && attachments.length === 0) return;
 
     setIsSubmitting(true)
     const messageObj = {
@@ -163,25 +147,19 @@ export default function AdminTicketResponsePage() {
       isAdmin: true
     }
 
-    console.log('ETAPA 6: Payload ADMIN pronto', { payload: messageObj });
-
     const updateData = {
       messages: arrayUnion(messageObj),
       updatedAt: serverTimestamp(),
       status: "Respondida"
     }
 
-    console.log('ETAPA 7: Firestore UPDATE (ADMIN)', { data: updateData });
-
     updateDoc(ticketRef, updateData)
       .then(() => {
-        console.log('ETAPA 7: Firestore Sucesso (ADMIN)');
         setResponse("")
         setAttachments([])
         toast({ title: "Resposta enviada!" })
       })
       .catch(async (error) => {
-        console.error('ETAPA 7: ERRO FIRESTORE (ADMIN)', { error });
         const permissionError = new FirestorePermissionError({
           path: ticketRef.path,
           operation: "update",
@@ -194,48 +172,24 @@ export default function AdminTicketResponsePage() {
 
   const handleCloseTicket = async () => {
     if (!db || !ticketRef) return
-
     setIsSubmitting(true)
-    const updateData = {
-      status: "Encerrada",
-      updatedAt: serverTimestamp()
-    }
-
+    const updateData = { status: "Encerrada", updatedAt: serverTimestamp() }
     updateDoc(ticketRef, updateData)
-      .then(() => {
-        toast({ title: "Ticket encerrado com sucesso!" })
-      })
+      .then(() => toast({ title: "Ticket encerrado!" }))
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: ticketRef.path,
-          operation: "update",
-          requestResourceData: updateData
-        })
-        errorEmitter.emit("permission-error", permissionError)
+        errorEmitter.emit("permission-error", new FirestorePermissionError({ path: ticketRef.path, operation: "update", requestResourceData: updateData }))
       })
       .finally(() => setIsSubmitting(false))
   }
 
   const handleSetInProgress = () => {
     if (!db || !ticketRef) return
-    
     setIsSubmitting(true)
-    const updateData = { 
-      status: "Em tratamento",
-      updatedAt: serverTimestamp()
-    }
-
+    const updateData = { status: "Em tratamento", updatedAt: serverTimestamp() }
     updateDoc(ticketRef, updateData)
-      .then(() => {
-        toast({ title: "Status atualizado para análise." })
-      })
+      .then(() => toast({ title: "Status atualizado." }))
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: ticketRef.path,
-          operation: "update",
-          requestResourceData: updateData
-        })
-        errorEmitter.emit("permission-error", permissionError)
+        errorEmitter.emit("permission-error", new FirestorePermissionError({ path: ticketRef.path, operation: "update", requestResourceData: updateData }))
       })
       .finally(() => setIsSubmitting(false))
   }
@@ -261,26 +215,14 @@ export default function AdminTicketResponsePage() {
           {ticket.status !== 'Encerrada' && (
              <>
                {ticket.status !== 'Em tratamento' && (
-                 <Button 
-                   variant="outline" 
-                   size="sm" 
-                   onClick={handleSetInProgress} 
-                   className="rounded-full font-bold text-xs"
-                   disabled={isSubmitting}
-                 >
+                 <Button variant="outline" size="sm" onClick={handleSetInProgress} className="rounded-full font-bold text-xs" disabled={isSubmitting}>
                    {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : null}
                    Mover para Análise
                  </Button>
                )}
-               
                <AlertDialog>
                  <AlertDialogTrigger asChild>
-                   <Button 
-                     variant="destructive" 
-                     size="sm" 
-                     className="rounded-full gap-2 font-bold text-xs"
-                     disabled={isSubmitting}
-                   >
+                   <Button variant="destructive" size="sm" className="rounded-full gap-2 font-bold text-xs" disabled={isSubmitting}>
                      {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
                      Encerrar Chamado
                    </Button>
@@ -288,18 +230,11 @@ export default function AdminTicketResponsePage() {
                  <AlertDialogContent className="rounded-[2rem]">
                    <AlertDialogHeader>
                      <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Encerrar este ticket?</AlertDialogTitle>
-                     <AlertDialogDescription>
-                       Esta ação é irreversível. O usuário não poderá mais enviar mensagens neste protocolo e o histórico será arquivado.
-                     </AlertDialogDescription>
+                     <AlertDialogDescription>Esta ação é irreversível.</AlertDialogDescription>
                    </AlertDialogHeader>
                    <AlertDialogFooter>
-                     <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] tracking-widest">Cancelar</AlertDialogCancel>
-                     <AlertDialogAction 
-                       onClick={handleCloseTicket}
-                       className="bg-destructive text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-destructive/90"
-                     >
-                       Confirmar Encerramento
-                     </AlertDialogAction>
+                     <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Cancelar</AlertDialogCancel>
+                     <AlertDialogAction onClick={handleCloseTicket} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px]">Confirmar Encerramento</AlertDialogAction>
                    </AlertDialogFooter>
                  </AlertDialogContent>
                </AlertDialog>
@@ -312,137 +247,82 @@ export default function AdminTicketResponsePage() {
         <CardHeader className="bg-muted/30 border-b p-8">
           <div className="flex justify-between items-start">
              <CardTitle className="text-2xl font-bold tracking-tight">{ticket.subject}</CardTitle>
-             <Badge className={cn(
-               "font-black uppercase text-[10px] px-3 py-1",
-               ticket.status === 'Não lida' ? "bg-orange-50 text-orange-600 border-orange-200" :
-               ticket.status === 'Respondida' ? "bg-green-500 text-white border-none" : "bg-muted"
-             )}>
+             <Badge className={cn("font-black uppercase text-[10px] px-3 py-1", ticket.status === 'Não lida' ? "bg-orange-50 text-orange-600" : "bg-green-500 text-white")}>
                {ticket.status}
              </Badge>
           </div>
-          <CardDescription className="font-medium">
-            Aberto em {ticket.createdAt?.toDate?.()?.toLocaleString('pt-BR')}
-          </CardDescription>
         </CardHeader>
         <CardContent className="p-8 space-y-10">
-          <div className="p-6 bg-muted/20 rounded-[1.5rem] border border-border/50">
+          <div className="p-6 bg-muted/20 rounded-[1.5rem] border">
             <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80">{ticket.description}</p>
             {ticket.attachments?.length > 0 && (
-              <div className="mt-6 pt-6 border-t border-dashed border-border/50 flex flex-wrap gap-2">
-                {ticket.attachments.map((url: string, i: number) => {
-                  console.log('ETAPA 8: Render (ADMIN) - Anexo inicial', { index: i, url });
-                  return (
-                    <a key={i} href={url} target="_blank" className="flex items-center gap-2 p-3 bg-white rounded-xl border border-border hover:border-secondary transition-colors text-[10px] font-black uppercase tracking-tighter">
-                      <Paperclip className="w-3.5 h-3.5 text-secondary" /> Ver Anexo #{i+1}
-                    </a>
-                  )
-                })}
+              <div className="mt-6 pt-6 border-t border-dashed flex flex-wrap gap-2">
+                {ticket.attachments.map((url: string, i: number) => (
+                  <a key={i} href={url} target="_blank" className="flex items-center gap-2 p-3 bg-white rounded-xl border text-[10px] font-black uppercase">
+                    <Paperclip className="w-3.5 h-3.5 text-secondary" /> Anexo #{i+1}
+                  </a>
+                ))}
               </div>
             )}
           </div>
 
           <div className="space-y-6">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-              <History className="w-4 h-4" /> Histórico de Interação
-            </h3>
-            
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2"><History className="w-4 h-4" /> Histórico</h3>
             <div className="space-y-6">
-              {ticket.messages?.length > 0 ? (
-                ticket.messages.map((msg: any, i: number) => (
-                  <div key={i} className={cn(
-                    "flex flex-col max-w-[85%] gap-2",
-                    msg.isAdmin ? "ml-auto items-end" : "mr-auto"
-                  )}>
-                    <div className={cn(
-                      "p-5 rounded-[1.5rem] text-sm shadow-sm",
-                      msg.isAdmin ? "bg-secondary text-white rounded-tr-none" : "bg-muted rounded-tl-none"
-                    )}>
-                      <div className="flex items-center gap-2 mb-2 opacity-70 text-[10px] font-black uppercase tracking-wider">
-                        {msg.isAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
-                        {msg.senderName}
-                      </div>
-                      <p className="leading-relaxed">{msg.text}</p>
-                      {msg.attachments?.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {msg.attachments.map((url: string, idx: number) => {
-                            console.log('ETAPA 8: Render (ADMIN) - Chat anexo', { i, idx, url });
-                            return (
-                              <a key={idx} href={url} target="_blank" className="flex items-center gap-1.5 p-2 bg-black/10 rounded-xl text-[9px] font-black uppercase border border-white/10 hover:bg-black/20 transition-all">
-                                <Paperclip className="w-3.5 h-3.5" /> Anexo
-                              </a>
-                            )
-                          })}
-                        </div>
-                      )}
+              {ticket.messages?.map((msg: any, i: number) => (
+                <div key={i} className={cn("flex flex-col max-w-[85%] gap-2", msg.isAdmin ? "ml-auto items-end" : "mr-auto")}>
+                  <div className={cn("p-5 rounded-[1.5rem] text-sm shadow-sm", msg.isAdmin ? "bg-secondary text-white rounded-tr-none" : "bg-muted rounded-tl-none")}>
+                    <div className="flex items-center gap-2 mb-2 opacity-70 text-[10px] font-black uppercase">
+                      {msg.isAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+                      {msg.senderName}
                     </div>
-                    <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-2">
-                      {new Date(msg.timestamp).toLocaleString('pt-BR')}
-                    </span>
+                    <p className="leading-relaxed">{msg.text}</p>
+                    {msg.attachments?.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {msg.attachments.map((url: string, idx: number) => (
+                          <a key={idx} href={url} target="_blank" className="flex items-center gap-1.5 p-2 bg-black/10 rounded-xl text-[9px] font-black uppercase border border-white/10 hover:bg-black/20">
+                            <Paperclip className="w-3.5 h-3.5" /> Anexo
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ))
-              ) : (
-                <div className="py-10 text-center border-2 border-dashed border-border rounded-2xl opacity-40">
-                  <p className="text-xs font-bold uppercase tracking-widest">Nenhuma resposta enviada ainda.</p>
                 </div>
-              )}
+              ))}
             </div>
           </div>
 
           {ticket.status !== 'Encerrada' && (
-            <form onSubmit={handleSendResponse} className="pt-8 border-t border-dashed border-border space-y-6">
+            <form onSubmit={handleSendResponse} className="pt-8 border-t border-dashed space-y-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Resposta Oficial do Suporte</Label>
-                <Textarea 
-                  placeholder="Digite a resposta que o usuário receberá..." 
-                  value={response}
-                  onChange={(e) => setResponse(e.target.value)}
-                  className="rounded-[1.5rem] min-h-[150px] border-secondary/20 focus-visible:ring-secondary/30"
-                />
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Resposta Oficial</Label>
+                <Textarea placeholder="Digite a resposta..." value={response} onChange={(e) => setResponse(e.target.value)} className="rounded-[1.5rem] min-h-[150px]" />
               </div>
-
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos de Resposta (Máx 3 de 5MB)</Label>
-                  <span className="text-[8px] font-bold uppercase opacity-40">{attachments.length}/{MAX_SUPPORT_FILES} arquivos</span>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Anexos ({attachments.length}/{MAX_SUPPORT_FILES})</Label>
                 </div>
-
                 <div className="flex flex-wrap gap-2">
                   {attachments.map((url, i) => (
                     <div key={i} className="relative w-16 h-16 rounded-xl bg-muted border overflow-hidden">
-                      {url.includes('.pdf') ? (
-                        <div className="flex items-center justify-center h-full text-secondary"><FileText className="w-8 h-8" /></div>
-                      ) : (
-                        <img src={url} className="w-full h-full object-cover" alt="Anexo" />
-                      )}
-                      <button type="button" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-destructive text-white p-1 rounded-bl-xl">
-                        <X className="w-3 h-3" />
-                      </button>
+                      {url.includes('.pdf') ? <FileText className="m-auto w-8 h-8 text-secondary" /> : <img src={url} className="w-full h-full object-cover" />}
+                      <button type="button" onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-destructive text-white p-1"><X className="w-3 h-3" /></button>
                     </div>
                   ))}
                   {attachments.length < MAX_SUPPORT_FILES && (
-                    <label className="flex items-center gap-2 px-4 py-2 bg-muted rounded-xl cursor-pointer hover:bg-muted/80 transition-colors text-[9px] font-black uppercase">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-muted rounded-xl cursor-pointer hover:bg-muted/80 text-[9px] font-black uppercase">
                       <Paperclip className="w-3.5 h-3.5 text-secondary" /> Incluir Arquivo
-                      <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} disabled={uploadProgress !== null} />
+                      <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileUpload} />
                     </label>
                   )}
                 </div>
-
-                {uploadProgress !== null && <div className="space-y-1"><Progress value={uploadProgress} className="h-1" /><p className="text-[8px] font-black uppercase text-secondary">Enviando: {Math.round(uploadProgress)}%</p></div>}
+                {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
               </div>
-
-              <Button type="submit" disabled={isSubmitting || (response.trim() === "" && attachments.length === 0) || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl shadow-secondary/20 uppercase italic text-lg">
+              <Button type="submit" disabled={isSubmitting || (response.trim() === "" && attachments.length === 0) || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Send className="w-5 h-5 mr-2" />}
-                Enviar Resposta ao Usuário
+                Enviar Resposta
               </Button>
             </form>
-          )}
-
-          {ticket.status === 'Encerrada' && (
-             <div className="p-10 text-center bg-muted/30 rounded-[2rem] border-2 border-dashed border-border/50">
-                <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-4 opacity-50" />
-                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Ticket Encerrado com Sucesso.</p>
-                <p className="text-[10px] font-bold text-muted-foreground/60 mt-1 uppercase">O histórico está arquivado para consultas futuras.</p>
-             </div>
           )}
         </CardContent>
       </Card>
