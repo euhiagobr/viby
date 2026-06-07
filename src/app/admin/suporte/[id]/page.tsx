@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -22,7 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/dialog"
 import { 
   ArrowLeft, 
   Loader2, 
@@ -42,7 +41,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
-import { sendSupportTicketResponseEmail } from "@/app/actions/email"
+import { sendSupportTicketResponseEmail, sendSupportTicketClosedEmail } from "@/app/actions/email"
 
 const MAX_SUPPORT_FILES = 3;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -166,11 +165,38 @@ export default function AdminTicketResponsePage() {
   }
 
   const handleCloseTicket = async () => {
-    if (!db || !ticketRef) return
+    if (!db || !ticketRef || !ticket) return
     setIsSubmitting(true)
     const updateData = { status: "Encerrada", updatedAt: serverTimestamp() }
+    
     updateDoc(ticketRef, updateData)
-      .then(() => toast({ title: "Ticket encerrado!" }))
+      .then(async () => {
+        // Formatar histórico para o e-mail
+        if (ticket.userEmail) {
+          const historyHtml = `
+            <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px;">
+              <p style="margin: 0; font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 800;">Descrição Inicial:</p>
+              <p style="margin: 5px 0 0 0; font-size: 14px; color: #1e293b;">${ticket.description}</p>
+            </div>
+            ${(ticket.messages || []).map((msg: any) => `
+              <div style="margin-bottom: 15px; padding: 12px; border-radius: 12px; background-color: ${msg.isAdmin ? '#f1f5f9' : '#ffffff'}; border: 1px solid #e2e8f0;">
+                <p style="margin: 0; font-size: 10px; font-weight: 900; text-transform: uppercase; color: ${msg.isAdmin ? '#2C52EE' : '#64748b'};">${msg.senderName}</p>
+                <p style="margin: 4px 0 0 0; font-size: 13px;">${msg.text}</p>
+                <p style="margin: 8px 0 0 0; font-size: 9px; color: #94a3b8;">${new Date(msg.timestamp).toLocaleString('pt-BR')}</p>
+              </div>
+            `).join('')}
+          `;
+
+          await sendSupportTicketClosedEmail({
+            to: ticket.userEmail,
+            userName: ticket.userName || "Usuário",
+            ticketNumber: ticket.protocol,
+            historyHtml
+          });
+        }
+        
+        toast({ title: "Ticket encerrado!" })
+      })
       .catch(async (error) => {
         errorEmitter.emit("permission-error", new FirestorePermissionError({ path: ticketRef.path, operation: "update", requestResourceData: updateData }))
       })

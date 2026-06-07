@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -451,6 +450,57 @@ export async function sendSupportTicketResponseEmail(data: {
       subject,
       content: htmlContent,
       type: "support_ticket_response",
+      sender: "Viby Suporte"
+    });
+
+    return { success: true };
+  } catch (e: any) { return { success: false, error: e.message }; }
+}
+
+export async function sendSupportTicketClosedEmail(data: {
+  to: string;
+  userName: string;
+  ticketNumber: string;
+  historyHtml: string;
+}) {
+  try {
+    const branding = await getBranding();
+    const transporter = await getTransporter();
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
+
+    const content = `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 48px;">✅</span>
+      </div>
+      <h2 style="color: #10b981; text-transform: uppercase; font-weight: 900;">Solicitação Encerrada</h2>
+      <p>Olá, <strong>${data.userName}</strong>. Sua solicitação <strong>#${data.ticketNumber}</strong> foi encerrada por nossa equipe.</p>
+      <p style="color: #64748b; font-size: 13px;">Abaixo segue o histórico completo da conversa para sua referência:</p>
+      
+      <div style="background: #f8fafc; padding: 25px; border-radius: 20px; margin: 25px 0; border: 1px solid #e2e8f0; text-align: left; max-height: 400px; overflow-y: auto;">
+        ${data.historyHtml}
+      </div>
+      
+      <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 20px;">Caso precise de mais ajuda, você pode abrir um novo chamado em nosso portal.</p>
+    `;
+
+    const htmlContent = getEmailTemplate(branding, content);
+    const subject = `Sua solicitação foi encerrada (#${data.ticketNumber})`;
+
+    await transporter.sendMail({
+      from: `"${branding.siteName} Suporte" <${smtpUser}>`,
+      to: data.to,
+      subject,
+      html: htmlContent
+    });
+
+    await logSentEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject,
+      content: htmlContent,
+      type: "support_ticket_closed",
       sender: "Viby Suporte"
     });
 
