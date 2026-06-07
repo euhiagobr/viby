@@ -150,8 +150,8 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Pequena pausa para garantir que o layout off-screen atualize o formato
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Pequena pausa para garantir que o navegador processou as mudanças de dimensão e CSS do nó invisível
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
     try {
       const config = FORMAT_CONFIGS[format];
@@ -162,7 +162,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         backgroundColor: '#ffffff',
         width: config.width,
         height: config.height,
-        pixelRatio: 2, // Melhor qualidade no mobile
+        pixelRatio: 2,
         style: {
           visibility: 'visible',
           opacity: '1'
@@ -171,26 +171,31 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
 
       const dataUrl = await toPng(node, exportOptions);
 
-      if (!dataUrl || dataUrl.length < 1000) {
-        throw new Error("Falha na geração dos pixels da imagem.");
+      if (!dataUrl || dataUrl.length < 5000) {
+        throw new Error("A imagem gerada parece estar corrompida ou vazia.");
       }
 
-      // No mobile, alguns navegadores bloqueiam o download via <a> dinâmico se houver muito atraso.
-      // Tentamos o método tradicional primeiro.
+      // Sistema de download resiliente para Mobile/Safari
+      const blob = await (await fetch(dataUrl)).blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
       const link = document.createElement('a');
       link.download = `viby-${data.username}-${format}.png`;
-      link.href = dataUrl;
+      link.href = blobUrl;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      toast({ title: "Arte gerada!", description: `Download do formato ${format} iniciado.` });
-    } catch (err) {
+      // Limpeza imediata para liberar memória
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+      
+      toast({ title: "Pronto!", description: "Sua arte foi gerada e o download iniciado." });
+    } catch (err: any) {
       console.error("[Download Error]", err);
       toast({ 
         variant: "destructive", 
-        title: "Falha na exportação", 
-        description: "Tente novamente ou use o botão 'Compartilhar Link'." 
+        title: "Erro na geração", 
+        description: "Não foi possível converter a arte. Tente mudar o tema ou use o botão 'Compartilhar Link'." 
       });
     } finally {
       setIsGenerating(false);
@@ -232,7 +237,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         <div style={{ 
           width: `${size}px`, 
           height: `${size}px`, 
-          borderRadius: '24%', // Estilo Viby
+          borderRadius: '24%', 
           overflow: 'hidden', 
           backgroundColor: isDark ? '#ffffff' : '#f1f5f9',
           border: `6px solid ${theme === 'premium' ? '#D4AF37' : '#ffffff'}`,
@@ -368,38 +373,37 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] max-h-[900px]">
         
-        {/* Área de Preview */}
+        {/* Renderizador Invisível mas Ativo (Força o motor CSS a processar dimensões reais) */}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, overflow: 'hidden', visibility: 'hidden', pointerEvents: 'none' }}>
+          <div ref={renderRef} style={{ width: 'fit-content', height: 'fit-content' }}>
+              {renderFullArte(currentFormat, selectedTheme)}
+          </div>
+        </div>
+
+        {/* Área de Preview Visual */}
         <div className="flex-1 p-6 md:p-10 bg-[#e2e8f0] flex flex-col items-center justify-center relative overflow-hidden order-1 md:order-2">
           {isGenerating && (
             <div className="absolute inset-0 z-[60] bg-primary/20 backdrop-blur-[2px] flex flex-col items-center justify-center">
                <div className="p-8 bg-white rounded-3xl shadow-2xl flex flex-col items-center gap-4">
                   <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-primary text-center">Renderizando...</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary text-center">Codificando pixels...</p>
                </div>
             </div>
           )}
 
-          {/* Renderizador Invisível mas Ativo (Top 0 para layout correto) */}
-          <div style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
-            <div ref={renderRef} style={{ width: 'fit-content', height: 'fit-content' }}>
-               {renderFullArte(currentFormat, selectedTheme)}
-            </div>
-          </div>
-
-          {/* Prévia Visual */}
-          <div className="scale-[0.18] sm:scale-[0.22] md:scale-[0.28] lg:scale-[0.32] origin-center shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white ring-[20px] md:ring-[30px] ring-white shrink-0 rounded-sm transition-transform">
+          <div className="scale-[0.16] sm:scale-[0.18] md:scale-[0.24] lg:scale-[0.28] origin-center shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white ring-[20px] md:ring-[30px] ring-white shrink-0 rounded-sm transition-transform">
              {renderFullArte('stories', selectedTheme)}
           </div>
           
           <div className="mt-8 md:mt-12 flex flex-col items-center gap-4">
              <div className="flex items-center gap-3 px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full border shadow-xl">
                 <Monitor className="w-4 h-4 text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Arte de Alta Resolução</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Preview Inteligente</p>
              </div>
           </div>
         </div>
 
-        {/* Painel Lateral */}
+        {/* Painel de Controles */}
         <div className="w-full md:w-96 flex flex-col bg-white border-r shrink-0 order-2 md:order-1 max-h-[50vh] md:max-h-full shadow-2xl">
           <div className="p-6 md:p-8 border-b bg-muted/10">
              <DialogHeader>
@@ -416,12 +420,12 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                 {!isAssetsLoaded && (
                   <div className="p-6 bg-secondary/5 rounded-2xl border border-dashed border-secondary/20 flex flex-col items-center gap-4 text-center">
                      <Loader2 className="w-6 h-6 animate-spin text-secondary" />
-                     <p className="text-[10px] font-black uppercase text-secondary">Preparando Materiais...</p>
+                     <p className="text-[10px] font-black uppercase text-secondary">Aguardando Assets...</p>
                   </div>
                 )}
 
                 <div className="space-y-4">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Visual / Tema</p>
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Estilos de Arte</p>
                    <div className="grid grid-cols-2 gap-2">
                       {THEMES.map((t) => (
                         <button 
@@ -443,7 +447,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                 <Separator className="border-dashed" />
 
                 <div className="space-y-4">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Redes Sociais</p>
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Gerar para Social</p>
                    <div className="grid grid-cols-1 gap-2">
                       <Button onClick={() => handleDownload('stories')} disabled={isGenerating || !isAssetsLoaded} className="h-16 rounded-2xl bg-secondary text-white font-black uppercase italic shadow-xl shadow-secondary/20 gap-3 group">
                          <Smartphone className="w-6 h-6 group-hover:scale-110 transition-transform" />
@@ -459,7 +463,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
                 </div>
 
                 <div className="space-y-3 pb-8">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Impressão (PDF/PNG)</p>
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Materiais Impressos</p>
                    <div className="grid grid-cols-3 gap-2">
                       {(['A4', 'A5', 'A6'] as Format[]).map(f => (
                         <button key={f} onClick={() => handleDownload(f)} disabled={isGenerating || !isAssetsLoaded} className="h-12 rounded-xl text-[10px] font-black uppercase border-2 border-dashed border-border hover:border-secondary transition-all disabled:opacity-30">
