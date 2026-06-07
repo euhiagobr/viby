@@ -14,15 +14,18 @@ import {
   Globe, 
   MessageCircle,
   Search,
-  ChevronRight
+  ChevronRight,
+  Building2,
+  Zap,
+  Info
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Accordion,
-  AccordionContent,
   AccordionItem,
   AccordionTrigger,
+  AccordionContent,
 } from "@/components/ui/accordion"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
@@ -30,44 +33,107 @@ import { useTranslation } from "@/i18n/i18n-context"
 
 const FAQ_DATA_PT = [
   {
-    category: "Conta e Perfil",
-    categoryKey: "account",
-    icon: User,
+    category: "Sobre a Viby",
+    categoryKey: "platform",
+    icon: Globe,
     items: [
-      { q: "Como alterar meu nome de usuário?", a: "Atualmente não é possível alterar o nome de usuário após a criação da conta." },
-      { q: "Como editar meu perfil?", a: "Acesse seu perfil e clique em “Editar perfil” para alterar foto, bio e outras informações públicas." },
-      { q: "Meu perfil é público?", a: "Sim. Algumas informações do perfil são públicas para facilitar conexões e descoberta de eventos." }
+      { q: "O que é a Viby?", a: "A Viby é uma plataforma de divulgação de eventos, venda de ingressos e gestão de participantes. Organizadores podem criar eventos gratuitos ou pagos, vender ingressos online e realizar check-in dos participantes." },
+      { q: "Quem pode criar eventos na Viby?", a: "Qualquer pessoa física, empresa, ONG, coletivo, artista, produtor ou instituição pode criar eventos na plataforma." },
+      { q: "Preciso ter CNPJ para vender ingressos?", a: "Não. A Viby permite que pessoas físicas e jurídicas recebam pagamentos pelos seus eventos." }
     ]
   },
   {
-    category: "Ingressos",
+    category: "Criação de Eventos",
+    categoryKey: "events",
+    icon: Calendar,
+    items: [
+      { q: "Como criar um evento?", a: "Após criar sua conta, basta acessar o painel da plataforma, cadastrar sua organização e criar seu evento informando descrição, localização, datas, ingressos e demais informações." },
+      { q: "Posso criar eventos gratuitos?", a: "Sim. Eventos gratuitos podem ser publicados sem cobrança de taxas pela plataforma." },
+      { q: "Posso vender ingressos pagos?", a: "Sim. A Viby permite a venda de ingressos pagos com processamento seguro através da Stripe." }
+    ]
+  },
+  {
+    category: "Pagamentos e Taxas",
+    categoryKey: "payments",
+    icon: CreditCard,
+    items: [
+      { q: "Como recebo o dinheiro das vendas?", a: "Os pagamentos são processados através da Stripe Connect. Após a venda, os valores são repassados diretamente para a conta cadastrada pelo organizador, conforme os prazos e regras da Stripe." },
+      { q: "Preciso verificar minha conta para receber pagamentos?", a: "Sim. Algumas funcionalidades de recebimento dependem da conclusão da verificação da conta junto à Stripe." },
+      { q: "Existem taxas na Viby?", a: "Eventos gratuitos não possuem taxas. Para eventos pagos, podem ser aplicadas taxas de serviço ao comprador e comissões ao organizador, conforme as configurações do evento e da plataforma." },
+      { q: "O que é a taxa de serviço?", a: "A taxa de serviço cobre custos relacionados ao processamento de pagamentos, emissão dos ingressos digitais, infraestrutura da plataforma, suporte e segurança das transações." },
+      { q: "O que é a comissão da Viby?", a: "A comissão da Viby remunera os serviços da plataforma, incluindo divulgação, tecnologia, venda de ingressos, gestão do evento e suporte operacional." },
+      { q: "Existem taxas personalizadas?", a: "Sim. Dependendo do evento, organizador, campanha comercial ou condições específicas, taxas personalizadas podem ser aplicadas." }
+    ]
+  },
+  {
+    category: "Ingressos e Acesso",
     categoryKey: "tickets",
     icon: Ticket,
     items: [
-      { q: "Como cancelar um ingresso?", a: "Entre na sua página de ingressos e solicite o cancelamento conforme as regras definidas pelo organizador." },
-      { q: "Onde encontro meus ingressos?", a: "Todos os ingressos ficam disponíveis na área “Meus ingressos”." }
+      { q: "Como recebo meus ingressos?", a: "Após a confirmação do pagamento, os ingressos ficam disponíveis na sua conta dentro da plataforma." },
+      { q: "O ingresso possui QR Code?", a: "Sim. Todos os ingressos possuem QR Code exclusivo para validação." },
+      { q: "Posso apresentar o ingresso pelo celular?", a: "Sim. Não é necessário imprimir o ingresso." },
+      { q: "O QR Code pode ser utilizado mais de uma vez?", a: "Não. Cada ingresso possui identificação única e controle de validação." },
+      { q: "Como funciona o check-in?", a: "O organizador pode realizar o check-in de três formas: Leitura do QR Code, Busca manual do participante ou Código exclusivo de 16 caracteres." },
+      { q: "Posso cancelar um ingresso?", a: "Sim. O organizador pode cancelar ingressos conforme as regras definidas para o evento." },
+      { q: "Como funcionam os reembolsos?", a: "Quando aplicável, os reembolsos são processados através da Stripe de acordo com as políticas do evento e do organizador." },
+      { q: "Posso transferir meu ingresso para outra pessoa?", a: "Sim. A transferência pode ser realizada informando os dados necessários do novo participante, incluindo CPF." },
+      { q: "Preciso criar uma conta para comprar ingressos?", a: "Sim. Atualmente é necessário possuir uma conta na Viby para realizar compras e acessar seus ingressos." }
+    ]
+  },
+  {
+    category: "Segurança e Suporte",
+    categoryKey: "security",
+    icon: ShieldCheck,
+    items: [
+      { q: "Meus dados estão seguros?", a: "Sim. A Viby utiliza tecnologias de segurança e provedores especializados para proteger informações e processar pagamentos." },
+      { q: "Posso seguir organizações e acompanhar eventos?", a: "Sim. Você pode seguir organizações e acompanhar seus eventos publicados na plataforma." },
+      { q: "Como entro em contato com o suporte?", a: "O suporte oficial da Viby está disponível diretamente pelo painel da plataforma no menu Suporte." },
+      { q: "Não encontrei minha dúvida. O que faço?", a: "Entre em contato pelo suporte da plataforma e nossa equipe irá ajudar você." }
     ]
   }
 ]
 
 const FAQ_DATA_EN = [
   {
-    category: "Account and Profile",
-    categoryKey: "account",
-    icon: User,
+    category: "About Viby",
+    categoryKey: "platform",
+    icon: Globe,
     items: [
-      { q: "How to change my username?", a: "Currently, it is not possible to change the username after account creation." },
-      { q: "How to edit my profile?", a: "Go to your profile and click on “Edit profile” to change your photo, bio, and other public information." },
-      { q: "Is my profile public?", a: "Yes. Some profile information is public to facilitate connections and event discovery." }
+      { q: "What is Viby?", a: "Viby is an event promotion, ticket sales, and attendee management platform. Organizers can create free or paid events, sell tickets online, and perform check-ins." },
+      { q: "Who can create events on Viby?", a: "Any individual, company, NGO, collective, artist, producer, or institution can create events on the platform." },
+      { q: "Do I need a Business ID to sell tickets?", a: "No. Viby allows both individuals and companies to receive payments for their events." }
     ]
   },
   {
-    category: "Tickets",
+    category: "Event Creation",
+    categoryKey: "events",
+    icon: Calendar,
+    items: [
+      { q: "How to create an event?", a: "After creating your account, just access the platform panel, register your organization, and create your event with description, location, dates, and tickets." },
+      { q: "Can I create free events?", a: "Yes. Free events can be published without platform fees." },
+      { q: "Can I sell paid tickets?", a: "Yes. Viby allows paid ticket sales with secure processing through Stripe." }
+    ]
+  },
+  {
+    category: "Payments and Fees",
+    categoryKey: "payments",
+    icon: CreditCard,
+    items: [
+      { q: "How do I receive the money from sales?", a: "Payments are processed through Stripe Connect. After the sale, values are transferred directly to the account registered by the organizer." },
+      { q: "Do I need to verify my account to receive payments?", a: "Yes. Some payout features depend on completing account verification with Stripe." },
+      { q: "Are there fees on Viby?", a: "Free events have no fees. For paid events, service fees to the buyer and commissions to the organizer may apply." },
+      { q: "What is the service fee?", a: "The service fee covers costs related to payment processing, digital ticket issuance, platform infrastructure, support, and security." }
+    ]
+  },
+  {
+    category: "Tickets and Access",
     categoryKey: "tickets",
     icon: Ticket,
     items: [
-      { q: "How to cancel a ticket?", a: "Go to your tickets page and request cancellation according to the rules defined by the organizer." },
-      { q: "Where do I find my tickets?", a: "All tickets are available in the “My Tickets” area." }
+      { q: "How do I receive my tickets?", a: "After payment confirmation, tickets become available in your account within the platform." },
+      { q: "Does the ticket have a QR Code?", a: "Yes. All tickets have a unique QR Code for validation." },
+      { q: "Can I show the ticket on my phone?", a: "Yes. There is no need to print the ticket." }
     ]
   }
 ]
