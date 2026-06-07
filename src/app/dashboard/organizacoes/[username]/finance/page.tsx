@@ -36,7 +36,8 @@ import {
   Inbox,
   CreditCard,
   Percent,
-  Scale
+  Scale,
+  Calculator
 } from 'lucide-react';
 import { formatCurrency, VIBY_BUYER_MARKUP, VIBY_ORGANIZER_FEE, VIBY_MIN_FEE_BRL } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -56,6 +57,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
+import { RevenueSimulator } from '@/components/finance/RevenueSimulator';
 
 function OrganizationFinanceContent() {
   const { currentOrg, userRole, refreshOrg, loading: orgLoading } = useCurrentOrganization();
@@ -77,10 +79,10 @@ function OrganizationFinanceContent() {
   const [isTopUpLoading, setIsTopUpLoading] = React.useState(false);
   const [salesSearch, setSalesSearch] = React.useState("");
   const [isProcessingSession, setIsProcessingSession] = React.useState(false);
+  const [isSimulatorOpen, setIsSimulatorOpen] = React.useState(false);
 
   const sessionId = searchParams.get('session_id');
 
-  // Inicializa o valor com o mínimo configurado quando os dados carregarem
   React.useEffect(() => {
     if (adsSettings?.minRechargeValue) {
       setTopUpAmount(adsSettings.minRechargeValue.toFixed(2));
@@ -303,13 +305,50 @@ function OrganizationFinanceContent() {
       </div>
 
       <div className="space-y-6">
-         <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2 flex items-center gap-2">
-           <Scale className="w-4 h-4" /> Suas Condições Comerciais
-         </h3>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FeeCard label="Comissão Viby" value={`${currentCommission}%`} desc="Desconto do repasse." icon={TrendingUp} />
-            <FeeCard label="Valor Mínimo" value={formatCurrency(currentMinFee)} desc="Por ingresso vendido." icon={Coins} />
+         <div className="flex items-center justify-between px-2">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+              <Scale className="w-4 h-4" /> Modelo de Ganhos
+            </h3>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsSimulatorOpen(true)}
+              className="h-8 rounded-xl font-black uppercase text-[9px] gap-2 border-secondary text-secondary hover:bg-secondary/5"
+            >
+               <Calculator className="w-3 h-3" /> Simular Repasse
+            </Button>
          </div>
+         <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
+            <CardContent className="p-8 flex flex-col md:flex-row items-center justify-center gap-8 md:gap-20">
+               <div className="flex items-center gap-4">
+                  <div className="p-3 bg-secondary/10 rounded-2xl text-secondary">
+                     <Percent className="w-6 h-6" />
+                  </div>
+                  <div>
+                     <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest leading-none mb-1">Comissão Viby</p>
+                     <p className="text-2xl font-black text-primary italic uppercase tracking-tighter">{currentCommission}%</p>
+                  </div>
+               </div>
+
+               <div className="text-xs font-black uppercase italic text-muted-foreground opacity-30">OU</div>
+
+               <div className="flex items-center gap-4">
+                  <div className="p-3 bg-secondary/10 rounded-2xl text-secondary">
+                     <Coins className="w-6 h-6" />
+                  </div>
+                  <div>
+                     <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest leading-none mb-1">Valor Mínimo</p>
+                     <p className="text-2xl font-black text-primary italic uppercase tracking-tighter">{formatCurrency(currentMinFee)}</p>
+                  </div>
+               </div>
+
+               <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex-1 max-w-xs">
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase leading-relaxed text-center">
+                    A plataforma aplica o <strong>maior valor</strong> entre os dois critérios para processar o repasse.
+                  </p>
+               </div>
+            </CardContent>
+         </Card>
       </div>
 
       <Tabs defaultValue="vendas" className="space-y-8">
@@ -467,23 +506,18 @@ function OrganizationFinanceContent() {
            </Card>
         </TabsContent>
       </Tabs>
+
+      <RevenueSimulator 
+        isOpen={isSimulatorOpen} 
+        onOpenChange={setIsSimulatorOpen} 
+        customFees={{
+          customBuyerMarkup: currentOrg?.customBuyerMarkup,
+          customOrganizerPercent: currentOrg?.customOrganizerPercent,
+          customOrganizerMinFee: currentOrg?.customOrganizerMinFee
+        }}
+      />
     </div>
   );
-}
-
-function FeeCard({ label, value, desc, icon: Icon }: { label: string, value: string, desc: string, icon: any }) {
-   return (
-      <Card className="border-none shadow-sm rounded-3xl bg-white p-6 flex items-center gap-4 transition-all hover:shadow-md border-t-4 border-secondary/20">
-         <div className="p-3 bg-muted rounded-2xl text-secondary">
-            <Icon className="w-5 h-5" />
-         </div>
-         <div className="min-w-0">
-            <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest leading-none mb-1">{label}</p>
-            <p className="text-xl font-black text-primary italic uppercase tracking-tighter">{value}</p>
-            <p className="text-[8px] font-bold text-muted-foreground uppercase mt-0.5">{desc}</p>
-         </div>
-      </Card>
-   )
 }
 
 export default function OrganizationFinancePage() {
