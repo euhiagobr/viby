@@ -38,12 +38,11 @@ import {
   Coins
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
+import { cn, validateCPF } from "@/lib/utils"
 import Link from "next/link"
 import { getUserCPF, updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
 import { IMAGE_CACHE_METADATA } from "@/lib/image-utils"
-import { CurrencyCode } from "@/contexts/CurrencyContext"
 
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 
@@ -79,27 +78,20 @@ export default function EditarPerfilPage() {
     email: "",
     cpf: "",
     preferredCurrency: "BRL",
-    showEmail: true,
-    privacy: {
-       profilePrivate: false,
-       hideFollowers: false,
-       hideStats: false,
-       hideGamification: false,
-       hideLocation: false
-    }
+    showEmail: true
   })
   
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [isFetchingCPF, setIsFetchingCPF] = useState(false)
-  const [hasOriginalCPF, setHasOriginalCPF] = useState(false)
+  const [hasValidCPF, setHasValidCPF] = useState(false)
 
   useEffect(() => {
     if (profile && user && !isInitialized.current) {
       isInitialized.current = true
       
-      const dbCpf = profile.cpf || "";
-      const cpfIsMissing = !dbCpf || dbCpf === "PENDENTE";
+      const currentMask = profile.cpfMasked || profile.cpf || "";
+      const isMissing = !profile.cpfHash || currentMask === "***.***.***-**";
 
       setFormData((prev: any) => ({
         ...prev,
@@ -116,34 +108,13 @@ export default function EditarPerfilPage() {
         instagram: profile.instagram || "",
         whatsapp: profile.whatsapp || "",
         email: profile.email || "",
-        cpf: dbCpf,
+        cpf: currentMask,
         preferredCurrency: profile.preferredCurrency || "BRL",
-        showEmail: profile.showEmail !== undefined ? profile.showEmail : true,
-        privacy: profile.privacy || {
-           profilePrivate: false,
-           hideFollowers: false,
-           hideStats: false,
-           hideGamification: false,
-           hideLocation: false
-        }
+        showEmail: profile.showEmail !== undefined ? profile.showEmail : true
       }));
 
-      if (cpfIsMissing) {
-        setIsFetchingCPF(true);
-        getUserCPF(user.uid, user.uid).then(res => {
-          if (res.success && res.cpf) {
-            setFormData((prev: any) => ({ ...prev, cpf: maskCPF(res.cpf!) }));
-            setHasOriginalCPF(true);
-          } else {
-            setFormData((prev: any) => ({ ...prev, cpf: "" }));
-            setHasOriginalCPF(false);
-          }
-        }).catch(() => {
-          setFormData((prev: any) => ({ ...prev, cpf: "" }));
-          setHasOriginalCPF(false);
-        }).finally(() => setIsFetchingCPF(false));
-      } else {
-        setHasOriginalCPF(true);
+      if (!isMissing) {
+        setHasValidCPF(true);
       }
     }
   }, [profile, user])
@@ -158,10 +129,7 @@ export default function EditarPerfilPage() {
       const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        (error) => { 
-          setUploadProgress(null); 
-          toast({ variant: "destructive", title: "Erro no upload", description: "Verifique o formato da imagem." }); 
-        },
+        () => setUploadProgress(null),
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setFormData((prev: any) => ({ ...prev, avatar: downloadURL }))
@@ -172,17 +140,9 @@ export default function EditarPerfilPage() {
     } catch (err) { setUploadProgress(null) }
   }
 
-  const handleRemovePhoto = () => {
-    setFormData((prev: any) => ({ ...prev, avatar: DEFAULT_PROFILE_IMAGE }));
-    toast({ title: "Foto removida", description: "A imagem padrão foi restaurada." });
-  }
-
-  const formatCPF = (v: string) => {
+  const formatCPFInput = (v: string) => {
     v = v.replace(/\D/g, "");
     if (v.length > 11) v = v.slice(0, 11);
-    if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
-    if (v.length > 3) return v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
     return v;
   }
 
@@ -191,53 +151,43 @@ export default function EditarPerfilPage() {
     if (!db || !user || !profile) return
 
     setSaving(true)
-    
     try {
       const userRef = doc(db, "users", user.uid)
       const { cpf, username, email, uid, ...safeData } = formData; 
 
-      const updateData: any = {
+      if (!hasValidCPF) {
+        const clean = cpf.replace(/\D/g, "");
+        if (!validateCPF(clean)) throw new Error("CPF inválido.");
+        const cpfRes = await updateUserCPF(user.uid, clean);
+        if (!cpfRes.success) throw new Error(cpfRes.error);
+      }
+
+      await updateDoc(userRef, {
         ...safeData,
         updatedAt: serverTimestamp()
-      }
-
-      if (formData.avatar !== profile.avatar) {
-        updateData.imageVersion = increment(1);
-      }
-
-      if (!hasOriginalCPF && cpf && cpf.length >= 11 && !cpf.includes('*')) {
-        const cleanCPF = cpf.replace(/\D/g, "");
-        await updateUserCPF(user.uid, cleanCPF);
-        updateData.cpf = maskCPF(cleanCPF);
-      }
-
-      await updateDoc(userRef, updateData)
+      })
       toast({ title: "Perfil atualizado!" })
       router.push("/dashboard/perfil")
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro ao salvar", description: "Verifique os dados informados." })
+      toast({ variant: "destructive", title: "Erro ao salvar", description: e.message })
     } finally {
       setSaving(false)
     }
   }
 
-  if (profileLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
-
-  const isCPFReadOnly = isFetchingCPF || hasOriginalCPF;
-  const isUsingDefault = formData.avatar === DEFAULT_PROFILE_IMAGE;
+  const cpfIsReadOnly = hasValidCPF;
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-20">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/perfil"><ArrowLeft className="w-5 h-5" /></Link></Button>
-        <h1 className="text-3xl font-bold tracking-tight text-primary">Editar Perfil Pessoal</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-primary">Editar Perfil</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="bg-muted/30 pb-8">
-            <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Identidade Visual</CardTitle>
-            <CardDescription className="font-medium">Sua imagem na comunidade Viby.</CardDescription>
+            <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Identidade</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6 pt-8">
             <div className="flex flex-col items-center gap-6 py-4">
@@ -246,111 +196,42 @@ export default function EditarPerfilPage() {
                   <AvatarImage src={formData.avatar} alt={formData.name} className="object-cover" />
                   <AvatarFallback className="text-4xl font-black bg-muted">{formData.name?.charAt(0)}</AvatarFallback>
                 </Avatar>
-                
-                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 text-white rounded-[3rem] opacity-0 group-hover:opacity-100 transition-opacity shadow-inner">
-                   <label htmlFor="avatar-upload" className="p-3 bg-white/20 rounded-full hover:bg-white/40 cursor-pointer transition-colors">
-                      <Camera className="w-6 h-6" />
-                   </label>
-                   {!isUsingDefault && (
-                     <button 
-                       type="button"
-                       onClick={handleRemovePhoto}
-                       className="p-3 bg-destructive/60 rounded-full hover:bg-destructive transition-colors"
-                       title="Remover Foto"
-                     >
-                        <Trash2 className="w-6 h-6" />
-                     </button>
-                   )}
-                </div>
+                <label htmlFor="avatar-upload" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-[3rem] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  <Camera className="w-8 h-8" />
+                </label>
                 <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
               </div>
-              {uploadProgress !== null && <div className="w-full max-w-xs space-y-2"><Progress value={uploadProgress} className="h-1.5" /><p className="text-[9px] text-center text-muted-foreground font-black uppercase tracking-widest">Carregando: {Math.round(uploadProgress)}%</p></div>}
+              {uploadProgress !== null && <div className="w-full max-w-xs space-y-2"><Progress value={uploadProgress} className="h-1" /><p className="text-[9px] text-center font-black uppercase">Subindo: {Math.round(uploadProgress)}%</p></div>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Nome Completo</Label><Input value={formData.name} onChange={(e) => setFormData((prev:any) => ({...prev, name: e.target.value}))} required className="rounded-xl h-11" /></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label><Input value={formData.name} onChange={(e) => setFormData((prev:any) => ({...prev, name: e.target.value}))} required className="rounded-xl h-11" /></div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</Label>
+                <Label className="text-[10px] font-black uppercase opacity-60">CPF (Identidade Protegida)</Label>
                 <div className="relative">
-                  <Input value={formData.username} readOnly className="bg-muted/50 cursor-not-allowed pr-10 font-bold rounded-xl h-11" />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2"><Lock className="w-4 h-4 text-muted-foreground opacity-50" /></div>
+                  <Input 
+                    value={formData.cpf} 
+                    onChange={e => !cpfIsReadOnly && setFormData({...formData, cpf: formatCPFInput(e.target.value)})}
+                    readOnly={cpfIsReadOnly}
+                    placeholder="000.000.000-00"
+                    className={cn("rounded-xl h-11 font-mono font-bold pr-10", cpfIsReadOnly ? "bg-muted/50 cursor-not-allowed" : "border-dashed border-secondary/30")} 
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {cpfIsReadOnly ? <Lock className="w-4 h-4 text-muted-foreground opacity-50" /> : <ShieldCheck className="w-4 h-4 text-secondary" />}
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Preferência de Moeda</Label>
-                <Select value={formData.preferredCurrency} onValueChange={(val) => setFormData((prev:any) => ({...prev, preferredCurrency: val}))}>
-                  <SelectTrigger className="rounded-xl h-11">
-                    <div className="flex items-center gap-2">
-                      <Coins className="w-4 h-4 text-secondary" />
-                      <SelectValue />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="BRL">Real Brasileiro (R$)</SelectItem>
-                    <SelectItem value="USD">US Dollar ($)</SelectItem>
-                    <SelectItem value="EUR">Euro (€)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Sexo / Gênero</Label>
-                <Select key={formData.gender || 'loading'} value={formData.gender} onValueChange={(val) => setFormData((prev:any) => ({...prev, gender: val}))} required>
-                  <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="masculino">Masculino</SelectItem>
-                    <SelectItem value="feminino">Feminino</SelectItem>
-                    <SelectItem value="agênero">Agênero</SelectItem>
-                    <SelectItem value="gênero fluido">Gênero fluido</SelectItem>
-                    <SelectItem value="bigênero">Bigênero</SelectItem>
-                    <SelectItem value="demigênero">Demigênero</SelectItem>
-                    <SelectItem value="homem trans">Homem trans</SelectItem>
-                    <SelectItem value="mulher trans">Mulher trans</SelectItem>
-                    <SelectItem value="outro">Outro / Prefiro não dizer</SelectItem>
-                  </SelectContent>
-                </Select>
+                {!hasValidCPF && (
+                   <div className="p-3 bg-orange-50 rounded-xl border border-dashed border-orange-200 flex items-start gap-2 mt-2">
+                      <AlertTriangle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+                      <p className="text-[9px] font-bold text-orange-800 uppercase leading-tight">O CPF informado será vinculado permanentemente à sua conta para transferências seguras.</p>
+                   </div>
+                )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
-                <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Identificador Permanente)
-              </Label>
-              <div className="relative">
-                 <Input 
-                   value={formData.cpf} 
-                   onChange={e => !isCPFReadOnly && setFormData({...formData, cpf: formatCPF(e.target.value)})}
-                   readOnly={isCPFReadOnly}
-                   placeholder="000.000.000-00"
-                   className={cn(
-                     "rounded-xl h-11 font-mono font-bold pr-10 transition-all",
-                     isCPFReadOnly ? "bg-muted/50 cursor-not-allowed border-transparent" : "border-dashed border-secondary/30 focus-visible:ring-secondary/30"
-                   )} 
-                 />
-                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {isFetchingCPF ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-secondary" />
-                    ) : isCPFReadOnly ? (
-                      <Lock className="w-4 h-4 text-muted-foreground opacity-50" />
-                    ) : (
-                      <ShieldCheck className="w-4 h-4 text-secondary" />
-                    )}
-                 </div>
-              </div>
-              {!isCPFReadOnly ? (
-                <div className="p-3 bg-orange-50 rounded-xl border border-dashed border-orange-200 flex items-start gap-2 mt-2 animate-in zoom-in-95">
-                   <AlertTriangle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
-                   <p className="text-[9px] font-bold text-orange-800 uppercase leading-tight">Você ainda não possui CPF vinculado. Informe o número real para habilitar transferências e compras. Esta ação é irreversível.</p>
-                </div>
-              ) : (
-                <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">O CPF não pode ser alterado por segurança da sua carteira e ingressos.</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Sua Bio (Curta e Direta)</Label>
-              <Textarea value={formData.bio} maxLength={150} onChange={(e) => setFormData((prev:any) => ({...prev, bio: e.target.value}))} placeholder="Conte um pouco sobre você..." className="min-h-[100px] resize-none rounded-xl border-dashed" />
+              <Label className="text-[10px] font-black uppercase opacity-60">Sua Bio</Label>
+              <Textarea value={formData.bio} maxLength={150} onChange={(e) => setFormData((prev:any) => ({...prev, bio: e.target.value}))} placeholder="Fale um pouco sobre você..." className="min-h-[100px] resize-none rounded-xl border-dashed" />
             </div>
           </CardContent>
         </Card>

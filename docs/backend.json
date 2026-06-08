@@ -1,9 +1,8 @@
-
 {
   "entities": {
     "User": {
       "title": "Usuário",
-      "description": "Perfil pessoal e identidade de acesso",
+      "description": "Perfil pessoal e identidade de acesso. Utiliza padrão triplo de segurança para dados sensíveis (CPF).",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
@@ -12,84 +11,35 @@
         "email": { "type": "string" },
         "avatar": { "type": "string" },
         "bio": { "type": "string" },
-        "cpf": { "type": "string", "description": "Criptografado" },
-        "gender": { "type": "string", "enum": ["masculino", "feminino", "agênero", "gênero fluido", "bigênero", "demigênero", "homem trans", "mulher trans", "outro"] },
-        "birthDate": { "type": "string", "format": "date" },
-        "city": { "type": "string" },
-        "state": { "type": "string" },
-        "country": { "type": "string" },
+        "cpfMasked": { "type": "string", "description": "CPF para exibição: ***.***.***-XX" },
+        "cpfHash": { "type": "string", "description": "Hash SHA256 determinístico para busca e unicidade" },
+        "needsCPFUpdate": { "type": "boolean", "description": "Sinaliza se a conta precisa migrar para o novo padrão seguro" },
         "plan": { "type": "string", "enum": ["free", "pro", "top"] },
-        "language": { "type": "string", "enum": ["pt-BR", "en-US"], "description": "Idioma preferencial do usuário" },
-        "preferredCurrency": { "type": "string", "enum": ["BRL", "USD", "EUR"], "description": "Moeda preferencial para exibição de valores" },
-        "walletBalance": { "type": "number", "description": "Saldo em reais (BRL) disponível para uso na plataforma" },
+        "walletBalance": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "username", "email", "plan"]
+      "required": ["uid", "username", "email", "cpfHash"]
     },
-    "WalletTransaction": {
-      "title": "Transação de Carteira",
-      "description": "Registro de crédito ou débito na carteira do usuário",
+    "SensitiveData": {
+      "title": "Dados Sensíveis",
+      "description": "Subcoleção restrita para dados PII criptografados.",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "amount": { "type": "number" },
-        "type": { "type": "string", "enum": ["credit", "debit"] },
-        "reason": { "type": "string", "description": "Motivo (ex: estorno_ingresso, compra_ingresso)" },
-        "description": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
-      }
-    },
-    "Notification": {
-      "title": "Notificação",
-      "description": "Alertas de sistema, menções e interações sociais",
-      "type": "object",
-      "properties": {
-        "targetUid": { "type": "string", "description": "UID do destinatário" },
-        "senderId": { "type": "string", "description": "UID do remetente" },
-        "senderName": { "type": "string" },
-        "type": { "type": "string", "enum": ["mention", "follow", "system"] },
-        "message": { "type": "string" },
-        "link": { "type": "string" },
-        "read": { "type": "boolean" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "PasswordResetCode": {
-      "title": "Código de Recuperação",
-      "description": "OTP para troca de senha",
-      "type": "object",
-      "properties": {
-        "email": { "type": "string" },
-        "code": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "expiresAt": { "type": "string", "format": "date-time" },
-        "used": { "type": "boolean" },
-        "usedAt": { "type": "string", "format": "date-time" },
-        "attempts": { "type": "number" },
-        "ip": { "type": "string" },
-        "userAgent": { "type": "string" }
+        "cpfEncrypted": { "type": "string", "description": "CPF completo criptografado via AES-256" }
       }
     }
   },
   "auth": {
-    "providers": ["password"]
+    "providers": ["password", "google"]
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
-      "description": "Perfis de usuários"
+      "description": "Perfis públicos e metadados de busca."
     },
-    "/wallet_transactions/{txId}": {
-      "schema": "WalletTransaction",
-      "description": "Extrato de créditos e débitos dos usuários"
-    },
-    "/notifications/{notifId}": {
-      "schema": "Notification",
-      "description": "Central de notificações e menções"
-    },
-    "/password_reset_codes/{docId}": {
-      "schema": "PasswordResetCode",
-      "description": "Tokens de segurança para recuperação de senha"
+    "/users/{userId}/private/sensitive": {
+      "schema": "SensitiveData",
+      "description": "Armazenamento isolado de PII criptografado conforme LGPD."
     }
   }
 }

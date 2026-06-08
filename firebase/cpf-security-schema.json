@@ -1,0 +1,32 @@
+{
+  "collections": {
+    "users": {
+      "id": "UID (Firebase Auth)",
+      "fields": {
+        "cpfMasked": "string (Display only - ex: ***.***.***-01)",
+        "cpfHash": "string (Deterministic SHA256 of clean CPF digits - for search/uniqueness)",
+        "cpf": "string (Legacy field - maintained for fallback masked display)",
+        "needsCPFUpdate": "boolean (Flag for accounts that only have the old masked data)",
+        "updatedAt": "timestamp (Server time)"
+      },
+      "subcollections": {
+        "private": {
+          "documents": {
+            "sensitive": {
+              "id": "fixed: sensitive",
+              "fields": {
+                "cpfEncrypted": "string (AES-256 encrypted full digits - server-side decryption only)",
+                "updatedAt": "timestamp"
+              },
+              "security_rules": "Leitura e escrita permitida apenas ao dono e administradores do sistema."
+            }
+          }
+        }
+      }
+    }
+  },
+  "compliance": {
+    "lgpd": "Os dados sensíveis (CPF completo) estão isolados em subcoleção protegida. Buscas são realizadas via Hash determinístico irreversível.",
+    "masking_standard": "A máscara agora preserva os dois dígitos verificadores reais para auxílio em processos de atendimento e conferência."
+  }
+}

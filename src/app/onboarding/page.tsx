@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -13,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Check, X, ShieldCheck, User as UserIcon, Fingerprint, Mail, AtSign, Lock } from "lucide-react";
 import { cn, validateCPF, validateUsername } from "@/lib/utils";
-import { maskCPF, encryptDeterministic } from "@/lib/crypto-utils";
+import { hashCPF, maskCPF } from "@/lib/crypto-utils";
 import { updateUserCPF } from "@/app/actions/user";
 import { recordAuditLog } from "@/app/actions/audit";
 import { Separator } from "@/components/ui/separator";
@@ -36,7 +35,6 @@ export default function OnboardingPage() {
   const [cpf, setCpf] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // States de Validação
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle');
   
@@ -50,10 +48,8 @@ export default function OnboardingPage() {
       return;
     }
     
-    // Se o perfil já estiver completo (tem username e CPF), expulsa do onboarding para o dashboard
-    const hasMandatoryData = !!(profile?.username && profile?.cpf);
+    const hasMandatoryData = !!(profile?.username && profile?.cpfHash);
     if (profile !== null && hasMandatoryData) {
-      console.log('[Auth-Debug] Profile already complete, moving to dashboard');
       router.replace("/dashboard");
       return;
     }
@@ -63,32 +59,25 @@ export default function OnboardingPage() {
     }
   }, [user, profile, isInitialized, authLoading, router, name]);
 
-  // Validação de Username em tempo real
   useEffect(() => {
     if (!db || !username) {
       setUsernameStatus('idle');
       return;
     }
-
     const cleanUsername = username.toLowerCase().trim();
-    
     if (!validateUsername(cleanUsername)) {
       setUsernameStatus('invalid');
       return;
     }
-
-    // Check reserved list
     if (RESERVED_USERNAMES.includes(cleanUsername)) {
       setUsernameStatus('taken');
       return;
     }
-
     setCheckingUsername(true);
     const timer = setTimeout(async () => {
       try {
         const usernameRef = doc(db, "usernames", cleanUsername);
         const usernameSnap = await getDoc(usernameRef);
-        
         if (usernameSnap.exists() && usernameSnap.data().uid === user?.uid) {
           setUsernameStatus('valid');
         } else {
@@ -100,27 +89,24 @@ export default function OnboardingPage() {
         setCheckingUsername(false);
       }
     }, 500);
-
     return () => clearTimeout(timer);
   }, [username, db, user?.uid]);
 
-  // Validação de CPF (Unicidade e Formato)
   useEffect(() => {
     if (!db || !cpf || cpf.length < 11) {
       setCPFStatus('idle');
       return;
     }
-
     const cleanCPF = cpf.replace(/\D/g, "");
     if (!validateCPF(cleanCPF)) {
       setCPFStatus('invalid');
       return;
     }
-
     setCheckingCPF(true);
     const timer = setTimeout(async () => {
       try {
-        const q = query(collection(db, "users"), where("cpf", "==", maskCPF(cleanCPF)), limit(1));
+        const hash = hashCPF(cleanCPF);
+        const q = query(collection(db, "users"), where("cpfHash", "==", hash), limit(1));
         const snap = await getDocs(q);
         setCPFStatus(snap.empty ? 'valid' : 'taken');
       } catch (e) {
@@ -129,57 +115,31 @@ export default function OnboardingPage() {
         setCheckingCPF(false);
       }
     }, 600);
-
     return () => clearTimeout(timer);
   }, [cpf, db]);
 
   const handleOnboarding = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!db || !user || isSubmitting) return;
-
-    if (usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Username inválido", description: "Escolha outro nome de usuário." });
-      return;
-    }
-
-    if (cpfStatus !== 'valid') {
-      toast({ variant: "destructive", title: "CPF inválido", description: "O CPF informado já está em uso ou é inválido." });
-      return;
-    }
+    if (usernameStatus !== 'valid' || cpfStatus !== 'valid') return;
 
     setIsSubmitting(true);
     const normalizedUsername = username.toLowerCase().trim();
     const cleanCPF = cpf.replace(/\D/g, "");
 
     try {
+      const cpfRes = await updateUserCPF(user.uid, cleanCPF);
+      if (!cpfRes.success) throw new Error(cpfRes.error);
+
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername);
         const userRef = doc(db, "users", user.uid);
-
-        const usernameSnap = await transaction.get(usernameRef);
-        if (usernameSnap.exists() && usernameSnap.data().uid !== user.uid) {
-          throw new Error("Este nome de usuário já está em uso.");
-        }
-
         transaction.set(usernameRef, { uid: user.uid, type: 'user', email: user.email }, { merge: true });
         transaction.update(userRef, {
           username: normalizedUsername,
-          cpf: maskCPF(cleanCPF),
           profileComplete: true,
           updatedAt: serverTimestamp()
         });
-      });
-
-      // Salva o CPF descriptografado na área restrita
-      await updateUserCPF(user.uid, cleanCPF);
-      
-      await recordAuditLog({
-        userId: user.uid,
-        userEmail: user.email,
-        action: 'profile_update',
-        category: 'profile',
-        success: true,
-        metadata: { step: 'onboarding_complete', username: normalizedUsername }
       });
 
       toast({ title: "Perfil finalizado!", description: "Bem-vindo à comunidade Viby." });
@@ -202,57 +162,42 @@ export default function OnboardingPage() {
             <UserIcon className="w-10 h-10 text-white" />
           </div>
           <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Concluir Perfil</CardTitle>
-          <CardDescription className="text-sm font-medium px-8">Estamos quase lá! Precisamos de apenas mais dois dados para liberar seu acesso total.</CardDescription>
+          <CardDescription className="text-sm font-medium px-8">Precisamos validar sua identidade para habilitar compras e transferências.</CardDescription>
         </CardHeader>
         
         <CardContent className="px-10 py-10 space-y-8">
           <form onSubmit={handleOnboarding} className="space-y-6">
-            
-            {/* Campos Imutáveis */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-60 grayscale-[0.5]">
                <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase tracking-widest ml-1">Seu Nome</Label>
-                  <div className="relative">
-                     <Input value={user?.displayName || ""} readOnly className="rounded-xl h-11 bg-muted border-none font-bold" />
-                     <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
-                  </div>
+                  <Input value={user?.displayName || ""} readOnly className="rounded-xl h-11 bg-muted border-none font-bold" />
                </div>
                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase tracking-widest ml-1">E-mail da Conta</Label>
-                  <div className="relative">
-                     <Input value={user?.email || ""} readOnly className="rounded-xl h-11 bg-muted border-none font-bold text-xs" />
-                     <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
-                  </div>
+                  <Label className="text-[10px] font-black uppercase tracking-widest ml-1">E-mail</Label>
+                  <Input value={user?.email || ""} readOnly className="rounded-xl h-11 bg-muted border-none font-bold text-xs" />
                </div>
             </div>
 
             <Separator className="border-dashed" />
 
-            {/* Campos Obrigatórios */}
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Escolha seu @Username</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</Label>
                 <div className="relative">
                   <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground opacity-40" />
                   <Input 
                     placeholder="ex: joao.viby" 
                     value={username} 
                     onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ""))}
-                    className={cn(
-                      "rounded-xl h-12 pl-9 pr-10 font-bold",
-                      usernameStatus === 'valid' && 'border-green-500 bg-green-50/10',
-                      (usernameStatus === 'taken' || usernameStatus === 'invalid') && 'border-destructive bg-red-50/10'
-                    )}
+                    className="rounded-xl h-12 pl-9 pr-10 font-bold"
                     required
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
                      usernameStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
-                     usernameStatus === 'taken' ? <X className="w-4 h-4 text-destructive" /> : null}
+                     (usernameStatus === 'taken' || usernameStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
                   </div>
                 </div>
-                {usernameStatus === 'invalid' && <p className="text-[9px] font-bold text-destructive uppercase ml-1">Use apenas letras, números, ponto ou underline.</p>}
-                {usernameStatus === 'taken' && <p className="text-[9px] font-bold text-destructive uppercase ml-1">Este username já está sendo usado por outro membro.</p>}
               </div>
 
               <div className="space-y-2">
@@ -264,12 +209,7 @@ export default function OnboardingPage() {
                     placeholder="000.000.000-00" 
                     value={cpf} 
                     onChange={e => setCpf(e.target.value.replace(/\D/g, "").substring(0, 11))}
-                    className={cn(
-                      "rounded-xl h-12 pr-10 font-mono text-lg",
-                      cpfStatus === 'valid' && 'border-green-500 bg-green-50/10',
-                      cpfStatus === 'invalid' && 'border-destructive bg-red-50/10',
-                      cpfStatus === 'taken' && 'border-destructive bg-red-50/10'
-                    )}
+                    className="rounded-xl h-12 pr-10 font-mono text-lg"
                     required
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -278,24 +218,23 @@ export default function OnboardingPage() {
                      (cpfStatus === 'invalid' || cpfStatus === 'taken') ? <X className="w-4 h-4 text-destructive" /> : null}
                   </div>
                 </div>
-                {cpfStatus === 'invalid' && <p className="text-[9px] font-bold text-destructive uppercase ml-1">CPF informado é inválido.</p>}
-                {cpfStatus === 'taken' && <p className="text-[9px] font-bold text-destructive uppercase ml-1">Este CPF já possui uma conta vinculada.</p>}
+                {cpfStatus === 'taken' && <p className="text-[9px] font-bold text-destructive uppercase ml-1">Este CPF já está sendo usado.</p>}
               </div>
             </div>
 
             <Button 
               type="submit" 
               disabled={isSubmitting || usernameStatus !== 'valid' || cpfStatus !== 'valid'}
-              className="w-full bg-primary text-white font-black h-16 rounded-2xl shadow-xl uppercase italic text-lg hover:bg-secondary transition-all active:scale-[0.98]"
+              className="w-full bg-primary text-white font-black h-16 rounded-2xl shadow-xl uppercase italic text-lg hover:bg-secondary transition-all"
             >
-              {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : "Concluir meu Acesso"}
+              {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : "Concluir meu Cadastro"}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="bg-muted/20 border-t p-6 text-center">
            <div className="flex items-center justify-center gap-3 text-muted-foreground">
               <ShieldCheck className="w-5 h-5 text-secondary" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Sua conta é única e segura</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Seus dados são protegidos por criptografia</span>
            </div>
         </CardFooter>
       </Card>
