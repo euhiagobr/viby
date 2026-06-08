@@ -42,7 +42,7 @@ export async function getUserCPF(userId: string, requestingUid: string) {
 
 /**
  * Atualiza o CPF de um usuário seguindo o novo padrão de segurança Triplo (Encrypted, Hash, Masked).
- * Implementa verificação de duplicidade via hash, exceto para o código de sistema 00000000000.
+ * Implementa verificação de duplicidade via hash.
  */
 export async function updateUserCPF(userId: string, cpf: string) {
   try {
@@ -58,15 +58,13 @@ export async function updateUserCPF(userId: string, cpf: string) {
     const cpfMasked = maskCPF(cleanCPF);
 
     await db.runTransaction(async (transaction) => {
-      // 1. Verificar unicidade global via Hash (Bypass para código de sistema 00000000000)
-      if (cleanCPF !== "00000000000") {
-        const duplicateQuery = db.collection("users").where("cpfHash", "==", cpfHash).limit(1);
-        const duplicateSnap = await transaction.get(duplicateQuery);
-        
-        const alreadyUsedByOther = duplicateSnap.docs.some(d => d.id !== userId);
-        if (alreadyUsedByOther) {
-          throw new Error("Este CPF já possui uma conta vinculada.");
-        }
+      // 1. Verificar unicidade global via Hash
+      const duplicateQuery = db.collection("users").where("cpfHash", "==", cpfHash).limit(1);
+      const duplicateSnap = await transaction.get(duplicateQuery);
+      
+      const alreadyUsedByOther = duplicateSnap.docs.some(d => d.id !== userId);
+      if (alreadyUsedByOther) {
+        throw new Error("Este CPF já possui uma conta vinculada.");
       }
 
       // 2. Atualizar perfil público (Hash para busca, Masked para exibição)
@@ -91,7 +89,7 @@ export async function updateUserCPF(userId: string, cpf: string) {
       action: 'cpf_update',
       category: 'profile',
       success: true,
-      metadata: { method: 'secure_triple_store', isSystemCode: cleanCPF === "00000000000" }
+      metadata: { method: 'secure_triple_store' }
     });
 
     return { success: true };
