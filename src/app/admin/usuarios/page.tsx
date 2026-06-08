@@ -1,14 +1,14 @@
+
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { 
   collection, 
   query, 
   orderBy, 
   doc, 
   updateDoc, 
-  deleteDoc, 
   getDoc, 
   writeBatch,
   serverTimestamp,
@@ -46,9 +46,7 @@ import {
   EyeOff,
   ShieldBan,
   AtSign,
-  AlertTriangle,
-  Plus,
-  UserPlus
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -58,9 +56,13 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { sendVerificationStatusEmail } from "@/app/actions/email"
+import { useAdminPermissions } from "@/hooks/use-admin-permissions"
 
 export default function AdminUsuariosPage() {
   const db = useFirestore()
+  const auth = useAuth()
+  const { user } = useUser(auth)
+  const { adminProfile } = useAdminPermissions()
   const [search, setSearch] = React.useState("")
   
   const [editingUser, setEditingUser] = React.useState<any>(null)
@@ -68,7 +70,11 @@ export default function AdminUsuariosPage() {
   const [isEditUserOpen, setIsEditUserOpen] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
 
-  const usersQuery = useMemoFirebase(() => db ? query(collection(db, "users"), orderBy("createdAt", "desc")) : null, [db])
+  // Trava de segurança para consulta
+  const usersQuery = useMemoFirebase(() => 
+    (db && user && adminProfile) ? query(collection(db, "users"), orderBy("createdAt", "desc")) : null, 
+    [db, user, adminProfile]
+  )
   const { data: users, loading: loadingUsers } = useCollection<any>(usersQuery)
 
   const filteredUsers = React.useMemo(() => {
@@ -88,7 +94,6 @@ export default function AdminUsuariosPage() {
       const { id, ...data } = editingUser
       await updateDoc(doc(db, "users", id), { ...data, updatedAt: serverTimestamp() })
       
-      // Gatilho de e-mail exclusivo para o usuário se o status de verificação mudou
       if (editingUser.isVerified !== originalUser?.isVerified) {
         sendVerificationStatusEmail({
            to: editingUser.email,
@@ -135,7 +140,6 @@ export default function AdminUsuariosPage() {
     
     try {
       const batch = writeBatch(db);
-      
       batch.update(doc(db, "users", id), {
         status: newStatus,
         updatedAt: serverTimestamp(),
@@ -143,20 +147,6 @@ export default function AdminUsuariosPage() {
         moderatedBy: "Admin",
         blockReason: newStatus === 'Bloqueado' ? "Titular da conta bloqueado por moderação." : deleteField()
       });
-
-      const ownedOrgsQ = query(collection(db, "organizations"), where("ownerId", "==", id));
-      const ownedOrgsSnap = await getDocs(ownedOrgsQ);
-      
-      ownedOrgsSnap.forEach(orgDoc => {
-        batch.update(orgDoc.ref, {
-          status: newStatus,
-          updatedAt: serverTimestamp(),
-          moderatedAt: serverTimestamp(),
-          moderatedBy: "Admin",
-          blockReason: newStatus === 'Bloqueado' ? "Titular da conta bloqueado." : deleteField()
-        });
-      });
-
       await batch.commit();
       toast({ title: isBlocked ? "Usuário Ativado" : "Usuário Bloqueado" });
     } catch (e) {
@@ -176,12 +166,7 @@ export default function AdminUsuariosPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Buscar por nome, @username ou e-mail..." 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 rounded-xl h-11"
-          />
+          <Input placeholder="Buscar por nome, @username ou e-mail..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 rounded-xl h-11" />
         </div>
         <div className="px-4 py-2 bg-muted/50 rounded-xl border text-[10px] font-black uppercase tracking-widest text-muted-foreground">
           {filteredUsers.length} Usuários Encontrados
@@ -234,7 +219,6 @@ export default function AdminUsuariosPage() {
                       size="icon" 
                       className={cn("h-8 w-8 rounded-lg", user.status === 'Bloqueado' ? "text-green-600 hover:bg-green-50" : "text-orange-500 hover:bg-orange-50")}
                       onClick={() => handleToggleBlock(user.id, user.status)}
-                      title={user.status === 'Bloqueado' ? "Desbloquear Usuário" : "Bloquear Usuário"}
                     >
                        {user.status === 'Bloqueado' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldBan className="w-4 h-4" />}
                     </Button>

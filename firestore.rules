@@ -9,18 +9,25 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Função central de autorização administrativa
     function isAdmin() {
       return isSignedIn() && (
+        // 1. Verificação via Custom Claims (opcional/futuro)
         request.auth.token.admin == true ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-        exists(/databases/$(database)/documents/system_admins/$(request.auth.uid))
+        // 2. Verificação via nova estrutura granular
+        exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) ||
+        // 3. Fallback de Bootstrapping: Usuário com role 'admin' no perfil principal
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
     function isSuperAdmin() {
       return isSignedIn() && (
-        (exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) && get(/databases/$(database)/documents/system_admins/$(request.auth.uid)).data.cargo == 'super_admin') ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        (exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/system_admins/$(request.auth.uid)).data.cargo == 'super_admin') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
@@ -52,8 +59,11 @@ service cloud.firestore {
     // --- REGRAS POR COLEÇÃO ---
 
     match /system_admins/{adminId} {
+      // Permite ler o próprio perfil administrativo ou se já for um admin
       allow get: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      // Apenas administradores podem listar a equipe
       allow list: if isAdmin();
+      // Apenas Super Admins podem gerenciar a equipe
       allow create, update, delete: if isSuperAdmin();
     }
 

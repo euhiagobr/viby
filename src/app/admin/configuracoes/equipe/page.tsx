@@ -74,12 +74,12 @@ export default function AdminEquipePage() {
   const [editingAdmin, setEditingAdmin] = React.useState<SystemAdmin | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
+  // Trava de Segurança: A consulta só dispara quando o usuário admin estiver totalmente carregado e validado
   const teamQuery = useMemoFirebase(() => 
-    db ? query(collection(db, "system_admins"), orderBy("createdAt", "desc")) : null, 
-    [db]
+    (db && user && adminProfile) ? query(collection(db, "system_admins"), orderBy("createdAt", "desc")) : null, 
+    [db, user, adminProfile]
   );
   
-  // hook de coleção com fallback vazio em caso de erro de permissão
   const { data: team, loading } = useCollection<SystemAdmin>(teamQuery);
 
   const filteredTeam = React.useMemo(() => {
@@ -330,7 +330,7 @@ export default function AdminEquipePage() {
            </ScrollArea>
 
            <DialogFooter className="p-8 border-t bg-muted/10">
-              <Button onClick={handleUpdate} disabled={isSubmitting} className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg">
+              <Button onClick={handleUpdate} disabled={isSubmitting} className="w-full h-14 bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic text-lg">
                  {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Alterações
               </Button>
            </DialogFooter>
