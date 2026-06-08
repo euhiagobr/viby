@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -60,7 +61,6 @@ export default function EditarEventoPage() {
 
   useEffect(() => {
     if (event) {
-      // MAPEAMENTO SEGURO DE DADOS LEGADOS (STATE LOCAL)
       const legacyAddress = event.address || {};
       const addr = {
         venueName: legacyAddress.venueName || event.location || "",
@@ -83,6 +83,8 @@ export default function EditarEventoPage() {
         image: event.image || "",
         type: event.type || "interno",
         externalUrl: event.externalUrl || "",
+        disclosurePrice: event.disclosurePrice || 0,
+        disclosureRule: event.disclosureRule || "",
         categoryId: event.categoryId || "",
         startDate: event.date || "",
         endDate: event.endDate || "",
@@ -122,7 +124,6 @@ export default function EditarEventoPage() {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
 
-    // VALIDAÇÃO DE REGRAS DE PUBLICAÇÃO
     const isPublic = formData.status === 'Ativo';
     if (isPublic) {
       const { address } = formData;
@@ -153,7 +154,6 @@ export default function EditarEventoPage() {
         capacidadeTotal: totalCapacity,
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
-        // Aliases para compatibilidade e busca eficiente
         city: formData.address.city,
         location: formData.address.neighborhood || formData.address.venueName,
         latitude: formData.address.latitude,
@@ -214,7 +214,16 @@ export default function EditarEventoPage() {
             <Card className="border-none shadow-sm rounded-[2.5rem]">
               <CardContent className="p-8 space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <EventType value={formData.type} onChange={v => setFormData({...formData, type: v})} externalUrl={formData.externalUrl} onExternalUrlChange={v => setFormData({...formData, externalUrl: v})} />
+                    <EventType 
+                      value={formData.type} 
+                      onChange={v => setFormData({...formData, type: v})} 
+                      externalUrl={formData.externalUrl} 
+                      onExternalUrlChange={v => setFormData({...formData, externalUrl: v})} 
+                      disclosurePrice={formData.disclosurePrice}
+                      onDisclosurePriceChange={v => setFormData({...formData, disclosurePrice: v})}
+                      disclosureRule={formData.disclosureRule}
+                      onDisclosureRuleChange={v => setFormData({...formData, disclosureRule: v})}
+                    />
                     <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

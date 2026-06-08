@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -56,6 +57,8 @@ export default function NovoEventoPage() {
     image: DEFAULT_EVENT_IMAGE,
     type: "interno",
     externalUrl: "",
+    disclosurePrice: 0,
+    disclosureRule: "",
     categoryId: "",
     ageRatingCode: "free",
     startDate: "",
@@ -104,7 +107,6 @@ export default function NovoEventoPage() {
       return;
     }
     
-    // Mapeia addressLine1 para street e streetNumber para number se necessário por compatibilidade
     const orgAddr = currentOrg.address;
     setFormData(prev => ({
       ...prev,
@@ -154,7 +156,6 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
-      // Alias para compatibilidade retroativa
       const eventData: any = {
         ...formData,
         organizationId: currentOrg.id,
@@ -221,7 +222,7 @@ export default function NovoEventoPage() {
           uploadProgress={uploadProgress}
         />
 
-        <Card className="border-none shadow-sm rounded-[2.5rem]">
+        <Card className="border-none shadow-sm rounded-[2rem]">
            <CardContent className="p-8 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <EventType 
@@ -229,6 +230,10 @@ export default function NovoEventoPage() {
                    onChange={v => setFormData({...formData, type: v})}
                    externalUrl={formData.externalUrl}
                    onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
+                   disclosurePrice={formData.disclosurePrice}
+                   onDisclosurePriceChange={v => setFormData({...formData, disclosurePrice: v})}
+                   disclosureRule={formData.disclosureRule}
+                   onDisclosureRuleChange={v => setFormData({...formData, disclosureRule: v})}
                    config={eventTypesSettings}
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
@@ -304,6 +309,7 @@ export default function NovoEventoPage() {
           <EventLocation 
             address={formData.address} 
             onChange={v => setFormData({...formData, address: v})} 
+            status={formData.status}
           />
         </div>
 

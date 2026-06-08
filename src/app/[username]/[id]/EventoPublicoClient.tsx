@@ -5,7 +5,24 @@ import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { Loader2, ArrowLeft, Calendar, Clock, Ticket, BadgeCheck, ShieldCheck, ArrowRight, RefreshCw, AlertCircle, ShoppingCart, CalendarX, Inbox, Share2 } from 'lucide-react';
+import { 
+  Loader2, 
+  ArrowLeft, 
+  Calendar, 
+  Clock, 
+  Ticket, 
+  BadgeCheck, 
+  ShieldCheck, 
+  ArrowRight, 
+  RefreshCw, 
+  AlertCircle, 
+  ShoppingCart, 
+  CalendarX, 
+  Inbox, 
+  Share2,
+  Info,
+  Coins
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -32,11 +49,8 @@ import {
   EventCoOrganizers
 } from '@/components/events';
 import { AgeRatingBadge } from '@/lib/age-rating';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
-/**
- * @fileOverview Componente de Cliente para a página pública do evento.
- * Otimizado para evitar erros de permissão e falhas de renderização.
- */
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -44,6 +58,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const auth = useAuth();
   const { user } = useUser(auth);
   const { totalCount } = useCart();
+  const { formatPriceWithOriginal } = useCurrency();
 
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
   const [selectedOccurrence, setSelectedOccurrence] = React.useState<any>(null);
@@ -63,7 +78,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
   const { data: promotions } = useDoc<any>(promosRef);
 
-  // Correção de Permissão: Uso de useDoc (GET) em vez de useCollection (LIST) para verificar participação
   const memberRef = React.useMemo(() => 
     (db && user && event?.organizationId) ? doc(db, 'organizations', event.organizationId, 'members', user.uid) : null,
     [db, user, event?.organizationId]
@@ -80,7 +94,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   }, [db, event?.id, event?.isRecurring]);
   const { data: rawOccurrences, loading: occLoading } = useCollection<any>(occurrencesQuery);
 
-  // Rastreamento de Scan de QR Code
   React.useEffect(() => {
     const vsrc = searchParams.get('vsrc');
     if (vsrc === 'qr' && event?.organizationId) {
@@ -92,7 +105,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     }
   }, [searchParams, event?.organizationId, id]);
 
-  // Rastreamento de Visualização
   React.useEffect(() => {
     if (!id || event?.status !== 'Ativo') return;
     const key = `viby_v_${id}`;
@@ -324,6 +336,30 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                      <Button className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic gap-2 shadow-lg transition-transform active:scale-95" asChild>
                         <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Link de Ingressos <ArrowRight className="w-5 h-5" /></a>
                      </Button>
+                  </Card>
+                )}
+
+                {event.type === 'divulgacao' && (
+                  <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 border-t-8 border-secondary space-y-6">
+                     <div className="flex items-center gap-3">
+                        <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Info className="w-5 h-5" /></div>
+                        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Entrada</h2>
+                     </div>
+                     <div className="space-y-4">
+                        <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex items-center justify-between">
+                           <span className="text-[10px] font-black uppercase opacity-60">Valor</span>
+                           <span className="font-black text-xl text-primary uppercase italic">
+                              {(event.disclosurePrice > 0) ? formatPriceWithOriginal(event.disclosurePrice, event.currency || 'BRL') : 'Grátis'}
+                           </span>
+                        </div>
+                        {event.disclosureRule && (
+                          <div className="flex items-center gap-2 p-3 bg-secondary/5 rounded-xl text-secondary">
+                             <Clock className="w-4 h-4" />
+                             <span className="text-[10px] font-bold uppercase tracking-tight">{event.disclosureRule}</span>
+                          </div>
+                        )}
+                        <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">Este evento não possui venda de ingressos pela Viby. O pagamento (se houver) é realizado diretamente no local.</p>
+                     </div>
                   </Card>
                 )}
 

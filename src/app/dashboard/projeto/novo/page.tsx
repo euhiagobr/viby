@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -54,6 +55,8 @@ export default function NovoEventoPage() {
     image: DEFAULT_EVENT_IMAGE,
     type: "interno",
     externalUrl: "",
+    disclosurePrice: 0,
+    disclosureRule: "",
     categoryId: "",
     ageRatingCode: "free",
     startDate: "",
@@ -122,7 +125,6 @@ export default function NovoEventoPage() {
     e.preventDefault()
     if (!db || !user || !currentOrg) return
 
-    // VALIDAÇÃO DE REGRAS DE PUBLICAÇÃO
     const isPublic = formData.status === 'Ativo';
     if (isPublic) {
       const { address } = formData;
@@ -156,7 +158,6 @@ export default function NovoEventoPage() {
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
         date: formData.startDate,
-        // Fallback de campos legados para compatibilidade
         city: formData.address.city,
         location: formData.address.neighborhood || formData.address.venueName,
         latitude: formData.address.latitude,
@@ -210,7 +211,7 @@ export default function NovoEventoPage() {
           uploadProgress={uploadProgress}
         />
 
-        <Card className="border-none shadow-sm rounded-[2.5rem]">
+        <Card className="border-none shadow-sm rounded-[2rem]">
            <CardContent className="p-8 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <EventType 
@@ -218,6 +219,10 @@ export default function NovoEventoPage() {
                    onChange={v => setFormData({...formData, type: v})}
                    externalUrl={formData.externalUrl}
                    onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
+                   disclosurePrice={formData.disclosurePrice}
+                   onDisclosurePriceChange={v => setFormData({...formData, disclosurePrice: v})}
+                   disclosureRule={formData.disclosureRule}
+                   onDisclosureRuleChange={v => setFormData({...formData, disclosureRule: v})}
                    config={eventTypesSettings}
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />

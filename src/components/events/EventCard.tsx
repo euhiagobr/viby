@@ -72,21 +72,51 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const distance = React.useMemo(() => {
     if (userLocation && typeof event.latitude === 'number' && typeof event.longitude === 'number') {
-      return calculateDistance(userLocation, { latitude: event.latitude, longitude: event.longitude });
+      const distanceKm = calculateDistance(userLocation, { latitude: event.latitude, longitude: event.longitude });
+      return distanceKm;
     }
     return null;
   }, [userLocation, event.latitude, event.longitude]);
 
-  const minPrice = React.useMemo(() => {
-    if (!event.batches || event.batches.length === 0) return 0;
+  const pricingDisplay = React.useMemo(() => {
+    if (event.type === 'divulgacao') {
+      const price = event.disclosurePrice || 0;
+      const rule = event.disclosureRule || "";
+      
+      if (price <= 0) {
+        return (
+          <div className="flex flex-col items-end">
+            <span className="text-green-600 font-black italic">{t('event.no_tickets')}</span>
+            {rule && <span className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{rule}</span>}
+          </div>
+        );
+      }
+      return (
+        <div className="flex flex-col items-end">
+          {formatPriceWithOriginal(price, event.currency || 'BRL')}
+          {rule && <span className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{rule}</span>}
+        </div>
+      );
+    }
+
+    if (!event.batches || event.batches.length === 0) return <span className="text-green-600 italic">{t('event.no_tickets')}</span>;
+    
     let min = Infinity;
     event.batches.forEach((b: any) => {
       b.ticketTypes?.forEach((t: any) => {
         if (t.price < min) min = t.price;
       });
     });
-    return min === Infinity ? 0 : min;
-  }, [event.batches]);
+    
+    if (min === Infinity || min <= 0) return <span className="text-green-600 italic">{t('event.no_tickets')}</span>;
+    
+    return (
+      <div className="flex flex-col items-end">
+        <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">{t('event.from')}</p>
+        {formatPriceWithOriginal(min, event.currency || 'BRL')}
+      </div>
+    );
+  }, [event, t, formatPriceWithOriginal]);
 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
 
@@ -155,17 +185,12 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               </div>
            </div>
            <div className="text-right">
-              <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">
-                {minPrice > 0 ? t('event.from') : ""}
-              </p>
-              <div className="flex items-center justify-end gap-1.5 text-xs font-black text-primary">
-                 {minPrice > 0 ? formatPriceWithOriginal(minPrice, event.currency || 'BRL') : <span className="text-green-600 italic">{t('event.no_tickets')}</span>}
-              </div>
+              {pricingDisplay}
            </div>
         </div>
 
         <Button className="w-full h-12 bg-primary text-white font-black rounded-2xl uppercase italic text-[11px] gap-2 shadow-lg group-hover:bg-secondary">
-           {t('event.guarantee_presence')} <ArrowRight className="w-4 h-4" />
+           {event.type === 'divulgacao' ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-4 h-4" />
         </Button>
       </CardContent>
     </Card>
