@@ -11,7 +11,7 @@ service cloud.firestore {
     // Função central de autorização administrativa
     function isAdmin() {
       return isSignedIn() && (
-        // 1. UID Mestre para Bootstrap
+        // 1. UID Mestre para Bootstrap (Acesso total)
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
         // 2. Verificação via Custom Claims
         request.auth.token.admin == true ||
@@ -24,14 +24,17 @@ service cloud.firestore {
 
     function isSuperAdmin() {
       return isSignedIn() && (
+        // 1. UID Mestre para Bootstrap
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
+        // 2. Verificação granular
         (exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/system_admins/$(request.auth.uid)).data.cargo == 'super_admin') ||
+        // 3. Admin Legado
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
 
-    // --- FUNÇÕES DE HIERARQUIA DE ORGANIZAÇÃO ---
+    // --- HIERARQUIA DE ORGANIZAÇÃO ---
 
     function getMemberData(orgId) {
       return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data;

@@ -1,10 +1,25 @@
-
 'use server';
 
 import { getAdminDb } from '@/lib/firebase/admin';
 import { AdminRole, AdminPermission, SystemAdmin } from '@/types/admin';
 import { getDefaultPermissionsForRole } from '@/lib/admin/permissions';
 import * as admin from 'firebase-admin';
+
+const MASTER_ADMIN_UID = "AqTVL8VRTZT435pZudkObzMGsrR2";
+
+/**
+ * Valida se o executor tem permissão de Super Admin.
+ * Permite bypass total para a MASTER_ADMIN_UID para bootstrapping do sistema.
+ */
+async function validateSuperAdminAccess(executorUid: string, db: admin.firestore.Firestore) {
+  if (executorUid === MASTER_ADMIN_UID) return true;
+
+  const executorSnap = await db.collection('system_admins').doc(executorUid).get();
+  if (!executorSnap.exists || executorSnap.data()?.cargo !== 'super_admin') {
+    throw new Error("Ação permitida apenas para Super Administradores.");
+  }
+  return true;
+}
 
 export async function createAdminAction(params: {
   uid: string;
@@ -18,10 +33,7 @@ export async function createAdminAction(params: {
   const db = getAdminDb();
   
   try {
-    const executorSnap = await db.collection('system_admins').doc(params.executorUid).get();
-    if (!executorSnap.exists || executorSnap.data()?.cargo !== 'super_admin') {
-      throw new Error("Ação permitida apenas para Super Administradores.");
-    }
+    await validateSuperAdminAccess(params.executorUid, db);
 
     const adminRef = db.collection('system_admins').doc(params.uid);
     const existing = await adminRef.get();
@@ -62,12 +74,9 @@ export async function updateAdminAction(params: {
   const db = getAdminDb();
   
   try {
-    const executorSnap = await db.collection('system_admins').doc(params.executorUid).get();
-    if (!executorSnap.exists || executorSnap.data()?.cargo !== 'super_admin') {
-      throw new Error("Apenas Super Admins podem editar a equipe.");
-    }
+    await validateSuperAdminAccess(params.executorUid, db);
 
-    if (params.uid === params.executorUid) {
+    if (params.uid === params.executorUid && params.executorUid !== MASTER_ADMIN_UID) {
       throw new Error("Você não pode editar suas próprias permissões ou cargo.");
     }
 
@@ -86,10 +95,7 @@ export async function updateAdminAction(params: {
 export async function deleteAdminAction(uid: string, executorUid: string) {
   const db = getAdminDb();
   try {
-    const executorSnap = await db.collection('system_admins').doc(executorUid).get();
-    if (!executorSnap.exists || executorSnap.data()?.cargo !== 'super_admin') {
-      throw new Error("Apenas Super Admins podem remover membros da equipe.");
-    }
+    await validateSuperAdminAccess(executorUid, db);
 
     if (uid === executorUid) throw new Error("Você não pode remover a si mesmo.");
 
