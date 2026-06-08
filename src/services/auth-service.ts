@@ -17,7 +17,7 @@ import {
   runTransaction,
   increment
 } from "firebase/firestore";
-import { sendWelcomeEmail } from "@/app/actions/email";
+import { sendWelcomeEmail, sendAdminNewUserAlert } from "@/app/actions/email";
 import { recordAuditLog } from "@/app/actions/audit";
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -83,6 +83,13 @@ export async function ensureUserProfile(user: any, db: Firestore) {
 
       if (user.email) {
         sendWelcomeEmail({ to: user.email, userName: initialName }).catch(() => {});
+        // Notifica administração sobre novo usuário (sem username definido ainda, mas com e-mail)
+        sendAdminNewUserAlert({
+          userName: initialName,
+          username: "pendente",
+          email: user.email,
+          uid: user.uid
+        }).catch(() => {});
       }
 
       await recordAuditLog({

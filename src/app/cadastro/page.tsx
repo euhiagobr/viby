@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -18,7 +17,7 @@ import Footer from "@/components/layout/Footer"
 import Image from "next/image"
 import { updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
-import { sendWelcomeEmail } from "@/app/actions/email"
+import { sendWelcomeEmail, sendAdminNewUserAlert } from "@/app/actions/email"
 
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -105,14 +104,14 @@ function CadastroContent() {
     setLoading(true)
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-      const user = userCredential.user
+      const userInstance = userCredential.user
 
-      await updateProfile(user, { displayName: name })
+      await updateProfile(userInstance, { displayName: name })
 
       const cleanCPF = cpf.replace(/\D/g, "");
       const finalUsername = username.toLowerCase().trim();
       const userData = {
-        uid: user.uid,
+        uid: userInstance.uid,
         name,
         username: finalUsername,
         email: email.toLowerCase().trim(),
@@ -131,19 +130,19 @@ function CadastroContent() {
       await runTransaction(db, async (transaction) => {
         // 1. Índices e Perfil
         transaction.set(doc(db, "usernames", finalUsername), { 
-          uid: user.uid, 
+          uid: userInstance.uid, 
           type: 'user', 
           email: userData.email,
           username: finalUsername 
         })
-        transaction.set(doc(db, "users", user.uid), userData)
+        transaction.set(doc(db, "users", userInstance.uid), userData)
 
         // 2. Auto-follow Viby Oficial
-        const followRef = doc(db, "follows", `${user.uid}_${VIBY_OFFICIAL_UID}`);
+        const followRef = doc(db, "follows", `${userInstance.uid}_${VIBY_OFFICIAL_UID}`);
         const vibyOrgRef = doc(db, "organizations", VIBY_OFFICIAL_UID);
         
         transaction.set(followRef, {
-          followerId: user.uid,
+          followerId: userInstance.uid,
           followingId: VIBY_OFFICIAL_UID,
           targetType: 'organization',
           timestamp: serverTimestamp()
@@ -155,8 +154,16 @@ function CadastroContent() {
         });
       });
 
-      await updateUserCPF(user.uid, cleanCPF);
+      await updateUserCPF(userInstance.uid, cleanCPF);
+      
+      // Notificações
       sendWelcomeEmail({ to: email, userName: name }).catch(() => {});
+      sendAdminNewUserAlert({
+        userName: name,
+        username: finalUsername,
+        email: userData.email,
+        uid: userInstance.uid
+      }).catch(() => {});
 
       toast({ title: "Bem-vindo ao clube!" })
     } catch (error: any) {

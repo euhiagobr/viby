@@ -351,6 +351,56 @@ export async function sendWelcomeEmail(data: any) {
   } catch (e: any) { return { success: false, error: e.message }; }
 }
 
+/**
+ * Envia um alerta para a administração informando sobre um novo registro de usuário.
+ */
+export async function sendAdminNewUserAlert(data: {
+  userName: string;
+  username: string;
+  email: string;
+  uid: string;
+}) {
+  try {
+    const branding = await getBranding();
+    const transporter = await getTransporter();
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
+
+    const timestamp = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+    const content = `
+      <h2 style="color: #2C52EE; text-transform: uppercase; font-weight: 900;">🔔 Novo Usuário Registrado</h2>
+      <p>Um novo membro acabou de se juntar à plataforma <strong>${branding.siteName}</strong>.</p>
+      <div style="background: #f8fafc; padding: 25px; border-radius: 20px; margin: 25px 0; border: 1px solid #e2e8f0; text-align: left;">
+        <p style="margin: 8px 0; font-size: 13px; color: #1e293b;"><strong>NOME:</strong> ${data.userName}</p>
+        <p style="margin: 8px 0; font-size: 13px; color: #1e293b;"><strong>USERNAME:</strong> @${data.username}</p>
+        <p style="margin: 8px 0; font-size: 13px; color: #1e293b;"><strong>E-MAIL:</strong> ${data.email}</p>
+        <p style="margin: 8px 0; font-size: 13px; color: #1e293b;"><strong>UID:</strong> <span style="font-family: monospace; font-size: 11px;">${data.uid}</span></p>
+        <p style="margin: 8px 0; font-size: 13px; color: #1e293b;"><strong>DATA:</strong> ${timestamp}</p>
+      </div>
+      <div style="text-align: center; margin-top: 35px;">
+        <a href="${branding.baseUrl}/admin/usuarios" style="background: #2C52EE; color: #ffffff; padding: 15px 30px; text-decoration: none; border-radius: 15px; font-weight: 900; font-size: 12px; display: inline-block; text-transform: uppercase;">Ver no Painel Admin</a>
+      </div>
+    `;
+
+    const htmlContent = getEmailTemplate(branding, content);
+    const subject = `🔔 Novo Usuário: @${data.username} (${data.userName})`;
+
+    await transporter.sendMail({
+      from: `"${branding.siteName} System" <${smtpUser}>`,
+      to: "viby@viby.club",
+      subject,
+      html: htmlContent
+    });
+
+    return { success: true };
+  } catch (e: any) {
+    console.warn("[Admin Alert Email] Failed to send notification", e);
+    return { success: false, error: e.message };
+  }
+}
+
 export async function sendSupportTicketReceivedEmail(data: {
   to: string;
   userName: string;
@@ -449,7 +499,7 @@ export async function sendSupportTicketResponseEmail(data: {
       recipientName: data.userName,
       subject,
       content: htmlContent,
-      type: "support_ticket_response",
+      type: "support_ticket_received",
       sender: "Viby Suporte"
     });
 
