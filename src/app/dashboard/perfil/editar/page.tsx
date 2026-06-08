@@ -36,7 +36,9 @@ import {
   MapPin,
   Languages,
   Coins,
-  Mail
+  Mail,
+  Upload,
+  BadgeCheck
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn, validateCPF } from "@/lib/utils"
@@ -66,6 +68,7 @@ export default function EditarPerfilPage() {
     name: "",
     username: "",
     avatar: "",
+    banner: "",
     bio: "",
     birthDate: "",
     gender: "",
@@ -83,11 +86,11 @@ export default function EditarPerfilPage() {
   })
   
   const [saving, setSaving] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [avatarProgress, setAvatarProgress] = useState<number | null>(null)
+  const [bannerProgress, setBannerProgress] = useState<number | null>(null)
   const [hasValidCPF, setHasValidCPF] = useState(false)
   const [isDataLoaded, setIsDataLoaded] = useState(false)
 
-  // Popula o formulário assim que o perfil é carregado
   useEffect(() => {
     if (profile && !isDataLoaded) {
       const currentMask = profile.cpfMasked || profile.cpf || "";
@@ -97,6 +100,7 @@ export default function EditarPerfilPage() {
         name: profile.name || "",
         username: profile.username || "",
         avatar: profile.avatar || DEFAULT_PROFILE_IMAGE,
+        banner: profile.banner || "",
         bio: profile.bio || "",
         birthDate: profile.birthDate || "",
         gender: profile.gender || "",
@@ -120,25 +124,27 @@ export default function EditarPerfilPage() {
     }
   }, [profile, isDataLoaded, user?.email])
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
     const file = e.target.files?.[0]
     if (!file || !storage || !user) return
 
-    setUploadProgress(0)
+    const setProgress = type === 'avatar' ? setAvatarProgress : setBannerProgress;
+    setProgress(0);
+
     try {
-      const storageRef = ref(storage, `users/${user.uid}/avatar_${Date.now()}`)
+      const storageRef = ref(storage, `users/${user.uid}/${type}_${Date.now()}`)
       const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
       uploadTask.on('state_changed', 
-        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
+        (snapshot) => setProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+        () => { setProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-          setFormData((prev: any) => ({ ...prev, avatar: downloadURL }))
-          setUploadProgress(null)
-          toast({ title: "Imagem carregada!" })
+          setFormData((prev: any) => ({ ...prev, [type]: downloadURL }))
+          setProgress(null)
+          toast({ title: `${type === 'avatar' ? 'Foto de perfil' : 'Capa'} carregada!` })
         }
       )
-    } catch (err) { setUploadProgress(null) }
+    } catch (err) { setProgress(null) }
   }
 
   const formatCPFInput = (v: string) => {
@@ -186,15 +192,55 @@ export default function EditarPerfilPage() {
   }
 
   const cpfIsReadOnly = hasValidCPF;
+  const isVerified = profile?.isVerified === true;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/perfil"><ArrowLeft className="w-5 h-5" /></Link></Button>
-        <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Editar Perfil</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild><Link href="/dashboard/perfil"><ArrowLeft className="w-5 h-5" /></Link></Button>
+          <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Editar Perfil</h1>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        {/* SEÇÃO DE CAPA (BANNER) - EXCLUSIVA PARA VERIFICADOS */}
+        {isVerified && (
+          <Card className="border-none shadow-sm overflow-hidden rounded-[2.5rem] bg-white">
+            <CardHeader className="bg-muted/30">
+              <CardTitle className="text-lg flex items-center gap-2 text-primary">
+                <Camera className="w-5 h-5 text-secondary" /> Capa do Perfil
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+               <div 
+                 className="relative h-48 bg-muted border-b border-border group cursor-pointer overflow-hidden"
+                 onClick={() => document.getElementById('user-banner-up')?.click()}
+               >
+                 {formData.banner ? (
+                   <img src={formData.banner} className="w-full h-full object-cover" alt="Capa" />
+                 ) : (
+                   <div className="flex flex-col items-center justify-center h-full opacity-30 text-muted-foreground">
+                      <Upload className="w-8 h-8 mb-2" />
+                      <p className="text-[10px] font-black uppercase tracking-widest">Carregar Capa</p>
+                   </div>
+                 )}
+                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                   <Camera className="text-white w-8 h-8" />
+                 </div>
+                 {bannerProgress !== null && <Progress value={bannerProgress} className="absolute bottom-0 h-1 rounded-none" />}
+                 <input id="user-banner-up" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'banner')} />
+               </div>
+               <div className="p-4 bg-secondary/5 flex items-center gap-3">
+                  <BadgeCheck className="w-4 h-4 text-secondary" />
+                  <p className="text-[9px] font-bold text-secondary uppercase leading-relaxed">
+                    Funcionalidade Premium: Como membro verificado, você pode personalizar sua vitrine cultural.
+                  </p>
+               </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* IDENTIDADE E FOTO */}
         <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
           <CardHeader className="bg-muted/30 pb-8">
@@ -212,12 +258,12 @@ export default function EditarPerfilPage() {
                 <label htmlFor="avatar-upload" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-[3rem] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                   <Camera className="w-8 h-8" />
                 </label>
-                <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 'avatar')} />
               </div>
-              {uploadProgress !== null && (
+              {avatarProgress !== null && (
                 <div className="w-full max-w-xs space-y-2">
-                  <Progress value={uploadProgress} className="h-1" />
-                  <p className="text-[9px] text-center font-black uppercase">Enviando: {Math.round(uploadProgress)}%</p>
+                  <Progress value={avatarProgress} className="h-1" />
+                  <p className="text-[9px] text-center font-black uppercase">Enviando: {Math.round(avatarProgress)}%</p>
                 </div>
               )}
             </div>
@@ -382,7 +428,7 @@ export default function EditarPerfilPage() {
 
         <div className="flex justify-end gap-3 pt-6">
           <Button type="button" variant="ghost" onClick={() => router.back()} className="rounded-xl px-8 font-bold uppercase text-xs">Cancelar</Button>
-          <Button type="submit" className="bg-secondary text-white font-black px-12 h-16 rounded-[1.5rem] shadow-xl shadow-secondary/20 uppercase italic text-lg hover:scale-[1.02] transition-transform" disabled={saving || uploadProgress !== null}>
+          <Button type="submit" className="bg-secondary text-white font-black px-12 h-16 rounded-[1.5rem] shadow-xl shadow-secondary/20 uppercase italic text-lg hover:scale-[1.02] transition-transform" disabled={saving || avatarProgress !== null || bannerProgress !== null}>
             {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
             Salvar Perfil
           </Button>

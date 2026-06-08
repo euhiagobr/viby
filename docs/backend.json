@@ -11,6 +11,7 @@
         "displayName": { "type": "string" },
         "email": { "type": "string" },
         "avatar": { "type": "string" },
+        "banner": { "type": "string", "description": "Capa do perfil (disponível apenas para usuários verificados)" },
         "bio": { "type": "string" },
         "cpfMasked": { "type": "string", "description": "CPF para exibição: ***.***.***-XX" },
         "cpfHash": { "type": "string", "description": "Hash SHA256 determinístico para busca e unicidade" },
