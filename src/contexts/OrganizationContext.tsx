@@ -76,7 +76,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-    console.log("[OrganizationContext] Iniciando monitoramento para UID:", user.uid);
     setLoading(true);
 
     // 1. Organizações que o usuário é dono
@@ -98,8 +97,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     // 2. Convites e Parcerias via Collection Group
     const membersCG = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     const unsubMembers = onSnapshot(membersCG, async (memberSnap) => {
-      console.log(`[OrganizationContext] Snapshot de Membros (CG) recebido. Total de docs: ${memberSnap.size}`);
-      
       const invites: any[] = [];
       const acceptedPromises: Promise<Organization | null>[] = [];
 
@@ -110,7 +107,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         if (!orgId) continue;
 
         if (mData.status === 'pending') {
-          console.log(`[OrganizationContext] Convite pendente detectado para a Org: ${orgId}`);
           invites.push({ id: orgId, ...mData, type: 'team_invite' });
         } else if (mData.status === 'accepted' || !mData.status) {
           acceptedPromises.push(
@@ -138,14 +134,12 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         return combined;
       });
     }, (error) => {
-      console.error("[OrganizationContext] Erro fatal no listener de membros (CG):", error);
+      console.error("[OrganizationContext] Error in members collection group listener:", error);
     });
 
     // 3. Parcerias de Eventos
     const partnersCG = query(collectionGroup(db, 'partners'), where('orgId', '==', user.uid), where('status', '==', 'pending'));
     const unsubPartners = onSnapshot(partnersCG, async (partnerSnap) => {
-      console.log(`[OrganizationContext] Snapshot de Parcerias (CG) recebido. Total: ${partnerSnap.size}`);
-      
       const pInvites = await Promise.all(partnerSnap.docs.map(async (pDoc) => {
         const pData = pDoc.data();
         const eventId = pDoc.ref.parent.parent?.id;
