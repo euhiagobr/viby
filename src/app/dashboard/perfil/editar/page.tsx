@@ -1,7 +1,8 @@
+
 "use client"
 
 import * as React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc, useFirebaseApp } from "@/firebase"
 import { 
@@ -10,7 +11,7 @@ import {
   serverTimestamp
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,11 +34,9 @@ import {
   Phone,
   User,
   MapPin,
-  Calendar,
   Languages,
   Coins,
-  Mail,
-  EyeOff
+  Mail
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn, validateCPF } from "@/lib/utils"
@@ -54,7 +53,6 @@ export default function EditarPerfilPage() {
   const { user } = useUser(auth)
   const db = useFirestore()
   const app = useFirebaseApp()
-  const isInitialized = useRef(false)
 
   const storage = React.useMemo(() => {
     if (!app) return null;
@@ -87,16 +85,15 @@ export default function EditarPerfilPage() {
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [hasValidCPF, setHasValidCPF] = useState(false)
+  const [isDataLoaded, setIsDataLoaded] = useState(false)
 
+  // Popula o formulário assim que o perfil é carregado
   useEffect(() => {
-    if (profile && user && !isInitialized.current) {
-      isInitialized.current = true
-      
+    if (profile && !isDataLoaded) {
       const currentMask = profile.cpfMasked || profile.cpf || "";
       const isMissing = !profile.cpfHash || currentMask === "***.***.***-**";
 
-      setFormData((prev: any) => ({
-        ...prev,
+      setFormData({
         name: profile.name || "",
         username: profile.username || "",
         avatar: profile.avatar || DEFAULT_PROFILE_IMAGE,
@@ -108,19 +105,20 @@ export default function EditarPerfilPage() {
         country: profile.country || "Brasil",
         website: profile.website || "",
         instagram: profile.instagram || "",
-        whatsapp: profile.whatsapp || "",
-        email: profile.email || "",
+        whatsapp: profile.whatsapp || profile.phone || "",
+        email: profile.email || user?.email || "",
         cpf: currentMask,
         preferredCurrency: profile.preferredCurrency || "BRL",
         language: profile.language || "pt-BR",
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true
-      }));
+      });
 
       if (!isMissing) {
         setHasValidCPF(true);
       }
+      setIsDataLoaded(true);
     }
-  }, [profile, user])
+  }, [profile, isDataLoaded, user?.email])
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -178,9 +176,16 @@ export default function EditarPerfilPage() {
     }
   }
 
-  const cpfIsReadOnly = hasValidCPF;
+  if (profileLoading || !isDataLoaded) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Carregando seus dados...</p>
+      </div>
+    )
+  }
 
-  if (profileLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
+  const cpfIsReadOnly = hasValidCPF;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
@@ -193,7 +198,7 @@ export default function EditarPerfilPage() {
         {/* IDENTIDADE E FOTO */}
         <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
           <CardHeader className="bg-muted/30 pb-8">
-            <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+            <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
               <User className="w-5 h-5 text-secondary" /> Identidade
             </CardTitle>
           </CardHeader>
@@ -212,7 +217,7 @@ export default function EditarPerfilPage() {
               {uploadProgress !== null && (
                 <div className="w-full max-w-xs space-y-2">
                   <Progress value={uploadProgress} className="h-1" />
-                  <p className="text-[9px] text-center font-black uppercase">Sincronizando: {Math.round(uploadProgress)}%</p>
+                  <p className="text-[9px] text-center font-black uppercase">Enviando: {Math.round(uploadProgress)}%</p>
                 </div>
               )}
             </div>
@@ -277,7 +282,7 @@ export default function EditarPerfilPage() {
         {/* LOCALIZAÇÃO */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
            <CardHeader className="bg-muted/30">
-              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
                  <MapPin className="w-5 h-5 text-secondary" /> Localização
               </CardTitle>
            </CardHeader>
@@ -296,7 +301,7 @@ export default function EditarPerfilPage() {
         {/* PRESENÇA DIGITAL */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
            <CardHeader className="bg-muted/30">
-              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
                  <Globe className="w-5 h-5 text-secondary" /> Redes e Contato
               </CardTitle>
            </CardHeader>
@@ -342,7 +347,7 @@ export default function EditarPerfilPage() {
         {/* PREFERÊNCIAS */}
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
            <CardHeader className="bg-muted/30">
-              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
                  <Languages className="w-5 h-5 text-secondary" /> Preferências do Sistema
               </CardTitle>
            </CardHeader>
