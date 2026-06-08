@@ -33,7 +33,8 @@ import {
   Fingerprint,
   Info,
   User,
-  ShieldCheck
+  ShieldCheck,
+  AlertTriangle
 } from "lucide-react"
 import Link from "next/link"
 import { cn, validateCPF, validateCNPJ } from "@/lib/utils"
@@ -42,28 +43,28 @@ import { EventLocation } from "@/components/events"
 
 const ORG_TYPES = [
   {
-    category: "Arte, Cultura e Entretenimento",
-    items: ["Produtora de Eventos", "Casa Noturna", "Bar", "Pub", "Festival", "Coletivo Cultural", "Companhia Artística", "Banda", "DJ", "Artista", "Músico(a)", "Escola de Dança", "Teatro", "Cinema", "Centro Cultural", "Galeria de Arte", "Estúdio Criativo"]
+    category: "Art, Culture and Entertainment",
+    items: ["Event Producer", "Nightclub", "Bar", "Pub", "Festival", "Cultural Collective", "Artistic Company", "Band", "DJ", "Artist", "Musician", "Dance School", "Theater", "Cinema", "Cultural Center", "Art Gallery", "Creative Studio"]
   },
   {
-    category: "Beleza, Moda e Lifestyle",
-    items: ["Salão de Beleza", "Barbearia", "Clínica de Estética", "Estilista", "Marca de Moda", "Loja de Roupas", "Loja Vintage", "Estúdio de Tatuagem", "Spa", "Makeup Studio", "Agência de Modelos", "Fashion Brand"]
+    category: "Beauty, Fashion and Lifestyle",
+    items: ["Beauty Salon", "Barbershop", "Aesthetics Clinic", "Fashion Designer", "Fashion Brand", "Clothing Store", "Vintage Shop", "Tattoo Studio", "Spa", "Makeup Studio", "Model Agency"]
   },
   {
-    category: "Gastronomia",
-    items: ["Restaurante", "Cafeteria", "Hamburgueria", "Food Truck", "Buffet", "Confeitaria", "Pizzaria", "Vinícola", "Cervejaria", "Adega", "Bar de Drinks", "Chef", "Cozinha Autorais"]
+    category: "Gastronomy",
+    items: ["Restaurant", "Coffee Shop", "Burger House", "Food Truck", "Buffet", "Bakery", "Pizzeria", "Winery", "Brewery", "Pub", "Bar", "Chef"]
   },
   {
-    category: "Empresas e Negócios",
-    items: ["Empresa", "Startup", "Agência de Marketing", "Agência Digital", "Coworking", "Consultoria", "Escritório", "Loja", "E-commerce", "Marca", "Franquia", "Empresa de Tecnologia"]
+    category: "Business and Corporate",
+    items: ["Company", "Startup", "Marketing Agency", "Digital Agency", "Coworking", "Consulting", "Office", "Store", "E-commerce", "Brand", "Franchise", "Tech Company"]
   },
   {
-    category: "Comunidade e Instituições",
-    items: ["ONG", "Associação", "Coletivo", "Fundação", "Organização Social", "Instituição Pública", "Prefeitura", "Secretaria", "Câmara Municipal", "Projeto Social", "Igreja", "Organização Religiosa", "Centro Comunitário"]
+    category: "Community and Institutions",
+    items: ["NGO", "Association", "Collective", "Foundation", "Social Organization", "Public Institution", "City Hall", "Social Project", "Church", "Religious Organization", "Community Center"]
   },
   {
-    category: "Categoria Genérica",
-    items: ["Outro"]
+    category: "General Category",
+    items: ["Other"]
   }
 ]
 
@@ -82,6 +83,7 @@ export default function NovaOrganizacaoPage() {
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
   const [avatarUploadProgress, setAvatarUploadProgress] = useState<number | null>(null)
   const [bannerUploadProgress, setBannerUploadProgress] = useState<number | null>(null)
+  const [skipFiscal, setSkipFiscal] = useState(false)
   
   const [formData, setFormData] = useState({
     tipoOrganizacao: "individual",
@@ -154,7 +156,11 @@ export default function NovaOrganizacaoPage() {
       try {
         const usernameRef = doc(db, "usernames", newUsername)
         const usernameSnap = await getDoc(usernameRef)
-        setUsernameStatus(usernameSnap.exists() ? 'taken' : 'valid')
+        if (usernameSnap.exists()) {
+           setUsernameStatus('taken')
+        } else {
+           setUsernameStatus('valid')
+        }
       } catch (e) {
         console.error(e)
       } finally {
@@ -197,12 +203,12 @@ export default function NovaOrganizacaoPage() {
 
       uploadTask.on('state_changed', 
         (snapshot) => setProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => { setProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) },
+        () => { setProgress(null); toast({ variant: "destructive", title: "Error uploading" }) },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setFormData(prev => ({ ...prev, [type]: downloadURL }))
           setProgress(null)
-          toast({ title: `${type === 'avatar' ? 'Logo' : 'Capa'} carregada!` })
+          toast({ title: `${type === 'avatar' ? 'Logo' : 'Cover'} uploaded!` })
         }
       )
     } catch (err) { setProgress(null) }
@@ -211,23 +217,25 @@ export default function NovaOrganizacaoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !user || usernameStatus !== 'valid') {
-        toast({ variant: "destructive", title: "Username inválido", description: "Verifique a disponibilidade do nome de usuário." })
+        toast({ variant: "destructive", title: "Invalid username", description: "Please check username availability." })
         return
     }
 
-    if (formData.tipoOrganizacao === 'individual') {
-      if (!validateCPF(formData.cpf)) {
-        toast({ variant: "destructive", title: "CPF Inválido" });
-        return;
-      }
-    } else {
-      if (!validateCNPJ(formData.cnpj)) {
-        toast({ variant: "destructive", title: "CNPJ Inválido" });
-        return;
-      }
-      if (!validateCPF(formData.representanteLegalCpf)) {
-        toast({ variant: "destructive", title: "CPF do Representante Inválido" });
-        return;
+    if (!skipFiscal) {
+      if (formData.tipoOrganizacao === 'individual') {
+        if (!validateCPF(formData.cpf)) {
+          toast({ variant: "destructive", title: "Invalid CPF" });
+          return;
+        }
+      } else {
+        if (!validateCNPJ(formData.cnpj)) {
+          toast({ variant: "destructive", title: "Invalid CNPJ" });
+          return;
+        }
+        if (!validateCPF(formData.representanteLegalCpf)) {
+          toast({ variant: "destructive", title: "Invalid Legal Rep CPF" });
+          return;
+        }
       }
     }
 
@@ -242,21 +250,28 @@ export default function NovaOrganizacaoPage() {
         const memberRef = doc(db, "organizations", orgId, "members", user.uid)
 
         const usernameSnap = await transaction.get(usernameRef)
-        if (usernameSnap.exists()) throw new Error("Username já ocupado.")
+        if (usernameSnap.exists()) throw new Error("Username already taken.")
 
         transaction.set(usernameRef, { uid: orgId, type: 'organization', username: normalizedUsername })
 
         const finalData = { ...formData };
-        if (finalData.tipoOrganizacao === 'individual') {
+        if (skipFiscal) {
+          finalData.cpf = "";
           finalData.cnpj = "";
           finalData.razaoSocial = "";
           finalData.nomeFantasia = "";
           finalData.representanteLegalCpf = "";
         } else {
-          finalData.cpf = "";
+          if (finalData.tipoOrganizacao === 'individual') {
+            finalData.cnpj = "";
+            finalData.razaoSocial = "";
+            finalData.nomeFantasia = "";
+            finalData.representanteLegalCpf = "";
+          } else {
+            finalData.cpf = "";
+          }
         }
 
-        // Aliases for compat
         const searchableData = {
           ...finalData,
           city: finalData.address.city,
@@ -276,7 +291,8 @@ export default function NovaOrganizacaoPage() {
           updatedAt: serverTimestamp(),
           verified: false,
           payoutSettings: { status: 'none' },
-          status: 'Ativo'
+          status: 'Ativo',
+          needsFiscalSync: skipFiscal
         })
 
         transaction.set(memberRef, {
@@ -339,7 +355,7 @@ export default function NovaOrganizacaoPage() {
            </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm overflow-hidden rounded-[2rem]">
+        <Card className="border-none shadow-sm overflow-hidden rounded-[2.5rem]">
           <CardHeader className="bg-muted/30">
             <CardTitle className="text-lg flex items-center gap-2">
                <Camera className="w-5 h-5 text-secondary" /> Visual Identity
@@ -458,64 +474,82 @@ export default function NovaOrganizacaoPage() {
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
              <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Compliance Data</CardTitle>
+             <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase opacity-40 italic">Tell me later</span>
+                <Switch checked={skipFiscal} onCheckedChange={setSkipFiscal} />
+             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-             {isIndividual ? (
-               <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF (Tax ID)</Label>
-                  <Input 
-                    value={formData.cpf}
-                    onChange={e => {
-                      const numbers = e.target.value.replace(/\D/g, "");
-                      setFormData(prev => ({ ...prev, cpf: numbers.substring(0, 11) }))
-                    }}
-                    placeholder="000.000.000-00" 
-                    className="rounded-xl h-11 font-mono"
-                    required
-                  />
+             {skipFiscal ? (
+                <div className="p-6 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 flex items-start gap-4 animate-in zoom-in-95">
+                  <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                     <h4 className="font-black uppercase text-xs italic text-orange-800">Warning: Payouts Blocked</h4>
+                     <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
+                        You can create the brand now, but you won't be able to launch paid events or receive payouts until your tax information is linked and verified.
+                     </p>
+                  </div>
                </div>
              ) : (
-               <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Legal Name</Label>
+               <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                 {isIndividual ? (
+                   <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF (Tax ID)</Label>
                       <Input 
-                        value={formData.razaoSocial}
-                        onChange={e => setFormData(prev => ({ ...prev, razaoSocial: e.target.value }))}
-                        placeholder="Official company name" 
-                        className="rounded-xl h-11"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ (Business ID)</Label>
-                      <Input 
-                        value={formData.cnpj}
+                        value={formData.cpf}
                         onChange={e => {
                           const numbers = e.target.value.replace(/\D/g, "");
-                          setFormData(prev => ({ ...prev, cnpj: numbers.substring(0, 14) }))
+                          setFormData(prev => ({ ...prev, cpf: numbers.substring(0, 11) }))
                         }}
-                        placeholder="00.000.000/0000-00" 
+                        placeholder="000.000.000-00" 
                         className="rounded-xl h-11 font-mono"
                         required
                       />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Legal Representative CPF</Label>
-                    <Input 
-                      value={formData.representanteLegalCpf}
-                      onChange={e => {
-                        const numbers = e.target.value.replace(/\D/g, "");
-                        setFormData(prev => ({ ...prev, representanteLegalCpf: numbers.substring(0, 11) }))
-                      }}
-                      placeholder="000.000.000-00" 
-                      className="rounded-xl h-11 font-mono"
-                      required
-                    />
-                  </div>
+                   </div>
+                 ) : (
+                   <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Legal Name</Label>
+                          <Input 
+                            value={formData.razaoSocial}
+                            onChange={e => setFormData(prev => ({ ...prev, razaoSocial: e.target.value }))}
+                            placeholder="Official company name" 
+                            className="rounded-xl h-11"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ (Business ID)</Label>
+                          <Input 
+                            value={formData.cnpj}
+                            onChange={e => {
+                              const numbers = e.target.value.replace(/\D/g, "");
+                              setFormData(prev => ({ ...prev, cnpj: numbers.substring(0, 14) }))
+                            }}
+                            placeholder="00.000.000/0000-00" 
+                            className="rounded-xl h-11 font-mono"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Legal Representative CPF</Label>
+                        <Input 
+                          value={formData.representanteLegalCpf}
+                          onChange={e => {
+                            const numbers = e.target.value.replace(/\D/g, "");
+                            setFormData(prev => ({ ...prev, representanteLegalCpf: numbers.substring(0, 11) }))
+                          }}
+                          placeholder="000.000.000-00" 
+                          className="rounded-xl h-11 font-mono"
+                          required
+                        />
+                      </div>
+                   </div>
+                 )}
                </div>
              )}
           </CardContent>

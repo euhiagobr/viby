@@ -33,7 +33,9 @@ import {
   Fingerprint,
   Info,
   User,
-  ShieldCheck
+  ShieldCheck,
+  AlertTriangle,
+  Clock
 } from "lucide-react"
 import Link from "next/link"
 import { cn, validateCPF, validateCNPJ } from "@/lib/utils"
@@ -89,6 +91,7 @@ export default function NovaOrganizacaoPage() {
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
   const [avatarUploadProgress, setAvatarUploadProgress] = useState<number | null>(null)
   const [bannerUploadProgress, setBannerUploadProgress] = useState<number | null>(null)
+  const [skipFiscal, setSkipFiscal] = useState(false)
   
   const [formData, setFormData] = useState({
     tipoOrganizacao: "individual",
@@ -222,19 +225,21 @@ export default function NovaOrganizacaoPage() {
         return
     }
 
-    if (formData.tipoOrganizacao === 'individual') {
-      if (!validateCPF(formData.cpf)) {
-        toast({ variant: "destructive", title: "CPF Inválido" });
-        return;
-      }
-    } else {
-      if (!validateCNPJ(formData.cnpj)) {
-        toast({ variant: "destructive", title: "CNPJ Inválido" });
-        return;
-      }
-      if (!validateCPF(formData.representanteLegalCpf)) {
-        toast({ variant: "destructive", title: "CPF do Representante Inválido" });
-        return;
+    if (!skipFiscal) {
+      if (formData.tipoOrganizacao === 'individual') {
+        if (!validateCPF(formData.cpf)) {
+          toast({ variant: "destructive", title: "CPF Inválido" });
+          return;
+        }
+      } else {
+        if (!validateCNPJ(formData.cnpj)) {
+          toast({ variant: "destructive", title: "CNPJ Inválido" });
+          return;
+        }
+        if (!validateCPF(formData.representanteLegalCpf)) {
+          toast({ variant: "destructive", title: "CPF do Representante Inválido" });
+          return;
+        }
       }
     }
 
@@ -258,13 +263,21 @@ export default function NovaOrganizacaoPage() {
         })
 
         const finalData = { ...formData };
-        if (finalData.tipoOrganizacao === 'individual') {
+        if (skipFiscal) {
+          finalData.cpf = "";
           finalData.cnpj = "";
           finalData.razaoSocial = "";
           finalData.nomeFantasia = "";
           finalData.representanteLegalCpf = "";
         } else {
-          finalData.cpf = "";
+          if (finalData.tipoOrganizacao === 'individual') {
+            finalData.cnpj = "";
+            finalData.razaoSocial = "";
+            finalData.nomeFantasia = "";
+            finalData.representanteLegalCpf = "";
+          } else {
+            finalData.cpf = "";
+          }
         }
 
         // Aliases para busca rápida
@@ -288,7 +301,8 @@ export default function NovaOrganizacaoPage() {
           updatedAt: serverTimestamp(),
           verified: false,
           payoutSettings: { status: 'none' },
-          status: 'Ativo'
+          status: 'Ativo',
+          needsFiscalSync: skipFiscal
         })
 
         transaction.set(memberRef, {
@@ -469,64 +483,82 @@ export default function NovaOrganizacaoPage() {
         </Card>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
              <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Dados Fiscais</CardTitle>
+             <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase opacity-40 italic">Informar depois</span>
+                <Switch checked={skipFiscal} onCheckedChange={setSkipFiscal} />
+             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-             {isIndividual ? (
-               <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF (Titular)</Label>
-                  <Input 
-                    value={formData.cpf}
-                    onChange={e => {
-                      const numbers = e.target.value.replace(/\D/g, "");
-                      setFormData(prev => ({ ...prev, cpf: numbers.substring(0, 11) }))
-                    }}
-                    placeholder="000.000.000-00" 
-                    className="rounded-xl h-11 font-mono"
-                    required
-                  />
+             {skipFiscal ? (
+               <div className="p-6 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 flex items-start gap-4 animate-in zoom-in-95">
+                  <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                     <h4 className="font-black uppercase text-xs italic text-orange-800">Atenção: Recebimentos Bloqueados</h4>
+                     <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
+                        Você pode criar a marca agora, mas não poderá lançar eventos pagos ou receber repasses financeiros até que o CPF/CNPJ seja vinculado e aprovado.
+                     </p>
+                  </div>
                </div>
              ) : (
-               <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social</Label>
+               <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                 {isIndividual ? (
+                   <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF (Titular)</Label>
                       <Input 
-                        value={formData.razaoSocial}
-                        onChange={e => setFormData(prev => ({ ...prev, razaoSocial: e.target.value }))}
-                        placeholder="Nome oficial da empresa" 
-                        className="rounded-xl h-11"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ</Label>
-                      <Input 
-                        value={formData.cnpj}
+                        value={formData.cpf}
                         onChange={e => {
                           const numbers = e.target.value.replace(/\D/g, "");
-                          setFormData(prev => ({ ...prev, cnpj: numbers.substring(0, 14) }))
+                          setFormData(prev => ({ ...prev, cpf: numbers.substring(0, 11) }))
                         }}
-                        placeholder="00.000.000/0000-00" 
+                        placeholder="000.000.000-00" 
                         className="rounded-xl h-11 font-mono"
                         required
                       />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF do Representante Legal</Label>
-                    <Input 
-                      value={formData.representanteLegalCpf}
-                      onChange={e => {
-                        const numbers = e.target.value.replace(/\D/g, "");
-                        setFormData(prev => ({ ...prev, representanteLegalCpf: numbers.substring(0, 11) }))
-                      }}
-                      placeholder="000.000.000-00" 
-                      className="rounded-xl h-11 font-mono"
-                      required
-                    />
-                  </div>
+                   </div>
+                 ) : (
+                   <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social</Label>
+                          <Input 
+                            value={formData.razaoSocial}
+                            onChange={e => setFormData(prev => ({ ...prev, razaoSocial: e.target.value }))}
+                            placeholder="Nome oficial da empresa" 
+                            className="rounded-xl h-11"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ</Label>
+                          <Input 
+                            value={formData.cnpj}
+                            onChange={e => {
+                              const numbers = e.target.value.replace(/\D/g, "");
+                              setFormData(prev => ({ ...prev, cnpj: numbers.substring(0, 14) }))
+                            }}
+                            placeholder="00.000.000/0000-00" 
+                            className="rounded-xl h-11 font-mono"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF do Representante Legal</Label>
+                        <Input 
+                          value={formData.representanteLegalCpf}
+                          onChange={e => {
+                            const numbers = e.target.value.replace(/\D/g, "");
+                            setFormData(prev => ({ ...prev, representanteLegalCpf: numbers.substring(0, 11) }))
+                          }}
+                          placeholder="000.000.000-00" 
+                          className="rounded-xl h-11 font-mono"
+                          required
+                        />
+                      </div>
+                   </div>
+                 )}
                </div>
              )}
           </CardContent>
