@@ -7,8 +7,7 @@ import { useAuth, useUser, useFirestore, useDoc, useFirebaseApp } from "@/fireba
 import { 
   doc, 
   updateDoc, 
-  serverTimestamp, 
-  increment
+  serverTimestamp
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -24,25 +23,28 @@ import {
   Loader2, 
   ArrowLeft, 
   Save, 
-  Upload, 
   Lock, 
   ShieldCheck, 
-  EyeOff,
   Fingerprint,
   AlertTriangle,
   Camera,
-  Trash2,
   Instagram,
   Globe,
   Phone,
-  Coins
+  User,
+  MapPin,
+  Calendar,
+  Languages,
+  Coins,
+  Mail,
+  EyeOff
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn, validateCPF } from "@/lib/utils"
 import Link from "next/link"
-import { getUserCPF, updateUserCPF } from "@/app/actions/user"
-import { maskCPF } from "@/lib/crypto-utils"
+import { updateUserCPF } from "@/app/actions/user"
 import { IMAGE_CACHE_METADATA } from "@/lib/image-utils"
+import { Separator } from "@/components/ui/separator"
 
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 
@@ -78,12 +80,12 @@ export default function EditarPerfilPage() {
     email: "",
     cpf: "",
     preferredCurrency: "BRL",
+    language: "pt-BR",
     showEmail: true
   })
   
   const [saving, setSaving] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
-  const [isFetchingCPF, setIsFetchingCPF] = useState(false)
   const [hasValidCPF, setHasValidCPF] = useState(false)
 
   useEffect(() => {
@@ -110,6 +112,7 @@ export default function EditarPerfilPage() {
         email: profile.email || "",
         cpf: currentMask,
         preferredCurrency: profile.preferredCurrency || "BRL",
+        language: profile.language || "pt-BR",
         showEmail: profile.showEmail !== undefined ? profile.showEmail : true
       }));
 
@@ -129,7 +132,7 @@ export default function EditarPerfilPage() {
       const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => setUploadProgress(null),
+        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setFormData((prev: any) => ({ ...prev, avatar: downloadURL }))
@@ -177,22 +180,27 @@ export default function EditarPerfilPage() {
 
   const cpfIsReadOnly = hasValidCPF;
 
+  if (profileLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
+
   return (
-    <div className="max-w-3xl mx-auto space-y-8 pb-20">
+    <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild><Link href="/dashboard/perfil"><ArrowLeft className="w-5 h-5" /></Link></Button>
-        <h1 className="text-3xl font-bold tracking-tight text-primary">Editar Perfil</h1>
+        <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Editar Perfil</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+        {/* IDENTIDADE E FOTO */}
+        <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
           <CardHeader className="bg-muted/30 pb-8">
-            <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Identidade</CardTitle>
+            <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+              <User className="w-5 h-5 text-secondary" /> Identidade
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6 pt-8">
+          <CardContent className="space-y-8 pt-8">
             <div className="flex flex-col items-center gap-6 py-4">
               <div className="relative group">
-                <Avatar className="h-40 w-40 border-8 border-background shadow-2xl rounded-[3rem]">
+                <Avatar className="h-40 w-40 border-8 border-background shadow-2xl rounded-[3rem] overflow-hidden">
                   <AvatarImage src={formData.avatar} alt={formData.name} className="object-cover" />
                   <AvatarFallback className="text-4xl font-black bg-muted">{formData.name?.charAt(0)}</AvatarFallback>
                 </Avatar>
@@ -201,46 +209,177 @@ export default function EditarPerfilPage() {
                 </label>
                 <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
               </div>
-              {uploadProgress !== null && <div className="w-full max-w-xs space-y-2"><Progress value={uploadProgress} className="h-1" /><p className="text-[9px] text-center font-black uppercase">Subindo: {Math.round(uploadProgress)}%</p></div>}
+              {uploadProgress !== null && (
+                <div className="w-full max-w-xs space-y-2">
+                  <Progress value={uploadProgress} className="h-1" />
+                  <p className="text-[9px] text-center font-black uppercase">Sincronizando: {Math.round(uploadProgress)}%</p>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label><Input value={formData.name} onChange={(e) => setFormData((prev:any) => ({...prev, name: e.target.value}))} required className="rounded-xl h-11" /></div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-60">CPF (Identidade Protegida)</Label>
+                <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Nome Completo</Label>
+                <Input value={formData.name} onChange={(e) => setFormData((prev:any) => ({...prev, name: e.target.value}))} required className="rounded-xl h-12" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2 ml-1">
+                  <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Protegido)
+                </Label>
                 <div className="relative">
                   <Input 
                     value={formData.cpf} 
                     onChange={e => !cpfIsReadOnly && setFormData({...formData, cpf: formatCPFInput(e.target.value)})}
                     readOnly={cpfIsReadOnly}
                     placeholder="000.000.000-00"
-                    className={cn("rounded-xl h-11 font-mono font-bold pr-10", cpfIsReadOnly ? "bg-muted/50 cursor-not-allowed" : "border-dashed border-secondary/30")} 
+                    className={cn("rounded-xl h-12 font-mono font-bold pr-10", cpfIsReadOnly ? "bg-muted/50 cursor-not-allowed" : "border-dashed border-secondary/30")} 
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {cpfIsReadOnly ? <Lock className="w-4 h-4 text-muted-foreground opacity-50" /> : <ShieldCheck className="w-4 h-4 text-secondary" />}
+                    {cpfIsReadOnly ? <Lock className="w-4 h-4 text-muted-foreground opacity-30" /> : <ShieldCheck className="w-4 h-4 text-secondary" />}
                   </div>
                 </div>
                 {!hasValidCPF && (
                    <div className="p-3 bg-orange-50 rounded-xl border border-dashed border-orange-200 flex items-start gap-2 mt-2">
                       <AlertTriangle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
-                      <p className="text-[9px] font-bold text-orange-800 uppercase leading-tight">O CPF informado será vinculado permanentemente à sua conta para transferências seguras.</p>
+                      <p className="text-[9px] font-bold text-orange-800 uppercase leading-tight">O CPF informado será vinculado permanentemente para transferências seguras.</p>
                    </div>
                 )}
               </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Gênero</Label>
+                  <Select value={formData.gender} onValueChange={v => setFormData({...formData, gender: v})}>
+                     <SelectTrigger className="rounded-xl h-12"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                     <SelectContent className="rounded-xl">
+                        <SelectItem value="masculino">Masculino</SelectItem>
+                        <SelectItem value="feminino">Feminino</SelectItem>
+                        <SelectItem value="nao-binario">Não-binário</SelectItem>
+                        <SelectItem value="outro">Outro</SelectItem>
+                        <SelectItem value="prefiro-nao-dizer">Prefiro não dizer</SelectItem>
+                     </SelectContent>
+                  </Select>
+               </div>
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Data de Nascimento</Label>
+                  <Input type="date" value={formData.birthDate} onChange={e => setFormData({...formData, birthDate: e.target.value})} className="rounded-xl h-12" />
+               </div>
+            </div>
+
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60">Sua Bio</Label>
+              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Bio / Apresentação</Label>
               <Textarea value={formData.bio} maxLength={150} onChange={(e) => setFormData((prev:any) => ({...prev, bio: e.target.value}))} placeholder="Fale um pouco sobre você..." className="min-h-[100px] resize-none rounded-xl border-dashed" />
             </div>
           </CardContent>
         </Card>
 
+        {/* LOCALIZAÇÃO */}
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+           <CardHeader className="bg-muted/30">
+              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                 <MapPin className="w-5 h-5 text-secondary" /> Localização
+              </CardTitle>
+           </CardHeader>
+           <CardContent className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Cidade</Label>
+                 <Input value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="rounded-xl h-12" />
+              </div>
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Estado (UF)</Label>
+                 <Input value={formData.state} onChange={e => setFormData({...formData, state: e.target.value.toUpperCase()})} maxLength={2} className="rounded-xl h-12" />
+              </div>
+           </CardContent>
+        </Card>
+
+        {/* PRESENÇA DIGITAL */}
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+           <CardHeader className="bg-muted/30">
+              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                 <Globe className="w-5 h-5 text-secondary" /> Redes e Contato
+              </CardTitle>
+           </CardHeader>
+           <CardContent className="p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1 flex items-center gap-2">
+                       <Instagram className="w-3 h-3" /> Instagram (@)
+                    </Label>
+                    <Input value={formData.instagram} onChange={e => setFormData({...formData, instagram: e.target.value.replace('@', '')})} className="rounded-xl h-12" placeholder="seu_perfil" />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1 flex items-center gap-2">
+                       <Phone className="w-3 h-3" /> WhatsApp
+                    </Label>
+                    <Input value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} className="rounded-xl h-12" placeholder="(00) 00000-0000" />
+                 </div>
+              </div>
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase opacity-60 ml-1 flex items-center gap-2">
+                    <Globe className="w-3 h-3" /> Site / Link Externo
+                 </Label>
+                 <Input value={formData.website} onChange={e => setFormData({...formData, website: e.target.value})} className="rounded-xl h-12" placeholder="https://..." />
+              </div>
+
+              <Separator className="border-dashed" />
+
+              <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
+                 <div className="space-y-0.5">
+                    <p className="font-bold text-sm flex items-center gap-2 text-primary">
+                       <Mail className="w-4 h-4" /> E-mail Público
+                    </p>
+                    <p className="text-[9px] font-black uppercase opacity-40">Exibir e-mail no perfil público</p>
+                 </div>
+                 <Switch 
+                   checked={formData.showEmail} 
+                   onCheckedChange={v => setFormData({...formData, showEmail: v})} 
+                 />
+              </div>
+           </CardContent>
+        </Card>
+
+        {/* PREFERÊNCIAS */}
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+           <CardHeader className="bg-muted/30">
+              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                 <Languages className="w-5 h-5 text-secondary" /> Preferências do Sistema
+              </CardTitle>
+           </CardHeader>
+           <CardContent className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase opacity-60 ml-1 flex items-center gap-2">
+                    <Coins className="w-3 h-3" /> Moeda Padrão
+                 </Label>
+                 <Select value={formData.preferredCurrency} onValueChange={v => setFormData({...formData, preferredCurrency: v})}>
+                    <SelectTrigger className="rounded-xl h-12"><SelectValue /></SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                       <SelectItem value="BRL">Real Brasileiro (R$)</SelectItem>
+                       <SelectItem value="USD">Dólar Americano ($)</SelectItem>
+                       <SelectItem value="EUR">Euro (€)</SelectItem>
+                    </SelectContent>
+                 </Select>
+              </div>
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase opacity-60 ml-1 flex items-center gap-2">
+                    <Languages className="w-3 h-3" /> Idioma
+                 </Label>
+                 <Select value={formData.language} onValueChange={v => setFormData({...formData, language: v})}>
+                    <SelectTrigger className="rounded-xl h-12"><SelectValue /></SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                       <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                       <SelectItem value="en-US">English (US)</SelectItem>
+                    </SelectContent>
+                 </Select>
+              </div>
+           </CardContent>
+        </Card>
+
         <div className="flex justify-end gap-3 pt-6">
           <Button type="button" variant="ghost" onClick={() => router.back()} className="rounded-xl px-8 font-bold uppercase text-xs">Cancelar</Button>
-          <Button type="submit" className="bg-secondary text-white font-black px-12 h-14 rounded-2xl shadow-xl uppercase italic text-lg" disabled={saving || uploadProgress !== null}>
+          <Button type="submit" className="bg-secondary text-white font-black px-12 h-16 rounded-[1.5rem] shadow-xl shadow-secondary/20 uppercase italic text-lg hover:scale-[1.02] transition-transform" disabled={saving || uploadProgress !== null}>
             {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-            Salvar Alterações
+            Salvar Perfil
           </Button>
         </div>
       </form>
