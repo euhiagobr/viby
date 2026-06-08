@@ -23,6 +23,13 @@ import { sendWelcomeEmail } from "@/app/actions/email"
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
+const RESERVED_USERNAMES = [
+  "admin", "suporte", "support", "help", "ajuda", "dashboard", "login", "cadastro", 
+  "signup", "signin", "redefinir-senha", "reset-password", "checkout", "privacidade", 
+  "privacy", "termos", "terms", "api", "viby", "oficial", "official", "status", 
+  "settings", "configuracoes", "root", "sys", "system", "onboarding"
+];
+
 function CadastroContent() {
   const [name, setName] = useState("")
   const [username, setUsername] = useState("")
@@ -58,6 +65,13 @@ function CadastroContent() {
       return
     }
     const newUsername = username.toLowerCase().trim()
+    
+    // Check reserved list
+    if (RESERVED_USERNAMES.includes(newUsername)) {
+      setUsernameStatus('taken')
+      return
+    }
+
     setCheckingUsername(true)
     const timer = setTimeout(async () => {
       try {

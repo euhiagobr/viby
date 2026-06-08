@@ -1,9 +1,27 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import ProfilePageClient from './ProfilePageClient';
+
+const RESERVED_ROUTES = [
+  'dashboard', 
+  'admin', 
+  'login', 
+  'cadastro', 
+  'redefinir-senha', 
+  'checkout', 
+  'privacidade', 
+  'termos', 
+  'api',
+  'suporte',
+  'support',
+  'help',
+  'onboarding',
+  'faq'
+];
 
 async function getProfileData(username: string) {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -29,6 +47,11 @@ async function getProfileData(username: string) {
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
   const { username } = await params;
+  
+  if (RESERVED_ROUTES.includes(username.toLowerCase())) {
+    return { title: 'Viby' };
+  }
+
   const profile = await getProfileData(username);
 
   if (!profile) {
@@ -77,8 +100,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
   
-  const reserved = ['dashboard', 'admin', 'login', 'cadastro', 'redefinir-senha', 'checkout', 'privacidade', 'termos', 'api'];
-  if (reserved.includes(username.toLowerCase())) {
+  if (RESERVED_ROUTES.includes(username.toLowerCase())) {
     return null;
   }
 

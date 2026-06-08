@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react";
@@ -16,6 +17,13 @@ import { maskCPF, encryptDeterministic } from "@/lib/crypto-utils";
 import { updateUserCPF } from "@/app/actions/user";
 import { recordAuditLog } from "@/app/actions/audit";
 import { Separator } from "@/components/ui/separator";
+
+const RESERVED_USERNAMES = [
+  "admin", "suporte", "support", "help", "ajuda", "dashboard", "login", "cadastro", 
+  "signup", "signin", "redefinir-senha", "reset-password", "checkout", "privacidade", 
+  "privacy", "termos", "terms", "api", "viby", "oficial", "official", "status", 
+  "settings", "configuracoes", "root", "sys", "system", "onboarding"
+];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -66,6 +74,12 @@ export default function OnboardingPage() {
     
     if (!validateUsername(cleanUsername)) {
       setUsernameStatus('invalid');
+      return;
+    }
+
+    // Check reserved list
+    if (RESERVED_USERNAMES.includes(cleanUsername)) {
+      setUsernameStatus('taken');
       return;
     }
 

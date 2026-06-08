@@ -1,0 +1,40 @@
+
+{
+  "collection": "settings",
+  "document": "blocked_usernames",
+  "description": "Lista de palavras reservadas que não podem ser utilizadas como @username por usuários ou organizações para evitar conflitos com rotas do sistema.",
+  "fields": {
+    "list": "array of strings (lowercase)",
+    "updatedAt": "timestamp",
+    "updatedBy": "string (UID)"
+  },
+  "default_reserved": [
+    "admin",
+    "suporte",
+    "support",
+    "help",
+    "ajuda",
+    "dashboard",
+    "login",
+    "cadastro",
+    "signup",
+    "signin",
+    "redefinir-senha",
+    "reset-password",
+    "checkout",
+    "privacidade",
+    "privacy",
+    "termos",
+    "terms",
+    "api",
+    "viby",
+    "oficial",
+    "official",
+    "status",
+    "settings",
+    "configuracoes",
+    "root",
+    "sys",
+    "system"
+  ]
+}
