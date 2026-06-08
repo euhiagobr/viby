@@ -1,10 +1,11 @@
+
 "use client"
 
 import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Loader2, ShoppingCart } from "lucide-react"
+import { Loader2, ShoppingCart, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser } from "@/firebase"
 import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -38,14 +39,16 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const hasMandatoryData = !!(profile?.username && profile?.cpf);
-    const needsOnboarding = profile === null || !hasMandatoryData;
+    // 1. Verificação de Dados Mandatórios e Migração de Segurança (CPF)
+    const hasMandatoryData = !!(profile?.username && profile?.cpfHash);
+    const needsOnboarding = profile === null || !hasMandatoryData || profile?.needsCPFUpdate;
 
     if (needsOnboarding && pathname !== '/onboarding') {
       router.replace('/onboarding');
       return;
     }
 
+    // 2. Verificação de Bloqueio
     if (profile && profile.status === 'Bloqueado' && pathname !== '/suporte') {
       router.replace('/suporte');
     }

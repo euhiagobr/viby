@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react";
@@ -33,13 +34,15 @@ export default function OnboardingPage() {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [cpf, setCpf] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = false;
   
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle');
   
   const [checkingCPF, setCheckingCPF] = useState(false);
   const [cpfStatus, setCPFStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle');
+
+  const needsCPFOnly = profile?.username && (profile?.needsCPFUpdate || !profile?.cpfHash);
 
   useEffect(() => {
     if (!isInitialized || authLoading) return;
@@ -49,19 +52,21 @@ export default function OnboardingPage() {
     }
     
     const hasMandatoryData = !!(profile?.username && profile?.cpfHash);
-    if (profile !== null && hasMandatoryData) {
+    if (profile !== null && hasMandatoryData && !profile?.needsCPFUpdate) {
       router.replace("/dashboard");
       return;
     }
 
     if (profile) {
       if (!name && profile.name) setName(profile.name);
+      if (!username && profile.username) setUsername(profile.username);
     }
-  }, [user, profile, isInitialized, authLoading, router, name]);
+  }, [user, profile, isInitialized, authLoading, router]);
 
   useEffect(() => {
-    if (!db || !username) {
-      setUsernameStatus('idle');
+    if (!db || !username || needsCPFOnly) {
+      if (needsCPFOnly) setUsernameStatus('valid');
+      else setUsernameStatus('idle');
       return;
     }
     const cleanUsername = username.toLowerCase().trim();
@@ -90,7 +95,7 @@ export default function OnboardingPage() {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [username, db, user?.uid]);
+  }, [username, db, user?.uid, needsCPFOnly]);
 
   useEffect(() => {
     if (!db || !cpf || cpf.length < 11) {
@@ -108,7 +113,9 @@ export default function OnboardingPage() {
         const hash = hashCPF(cleanCPF);
         const q = query(collection(db, "users"), where("cpfHash", "==", hash), limit(1));
         const snap = await getDocs(q);
-        setCPFStatus(snap.empty ? 'valid' : 'taken');
+        // Se o CPF já pertence ao usuário atual (caso ele esteja apenas reconfirmando o mesmo CPF após auditoria)
+        const isMine = !snap.empty && snap.docs[0].id === user?.uid;
+        setCPFStatus((snap.empty || isMine) ? 'valid' : 'taken');
       } catch (e) {
         setCPFStatus('idle');
       } finally {
@@ -116,7 +123,7 @@ export default function OnboardingPage() {
       }
     }, 600);
     return () => clearTimeout(timer);
-  }, [cpf, db]);
+  }, [cpf, db, user?.uid]);
 
   const handleOnboarding = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,21 +135,25 @@ export default function OnboardingPage() {
     const cleanCPF = cpf.replace(/\D/g, "");
 
     try {
+      // 1. Atualizar CPF no padrão triplo (Encrypted, Hash, Masked) e limpar flag de migração
       const cpfRes = await updateUserCPF(user.uid, cleanCPF);
       if (!cpfRes.success) throw new Error(cpfRes.error);
 
+      // 2. Finalizar Onboarding / Atualização
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername);
         const userRef = doc(db, "users", user.uid);
+        
         transaction.set(usernameRef, { uid: user.uid, type: 'user', email: user.email }, { merge: true });
         transaction.update(userRef, {
           username: normalizedUsername,
           profileComplete: true,
+          needsCPFUpdate: false, // Limpa a flag de atualização pendente
           updatedAt: serverTimestamp()
         });
       });
 
-      toast({ title: "Perfil finalizado!", description: "Bem-vindo à comunidade Viby." });
+      toast({ title: "Perfil atualizado!", description: "Sua identidade foi validada com sucesso." });
       router.replace("/dashboard");
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: error.message });
@@ -159,67 +170,63 @@ export default function OnboardingPage() {
       <Card className="w-full max-w-lg border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white">
         <CardHeader className="text-center pt-12 pb-6 bg-muted/30">
           <div className="w-20 h-20 bg-secondary rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-secondary/10">
-            <UserIcon className="w-10 h-10 text-white" />
+            <ShieldCheck className="w-10 h-10 text-white" />
           </div>
-          <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Concluir Perfil</CardTitle>
-          <CardDescription className="text-sm font-medium px-8">Precisamos validar sua identidade para habilitar compras e transferências.</CardDescription>
+          <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">
+            {needsCPFOnly ? "Segurança de Identidade" : "Concluir Perfil"}
+          </CardTitle>
+          <CardDescription className="text-sm font-medium px-8">
+            {needsCPFOnly 
+              ? "Atualizamos nossos protocolos de segurança. Por favor, confirme seu CPF para continuar utilizando a Viby com total proteção."
+              : "Precisamos validar sua identidade para habilitar compras e transferências."}
+          </CardDescription>
         </CardHeader>
         
         <CardContent className="px-10 py-10 space-y-8">
           <form onSubmit={handleOnboarding} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-60 grayscale-[0.5]">
-               <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase tracking-widest ml-1">Seu Nome</Label>
-                  <Input value={user?.displayName || ""} readOnly className="rounded-xl h-11 bg-muted border-none font-bold" />
-               </div>
-               <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase tracking-widest ml-1">E-mail</Label>
-                  <Input value={user?.email || ""} readOnly className="rounded-xl h-11 bg-muted border-none font-bold text-xs" />
-               </div>
-            </div>
-
-            <Separator className="border-dashed" />
-
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</Label>
-                <div className="relative">
-                  <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground opacity-40" />
-                  <Input 
-                    placeholder="ex: joao.viby" 
-                    value={username} 
-                    onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ""))}
-                    className="rounded-xl h-12 pl-9 pr-10 font-bold"
-                    required
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
-                     usernameStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
-                     (usernameStatus === 'taken' || usernameStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
+            {!needsCPFOnly && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</Label>
+                  <div className="relative">
+                    <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground opacity-40" />
+                    <Input 
+                      placeholder="ex: joao.viby" 
+                      value={username} 
+                      onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ""))}
+                      className="rounded-xl h-12 pl-9 pr-10 font-bold"
+                      required
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
+                       usernameStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
+                       (usernameStatus === 'taken' || usernameStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
+                    </div>
                   </div>
                 </div>
-              </div>
+                <Separator className="border-dashed" />
+              </>
+            )}
 
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
-                  <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Obrigatório)
-                </Label>
-                <div className="relative">
-                  <Input 
-                    placeholder="000.000.000-00" 
-                    value={cpf} 
-                    onChange={e => setCpf(e.target.value.replace(/\D/g, "").substring(0, 11))}
-                    className="rounded-xl h-12 pr-10 font-mono text-lg"
-                    required
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {checkingCPF ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
-                     cpfStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
-                     (cpfStatus === 'invalid' || cpfStatus === 'taken') ? <X className="w-4 h-4 text-destructive" /> : null}
-                  </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
+                <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Obrigatório)
+              </Label>
+              <div className="relative">
+                <Input 
+                  placeholder="000.000.000-00" 
+                  value={cpf} 
+                  onChange={e => setCpf(e.target.value.replace(/\D/g, "").substring(0, 11))}
+                  className="rounded-xl h-12 pr-10 font-mono text-lg"
+                  required
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {checkingCPF ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
+                   cpfStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
+                   (cpfStatus === 'invalid' || cpfStatus === 'taken') ? <X className="w-4 h-4 text-destructive" /> : null}
                 </div>
-                {cpfStatus === 'taken' && <p className="text-[9px] font-bold text-destructive uppercase ml-1">Este CPF já está sendo usado.</p>}
               </div>
+              {cpfStatus === 'taken' && <p className="text-[9px] font-bold text-destructive uppercase ml-1">Este CPF já está sendo usado.</p>}
             </div>
 
             <Button 
@@ -227,14 +234,14 @@ export default function OnboardingPage() {
               disabled={isSubmitting || usernameStatus !== 'valid' || cpfStatus !== 'valid'}
               className="w-full bg-primary text-white font-black h-16 rounded-2xl shadow-xl uppercase italic text-lg hover:bg-secondary transition-all"
             >
-              {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : "Concluir meu Cadastro"}
+              {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : "Validar meu Perfil"}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="bg-muted/20 border-t p-6 text-center">
            <div className="flex items-center justify-center gap-3 text-muted-foreground">
-              <ShieldCheck className="w-5 h-5 text-secondary" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Seus dados são protegidos por criptografia</span>
+              <Lock className="w-5 h-5 text-secondary" />
+              <span className="text-[10px] font-black uppercase tracking-widest">LGPD Compliance: Dados Criptografados</span>
            </div>
         </CardFooter>
       </Card>
