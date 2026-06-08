@@ -303,13 +303,12 @@ service cloud.firestore {
     // --- REGRAS DE GRUPO DE COLEÇÕES (Necessário para queries globais) ---
 
     match /{path=**}/partners/{partnerId} { 
-      allow read: if true; 
+      allow read, list: if isSignedIn() && (request.auth.uid == partnerId || resource.data.orgId == request.auth.uid || isAdmin());
     }
     
     match /{path=**}/members/{memberId} { 
       // Permite ler se for o dono do convite/membro (userId) ou se já for membro daquela org específica
-      allow read, list: if (isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid))
-                        || isOrgMember(path.split('/')[1]); 
+      allow read, list: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid || isAdmin());
     }
     
     match /{path=**}/transactions/{id} { 

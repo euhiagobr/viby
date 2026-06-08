@@ -75,6 +75,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     if (!isInitialized || !db || !user) {
       setOrganizations([]);
       setPendingInvitations([]);
+      setPendingPartnerships([]);
       setUnreadSupportCount(0);
       setUnreadNotificationsCount(0);
       setLoading(false);
@@ -83,7 +84,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     setLoading(true);
 
-    // 1. Ouvinte para Organizações que o usuário É DONO
+    // 1. Ouvinte para Organizações que o usuário É DONO (Consulta Direta)
     const ownerQuery = query(collection(db, 'organizations'), where('ownerId', '==', user.uid));
     const unsubOwner = onSnapshot(ownerQuery, (ownerSnap) => {
       const ownedOrgs = ownerSnap.docs.map(d => ({ 
@@ -93,61 +94,79 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       } as Organization));
 
       setOrganizations(prev => {
-        const others = prev.filter(p => !ownedOrgs.some(o => o.id === p.id));
-        const combined = [...ownedOrgs, ...others];
-        return combined;
+        // Preserva organizações onde o usuário é membro, mas atualiza as que ele é dono
+        const memberOnlyOrgs = prev.filter(p => !ownedOrgs.some(o => o.id === p.id));
+        return [...ownedOrgs, ...memberOnlyOrgs];
       });
       setLoading(false);
     });
 
-    // 2. Ouvinte para Convites e Membros via Collection Group
-    const membersQuery = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
-    const unsubMembers = onSnapshot(membersQuery, async (memberSnap) => {
-      try {
-        const acceptedPromises: Promise<Organization | null>[] = [];
-        const pendingInvites: any[] = [];
+    // 2. Ouvinte para Convites e Membros via Collection Group (Indispensável para convites)
+    const membersCG = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
+    const unsubMembers = onSnapshot(membersCG, async (memberSnap) => {
+      const acceptedPromises: Promise<Organization | null>[] = [];
+      const invitations: any[] = [];
 
-        for (const mDoc of memberSnap.docs) {
-          const mData = mDoc.data();
-          const orgId = mDoc.ref.parent.parent?.id;
-          
-          if (!orgId) continue;
+      for (const mDoc of memberSnap.docs) {
+        const mData = mDoc.data();
+        const orgId = mDoc.ref.parent.parent?.id;
+        
+        if (!orgId) continue;
 
-          if (mData.status === 'accepted' || !mData.status) {
-            acceptedPromises.push(
-              getDoc(doc(db, 'organizations', orgId)).then(snap => 
-                snap.exists() ? { id: snap.id, ...snap.data(), _memberData: mData } as Organization : null
-              )
-            );
-          } else if (mData.status === 'pending') {
-            pendingInvites.push(
-              getDoc(doc(db, 'organizations', orgId)).then(snap => 
-                snap.exists() ? { id: snap.id, orgName: snap.data().name, ...mData } : null
-              )
-            );
-          }
+        if (mData.status === 'accepted' || !mData.status) {
+          acceptedPromises.push(
+            getDoc(doc(db, 'organizations', orgId)).then(snap => 
+              snap.exists() ? { id: snap.id, ...snap.data(), _memberData: mData } as Organization : null
+            )
+          );
+        } else if (mData.status === 'pending') {
+          // Convite Pendente de Equipe
+          invitations.push({ id: orgId, ...mData, type: 'team_invite' });
         }
-
-        const memberOrgs = (await Promise.all(acceptedPromises)).filter((o): o is Organization => o !== null);
-        const pingsData = (await Promise.all(pendingInvites)).filter(p => p !== null);
-
-        setPendingInvitations(pingsData);
-        setOrganizations(prev => {
-          // Merge inteligente: mantém ownedOrgs e adiciona memberOrgs, evitando duplicatas
-          const combined = [...prev];
-          memberOrgs.forEach(m => {
-            const idx = combined.findIndex(o => o.id === m.id);
-            if (idx === -1) combined.push(m);
-            else combined[idx] = { ...combined[idx], ...m };
-          });
-          return combined;
-        });
-      } catch (e) {
-        console.error("Context Sync Error:", e);
       }
+
+      const memberOrgs = (await Promise.all(acceptedPromises)).filter((o): o is Organization => o !== null);
+      
+      // Carrega nomes das organizações para os convites pendentes
+      const invitesWithNames = await Promise.all(invitations.map(async (inv) => {
+        const orgSnap = await getDoc(doc(db, 'organizations', inv.id));
+        return { ...inv, orgName: orgSnap.exists() ? orgSnap.data().name : "Organização Desconhecida" };
+      }));
+
+      setPendingInvitations(invitesWithNames);
+      setOrganizations(prev => {
+        const ownedOnes = prev.filter(o => o.ownerId === user.uid);
+        const combined = [...ownedOnes];
+        memberOrgs.forEach(m => {
+          if (!combined.some(o => o.id === m.id)) combined.push(m);
+        });
+        return combined;
+      });
     });
 
-    // 3. Ouvintes de Notificações e Suporte
+    // 3. Ouvinte para Parcerias Pendentes (Collection Group em 'partners')
+    const partnersCG = query(collectionGroup(db, 'partners'), where('orgId', '==', user.uid), where('status', '==', 'pending'));
+    const unsubPartners = onSnapshot(partnersCG, async (partnerSnap) => {
+      const pings = await Promise.all(partnerSnap.docs.map(async (pDoc) => {
+        const pData = pDoc.data();
+        const eventId = pDoc.ref.parent.parent?.id;
+        if (!eventId) return null;
+
+        const eventSnap = await getDoc(doc(db, 'events', eventId));
+        if (!eventSnap.exists()) return null;
+        
+        return { 
+          id: pDoc.id, 
+          ...pData, 
+          eventId, 
+          eventTitle: eventSnap.data().title,
+          type: 'partnership'
+        };
+      }));
+      setPendingPartnerships(pings.filter(p => p !== null));
+    });
+
+    // 4. Ouvintes de Notificações e Suporte
     const supportQuery = query(collection(db, "support_tickets"), where("userId", "==", user.uid), where("status", "==", "Respondida"));
     const unsubSupport = onSnapshot(supportQuery, (snap) => setUnreadSupportCount(snap.size));
 
@@ -157,6 +176,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     return () => {
       unsubOwner();
       unsubMembers();
+      unsubPartners();
       unsubSupport();
       unsubNotifications();
     };
@@ -174,7 +194,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         handleSetCurrentOrg(toSelect);
       }
     }
-  }, [organizations.length, organizations]);
+  }, [organizations, currentOrg?.id]);
 
   const handleSetCurrentOrg = (org: Organization | null) => {
     setCurrentOrg(org);
