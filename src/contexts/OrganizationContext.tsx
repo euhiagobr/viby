@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { 
   collection, 
@@ -12,7 +11,6 @@ import {
   getDoc,
   onSnapshot
 } from 'firebase/firestore';
-import { useParams, usePathname } from 'next/navigation';
 
 interface Organization {
   id: string;
@@ -61,7 +59,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const { user, isInitialized } = useUser(auth);
   const db = useFirestore();
   
-  const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
+  const [currentOrg, setCurrentOrgState] = useState<Organization | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
   const [pendingPartnerships, setPendingPartnerships] = useState<any[]>([]);
@@ -69,6 +67,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
+
+  // Função para mudar a organização com persistência
+  const setCurrentOrg = useCallback((org: Organization | null) => {
+    setCurrentOrgState(org);
+    if (org && typeof window !== 'undefined') {
+      localStorage.setItem('viby_current_org', org.id);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isInitialized || !db || !user) {
@@ -125,6 +131,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       setPendingInvitations(invitesWithNames);
 
       const memberOrgs = (await Promise.all(acceptedPromises)).filter((o): o is Organization => o !== null);
+      
       setOrganizations(prev => {
         const ownedOnes = prev.filter(o => o.ownerId === user.uid);
         const combined = [...ownedOnes];
@@ -133,8 +140,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         });
         return combined;
       });
-    }, (error) => {
-      console.error("[OrganizationContext] Error in members collection group listener:", error);
     });
 
     // 3. Parcerias de Eventos
@@ -157,7 +162,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       setPendingPartnerships(pInvites.filter(p => p !== null));
     });
 
-    // Notificações e Suporte
     const unsubSupport = onSnapshot(query(collection(db, "support_tickets"), where("userId", "==", user.uid), where("status", "==", "Respondida")), (snap) => setUnreadSupportCount(snap.size));
     const unsubNotifications = onSnapshot(query(collection(db, "notifications"), where("targetUid", "==", user.uid), where("read", "==", false)), (snap) => setUnreadNotificationsCount(snap.size));
 
@@ -170,26 +174,40 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     };
   }, [db, user, isInitialized]);
 
+  // Efeito para auto-seleção inicial baseada em localStorage
   useEffect(() => {
-    if (organizations.length > 0) {
+    if (organizations.length > 0 && !currentOrg && !loading) {
       const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
-      const toSelect = organizations.find(o => o.id === savedOrgId) || 
-                       organizations.find(o => o.id === currentOrg?.id) || 
-                       organizations[0];
+      const toSelect = organizations.find(o => o.id === savedOrgId) || organizations[0];
       
-      if (toSelect && (!currentOrg || currentOrg.id !== toSelect.id)) {
-        setCurrentOrg(toSelect);
-        const role = toSelect._memberData?.role || (toSelect.ownerId === user?.uid ? 'owner' : null);
-        setUserRole(role);
+      if (toSelect) {
+        setCurrentOrgState(toSelect);
       }
     }
-  }, [organizations, currentOrg?.id, user?.uid]);
+  }, [organizations, currentOrg, loading]);
+
+  // Efeito para atualizar o Cargo (Role) sempre que a organização mudar
+  useEffect(() => {
+    if (currentOrg) {
+      const role = currentOrg._memberData?.role || (currentOrg.ownerId === user?.uid ? 'owner' : null);
+      setUserRole(role);
+    } else {
+      setUserRole(null);
+    }
+  }, [currentOrg, user?.uid]);
 
   const refreshOrg = async () => {
     if (!db || !currentOrg) return;
     const orgSnap = await getDoc(doc(db, 'organizations', currentOrg.id));
     if (orgSnap.exists()) {
-      setCurrentOrg(prev => prev ? { ...prev, ...orgSnap.data(), id: orgSnap.id } : { id: orgSnap.id, ...orgSnap.data() } as Organization);
+      const data = orgSnap.data();
+      const updated = { id: orgSnap.id, ...data } as Organization;
+      // Preservar metadados de membro da lista atual
+      const existing = organizations.find(o => o.id === orgSnap.id);
+      if (existing?._memberData) {
+        updated._memberData = existing._memberData;
+      }
+      setCurrentOrgState(updated);
     }
   };
 
