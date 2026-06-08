@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -82,6 +81,7 @@ export default function LandingPageClient() {
     if (!events) return []
 
     let result = events.filter(e => {
+      // REGRA DE OURO: Eventos encerrados saem das vitrines
       if (!isEventVisible(e)) return false;
 
       const nameNorm = normalizeText(searchName);
@@ -293,9 +293,9 @@ export default function LandingPageClient() {
                         selectedCategory !== 'all' && "border-secondary bg-secondary/10"
                       )}
                     >
-                      <Tag className={cn("w-4 h-4", selectedCategory !== 'all' ? "text-secondary" : "text-white/40")} />
+                      <Tag className="h-4 w-4" />
                       <span className="font-black uppercase text-[10px] tracking-[0.2em]">{selectedCategoryName}</span>
-                      <ChevronRight className="w-4 h-4 opacity-30" />
+                      <ChevronRight className="h-4 w-4 opacity-30" />
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="rounded-[2.5rem] w-[95vw] md:max-w-2xl bg-white border-none shadow-2xl p-0 overflow-hidden">

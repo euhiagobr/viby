@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -110,6 +109,7 @@ export default function ExplorarPage() {
     if (!allEvents) return []
     
     let result = allEvents.filter(e => {
+      // REGRA DE OURO: Eventos encerrados saem da descoberta
       if (!isEventVisible(e)) return false
       
       const searchNorm = normalizeText(search);

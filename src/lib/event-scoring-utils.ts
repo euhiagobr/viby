@@ -71,8 +71,12 @@ export function calculateEventScore(event: any, metrics: ScoringMetrics): number
   return (timeScore * WEIGHT_TIME) + (distanceScore * WEIGHT_DISTANCE) + (0.5 * WEIGHT_POPULARITY) + sponsorBonus;
 }
 
+/**
+ * Define se um evento deve ser exibido nas vitrines públicas (Discovery/Landing).
+ * Eventos encerrados ou não ativos são ocultados automaticamente.
+ */
 export function isEventVisible(event: any): boolean {
-  if (event.status !== 'Ativo') return false;
+  if (!event || event.status !== 'Ativo') return false;
   
   const now = new Date();
   const parseDate = (val: any) => {
@@ -85,9 +89,10 @@ export function isEventVisible(event: any): boolean {
   const start = parseDate(event.date);
   if (!start) return false;
 
-  // Se não tem data de término, assume 8 horas após o início para evitar sumir imediatamente
-  const end = parseDate(event.endDate) || new Date(start.getTime() + 8 * 60 * 60 * 1000);
+  // Se não tem data de término definida, o Viby assume 6 horas após o início 
+  // para remover o evento da vitrine automaticamente.
+  const end = parseDate(event.endDate) || new Date(start.getTime() + 6 * 60 * 60 * 1000);
   
-  // Eventos encerrados param de ser exibidos no Discovery global imediatamente
-  return end >= now;
+  // O evento só é visível se ainda não terminou
+  return now < end;
 }
