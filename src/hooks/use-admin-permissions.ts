@@ -13,7 +13,7 @@ import { checkAdminPermission, ALL_PERMISSIONS } from '@/lib/admin/permissions';
  */
 export function useAdminPermissions() {
   const auth = useAuth();
-  const { user, profile, loading: userLoading } = useUser(auth);
+  const { user, profile, loading: userLoading, isInitialized: authInitialized } = useUser(auth);
   const db = useFirestore();
 
   const adminRef = useMemo(() => 
@@ -21,8 +21,6 @@ export function useAdminPermissions() {
     [db, user]
   );
   
-  // Note: onSnapshot will naturally fail if rules don't exist yet, 
-  // but useDoc handles the loading state.
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
   /**
@@ -31,17 +29,20 @@ export function useAdminPermissions() {
    * concedemos acesso total para que ele possa configurar a nova equipe.
    */
   const adminProfile = useMemo(() => {
-    // 1. Prioridade para a nova estrutura granular
+    if (!authInitialized || userLoading) return null;
+
+    // 1. Prioridade para a nova estrutura granular (se o documento existir)
     if (dbAdminProfile && dbAdminProfile.status !== 'Desativado') {
       return dbAdminProfile;
     }
     
     // 2. Fallback de Bootstrapping para administradores legados
+    // Se o snapshot de system_admins terminou e não achou nada, mas o perfil de usuário diz que é admin
     if (profile?.role === 'admin' && !adminLoading) {
       return {
         uid: user?.uid,
         nome: profile.name || "Admin",
-        sobrenome: "Bootstrapper",
+        sobrenome: "Viby",
         email: user?.email || "",
         cargo: 'super_admin',
         status: 'Ativo',
@@ -50,7 +51,7 @@ export function useAdminPermissions() {
     }
     
     return null;
-  }, [dbAdminProfile, profile, user, adminLoading]);
+  }, [dbAdminProfile, profile, user, adminLoading, authInitialized, userLoading]);
 
   const hasPermission = (permission: AdminPermission) => {
     return checkAdminPermission(adminProfile, permission);
@@ -58,10 +59,13 @@ export function useAdminPermissions() {
 
   const isSuperAdmin = adminProfile?.cargo === 'super_admin';
 
+  // O estado de carregamento deve ser verdadeiro enquanto qualquer uma das fontes fundamentais estiver pendente
+  const loading = !authInitialized || userLoading || (adminLoading && !dbAdminProfile && !profile);
+
   return {
     adminProfile,
     hasPermission,
     isSuperAdmin,
-    loading: userLoading || (adminLoading && !profile) // Só bloqueia se não tivermos nem o perfil básico
+    loading
   };
 }

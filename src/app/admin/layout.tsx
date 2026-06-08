@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -60,6 +60,7 @@ export default function AdminLayout({
   const siteName = settings?.siteName || "Viby"
 
   useEffect(() => {
+    // Aguarda toda a inicialização antes de tomar decisões de roteamento
     if (!isInitialized || authLoading || permsLoading) return;
     
     if (!user) {
@@ -67,11 +68,11 @@ export default function AdminLayout({
       return;
     }
 
-    if (!adminProfile || adminProfile.status === 'Desativado') {
+    if (!adminProfile) {
       toast({
         variant: 'destructive',
         title: 'Acesso Negado',
-        description: 'Você não possui permissão para acessar o console administrativo.',
+        description: 'Seu perfil não possui as permissões administrativas necessárias.',
       });
       router.push('/dashboard');
     }
@@ -86,6 +87,8 @@ export default function AdminLayout({
     );
   }
 
+  // Se após carregar não houver perfil, o useEffect cuidará do redirect, 
+  // mas aqui retornamos null para não vazar a interface
   if (!adminProfile) return null;
 
   const navItems = [

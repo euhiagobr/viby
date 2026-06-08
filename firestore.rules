@@ -12,13 +12,12 @@ service cloud.firestore {
     // Função central de autorização administrativa
     function isAdmin() {
       return isSignedIn() && (
-        // 1. Verificação via Custom Claims (opcional/futuro)
+        // 1. Verificação via Custom Claims
         request.auth.token.admin == true ||
         // 2. Verificação via nova estrutura granular
         exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) ||
         // 3. Fallback de Bootstrapping: Usuário com role 'admin' no perfil principal
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
 
@@ -26,8 +25,7 @@ service cloud.firestore {
       return isSignedIn() && (
         (exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/system_admins/$(request.auth.uid)).data.cargo == 'super_admin') ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
 
