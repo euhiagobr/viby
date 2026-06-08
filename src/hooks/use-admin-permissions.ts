@@ -7,6 +7,10 @@ import { useMemo } from 'react';
 import { AdminPermission, SystemAdmin } from '@/types/admin';
 import { checkAdminPermission, ALL_PERMISSIONS } from '@/lib/admin/permissions';
 
+/**
+ * @fileOverview Hook resiliente para gestão de permissões administrativas.
+ * Implementa bootstrapping via fallback para usuários com role 'admin' no perfil principal.
+ */
 export function useAdminPermissions() {
   const auth = useAuth();
   const { user, profile, loading: userLoading } = useUser(auth);
@@ -17,22 +21,27 @@ export function useAdminPermissions() {
     [db, user]
   );
   
+  // Note: onSnapshot will naturally fail if rules don't exist yet, 
+  // but useDoc handles the loading state.
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
   /**
-   * Resolve o perfil administrativo com suporte a fallback
+   * Resolve o perfil administrativo com suporte a fallback.
+   * Se o usuário não estiver na coleção system_admins mas for 'admin' no perfil legado,
+   * concedemos acesso total para que ele possa configurar a nova equipe.
    */
   const adminProfile = useMemo(() => {
-    if (dbAdminProfile) return dbAdminProfile;
+    // 1. Prioridade para a nova estrutura granular
+    if (dbAdminProfile && dbAdminProfile.status !== 'Desativado') {
+      return dbAdminProfile;
+    }
     
-    // Fallback para administradores legados (campo 'role' na coleção 'users')
-    // Isso permite que administradores existentes acessem o painel para realizar a 
-    // migração/configuração oficial da equipe na nova estrutura system_admins.
-    if (profile?.role === 'admin') {
+    // 2. Fallback de Bootstrapping para administradores legados
+    if (profile?.role === 'admin' && !adminLoading) {
       return {
         uid: user?.uid,
         nome: profile.name || "Admin",
-        sobrenome: "Legacy",
+        sobrenome: "Bootstrapper",
         email: user?.email || "",
         cargo: 'super_admin',
         status: 'Ativo',
@@ -41,7 +50,7 @@ export function useAdminPermissions() {
     }
     
     return null;
-  }, [dbAdminProfile, profile, user]);
+  }, [dbAdminProfile, profile, user, adminLoading]);
 
   const hasPermission = (permission: AdminPermission) => {
     return checkAdminPermission(adminProfile, permission);
@@ -53,6 +62,6 @@ export function useAdminPermissions() {
     adminProfile,
     hasPermission,
     isSuperAdmin,
-    loading: userLoading || adminLoading
+    loading: userLoading || (adminLoading && !profile) // Só bloqueia se não tivermos nem o perfil básico
   };
 }

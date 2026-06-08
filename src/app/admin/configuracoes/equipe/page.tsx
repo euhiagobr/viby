@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -77,14 +78,16 @@ export default function AdminEquipePage() {
     db ? query(collection(db, "system_admins"), orderBy("createdAt", "desc")) : null, 
     [db]
   );
+  
+  // hook de coleção com fallback vazio em caso de erro de permissão
   const { data: team, loading } = useCollection<SystemAdmin>(teamQuery);
 
   const filteredTeam = React.useMemo(() => {
     if (!team) return [];
     return team.filter(a => 
-      a.nome.toLowerCase().includes(search.toLowerCase()) || 
-      a.sobrenome.toLowerCase().includes(search.toLowerCase()) ||
-      a.email.toLowerCase().includes(search.toLowerCase())
+      a.nome?.toLowerCase().includes(search.toLowerCase()) || 
+      a.sobrenome?.toLowerCase().includes(search.toLowerCase()) ||
+      a.email?.toLowerCase().includes(search.toLowerCase())
     );
   }, [team, search]);
 
@@ -155,7 +158,7 @@ export default function AdminEquipePage() {
     }
   };
 
-  if (permsLoading || loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>;
+  if (permsLoading || (loading && !team)) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -222,7 +225,7 @@ export default function AdminEquipePage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTeam.map(admin => (
+            {filteredTeam.length > 0 ? filteredTeam.map(admin => (
               <TableRow key={admin.uid} className={cn("hover:bg-muted/10", admin.status === 'Desativado' && "opacity-50")}>
                 <TableCell className="p-6">
                   <div className="flex flex-col">
@@ -230,20 +233,26 @@ export default function AdminEquipePage() {
                     <span className="text-[10px] text-muted-foreground">{admin.email}</span>
                   </div>
                 </TableCell>
-                <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-secondary/20 text-secondary">{admin.cargo.replace('_', ' ')}</Badge></TableCell>
+                <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-secondary/20 text-secondary">{admin.cargo?.replace('_', ' ')}</Badge></TableCell>
                 <TableCell className="text-center">
                   <Badge className={cn("text-[8px] font-black uppercase", admin.status === 'Ativo' ? "bg-green-600" : "bg-red-500")}>{admin.status}</Badge>
                 </TableCell>
                 <TableCell className="p-6 text-right">
                   {isSuperAdmin && admin.uid !== user?.uid && (
                     <div className="flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setEditingAdmin(admin); setIsEditOpen(true); }}><Edit className="w-4 h-4" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(admin.uid)}><Trash2 className="w-4 h-4" /></Button>
+                      <button className="p-2 text-primary hover:bg-muted rounded-lg" onClick={() => { setEditingAdmin(admin); setIsEditOpen(true); }}><Edit className="w-4 h-4" /></button>
+                      <button className="p-2 text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => handleDelete(admin.uid)}><Trash2 className="w-4 h-4" /></button>
                     </div>
                   )}
                 </TableCell>
               </TableRow>
-            ))}
+            )) : (
+              <TableRow>
+                <TableCell colSpan={4} className="py-20 text-center text-muted-foreground italic text-xs">
+                  {loading ? <Loader2 className="animate-spin mx-auto mb-2" /> : "Nenhum administrador cadastrado."}
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </Card>
