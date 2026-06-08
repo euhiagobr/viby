@@ -218,7 +218,7 @@ export default function LandingPageClient() {
                 
                 {hasMounted && (
                   <>
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-3">
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button variant="outline" className={cn("bg-white/5 border-white/10 h-14 w-full rounded-2xl text-white justify-start font-normal", !customDate && dateFilter === 'all' && "text-white/60")}>
@@ -245,7 +245,7 @@ export default function LandingPageClient() {
                         onChange={(e) => setSearchCity(e.target.value)}
                       />
                     </div>
-                    <div className="md:col-span-1">
+                    <div className="md:col-span-2">
                       <Select value={radiusKm} onValueChange={setRadiusKm}>
                         <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white px-2">
                             <Navigation className="w-4 h-4 text-secondary mr-1" />
@@ -261,16 +261,10 @@ export default function LandingPageClient() {
                     </div>
                   </>
                 )}
-
-                <div className="md:col-span-2">
-                  <Button className="w-full h-14 bg-secondary text-white font-black uppercase italic rounded-2xl shadow-xl">
-                    {t('home.explore_btn')}
-                  </Button>
-                </div>
               </div>
 
               {/* Categorias em Balões */}
-              <div className="mt-8 flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
+              <div className="mt-8 flex flex-nowrap items-center gap-3 overflow-x-auto pb-4 scrollbar-hide w-full">
                 <Button 
                   variant={selectedCategory === 'all' ? 'secondary' : 'outline'}
                   size="sm"

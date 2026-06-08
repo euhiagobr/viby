@@ -232,7 +232,7 @@ export default function ExplorarPage() {
       </div>
 
       {/* Balões de Categorias */}
-      <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-4 scrollbar-hide w-full">
         <Button 
           variant={selectedCategory === 'all' ? 'default' : 'outline'}
           size="sm"
