@@ -56,7 +56,9 @@ export default function NovoEventoPage() {
     type: "interno",
     externalUrl: "",
     disclosurePrice: 0,
+    disclosurePriceSecondary: 0,
     disclosureRule: "",
+    disclosureSwitchTime: "",
     categoryId: "",
     ageRatingCode: "free",
     startDate: "",
@@ -165,6 +167,11 @@ export default function NovoEventoPage() {
         createdAt: serverTimestamp()
       }
 
+      // Convert disclosureSwitchTime to Date object for proper storage
+      if (formData.disclosureSwitchTime) {
+        eventData.disclosureSwitchTime = new Date(formData.disclosureSwitchTime);
+      }
+
       const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => value === undefined ? null : value));
 
       const docRef = await addDoc(collection(db, "events"), cleanData)
@@ -221,8 +228,12 @@ export default function NovoEventoPage() {
                    onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
                    disclosurePrice={formData.disclosurePrice}
                    onDisclosurePriceChange={v => setFormData({...formData, disclosurePrice: v})}
+                   disclosurePriceSecondary={formData.disclosurePriceSecondary}
+                   onDisclosurePriceSecondaryChange={v => setFormData({...formData, disclosurePriceSecondary: v})}
                    disclosureRule={formData.disclosureRule}
                    onDisclosureRuleChange={v => setFormData({...formData, disclosureRule: v})}
+                   disclosureSwitchTime={formData.disclosureSwitchTime}
+                   onDisclosureSwitchTimeChange={v => setFormData({...formData, disclosureSwitchTime: v})}
                    config={eventTypesSettings}
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />

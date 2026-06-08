@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { EVENT_TYPES } from "@/lib/constants"
 import { cn } from "@/lib/utils"
-import { Info, AlertTriangle, Coins, Clock } from "lucide-react"
+import { Info, AlertTriangle, Coins, Clock, ArrowRight } from "lucide-react"
 
 interface EventTypeProps {
   value: string
@@ -16,8 +16,12 @@ interface EventTypeProps {
   onExternalUrlChange?: (val: string) => void
   disclosurePrice?: number
   onDisclosurePriceChange?: (val: number) => void
+  disclosurePriceSecondary?: number
+  onDisclosurePriceSecondaryChange?: (val: number) => void
   disclosureRule?: string
   onDisclosureRuleChange?: (val: string) => void
+  disclosureSwitchTime?: string
+  onDisclosureSwitchTimeChange?: (val: string) => void
   disabled?: boolean
   isPublic?: boolean
   config?: Record<string, { enabled: boolean; message: string }>
@@ -30,8 +34,12 @@ export function EventType({
   onExternalUrlChange, 
   disclosurePrice,
   onDisclosurePriceChange,
+  disclosurePriceSecondary,
+  onDisclosurePriceSecondaryChange,
   disclosureRule,
   onDisclosureRuleChange,
+  disclosureSwitchTime,
+  onDisclosureSwitchTimeChange,
   disabled, 
   isPublic,
   config 
@@ -77,36 +85,68 @@ export function EventType({
       )}
 
       {value === 'divulgacao' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-2">
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-secondary flex items-center gap-1.5">
-              <Coins className="w-3 h-3" /> Valor de Entrada (R$)
-            </Label>
-            <Input 
-              type="number"
-              step="0.01"
-              value={disclosurePrice ?? ""} 
-              onChange={e => onDisclosurePriceChange?.(parseFloat(e.target.value) || 0)} 
-              placeholder="0,00 (Grátis)" 
-              className="rounded-xl h-11 border-secondary/20 font-bold"
-              disabled={disabled}
-            />
+        <div className="space-y-6 animate-in slide-in-from-top-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-secondary flex items-center gap-1.5">
+                <Coins className="w-3 h-3" /> Entrada Inicial (R$)
+              </Label>
+              <Input 
+                type="number"
+                step="0.01"
+                value={disclosurePrice ?? ""} 
+                onChange={e => onDisclosurePriceChange?.(parseFloat(e.target.value) || 0)} 
+                placeholder="0,00 (Grátis)" 
+                className="rounded-xl h-11 border-secondary/20 font-bold"
+                disabled={disabled}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-secondary flex items-center gap-1.5">
+                <Clock className="w-3 h-3" /> Regra Visual (Ex: Até 21h)
+              </Label>
+              <Input 
+                value={disclosureRule || ""} 
+                onChange={e => onDisclosureRuleChange?.(e.target.value)} 
+                placeholder="ex: Grátis até as 21h" 
+                className="rounded-xl h-11 border-secondary/20"
+                disabled={disabled}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-secondary flex items-center gap-1.5">
-              <Clock className="w-3 h-3" /> Regra/Horário (Opcional)
-            </Label>
-            <Input 
-              value={disclosureRule || ""} 
-              onChange={e => onDisclosureRuleChange?.(e.target.value)} 
-              placeholder="ex: até as 21h" 
-              className="rounded-xl h-11 border-secondary/20"
-              disabled={disabled}
-            />
+
+          <div className="p-4 bg-muted/30 rounded-2xl border-2 border-dashed space-y-4">
+             <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-secondary" />
+                <span className="text-[10px] font-black uppercase">Mudança Automática (Opcional)</span>
+             </div>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                   <Label className="text-[9px] font-black uppercase opacity-60">Trocar para Valor (R$)</Label>
+                   <Input 
+                      type="number"
+                      step="0.01"
+                      value={disclosurePriceSecondary ?? ""} 
+                      onChange={e => onDisclosurePriceSecondaryChange?.(parseFloat(e.target.value) || 0)} 
+                      placeholder="Valor após mudança" 
+                      className="rounded-xl h-10 bg-white"
+                   />
+                </div>
+                <div className="space-y-2">
+                   <Label className="text-[9px] font-black uppercase opacity-60">Horário da Mudança</Label>
+                   <Input 
+                      type="datetime-local"
+                      value={disclosureSwitchTime || ""} 
+                      onChange={e => onDisclosureSwitchTimeChange?.(e.target.value)} 
+                      className="rounded-xl h-10 bg-white text-xs"
+                   />
+                </div>
+             </div>
+             <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight">
+               Se configurado, o card do evento mudará o preço automaticamente no horário definido.
+             </p>
           </div>
-          <p className="md:col-span-2 text-[9px] font-bold text-muted-foreground uppercase opacity-60 px-1">
-            Se o valor for 0,00 ou vazio, o sistema exibirá como "Grátis".
-          </p>
         </div>
       )}
     </div>

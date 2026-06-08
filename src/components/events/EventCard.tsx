@@ -31,6 +31,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const cardRef = React.useRef<HTMLDivElement>(null)
 
   const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string; icon?: any } | null>(null);
+  const [currentDisclosurePrice, setCurrentDisclosurePrice] = React.useState<number>(event.disclosurePrice || 0);
 
   const eventDates = React.useMemo(() => {
     const parseDate = (val: any) => {
@@ -53,6 +54,16 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       const diffStart = start.getTime() - now.getTime();
       const isToday = now.toDateString() === start.toDateString();
 
+      // Lógica de Troca Automática de Preço (Divulgação)
+      if (event.type === 'divulgacao' && event.disclosureSwitchTime) {
+        const switchTime = event.disclosureSwitchTime.toDate ? event.disclosureSwitchTime.toDate() : new Date(event.disclosureSwitchTime);
+        if (now >= switchTime && event.disclosurePriceSecondary !== undefined) {
+          setCurrentDisclosurePrice(event.disclosurePriceSecondary);
+        } else {
+          setCurrentDisclosurePrice(event.disclosurePrice || 0);
+        }
+      }
+
       if (end < now) {
         setLiveStatus({ label: t('event.finished'), colorClass: "bg-muted text-muted-foreground border-none" });
       } else if (now >= start && now < end) {
@@ -66,9 +77,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       }
     };
     update();
-    const interval = setInterval(update, 60000);
+    const interval = setInterval(update, 30000); // Check a cada 30s
     return () => clearInterval(interval);
-  }, [eventDates, t]);
+  }, [eventDates, event.type, event.disclosureSwitchTime, event.disclosurePrice, event.disclosurePriceSecondary, t]);
 
   const distance = React.useMemo(() => {
     if (userLocation && typeof event.latitude === 'number' && typeof event.longitude === 'number') {
@@ -80,26 +91,25 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const pricingDisplay = React.useMemo(() => {
     if (event.type === 'divulgacao') {
-      const price = event.disclosurePrice || 0;
       const rule = event.disclosureRule || "";
       
-      if (price <= 0) {
+      if (currentDisclosurePrice <= 0) {
         return (
           <div className="flex flex-col items-end">
-            <span className="text-green-600 font-black italic">{t('event.no_tickets')}</span>
+            <span className="text-green-600 font-black italic uppercase text-xs">{t('event.no_tickets')}</span>
             {rule && <span className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{rule}</span>}
           </div>
         );
       }
       return (
         <div className="flex flex-col items-end">
-          {formatPriceWithOriginal(price, event.currency || 'BRL')}
+          {formatPriceWithOriginal(currentDisclosurePrice, event.currency || 'BRL')}
           {rule && <span className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{rule}</span>}
         </div>
       );
     }
 
-    if (!event.batches || event.batches.length === 0) return <span className="text-green-600 italic">{t('event.no_tickets')}</span>;
+    if (!event.batches || event.batches.length === 0) return <span className="text-green-600 italic uppercase text-xs">{t('event.no_tickets')}</span>;
     
     let min = Infinity;
     event.batches.forEach((b: any) => {
@@ -108,7 +118,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       });
     });
     
-    if (min === Infinity || min <= 0) return <span className="text-green-600 italic">{t('event.no_tickets')}</span>;
+    if (min === Infinity || min <= 0) return <span className="text-green-600 italic uppercase text-xs">{t('event.no_tickets')}</span>;
     
     return (
       <div className="flex flex-col items-end">
@@ -116,7 +126,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         {formatPriceWithOriginal(min, event.currency || 'BRL')}
       </div>
     );
-  }, [event, t, formatPriceWithOriginal]);
+  }, [event, t, currentDisclosurePrice, formatPriceWithOriginal]);
 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
 
