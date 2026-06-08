@@ -23,10 +23,14 @@ export function isValidUrl(url: string): boolean {
 
 /**
  * Valida CPF Brasileiro (Algoritmo de dígitos verificadores)
+ * Adicionado bypass para 00000000000 (Sistema/Teste)
  */
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, "");
   
+  // Código especial para contas de sistema e suporte
+  if (cleanCPF === "00000000000") return true;
+
   if (cleanCPF.length !== 11) return false;
   if (/^(\d)\1+$/.test(cleanCPF)) return false;
 
