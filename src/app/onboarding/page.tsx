@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -11,11 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Check, X, ShieldCheck, User as UserIcon, Fingerprint, Mail, AtSign, Lock } from "lucide-react";
+import { Loader2, Check, X, ShieldCheck, Fingerprint, Lock, AtSign } from "lucide-react";
 import { cn, validateCPF, validateUsername } from "@/lib/utils";
-import { hashCPF, maskCPF } from "@/lib/crypto-utils";
+import { hashCPF } from "@/lib/crypto-utils";
 import { updateUserCPF } from "@/app/actions/user";
-import { recordAuditLog } from "@/app/actions/audit";
 import { Separator } from "@/components/ui/separator";
 
 const RESERVED_USERNAMES = [
@@ -34,7 +32,7 @@ export default function OnboardingPage() {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [cpf, setCpf] = useState("");
-  const [isSubmitting, setIsSubmitting] = false;
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle');
@@ -61,7 +59,7 @@ export default function OnboardingPage() {
       if (!name && profile.name) setName(profile.name);
       if (!username && profile.username) setUsername(profile.username);
     }
-  }, [user, profile, isInitialized, authLoading, router]);
+  }, [user, profile, isInitialized, authLoading, router, name, username]);
 
   useEffect(() => {
     if (!db || !username || needsCPFOnly) {
@@ -113,7 +111,6 @@ export default function OnboardingPage() {
         const hash = hashCPF(cleanCPF);
         const q = query(collection(db, "users"), where("cpfHash", "==", hash), limit(1));
         const snap = await getDocs(q);
-        // Se o CPF já pertence ao usuário atual (caso ele esteja apenas reconfirmando o mesmo CPF após auditoria)
         const isMine = !snap.empty && snap.docs[0].id === user?.uid;
         setCPFStatus((snap.empty || isMine) ? 'valid' : 'taken');
       } catch (e) {
@@ -135,11 +132,9 @@ export default function OnboardingPage() {
     const cleanCPF = cpf.replace(/\D/g, "");
 
     try {
-      // 1. Atualizar CPF no padrão triplo (Encrypted, Hash, Masked) e limpar flag de migração
       const cpfRes = await updateUserCPF(user.uid, cleanCPF);
       if (!cpfRes.success) throw new Error(cpfRes.error);
 
-      // 2. Finalizar Onboarding / Atualização
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername);
         const userRef = doc(db, "users", user.uid);
@@ -148,7 +143,7 @@ export default function OnboardingPage() {
         transaction.update(userRef, {
           username: normalizedUsername,
           profileComplete: true,
-          needsCPFUpdate: false, // Limpa a flag de atualização pendente
+          needsCPFUpdate: false,
           updatedAt: serverTimestamp()
         });
       });
