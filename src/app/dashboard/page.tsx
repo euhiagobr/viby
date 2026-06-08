@@ -49,6 +49,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useTranslation } from "@/i18n/i18n-context"
@@ -174,6 +182,11 @@ export default function ExplorarPage() {
     return result;
   }, [filteredAndSortedEvents, eventsLoading])
 
+  const selectedCategoryName = React.useMemo(() => {
+    if (selectedCategory === 'all') return t('dashboard.all');
+    return categories?.find((c: any) => c.id === selectedCategory)?.name || t('dashboard.all');
+  }, [selectedCategory, categories, t]);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -190,6 +203,47 @@ export default function ExplorarPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder={t('home.search_placeholder')} className="pl-10 h-11 rounded-xl" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline"
+                className={cn(
+                  "rounded-xl h-11 border-dashed gap-2 font-bold text-xs uppercase",
+                  selectedCategory !== 'all' && "bg-secondary/10 border-secondary text-secondary"
+                )}
+              >
+                <Tag className="h-4 w-4" />
+                {selectedCategoryName}
+                <ChevronRight className="h-4 w-4 opacity-30" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-[2.5rem] max-w-2xl bg-white border-none shadow-2xl">
+              <DialogHeader className="p-4">
+                <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Categorias</DialogTitle>
+                <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">O que você quer descobrir?</DialogDescription>
+              </DialogHeader>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4">
+                 <Button 
+                  variant={selectedCategory === 'all' ? 'default' : 'outline'}
+                  className={cn("h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest", selectedCategory === 'all' ? "bg-secondary text-white" : "border-muted")}
+                  onClick={() => setSelectedCategory('all')}
+                 >
+                   Tudo
+                 </Button>
+                 {categories?.map((cat: any) => (
+                   <Button 
+                    key={cat.id}
+                    variant={selectedCategory === cat.id ? 'default' : 'outline'}
+                    className={cn("h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest", selectedCategory === cat.id ? "bg-secondary text-white" : "border-muted")}
+                    onClick={() => setSelectedCategory(cat.id)}
+                   >
+                     {cat.name}
+                   </Button>
+                 ))}
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <Popover>
             <PopoverTrigger asChild>
@@ -229,35 +283,6 @@ export default function ExplorarPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      {/* Balões de Categorias */}
-      <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-4 scrollbar-hide w-full">
-        <Button 
-          variant={selectedCategory === 'all' ? 'default' : 'outline'}
-          size="sm"
-          className={cn(
-            "rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-9 transition-all shrink-0",
-            selectedCategory === 'all' ? "bg-secondary text-white border-secondary shadow-lg shadow-secondary/20" : "bg-white border-border text-muted-foreground hover:border-secondary hover:text-secondary"
-          )}
-          onClick={() => setSelectedCategory('all')}
-        >
-          {t('dashboard.all')}
-        </Button>
-        {categories?.map((cat: any) => (
-          <Button 
-            key={cat.id}
-            variant={selectedCategory === cat.id ? 'default' : 'outline'}
-            size="sm"
-            className={cn(
-              "rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-9 transition-all shrink-0",
-              selectedCategory === cat.id ? "bg-secondary text-white border-secondary shadow-lg shadow-secondary/20" : "bg-white border-border text-muted-foreground hover:border-secondary hover:text-secondary"
-            )}
-            onClick={() => setSelectedCategory(cat.id)}
-          >
-            {cat.name}
-          </Button>
-        ))}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

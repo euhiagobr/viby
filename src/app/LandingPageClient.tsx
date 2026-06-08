@@ -8,11 +8,11 @@ import { EventCard } from "@/components/events/EventCard"
 import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, MapPin, FilterX, Navigation, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox, Tag } from "lucide-react"
+import { Search, MapPin, FilterX, Navigation, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox, Tag, ChevronRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
-import Image from "next/image"
+import { cn, normalizeText } from "@/lib/utils"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import {
   Select,
@@ -24,7 +24,7 @@ import {
 import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
 import { calculateEventScore, isEventVisible } from "@/lib/event-scoring-utils"
 import Footer from "@/components/layout/Footer"
-import { cn, normalizeText } from "@/lib/utils"
+import Image from "next/image"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 import { UserNav } from "@/components/layout/UserNav"
 import { Calendar } from "@/components/ui/calendar"
@@ -33,6 +33,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useTranslation } from "@/i18n/i18n-context"
@@ -47,8 +55,8 @@ export default function LandingPageClient() {
   const [searchName, setSearchName] = React.useState("")
   const [searchCity, setSearchCity] = React.useState("")
   const [selectedCategory, setSelectedCategory] = React.useState("all")
-  const [radiusKm, setRadiusKm] = React.useState("unlimited")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
+  const [radiusKm, setRadiusKm] = React.useState("unlimited")
   
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
@@ -159,6 +167,11 @@ export default function LandingPageClient() {
       .catch(() => {})
   }, [])
 
+  const selectedCategoryName = React.useMemo(() => {
+    if (selectedCategory === 'all') return "Todas as Categorias";
+    return categories?.find((c: any) => c.id === selectedCategory)?.name || "Todas as Categorias";
+  }, [selectedCategory, categories]);
+
   const siteName = settings?.siteName || "Viby"
 
   return (
@@ -263,33 +276,59 @@ export default function LandingPageClient() {
                 )}
               </div>
 
-              {/* Categorias em Balões */}
-              <div className="mt-8 flex flex-nowrap items-center gap-3 overflow-x-auto pb-4 scrollbar-hide w-full">
-                <Button 
-                  variant={selectedCategory === 'all' ? 'secondary' : 'outline'}
-                  size="sm"
-                  className={cn(
-                    "rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-9 transition-all shrink-0",
-                    selectedCategory === 'all' ? "bg-secondary text-white border-secondary" : "bg-white/5 border-white/20 text-white hover:bg-white/10"
-                  )}
-                  onClick={() => setSelectedCategory('all')}
-                >
-                  Todas
-                </Button>
-                {categories?.map((cat: any) => (
+              {/* Botão de Modal de Categorias */}
+              <div className="mt-8 flex flex-wrap items-center gap-4">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline"
+                      className={cn(
+                        "rounded-2xl h-14 px-8 bg-white/5 border-white/20 text-white hover:bg-white/10 flex items-center gap-3 transition-all",
+                        selectedCategory !== 'all' && "border-secondary bg-secondary/10"
+                      )}
+                    >
+                      <Tag className={cn("w-4 h-4", selectedCategory !== 'all' ? "text-secondary" : "text-white/40")} />
+                      <span className="font-black uppercase text-[10px] tracking-[0.2em]">{selectedCategoryName}</span>
+                      <ChevronRight className="w-4 h-4 opacity-30" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="rounded-[2.5rem] max-w-2xl bg-white border-none shadow-2xl">
+                    <DialogHeader className="p-4">
+                      <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Categorias</DialogTitle>
+                      <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">O que você está procurando hoje?</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4">
+                       <Button 
+                        variant={selectedCategory === 'all' ? 'default' : 'outline'}
+                        className={cn("h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest", selectedCategory === 'all' ? "bg-secondary text-white" : "border-muted")}
+                        onClick={() => setSelectedCategory('all')}
+                       >
+                         Tudo
+                       </Button>
+                       {categories?.map((cat: any) => (
+                         <Button 
+                          key={cat.id}
+                          variant={selectedCategory === cat.id ? 'default' : 'outline'}
+                          className={cn("h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest", selectedCategory === cat.id ? "bg-secondary text-white" : "border-muted")}
+                          onClick={() => setSelectedCategory(cat.id)}
+                         >
+                           {cat.name}
+                         </Button>
+                       ))}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                {selectedCategory !== 'all' && (
                   <Button 
-                    key={cat.id}
-                    variant={selectedCategory === cat.id ? 'secondary' : 'outline'}
-                    size="sm"
-                    className={cn(
-                      "rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-9 transition-all shrink-0",
-                      selectedCategory === cat.id ? "bg-secondary text-white border-secondary" : "bg-white/5 border-white/20 text-white hover:bg-white/10"
-                    )}
-                    onClick={() => setSelectedCategory(cat.id)}
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest h-14"
+                    onClick={() => setSelectedCategory('all')}
                   >
-                    {cat.name}
+                    <FilterX className="w-4 h-4 mr-2" /> Limpar Categoria
                   </Button>
-                ))}
+                )}
               </div>
             </Card>
           </div>
