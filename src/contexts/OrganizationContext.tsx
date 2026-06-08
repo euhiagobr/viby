@@ -96,7 +96,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     });
 
     // 2. Convites e Parcerias via Collection Group
-    // Escuta documentos em 'members' onde o userId coincide
     const membersCG = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     const unsubMembers = onSnapshot(membersCG, async (memberSnap) => {
       console.log(`[OrganizationContext] Snapshot de Membros (CG) recebido. Total de docs: ${memberSnap.size}`);
@@ -108,11 +107,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         const mData = mDoc.data();
         const orgId = mDoc.ref.parent.parent?.id;
         
-        console.log(`[OrganizationContext] Membro doc: ${mDoc.id} | Status: ${mData.status} | OrgID: ${orgId}`);
-
         if (!orgId) continue;
 
         if (mData.status === 'pending') {
+          console.log(`[OrganizationContext] Convite pendente detectado para a Org: ${orgId}`);
           invites.push({ id: orgId, ...mData, type: 'team_invite' });
         } else if (mData.status === 'accepted' || !mData.status) {
           acceptedPromises.push(
@@ -128,7 +126,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         return { ...inv, orgName: orgSnap.exists() ? orgSnap.data().name : "Organização Desconhecida" };
       }));
 
-      console.log(`[OrganizationContext] Convites Pendentes Detectados:`, invitesWithNames.length);
       setPendingInvitations(invitesWithNames);
 
       const memberOrgs = (await Promise.all(acceptedPromises)).filter((o): o is Organization => o !== null);

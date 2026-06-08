@@ -49,11 +49,11 @@ export default function SolicitacoesPage() {
   
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null);
 
-  // DEBUG LOGS EXIGIDOS
+  // DEBUG LOGS EXIGIDOS PELO USUÁRIO
   React.useEffect(() => {
     console.group("[DEBUG-VIBY] Monitoramento de Solicitações");
-    console.log("Convites de Equipe:", pendingInvitations);
-    console.log("Parcerias de Evento:", pendingPartnerships);
+    console.log("Convites de Equipe (Total):", pendingInvitations?.length || 0, pendingInvitations);
+    console.log("Parcerias de Evento (Total):", pendingPartnerships?.length || 0, pendingPartnerships);
     console.log("Contexto Carregando:", contextLoading);
     console.groupEnd();
   }, [pendingInvitations, pendingPartnerships, contextLoading]);
