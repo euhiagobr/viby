@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -59,8 +60,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const auth = useAuth();
   const { user, isInitialized } = useUser(auth);
   const db = useFirestore();
-  const params = useParams();
-  const pathname = usePathname();
   
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -73,19 +72,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (!isInitialized || !db || !user) {
-      setOrganizations([]);
-      setPendingInvitations([]);
-      setPendingPartnerships([]);
-      setUnreadSupportCount(0);
-      setUnreadNotificationsCount(0);
-      setLoading(false);
+      if (isInitialized) setLoading(false);
       return;
     }
 
+    console.log("[OrganizationContext] Iniciando monitoramento para UID:", user.uid);
     setLoading(true);
-    console.log("[OrganizationContext] Iniciando listeners para UID:", user.uid);
 
-    // 1. Ouvinte para Organizações que o usuário É DONO (Consulta Direta)
+    // 1. Organizações que o usuário é dono
     const ownerQuery = query(collection(db, 'organizations'), where('ownerId', '==', user.uid));
     const unsubOwner = onSnapshot(ownerQuery, (ownerSnap) => {
       const ownedOrgs = ownerSnap.docs.map(d => ({ 
@@ -95,50 +89,49 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       } as Organization));
 
       setOrganizations(prev => {
-        const memberOnlyOrgs = prev.filter(p => !ownedOrgs.some(o => o.id === p.id));
-        return [...ownedOrgs, ...memberOnlyOrgs];
+        const others = prev.filter(p => !ownedOrgs.some(o => o.id === p.id));
+        return [...ownedOrgs, ...others];
       });
       setLoading(false);
     });
 
-    // 2. Ouvinte para Convites e Membros via Collection Group (Indispensável para convites)
+    // 2. Convites e Parcerias via Collection Group
+    // Escuta documentos em 'members' onde o userId coincide
     const membersCG = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     const unsubMembers = onSnapshot(membersCG, async (memberSnap) => {
-      console.log("[OrganizationContext] Membros (CG) Snapshot recebido. Docs:", memberSnap.size);
+      console.log(`[OrganizationContext] Snapshot de Membros (CG) recebido. Total de docs: ${memberSnap.size}`);
       
+      const invites: any[] = [];
       const acceptedPromises: Promise<Organization | null>[] = [];
-      const invitations: any[] = [];
 
       for (const mDoc of memberSnap.docs) {
         const mData = mDoc.data();
         const orgId = mDoc.ref.parent.parent?.id;
         
-        console.log(`[OrganizationContext] Doc membro ID: ${mDoc.id}, Status: ${mData.status}, OrgID: ${orgId}`);
+        console.log(`[OrganizationContext] Membro doc: ${mDoc.id} | Status: ${mData.status} | OrgID: ${orgId}`);
 
         if (!orgId) continue;
 
-        if (mData.status === 'accepted' || !mData.status) {
+        if (mData.status === 'pending') {
+          invites.push({ id: orgId, ...mData, type: 'team_invite' });
+        } else if (mData.status === 'accepted' || !mData.status) {
           acceptedPromises.push(
             getDoc(doc(db, 'organizations', orgId)).then(snap => 
               snap.exists() ? { id: snap.id, ...snap.data(), _memberData: mData } as Organization : null
             )
           );
-        } else if (mData.status === 'pending') {
-          console.log("[OrganizationContext] Convite pendente detectado para org:", orgId);
-          invitations.push({ id: orgId, ...mData, type: 'team_invite' });
         }
       }
 
-      const memberOrgs = (await Promise.all(acceptedPromises)).filter((o): o is Organization => o !== null);
-      
-      const invitesWithNames = await Promise.all(invitations.map(async (inv) => {
+      const invitesWithNames = await Promise.all(invites.map(async (inv) => {
         const orgSnap = await getDoc(doc(db, 'organizations', inv.id));
         return { ...inv, orgName: orgSnap.exists() ? orgSnap.data().name : "Organização Desconhecida" };
       }));
 
-      console.log("[OrganizationContext] Convites processados:", invitesWithNames.length);
+      console.log(`[OrganizationContext] Convites Pendentes Detectados:`, invitesWithNames.length);
       setPendingInvitations(invitesWithNames);
-      
+
+      const memberOrgs = (await Promise.all(acceptedPromises)).filter((o): o is Organization => o !== null);
       setOrganizations(prev => {
         const ownedOnes = prev.filter(o => o.ownerId === user.uid);
         const combined = [...ownedOnes];
@@ -148,41 +141,34 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         return combined;
       });
     }, (error) => {
-      console.error("[OrganizationContext] Erro no listener de membros (CG):", error);
+      console.error("[OrganizationContext] Erro fatal no listener de membros (CG):", error);
     });
 
-    // 3. Ouvinte para Parcerias Pendentes (Collection Group em 'partners')
+    // 3. Parcerias de Eventos
     const partnersCG = query(collectionGroup(db, 'partners'), where('orgId', '==', user.uid), where('status', '==', 'pending'));
     const unsubPartners = onSnapshot(partnersCG, async (partnerSnap) => {
-      console.log("[OrganizationContext] Parcerias (CG) Snapshot recebido. Docs:", partnerSnap.size);
+      console.log(`[OrganizationContext] Snapshot de Parcerias (CG) recebido. Total: ${partnerSnap.size}`);
       
-      const pings = await Promise.all(partnerSnap.docs.map(async (pDoc) => {
+      const pInvites = await Promise.all(partnerSnap.docs.map(async (pDoc) => {
         const pData = pDoc.data();
         const eventId = pDoc.ref.parent.parent?.id;
         if (!eventId) return null;
 
         const eventSnap = await getDoc(doc(db, 'events', eventId));
-        if (!eventSnap.exists()) return null;
-        
         return { 
           id: pDoc.id, 
           ...pData, 
           eventId, 
-          eventTitle: eventSnap.data().title,
+          eventTitle: eventSnap.exists() ? eventSnap.data().title : "Evento Desconhecido",
           type: 'partnership'
         };
       }));
-      setPendingPartnerships(pings.filter(p => p !== null));
-    }, (error) => {
-      console.error("[OrganizationContext] Erro no listener de parcerias (CG):", error);
+      setPendingPartnerships(pInvites.filter(p => p !== null));
     });
 
-    // 4. Ouvintes de Notificações e Suporte
-    const supportQuery = query(collection(db, "support_tickets"), where("userId", "==", user.uid), where("status", "==", "Respondida"));
-    const unsubSupport = onSnapshot(supportQuery, (snap) => setUnreadSupportCount(snap.size));
-
-    const notificationsQuery = query(collection(db, "notifications"), where("targetUid", "==", user.uid), where("read", "==", false));
-    const unsubNotifications = onSnapshot(notificationsQuery, (snap) => setUnreadNotificationsCount(snap.size));
+    // Notificações e Suporte
+    const unsubSupport = onSnapshot(query(collection(db, "support_tickets"), where("userId", "==", user.uid), where("status", "==", "Respondida")), (snap) => setUnreadSupportCount(snap.size));
+    const unsubNotifications = onSnapshot(query(collection(db, "notifications"), where("targetUid", "==", user.uid), where("read", "==", false)), (snap) => setUnreadNotificationsCount(snap.size));
 
     return () => {
       unsubOwner();
@@ -201,34 +187,25 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
                        organizations[0];
       
       if (toSelect && (!currentOrg || currentOrg.id !== toSelect.id)) {
-        handleSetCurrentOrg(toSelect);
+        setCurrentOrg(toSelect);
+        const role = toSelect._memberData?.role || (toSelect.ownerId === user?.uid ? 'owner' : null);
+        setUserRole(role);
       }
     }
-  }, [organizations, currentOrg?.id]);
-
-  const handleSetCurrentOrg = (org: Organization | null) => {
-    setCurrentOrg(org);
-    const role = org?._memberData?.role || (org?.ownerId === user?.uid ? 'owner' : null);
-    setUserRole(role);
-    if (typeof window !== 'undefined' && org) {
-      localStorage.setItem('viby_current_org', org.id);
-      localStorage.setItem('viby_user_role', role || 'member');
-    }
-  };
+  }, [organizations, currentOrg?.id, user?.uid]);
 
   const refreshOrg = async () => {
     if (!db || !currentOrg) return;
     const orgSnap = await getDoc(doc(db, 'organizations', currentOrg.id));
     if (orgSnap.exists()) {
-      const data = { id: orgSnap.id, ...orgSnap.data() } as Organization;
-      setCurrentOrg(prev => prev ? { ...prev, ...data } : data);
+      setCurrentOrg(prev => prev ? { ...prev, ...orgSnap.data(), id: orgSnap.id } : { id: orgSnap.id, ...orgSnap.data() } as Organization);
     }
   };
 
   return (
     <OrganizationContext.Provider value={{ 
       currentOrg, 
-      setCurrentOrg: handleSetCurrentOrg, 
+      setCurrentOrg, 
       organizations, 
       pendingInvitations,
       pendingPartnerships,
