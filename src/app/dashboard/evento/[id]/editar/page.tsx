@@ -51,6 +51,9 @@ export default function EditarEventoPage() {
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
+  const eventTypesSettingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'event_types') : null), [db]);
+  const { data: eventTypesSettings } = useDoc<any>(eventTypesSettingsRef);
+
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
@@ -78,23 +81,12 @@ export default function EditarEventoPage() {
         formattedAddress: legacyAddress.formattedAddress || ""
       };
 
-      const formatSwitchTime = (val: any) => {
-        if (!val) return "";
-        try {
-          const d = val.toDate ? val.toDate() : new Date(val);
-          return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 16);
-        } catch (e) { return ""; }
-      };
-
       setFormData({
         title: event.title || "",
         image: event.image || "",
         type: event.type || "interno",
         externalUrl: event.externalUrl || "",
-        disclosurePrice: event.disclosurePrice || 0,
-        disclosurePriceSecondary: event.disclosurePriceSecondary || 0,
-        disclosureRule: event.disclosureRule || "",
-        disclosureSwitchTime: formatSwitchTime(event.disclosureSwitchTime),
+        disclosurePrices: event.disclosurePrices || [],
         categoryId: event.categoryId || "",
         startDate: event.date || "",
         endDate: event.endDate || "",
@@ -171,12 +163,6 @@ export default function EditarEventoPage() {
         updatedAt: serverTimestamp()
       }
 
-      if (formData.disclosureSwitchTime) {
-        updateData.disclosureSwitchTime = new Date(formData.disclosureSwitchTime);
-      } else {
-        updateData.disclosureSwitchTime = null;
-      }
-
       const cleanData = JSON.parse(JSON.stringify(updateData, (key, value) => value === undefined ? null : value));
       await updateDoc(eventRef, cleanData);
 
@@ -227,7 +213,7 @@ export default function EditarEventoPage() {
               uploadProgress={uploadProgress}
             />
 
-            <Card className="border-none shadow-sm rounded-[2.5rem]">
+            <Card className="border-none shadow-sm rounded-[2rem]">
               <CardContent className="p-8 space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <EventType 
@@ -235,14 +221,9 @@ export default function EditarEventoPage() {
                       onChange={v => setFormData({...formData, type: v})} 
                       externalUrl={formData.externalUrl} 
                       onExternalUrlChange={v => setFormData({...formData, externalUrl: v})} 
-                      disclosurePrice={formData.disclosurePrice}
-                      onDisclosurePriceChange={v => setFormData({...formData, disclosurePrice: v})}
-                      disclosurePriceSecondary={formData.disclosurePriceSecondary}
-                      onDisclosurePriceSecondaryChange={v => setFormData({...formData, disclosurePriceSecondary: v})}
-                      disclosureRule={formData.disclosureRule}
-                      onDisclosureRuleChange={v => setFormData({...formData, disclosureRule: v})}
-                      disclosureSwitchTime={formData.disclosureSwitchTime}
-                      onDisclosureSwitchTimeChange={v => setFormData({...formData, disclosureSwitchTime: v})}
+                      disclosurePrices={formData.disclosurePrices}
+                      onDisclosurePricesChange={v => setFormData({...formData, disclosurePrices: v})}
+                      config={eventTypesSettings}
                     />
                     <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
                   </div>

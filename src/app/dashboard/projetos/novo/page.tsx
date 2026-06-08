@@ -57,8 +57,7 @@ export default function NovoEventoPage() {
     image: DEFAULT_EVENT_IMAGE,
     type: "interno",
     externalUrl: "",
-    disclosurePrice: 0,
-    disclosureRule: "",
+    disclosurePrices: [] as { price: number; label: string }[],
     categoryId: "",
     ageRatingCode: "free",
     startDate: "",
@@ -230,10 +229,8 @@ export default function NovoEventoPage() {
                    onChange={v => setFormData({...formData, type: v})}
                    externalUrl={formData.externalUrl}
                    onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
-                   disclosurePrice={formData.disclosurePrice}
-                   onDisclosurePriceChange={v => setFormData({...formData, disclosurePrice: v})}
-                   disclosureRule={formData.disclosureRule}
-                   onDisclosureRuleChange={v => setFormData({...formData, disclosureRule: v})}
+                   disclosurePrices={formData.disclosurePrices}
+                   onDisclosurePricesChange={v => setFormData({...formData, disclosurePrices: v})}
                    config={eventTypesSettings}
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />

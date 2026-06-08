@@ -7,21 +7,21 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { EVENT_TYPES } from "@/lib/constants"
 import { cn } from "@/lib/utils"
-import { Info, AlertTriangle, Coins, Clock, ArrowRight } from "lucide-react"
+import { Info, AlertTriangle, Coins, Clock, ArrowRight, Plus, Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+
+interface DisclosurePrice {
+  price: number;
+  label: string;
+}
 
 interface EventTypeProps {
   value: string
   onChange: (val: string) => void
   externalUrl?: string
   onExternalUrlChange?: (val: string) => void
-  disclosurePrice?: number
-  onDisclosurePriceChange?: (val: number) => void
-  disclosurePriceSecondary?: number
-  onDisclosurePriceSecondaryChange?: (val: number) => void
-  disclosureRule?: string
-  onDisclosureRuleChange?: (val: string) => void
-  disclosureSwitchTime?: string
-  onDisclosureSwitchTimeChange?: (val: string) => void
+  disclosurePrices?: DisclosurePrice[]
+  onDisclosurePricesChange?: (prices: DisclosurePrice[]) => void
   disabled?: boolean
   isPublic?: boolean
   config?: Record<string, { enabled: boolean; message: string }>
@@ -32,14 +32,8 @@ export function EventType({
   onChange, 
   externalUrl, 
   onExternalUrlChange, 
-  disclosurePrice,
-  onDisclosurePriceChange,
-  disclosurePriceSecondary,
-  onDisclosurePriceSecondaryChange,
-  disclosureRule,
-  onDisclosureRuleChange,
-  disclosureSwitchTime,
-  onDisclosureSwitchTimeChange,
+  disclosurePrices = [],
+  onDisclosurePricesChange,
   disabled, 
   isPublic,
   config 
@@ -47,6 +41,23 @@ export function EventType({
   if (isPublic) return null;
 
   const activeConfig = config?.[value];
+
+  const handleAddPrice = () => {
+    if (disclosurePrices.length >= 5) return;
+    const newPrices = [...disclosurePrices, { price: 0, label: "" }];
+    onDisclosurePricesChange?.(newPrices);
+  };
+
+  const handleUpdatePrice = (index: number, field: keyof DisclosurePrice, val: any) => {
+    const newPrices = [...disclosurePrices];
+    newPrices[index] = { ...newPrices[index], [field]: val };
+    onDisclosurePricesChange?.(newPrices);
+  };
+
+  const handleRemovePrice = (index: number) => {
+    const newPrices = disclosurePrices.filter((_, i) => i !== index);
+    onDisclosurePricesChange?.(newPrices);
+  };
 
   return (
     <div className="space-y-6">
@@ -84,69 +95,76 @@ export function EventType({
         </div>
       )}
 
-      {value === 'divulgacao' && (
-        <div className="space-y-6 animate-in slide-in-from-top-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-secondary flex items-center gap-1.5">
-                <Coins className="w-3 h-3" /> Entrada Inicial (R$)
-              </Label>
-              <Input 
-                type="number"
-                step="0.01"
-                value={disclosurePrice ?? ""} 
-                onChange={e => onDisclosurePriceChange?.(parseFloat(e.target.value) || 0)} 
-                placeholder="0,00 (Grátis)" 
-                className="rounded-xl h-11 border-secondary/20 font-bold"
-                disabled={disabled}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-secondary flex items-center gap-1.5">
-                <Clock className="w-3 h-3" /> Regra Visual (Ex: Até 21h)
-              </Label>
-              <Input 
-                value={disclosureRule || ""} 
-                onChange={e => onDisclosureRuleChange?.(e.target.value)} 
-                placeholder="ex: Grátis até as 21h" 
-                className="rounded-xl h-11 border-secondary/20"
-                disabled={disabled}
-              />
-            </div>
+      {value === 'divulgacao' && onDisclosurePricesChange && (
+        <div className="space-y-4 animate-in slide-in-from-top-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-[10px] font-black uppercase text-secondary flex items-center gap-1.5">
+              <Coins className="w-3 h-3" /> Preços de Entrada
+            </Label>
+            <span className="text-[8px] font-bold uppercase opacity-40">{disclosurePrices.length}/5</span>
           </div>
 
-          <div className="p-4 bg-muted/30 rounded-2xl border-2 border-dashed space-y-4">
-             <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-secondary" />
-                <span className="text-[10px] font-black uppercase">Mudança Automática (Opcional)</span>
-             </div>
-             
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                   <Label className="text-[9px] font-black uppercase opacity-60">Trocar para Valor (R$)</Label>
-                   <Input 
-                      type="number"
-                      step="0.01"
-                      value={disclosurePriceSecondary ?? ""} 
-                      onChange={e => onDisclosurePriceSecondaryChange?.(parseFloat(e.target.value) || 0)} 
-                      placeholder="Valor após mudança" 
-                      className="rounded-xl h-10 bg-white"
-                   />
+          <div className="space-y-3">
+            {disclosurePrices.length === 0 && (
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleAddPrice}
+                className="w-full h-11 border-dashed border-secondary/30 text-secondary rounded-xl font-bold text-[10px] uppercase"
+              >
+                <Plus className="w-3 h-3 mr-2" /> Definir primeiro valor
+              </Button>
+            )}
+
+            {disclosurePrices.map((item, index) => (
+              <div key={index} className="flex gap-2 items-end group animate-in slide-in-from-left-2">
+                <div className="w-32 space-y-1">
+                  <Label className="text-[8px] font-black uppercase opacity-40 ml-1">Valor (R$)</Label>
+                  <Input 
+                    type="number"
+                    step="0.01"
+                    value={item.price ?? ""} 
+                    onChange={e => handleUpdatePrice(index, 'price', parseFloat(e.target.value) || 0)} 
+                    placeholder="0,00" 
+                    className="rounded-xl h-10 border-secondary/20 font-bold"
+                  />
                 </div>
-                <div className="space-y-2">
-                   <Label className="text-[9px] font-black uppercase opacity-60">Horário da Mudança</Label>
-                   <Input 
-                      type="datetime-local"
-                      value={disclosureSwitchTime || ""} 
-                      onChange={e => onDisclosureSwitchTimeChange?.(e.target.value)} 
-                      className="rounded-xl h-10 bg-white text-xs"
-                   />
+                <div className="flex-1 space-y-1">
+                  <Label className="text-[8px] font-black uppercase opacity-40 ml-1">Regra (ex: Masculino, Até 22h)</Label>
+                  <Input 
+                    value={item.label} 
+                    onChange={e => handleUpdatePrice(index, 'label', e.target.value)} 
+                    placeholder="Descrição do valor" 
+                    className="rounded-xl h-10 border-secondary/20"
+                  />
                 </div>
-             </div>
-             <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight">
-               Se configurado, o card do evento mudará o preço automaticamente no horário definido.
-             </p>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-10 w-10 text-destructive hover:bg-destructive/5"
+                  onClick={() => handleRemovePrice(index)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+
+            {disclosurePrices.length > 0 && disclosurePrices.length < 5 && (
+              <Button 
+                type="button" 
+                variant="ghost" 
+                onClick={handleAddPrice}
+                className="w-full h-10 border-2 border-dashed border-muted text-muted-foreground hover:text-secondary hover:border-secondary/30 rounded-xl font-bold text-[9px] uppercase"
+              >
+                <Plus className="w-3 h-3 mr-1" /> Adicionar outro valor
+              </Button>
+            )}
           </div>
+          
+          <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight mt-2 px-1">
+            Estes valores são apenas informativos para o público. A cobrança (se houver) é feita diretamente no local.
+          </p>
         </div>
       )}
     </div>

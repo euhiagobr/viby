@@ -49,7 +49,7 @@ import {
   EventCoOrganizers
 } from '@/components/events';
 import { AgeRatingBadge } from '@/lib/age-rating';
-import { useCurrency } from '@/contexts/CurrencyContext';
+import { useCurrency, CurrencyCode } from '@/contexts/CurrencyContext';
 
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter();
@@ -128,7 +128,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   }, [rawOccurrences]);
 
   const isEnded = React.useMemo(() => {
-    if (!event) return false;
+    if (!event) false;
     const parseDate = (val: any) => {
       if (!val) return null;
       if (val.toDate) return val.toDate();
@@ -346,19 +346,24 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                         <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Entrada</h2>
                      </div>
                      <div className="space-y-4">
-                        <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex items-center justify-between">
-                           <span className="text-[10px] font-black uppercase opacity-60">Valor</span>
-                           <span className="font-black text-xl text-primary uppercase italic">
-                              {(event.disclosurePrice > 0) ? formatPriceWithOriginal(event.disclosurePrice, event.currency || 'BRL') : 'Grátis'}
-                           </span>
-                        </div>
-                        {event.disclosureRule && (
-                          <div className="flex items-center gap-2 p-3 bg-secondary/5 rounded-xl text-secondary">
-                             <Clock className="w-4 h-4" />
-                             <span className="text-[10px] font-bold uppercase tracking-tight">{event.disclosureRule}</span>
+                        {(event.disclosurePrices || []).length > 0 ? (
+                           <div className="grid grid-cols-1 gap-2">
+                             {(event.disclosurePrices as any[]).map((p, idx) => (
+                               <div key={idx} className="p-4 bg-muted/30 rounded-2xl border border-dashed flex items-center justify-between gap-4">
+                                  <span className="text-[9px] font-black uppercase opacity-60 flex-1">{p.label || "Geral"}</span>
+                                  <span className="font-black text-lg text-primary uppercase italic shrink-0">
+                                     {p.price > 0 ? formatPriceWithOriginal(p.price, event.currency || 'BRL') : 'Grátis'}
+                                  </span>
+                               </div>
+                             ))}
+                           </div>
+                        ) : (
+                          <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase opacity-60">Status</span>
+                            <span className="font-black text-xl text-primary uppercase italic">Grátis</span>
                           </div>
                         )}
-                        <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">Este evento não possui venda de ingressos pela Viby. O pagamento (se houver) é realizado diretamente no local.</p>
+                        <p className="text-[9px] text-muted-foreground font-medium leading-relaxed uppercase">Este evento não possui venda de ingressos pela Viby. O pagamento (se houver) é realizado diretamente no local.</p>
                      </div>
                   </Card>
                 )}
