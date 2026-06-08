@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -77,7 +78,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           let limitDate = new Date(lastLimit.getTime());
           limitDate.setHours(h, m, 0, 0);
 
-          // Se o limite é anterior ou igual ao limite anterior, significa que virou o dia
           if (limitDate <= lastLimit) {
             limitDate.setDate(limitDate.getDate() + 1);
           }
@@ -89,7 +89,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           lastLimit = limitDate;
         }
 
-        // Se todos os horários passaram, fixa no último valor da lista
         setCurrentDisplayPrice(activePrice || event.disclosurePrices[event.disclosurePrices.length - 1]);
       }
     };
@@ -145,6 +144,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [event, t, formatPriceWithOriginal, currentDisplayPrice]);
 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
+  
+  // Tenta pegar o nome da categoria de múltiplos campos possíveis
+  const displayCategory = event.categoryName || event.category || event.categoryLabel;
 
   return (
     <Card 
@@ -181,9 +183,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         
         {!isEnded && (
           <div className="absolute bottom-4 right-4 flex items-center gap-2 z-10">
-            {event.categoryName && (
+            {displayCategory && (
               <Badge className="bg-white/90 text-primary border-none shadow-2xl px-4 py-2 text-[10px] font-black uppercase flex items-center gap-1.5 ring-2 ring-primary/5">
-                <Tag className="w-3 h-3" /> {event.categoryName}
+                <Tag className="w-3 h-3" /> {displayCategory}
               </Badge>
             )}
             {distance !== null && (
