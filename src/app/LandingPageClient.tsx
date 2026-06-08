@@ -44,6 +44,7 @@ import {
 import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useTranslation } from "@/i18n/i18n-context"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function LandingPageClient() {
   const { t } = useTranslation()
@@ -276,7 +277,7 @@ export default function LandingPageClient() {
                 )}
               </div>
 
-              {/* Botão de Modal de Categorias */}
+              {/* Botão de Modal de Categorias Responsivo */}
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 <Dialog>
                   <DialogTrigger asChild>
@@ -292,30 +293,33 @@ export default function LandingPageClient() {
                       <ChevronRight className="w-4 h-4 opacity-30" />
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="rounded-[2.5rem] max-w-2xl bg-white border-none shadow-2xl">
-                    <DialogHeader className="p-4">
+                  <DialogContent className="rounded-[2.5rem] w-[95vw] md:max-w-2xl bg-white border-none shadow-2xl p-0 overflow-hidden">
+                    <DialogHeader className="p-8 pb-0">
                       <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Categorias</DialogTitle>
                       <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">O que você está procurando hoje?</DialogDescription>
                     </DialogHeader>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4">
-                       <Button 
-                        variant={selectedCategory === 'all' ? 'default' : 'outline'}
-                        className={cn("h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest", selectedCategory === 'all' ? "bg-secondary text-white" : "border-muted")}
-                        onClick={() => setSelectedCategory('all')}
-                       >
-                         Tudo
-                       </Button>
-                       {categories?.map((cat: any) => (
+                    
+                    <ScrollArea className="max-h-[60vh] p-8 pt-6">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                          <Button 
-                          key={cat.id}
-                          variant={selectedCategory === cat.id ? 'default' : 'outline'}
-                          className={cn("h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest", selectedCategory === cat.id ? "bg-secondary text-white" : "border-muted")}
-                          onClick={() => setSelectedCategory(cat.id)}
+                          variant={selectedCategory === 'all' ? 'default' : 'outline'}
+                          className={cn("h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all", selectedCategory === 'all' ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "border-muted hover:border-secondary/30")}
+                          onClick={() => setSelectedCategory('all')}
                          >
-                           {cat.name}
+                           Tudo
                          </Button>
-                       ))}
-                    </div>
+                         {categories?.map((cat: any) => (
+                           <Button 
+                            key={cat.id}
+                            variant={selectedCategory === cat.id ? 'default' : 'outline'}
+                            className={cn("h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all", selectedCategory === cat.id ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "border-muted hover:border-secondary/30")}
+                            onClick={() => setSelectedCategory(cat.id)}
+                           >
+                             {cat.name}
+                           </Button>
+                         ))}
+                      </div>
+                    </ScrollArea>
                   </DialogContent>
                 </Dialog>
 
