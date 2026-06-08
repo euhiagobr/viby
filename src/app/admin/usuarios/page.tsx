@@ -52,7 +52,8 @@ import {
   Trophy,
   Coins,
   Languages,
-  Mail
+  Mail,
+  Fingerprint
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -60,26 +61,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
+import { cn, validateCPF } from "@/lib/utils"
 import { sendVerificationStatusEmail } from "@/app/actions/email"
 import { useAdminPermissions } from "@/hooks/use-admin-permissions"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
+import { updateUserCPF } from "@/app/actions/user"
 
 export default function AdminUsuariosPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
-  const { adminProfile } = useAdminPermissions()
+  const { adminProfile, isSuperAdmin } = useAdminPermissions()
   const [search, setSearch] = React.useState("")
   
   const [editingUser, setEditingUser] = React.useState<any>(null)
   const [originalUser, setOriginalUser] = React.useState<any>(null)
   const [isEditUserOpen, setIsEditUserOpen] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
+  const [tempCPF, setTempCPF] = React.useState("")
 
-  // Trava de segurança para consulta
   const usersQuery = useMemoFirebase(() => 
     (db && user && adminProfile) ? query(collection(db, "users"), orderBy("createdAt", "desc")) : null, 
     [db, user, adminProfile]
@@ -103,8 +105,17 @@ export default function AdminUsuariosPage() {
     const oldUsername = originalUser?.username?.toLowerCase().trim();
     const usernameChanged = oldUsername && newUsername && oldUsername !== newUsername;
 
+    const cpfChanged = isSuperAdmin && tempCPF && tempCPF !== (originalUser?.cpfMasked || originalUser?.cpf);
+
     setIsSaving(true)
     try {
+      if (cpfChanged) {
+        const cleanCPF = tempCPF.replace(/\D/g, "");
+        if (!validateCPF(cleanCPF)) throw new Error("CPF informado é inválido.");
+        const cpfRes = await updateUserCPF(editingUser.id, cleanCPF);
+        if (!cpfRes.success) throw new Error(cpfRes.error);
+      }
+
       await runTransaction(db, async (transaction) => {
         if (usernameChanged) {
           const newIdxRef = doc(db, "usernames", newUsername);
@@ -125,7 +136,7 @@ export default function AdminUsuariosPage() {
           });
         }
 
-        const { id, ...data } = editingUser;
+        const { id, cpf, cpfHash, cpfMasked, ...data } = editingUser;
         transaction.update(doc(db, "users", id), { ...data, updatedAt: serverTimestamp() });
       });
       
@@ -254,7 +265,7 @@ export default function AdminUsuariosPage() {
                 </TableCell>
                 <TableCell className="p-6 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingUser({...user}); setOriginalUser(user); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingUser({...user}); setOriginalUser(user); setTempCPF(user.cpfMasked || user.cpf || ""); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -323,6 +334,37 @@ export default function AdminUsuariosPage() {
                          onChange={e => setEditingUser({...editingUser, bio: e.target.value})} 
                          className="min-h-[100px] rounded-xl resize-none" 
                        />
+                    </div>
+
+                    <Separator className="border-dashed" />
+
+                    {/* CPF (Editável apenas por Super Admin para correção) */}
+                    <div className="space-y-4">
+                       <div className="flex items-center justify-between">
+                          <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                            <Fingerprint className="w-4 h-4 text-secondary" /> CPF de Identidade
+                          </Label>
+                          {isSuperAdmin && (
+                             <Badge variant="outline" className="text-[8px] font-black uppercase border-orange-200 text-orange-600 bg-orange-50">Master Edit Habilitado</Badge>
+                          )}
+                       </div>
+                       <div className="relative">
+                          <Input 
+                            value={tempCPF}
+                            onChange={e => isSuperAdmin && setTempCPF(e.target.value.replace(/\D/g, "").substring(0, 11))}
+                            readOnly={!isSuperAdmin}
+                            placeholder="000.000.000-00"
+                            className={cn("rounded-xl h-12 font-mono text-lg", !isSuperAdmin ? "bg-muted/30" : "border-dashed border-secondary/30")}
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                             {isSuperAdmin ? <ShieldCheck className="w-5 h-5 text-secondary" /> : <Lock className="w-5 h-5 text-muted-foreground opacity-30" />}
+                          </div>
+                       </div>
+                       {isSuperAdmin && (
+                          <p className="text-[9px] font-bold text-orange-700 uppercase leading-relaxed italic">
+                             Aviso: Alterar o CPF manualmente recalculará o hash e a criptografia. Use apenas para fins de suporte técnico e teste.
+                          </p>
+                       )}
                     </div>
 
                     <Separator className="border-dashed" />
@@ -403,7 +445,7 @@ export default function AdminUsuariosPage() {
                              <p className="font-bold text-sm flex items-center gap-2">
                                 <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo Verificado
                              </p>
-                             <p className="text-[10px] text-muted-foreground uppercase font-black">Identidade confirmada</p>
+                             <p className="text-[10px] font-black uppercase font-black">Identidade confirmada</p>
                           </div>
                           <Switch 
                             checked={editingUser?.isVerified || false} 
@@ -415,7 +457,7 @@ export default function AdminUsuariosPage() {
                              <p className="font-bold text-sm flex items-center gap-2 text-primary">
                                 <Mail className="w-4 h-4" /> E-mail Público
                              </p>
-                             <p className="text-[10px] text-muted-foreground uppercase font-black">Exibir no perfil</p>
+                             <p className="text-[10px] font-black uppercase font-black">Exibir no perfil</p>
                           </div>
                           <Switch 
                             checked={editingUser?.showEmail ?? true} 
@@ -429,7 +471,7 @@ export default function AdminUsuariosPage() {
                        <div className="space-y-1">
                           <h4 className="font-black uppercase text-xs italic text-orange-800">Privacidade dos Dados</h4>
                           <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
-                            Alterações em campos críticos como @username ou selos de verificação impactam a indexação global. O CPF e dados bancários não são editáveis por este formulário por questões de compliance.
+                            Alterações em campos críticos como @username ou selos de verificação impactam a indexação global. A edição manual de CPF é restrita a Super Admins para fins de restauração técnica.
                           </p>
                        </div>
                     </div>
