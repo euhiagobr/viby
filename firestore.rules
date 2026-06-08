@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -12,17 +11,20 @@ service cloud.firestore {
     // Função central de autorização administrativa
     function isAdmin() {
       return isSignedIn() && (
-        // 1. Verificação via Custom Claims
+        // 1. UID Mestre para Bootstrap
+        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
+        // 2. Verificação via Custom Claims
         request.auth.token.admin == true ||
-        // 2. Verificação via nova estrutura granular
+        // 3. Verificação via estrutura granular
         exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) ||
-        // 3. Fallback: Usuário com role 'admin' no perfil principal
+        // 4. Fallback: Usuário com role 'admin' no perfil principal
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
 
     function isSuperAdmin() {
       return isSignedIn() && (
+        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
         (exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/system_admins/$(request.auth.uid)).data.cargo == 'super_admin') ||
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
@@ -57,11 +59,8 @@ service cloud.firestore {
     // --- REGRAS POR COLEÇÃO ---
 
     match /system_admins/{adminId} {
-      // Permite ler o próprio perfil administrativo ou se já for um admin
       allow get: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
-      // Apenas administradores podem listar a equipe
       allow list: if isAdmin();
-      // Apenas Super Admins podem gerenciar a equipe
       allow create, update, delete: if isSuperAdmin();
     }
 
@@ -240,8 +239,6 @@ service cloud.firestore {
       allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); 
       allow write: if false; 
     }
-
-    // --- GAMIFICAÇÃO ---
 
     match /levels/{id} {
       allow read: if true;

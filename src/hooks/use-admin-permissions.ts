@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
@@ -7,9 +6,11 @@ import { useMemo } from 'react';
 import { AdminPermission, SystemAdmin } from '@/types/admin';
 import { checkAdminPermission, ALL_PERMISSIONS } from '@/lib/admin/permissions';
 
+const MASTER_ADMIN_UID = "AqTVL8VRTZT435pZudkObzMGsrR2";
+
 /**
  * @fileOverview Hook resiliente para gestão de permissões administrativas.
- * Implementa bootstrapping via fallback para usuários com role 'admin' no perfil principal.
+ * Implementa bootstrapping via fallback para a UID mestre e usuários com role 'admin'.
  */
 export function useAdminPermissions() {
   const auth = useAuth();
@@ -24,10 +25,9 @@ export function useAdminPermissions() {
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
   /**
-   * Resolve o perfil administrativo com suporte a fallback.
+   * Resolve o perfil administrativo com suporte a fallback e UID mestre.
    */
   const adminProfile = useMemo(() => {
-    // CRITICAL: Só avaliamos o perfil quando TODAS as fontes terminaram de carregar
     if (!authInitialized || userLoading || adminLoading) return null;
 
     // 1. Prioridade para a nova estrutura granular (se o documento existir)
@@ -35,14 +35,12 @@ export function useAdminPermissions() {
       return dbAdminProfile;
     }
     
-    // 2. Fallback de Bootstrapping para administradores legados
-    // Se o usuário tem 'admin' no perfil principal, concedemos acesso total de super_admin
-    if (profile?.role === 'admin') {
-      console.log('[RBAC-Fallback] Admin legado detectado. Concedendo acesso via bootstrapping.');
+    // 2. Fallback de Bootstrapping para UID Mestre ou Administradores Legados
+    if (user?.uid === MASTER_ADMIN_UID || profile?.role === 'admin') {
       return {
         uid: user?.uid,
-        nome: profile.name || "Admin",
-        sobrenome: "Viby",
+        nome: profile?.name || "Super",
+        sobrenome: "Admin",
         email: user?.email || "",
         cargo: 'super_admin',
         status: 'Ativo',
@@ -60,7 +58,6 @@ export function useAdminPermissions() {
 
   const isSuperAdmin = adminProfile?.cargo === 'super_admin';
 
-  // O estado de carregamento deve ser estrito: aguarda Auth, Perfil de Usuário e Perfil de Equipe
   const loading = !authInitialized || userLoading || adminLoading;
 
   return {
