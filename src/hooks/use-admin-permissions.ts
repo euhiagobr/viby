@@ -25,11 +25,10 @@ export function useAdminPermissions() {
 
   /**
    * Resolve o perfil administrativo com suporte a fallback.
-   * Se o usuário não estiver na coleção system_admins mas for 'admin' no perfil legado,
-   * concedemos acesso total para que ele possa configurar a nova equipe.
    */
   const adminProfile = useMemo(() => {
-    if (!authInitialized || userLoading) return null;
+    // CRITICAL: Só avaliamos o perfil quando TODAS as fontes terminaram de carregar
+    if (!authInitialized || userLoading || adminLoading) return null;
 
     // 1. Prioridade para a nova estrutura granular (se o documento existir)
     if (dbAdminProfile && dbAdminProfile.status !== 'Desativado') {
@@ -37,8 +36,9 @@ export function useAdminPermissions() {
     }
     
     // 2. Fallback de Bootstrapping para administradores legados
-    // Se o snapshot de system_admins terminou e não achou nada, mas o perfil de usuário diz que é admin
-    if (profile?.role === 'admin' && !adminLoading) {
+    // Se o usuário tem 'admin' no perfil principal, concedemos acesso total de super_admin
+    if (profile?.role === 'admin') {
+      console.log('[RBAC-Fallback] Admin legado detectado. Concedendo acesso via bootstrapping.');
       return {
         uid: user?.uid,
         nome: profile.name || "Admin",
@@ -54,13 +54,14 @@ export function useAdminPermissions() {
   }, [dbAdminProfile, profile, user, adminLoading, authInitialized, userLoading]);
 
   const hasPermission = (permission: AdminPermission) => {
+    if (!adminProfile) return false;
     return checkAdminPermission(adminProfile, permission);
   };
 
   const isSuperAdmin = adminProfile?.cargo === 'super_admin';
 
-  // O estado de carregamento deve ser verdadeiro enquanto qualquer uma das fontes fundamentais estiver pendente
-  const loading = !authInitialized || userLoading || (adminLoading && !dbAdminProfile && !profile);
+  // O estado de carregamento deve ser estrito: aguarda Auth, Perfil de Usuário e Perfil de Equipe
+  const loading = !authInitialized || userLoading || adminLoading;
 
   return {
     adminProfile,
