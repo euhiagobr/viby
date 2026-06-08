@@ -182,7 +182,7 @@ service cloud.firestore {
     match /usernames/{username} { 
       allow read: if true; 
       allow create: if isAdmin() || (isSignedIn() && (request.resource.data.uid == request.auth.uid || request.resource.data.type == 'organization'));
-      allow delete: if isAdmin() || (isSignedIn() && (resource.data.uid == request.auth.uid || resource.data.type == 'organization'));
+      allow delete: if isAdmin() || (isSignedIn() && (request.resource.data.uid == request.auth.uid || request.resource.data.type == 'organization'));
       allow update: if isAdmin();
     }
 
@@ -300,8 +300,20 @@ service cloud.firestore {
       allow write: if false; 
     }
 
-    match /{path=**}/partners/{partnerId} { allow read: if true; }
-    match /{path=**}/members/{memberId} { allow read: if isOrgMember(path.split('/')[1]) || (isSignedIn() && request.auth.uid == memberId); }
-    match /{path=**}/transactions/{id} { allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId); }
+    // --- REGRAS DE GRUPO DE COLEÇÕES (Necessário para queries globais) ---
+
+    match /{path=**}/partners/{partnerId} { 
+      allow read: if true; 
+    }
+    
+    match /{path=**}/members/{memberId} { 
+      // Permite ler se for o dono do convite/membro (userId) ou se já for membro daquela org específica
+      allow read, list: if (isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid))
+                        || isOrgMember(path.split('/')[1]); 
+    }
+    
+    match /{path=**}/transactions/{id} { 
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId); 
+    }
   }
 }
