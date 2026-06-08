@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -119,6 +120,9 @@ function TicketListItem({ registration }: { registration: any }) {
     }
   }
 
+  const dateValue = registration.eventDate?.seconds * 1000 || registration.eventDate;
+  const eventDateObj = new Date(dateValue);
+
   return (
     <Card className={cn(
       "overflow-hidden border-none shadow-sm transition-all rounded-[1.5rem] bg-white flex flex-col sm:flex-row group",
@@ -153,9 +157,15 @@ function TicketListItem({ registration }: { registration: any }) {
           )}>
             {registration.eventTitle}
           </h3>
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase text-muted-foreground tracking-tight">
-             <Calendar className="w-3.5 h-3.5 text-secondary" />
-             {new Date(registration.eventDate?.seconds * 1000 || registration.eventDate).toLocaleDateString('pt-BR')}
+          <div className="flex items-center gap-3 text-[10px] font-black uppercase text-muted-foreground tracking-tight">
+             <div className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-secondary" />
+                {eventDateObj.toLocaleDateString('pt-BR')}
+             </div>
+             <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-secondary" />
+                {eventDateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+             </div>
           </div>
         </div>
 

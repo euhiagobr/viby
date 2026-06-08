@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -148,6 +149,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               <div className="flex items-center gap-1.5 text-xs font-black text-primary">
                  <Calendar className="w-3.5 h-3.5 text-secondary" />
                  {eventDates.start.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
+                 <span className="mx-0.5 opacity-20">|</span>
+                 <Clock className="w-3 h-3 text-secondary/80" />
+                 {eventDates.start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
               </div>
            </div>
            <div className="text-right">
