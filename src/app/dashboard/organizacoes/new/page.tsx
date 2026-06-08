@@ -38,6 +38,7 @@ import {
 import Link from "next/link"
 import { cn, validateCPF, validateCNPJ } from "@/lib/utils"
 import Image from "next/image"
+import { EventLocation } from "@/components/events"
 
 const ORG_TYPES = [
   {
@@ -90,7 +91,7 @@ export default function NovaOrganizacaoPage() {
   const [bannerUploadProgress, setBannerUploadProgress] = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
-    tipoOrganizacao: "individual", // default
+    tipoOrganizacao: "individual",
     name: "",
     username: "",
     type: "",
@@ -106,14 +107,22 @@ export default function NovaOrganizacaoPage() {
     razaoSocial: "",
     nomeFantasia: "",
     representanteLegalCpf: "",
-    cep: "",
-    street: "",
-    number: "",
-    complement: "",
-    neighborhood: "",
-    city: "",
-    state: "",
-    country: "Brasil",
+    address: { 
+      venueName: "",
+      addressLine1: "", 
+      addressLine2: "",
+      streetNumber: "",
+      neighborhood: "", 
+      city: "", 
+      stateRegion: "", 
+      country: "Brasil", 
+      countryCode: "BR",
+      postalCode: "", 
+      latitude: -23.55052, 
+      longitude: -46.633308,
+      formattedAddress: "",
+      isCustomized: false
+    },
     showPhone: true,
     showEmail: true,
     showWebsite: true,
@@ -142,7 +151,6 @@ export default function NovaOrganizacaoPage() {
       return
     }
 
-    // Check reserved list
     if (RESERVED_USERNAMES.includes(newUsername) || blockedData?.list?.includes(newUsername)) {
       setUsernameStatus('taken')
       return
@@ -153,11 +161,7 @@ export default function NovaOrganizacaoPage() {
       try {
         const usernameRef = doc(db, "usernames", newUsername)
         const usernameSnap = await getDoc(usernameRef)
-        if (usernameSnap.exists()) {
-          setUsernameStatus('taken')
-        } else {
-          setUsernameStatus('valid')
-        }
+        setUsernameStatus(usernameSnap.exists() ? 'taken' : 'valid')
       } catch (e) {
         console.error(e)
       } finally {
@@ -211,24 +215,6 @@ export default function NovaOrganizacaoPage() {
     } catch (err) { setProgress(null) }
   }
 
-  const handleCepBlur = async () => {
-    const cleanCep = formData.cep.replace(/\D/g, "")
-    if (cleanCep.length !== 8) return
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
-      const data = await response.json()
-      if (!data.erro) {
-        setFormData(prev => ({
-          ...prev,
-          street: data.logradouro || "",
-          neighborhood: data.bairro || "",
-          city: data.localidade || "",
-          state: data.uf || ""
-        }))
-      }
-    } catch (e) {}
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !user || usernameStatus !== 'valid') {
@@ -236,7 +222,6 @@ export default function NovaOrganizacaoPage() {
         return
     }
 
-    // Validações Fiscais Condicionais
     if (formData.tipoOrganizacao === 'individual') {
       if (!validateCPF(formData.cpf)) {
         toast({ variant: "destructive", title: "CPF Inválido" });
@@ -272,7 +257,6 @@ export default function NovaOrganizacaoPage() {
           username: normalizedUsername
         })
 
-        // Sanitização de dados baseada no tipo
         const finalData = { ...formData };
         if (finalData.tipoOrganizacao === 'individual') {
           finalData.cnpj = "";
@@ -283,9 +267,19 @@ export default function NovaOrganizacaoPage() {
           finalData.cpf = "";
         }
 
+        // Aliases para busca rápida
+        const searchableData = {
+          ...finalData,
+          city: finalData.address.city,
+          state: finalData.address.stateRegion,
+          latitude: finalData.address.latitude,
+          longitude: finalData.address.longitude,
+          neighborhood: finalData.address.neighborhood
+        };
+
         transaction.set(orgRef, {
           id: orgId,
-          ...finalData,
+          ...searchableData,
           username: normalizedUsername,
           slug: normalizedUsername,
           createdBy: user.uid,
@@ -328,7 +322,6 @@ export default function NovaOrganizacaoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* TIPO DE ORGANIZAÇÃO */}
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
            <CardContent className="p-8">
               <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Tipo de Cadastro</Label>
@@ -475,7 +468,6 @@ export default function NovaOrganizacaoPage() {
           </CardContent>
         </Card>
 
-        {/* NOVOS CAMPOS FISCAIS */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
              <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Dados Fiscais</CardTitle>
@@ -540,53 +532,18 @@ export default function NovaOrganizacaoPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Endereço Sede</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
-                  <Input 
-                    value={formData.cep}
-                    onChange={e => setFormData(prev => ({ ...prev, CEP: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
-                    onBlur={handleCepBlur}
-                    placeholder="00000-000" 
-                    required
-                    className="rounded-xl h-11"
-                  />
-                </div>
-                <div className="md:col-span-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Logradouro</Label>
-                    <div className="flex items-center gap-2">
-                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showAddress ? 'Público' : 'Oculto'}</span>
-                       <Switch checked={formData.showAddress} onCheckedChange={v => setFormData({...formData, showAddress: v})} />
-                    </div>
-                  </div>
-                  <Input value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} required className="rounded-xl h-11" />
-                </div>
-             </div>
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Número</Label>
-                  <Input value={formData.number} onChange={e => setFormData(prev => ({ ...prev, number: e.target.value }))} required className="rounded-xl h-11" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Bairro</Label>
-                  <Input value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} required className="rounded-xl h-11" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Cidade / UF</Label>
-                  <div className="flex gap-2">
-                    <Input value={formData.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
-                    <Input value={formData.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
-                  </div>
-                </div>
-             </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-10">
+          <div className="flex items-center gap-3 px-2">
+            <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Sede da Marca</h2>
+          </div>
+          <EventLocation 
+            address={formData.address} 
+            onChange={v => setFormData({...formData, address: v})} 
+          />
+        </div>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>

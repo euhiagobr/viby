@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -32,11 +31,14 @@ import {
   Mail,
   Instagram,
   Fingerprint,
-  Info
+  Info,
+  User,
+  ShieldCheck
 } from "lucide-react"
 import Link from "next/link"
-import { cn } from "@/lib/utils"
+import { cn, validateCPF, validateCNPJ } from "@/lib/utils"
 import Image from "next/image"
+import { EventLocation } from "@/components/events"
 
 const ORG_TYPES = [
   {
@@ -54,6 +56,10 @@ const ORG_TYPES = [
   {
     category: "Empresas e Negócios",
     items: ["Empresa", "Startup", "Agência de Marketing", "Agência Digital", "Coworking", "Consultoria", "Escritório", "Loja", "E-commerce", "Marca", "Franquia", "Empresa de Tecnologia"]
+  },
+  {
+    category: "Comunidade e Instituições",
+    items: ["ONG", "Associação", "Coletivo", "Fundação", "Organização Social", "Instituição Pública", "Prefeitura", "Secretaria", "Câmara Municipal", "Projeto Social", "Igreja", "Organização Religiosa", "Centro Comunitário"]
   },
   {
     category: "Categoria Genérica",
@@ -78,6 +84,7 @@ export default function NovaOrganizacaoPage() {
   const [bannerUploadProgress, setBannerUploadProgress] = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
+    tipoOrganizacao: "individual",
     name: "",
     username: "",
     type: "",
@@ -88,16 +95,27 @@ export default function NovaOrganizacaoPage() {
     contactEmail: "",
     website: "",
     instagram: "",
+    cpf: "",
     cnpj: "",
-    legalName: "",
-    cep: "",
-    street: "",
-    number: "",
-    complement: "",
-    neighborhood: "",
-    city: "",
-    state: "",
-    country: "Brasil",
+    razaoSocial: "",
+    nomeFantasia: "",
+    representanteLegalCpf: "",
+    address: { 
+      venueName: "",
+      addressLine1: "", 
+      addressLine2: "",
+      streetNumber: "",
+      neighborhood: "", 
+      city: "", 
+      stateRegion: "", 
+      country: "Brasil", 
+      countryCode: "BR",
+      postalCode: "", 
+      latitude: -23.55052, 
+      longitude: -46.633308,
+      formattedAddress: "",
+      isCustomized: false
+    },
     showPhone: true,
     showEmail: true,
     showWebsite: true,
@@ -190,29 +208,27 @@ export default function NovaOrganizacaoPage() {
     } catch (err) { setProgress(null) }
   }
 
-  const handleCepBlur = async () => {
-    const cleanCep = formData.cep.replace(/\D/g, "")
-    if (cleanCep.length !== 8) return
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`)
-      const data = await response.json()
-      if (!data.erro) {
-        setFormData(prev => ({
-          ...prev,
-          street: data.logradouro || "",
-          neighborhood: data.bairro || "",
-          city: data.localidade || "",
-          state: data.uf || ""
-        }))
-      }
-    } catch (e) {}
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !user || usernameStatus !== 'valid') {
         toast({ variant: "destructive", title: "Username inválido", description: "Verifique a disponibilidade do nome de usuário." })
         return
+    }
+
+    if (formData.tipoOrganizacao === 'individual') {
+      if (!validateCPF(formData.cpf)) {
+        toast({ variant: "destructive", title: "CPF Inválido" });
+        return;
+      }
+    } else {
+      if (!validateCNPJ(formData.cnpj)) {
+        toast({ variant: "destructive", title: "CNPJ Inválido" });
+        return;
+      }
+      if (!validateCPF(formData.representanteLegalCpf)) {
+        toast({ variant: "destructive", title: "CPF do Representante Inválido" });
+        return;
+      }
     }
 
     setLoading(true)
@@ -228,11 +244,31 @@ export default function NovaOrganizacaoPage() {
         const usernameSnap = await transaction.get(usernameRef)
         if (usernameSnap.exists()) throw new Error("Username já ocupado.")
 
-        transaction.set(usernameRef, { uid: orgId, type: 'organization' })
+        transaction.set(usernameRef, { uid: orgId, type: 'organization', username: normalizedUsername })
+
+        const finalData = { ...formData };
+        if (finalData.tipoOrganizacao === 'individual') {
+          finalData.cnpj = "";
+          finalData.razaoSocial = "";
+          finalData.nomeFantasia = "";
+          finalData.representanteLegalCpf = "";
+        } else {
+          finalData.cpf = "";
+        }
+
+        // Aliases for compat
+        const searchableData = {
+          ...finalData,
+          city: finalData.address.city,
+          state: finalData.address.stateRegion,
+          latitude: finalData.address.latitude,
+          longitude: finalData.address.longitude,
+          neighborhood: finalData.address.neighborhood
+        };
 
         transaction.set(orgRef, {
           id: orgId,
-          ...formData,
+          ...searchableData,
           username: normalizedUsername,
           slug: normalizedUsername,
           createdBy: user.uid,
@@ -260,14 +296,12 @@ export default function NovaOrganizacaoPage() {
     }
   }
 
+  const isIndividual = formData.tipoOrganizacao === 'individual';
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/organizations">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-        </Button>
+        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizations"><ArrowLeft className="w-5 h-5" /></Link></Button>
         <div>
           <h1 className="text-3xl font-black tracking-tight text-primary uppercase italic">New Organization</h1>
           <p className="text-muted-foreground font-medium">Set up the commercial identity of your producer or brand.</p>
@@ -275,12 +309,41 @@ export default function NovaOrganizacaoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        <Card className="border-none shadow-sm rounded-[2rem] bg-white">
+           <CardContent className="p-8">
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Account Type</Label>
+              <div className="grid grid-cols-2 gap-4 mt-3">
+                 <button 
+                   type="button"
+                   onClick={() => setFormData({...formData, tipoOrganizacao: 'individual'})}
+                   className={cn(
+                     "flex flex-col items-center justify-center p-6 rounded-2xl border-2 transition-all gap-2",
+                     isIndividual ? "border-secondary bg-secondary/5 text-primary shadow-inner" : "border-border bg-white text-muted-foreground hover:bg-muted/30"
+                   )}
+                 >
+                    <User className="w-6 h-6" />
+                    <span className="font-black uppercase italic text-xs">Individual</span>
+                 </button>
+                 <button 
+                   type="button"
+                   onClick={() => setFormData({...formData, tipoOrganizacao: 'company'})}
+                   className={cn(
+                     "flex flex-col items-center justify-center p-6 rounded-2xl border-2 transition-all gap-2",
+                     !isIndividual ? "border-secondary bg-secondary/5 text-primary shadow-inner" : "border-border bg-white text-muted-foreground hover:bg-muted/30"
+                   )}
+                 >
+                    <Building2 className="w-6 h-6" />
+                    <span className="font-black uppercase italic text-xs">Company</span>
+                 </button>
+              </div>
+           </CardContent>
+        </Card>
+
         <Card className="border-none shadow-sm overflow-hidden rounded-[2rem]">
           <CardHeader className="bg-muted/30">
             <CardTitle className="text-lg flex items-center gap-2">
                <Camera className="w-5 h-5 text-secondary" /> Visual Identity
             </CardTitle>
-            <CardDescription>Upload images that will represent your brand on the platform.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="relative">
@@ -330,10 +393,12 @@ export default function NovaOrganizacaoPage() {
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Name</Label>
+                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">
+                    {isIndividual ? "Full Name" : "Company Name"}
+                  </Label>
                   <Input 
                     id="name" 
-                    placeholder="Ex: Viby Entertainment" 
+                    placeholder={isIndividual ? "Your legal name" : "Ex: Viby Entertainment"} 
                     value={formData.name}
                     onChange={handleNameChange}
                     required 
@@ -349,11 +414,7 @@ export default function NovaOrganizacaoPage() {
                       placeholder="Letters and numbers only" 
                       value={formData.username}
                       onChange={e => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") }))}
-                      className={cn(
-                        "rounded-xl h-11",
-                        usernameStatus === 'valid' ? 'border-green-500 pr-10' : 
-                        usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-destructive pr-10' : 'pr-10'
-                      )}
+                      className="rounded-xl h-11 pr-10"
                       required
                     />
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -362,7 +423,6 @@ export default function NovaOrganizacaoPage() {
                        usernameStatus === 'taken' || usernameStatus === 'invalid' ? <X className="w-4 h-4 text-destructive" /> : null}
                     </div>
                   </div>
-                  <p className="text-[9px] text-muted-foreground font-bold uppercase">Min 5 characters. viby.club/{formData.username || '...'}</p>
                 </div>
              </div>
 
@@ -372,7 +432,7 @@ export default function NovaOrganizacaoPage() {
                   <SelectTrigger className="rounded-xl h-11">
                     <SelectValue placeholder="Select segment" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[300px] rounded-xl shadow-2xl border-none">
+                  <SelectContent className="max-h-[300px] rounded-xl shadow-2xl">
                     {ORG_TYPES.map((group) => (
                       <SelectGroup key={group.category}>
                         <SelectLabel className="bg-muted/50 py-2 px-3 text-[10px] font-black uppercase text-muted-foreground">{group.category}</SelectLabel>
@@ -386,9 +446,8 @@ export default function NovaOrganizacaoPage() {
              </div>
 
              <div className="space-y-2">
-                <Label htmlFor="bio" className="text-[10px] font-black uppercase tracking-widest opacity-60">Bio / Description</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Bio / Description</Label>
                 <Textarea 
-                  id="bio" 
                   placeholder="Tell us a little about what you do..." 
                   value={formData.bio}
                   onChange={e => setFormData(prev => ({ ...prev, bio: e.target.value }))}
@@ -400,185 +459,102 @@ export default function NovaOrganizacaoPage() {
 
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Legal Data</CardTitle>
+             <CardTitle className="text-lg flex items-center gap-2"><Fingerprint className="w-5 h-5 text-secondary" /> Compliance Data</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="legalName" className="text-[10px] font-black uppercase tracking-widest opacity-60">Legal Name (Required)</Label>
+             {isIndividual ? (
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF (Tax ID)</Label>
                   <Input 
-                    id="legalName" 
-                    value={formData.legalName}
-                    onChange={e => setFormData(prev => ({ ...prev, legalName: e.target.value }))}
-                    placeholder="Official company name" 
-                    className="rounded-xl h-11"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cnpj" className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ (Required)</Label>
-                  <Input 
-                    id="cnpj" 
-                    value={formData.cnpj}
+                    value={formData.cpf}
                     onChange={e => {
                       const numbers = e.target.value.replace(/\D/g, "");
-                      let formatted = numbers;
-                      if (numbers.length > 2) formatted = numbers.substring(0, 2) + "." + numbers.substring(2);
-                      if (numbers.length > 5) formatted = formatted.substring(0, 6) + "." + numbers.substring(5);
-                      if (numbers.length > 8) formatted = formatted.substring(0, 10) + "/" + numbers.substring(8);
-                      if (numbers.length > 12) formatted = formatted.substring(0, 15) + "-" + numbers.substring(12);
-                      setFormData(prev => ({ ...prev, cnpj: formatted.substring(0, 18) }))
+                      setFormData(prev => ({ ...prev, cpf: numbers.substring(0, 11) }))
                     }}
-                    placeholder="00.000.000/0000-00" 
-                    className="rounded-xl h-11"
+                    placeholder="000.000.000-00" 
+                    className="rounded-xl h-11 font-mono"
                     required
                   />
-                </div>
-             </div>
+               </div>
+             ) : (
+               <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Legal Name</Label>
+                      <Input 
+                        value={formData.razaoSocial}
+                        onChange={e => setFormData(prev => ({ ...prev, razaoSocial: e.target.value }))}
+                        placeholder="Official company name" 
+                        className="rounded-xl h-11"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ (Business ID)</Label>
+                      <Input 
+                        value={formData.cnpj}
+                        onChange={e => {
+                          const numbers = e.target.value.replace(/\D/g, "");
+                          setFormData(prev => ({ ...prev, cnpj: numbers.substring(0, 14) }))
+                        }}
+                        placeholder="00.000.000/0000-00" 
+                        className="rounded-xl h-11 font-mono"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Legal Representative CPF</Label>
+                    <Input 
+                      value={formData.representanteLegalCpf}
+                      onChange={e => {
+                        const numbers = e.target.value.replace(/\D/g, "");
+                        setFormData(prev => ({ ...prev, representanteLegalCpf: numbers.substring(0, 11) }))
+                      }}
+                      placeholder="000.000.000-00" 
+                      className="rounded-xl h-11 font-mono"
+                      required
+                    />
+                  </div>
+               </div>
+             )}
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Headquarters Address</CardTitle>
-             <CardDescription>Address is mandatory. Use toggles to hide sensitive details from public profile.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="cep" className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
-                  <Input 
-                    id="cep" 
-                    value={formData.cep}
-                    onChange={e => setFormData(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
-                    onBlur={handleCepBlur}
-                    placeholder="00000-000" 
-                    required
-                    className="rounded-xl h-11"
-                  />
-                </div>
-                <div className="md:col-span-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="street" className="text-[10px] font-black uppercase tracking-widest opacity-60">Street</Label>
-                    <div className="flex items-center gap-2">
-                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showAddress ? 'Public' : 'Hidden'}</span>
-                       <Switch checked={formData.showAddress} onCheckedChange={v => setFormData({...formData, showAddress: v})} />
-                    </div>
-                  </div>
-                  <Input id="street" value={formData.street} onChange={e => setFormData(prev => ({ ...prev, street: e.target.value }))} required className="rounded-xl h-11" />
-                </div>
-             </div>
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="number" className="text-[10px] font-black uppercase tracking-widest opacity-60">Number</Label>
-                  <Input id="number" value={formData.number} onChange={e => setFormData(prev => ({ ...prev, number: e.target.value }))} required className="rounded-xl h-11" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="complement" className="text-[10px] font-black uppercase tracking-widest opacity-60">Complement</Label>
-                  <Input id="complement" value={formData.complement} onChange={e => setFormData(prev => ({ ...prev, complement: e.target.value }))} className="rounded-xl h-11" />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="neighborhood" className="text-[10px] font-black uppercase tracking-widest opacity-60">Neighborhood</Label>
-                    <div className="flex items-center gap-2">
-                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showNeighborhood ? 'Public' : 'Hidden'}</span>
-                       <Switch checked={formData.showNeighborhood} onCheckedChange={v => setFormData({...formData, showNeighborhood: v})} />
-                    </div>
-                  </div>
-                  <Input id="neighborhood" value={formData.neighborhood} onChange={e => setFormData(prev => ({ ...prev, neighborhood: e.target.value }))} required className="rounded-xl h-11" />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest opacity-60">City / State</Label>
-                    <div className="flex items-center gap-2">
-                       <span className="text-[8px] font-bold uppercase opacity-40">{formData.showState ? 'Public' : 'Hidden'}</span>
-                       <Switch checked={formData.showState} onCheckedChange={v => setFormData({...formData, showState: v})} />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Input id="city" value={formData.city} readOnly required className="rounded-xl h-11 bg-muted/30" />
-                    <Input id="state" value={formData.state} readOnly required className="rounded-xl h-11 bg-muted/30 w-16" />
-                  </div>
-                </div>
-             </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-10">
+          <div className="flex items-center gap-3 px-2">
+            <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Headquarters</h2>
+          </div>
+          <EventLocation 
+            address={formData.address} 
+            onChange={v => setFormData({...formData, address: v})} 
+          />
+        </div>
 
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contact & Digital Presence</CardTitle>
+             <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contact & Social</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showPhone ? 'Public' : 'Hidden'}</span>
-                      <Switch checked={formData.showPhone} onCheckedChange={checked => setFormData(prev => ({ ...prev, showPhone: checked }))} />
-                    </div>
-                  </div>
-                  <Input 
-                    id="phone" 
-                    value={formData.phone}
-                    onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="(00) 00000-0000" 
-                    className="rounded-xl h-11"
-                  />
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp (Optional)</Label>
+                  <Input value={formData.phone} onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))} placeholder="(00) 00000-0000" className="rounded-xl h-11" />
                 </div>
-                
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="contactEmail" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> Contact Email</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showEmail ? 'Public' : 'Hidden'}</span>
-                      <Switch checked={formData.showEmail} onCheckedChange={checked => setFormData(prev => ({ ...prev, showEmail: checked }))} />
-                    </div>
-                  </div>
-                  <Input 
-                    id="contactEmail" 
-                    type="email"
-                    value={formData.contactEmail}
-                    onChange={e => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))}
-                    placeholder="contact@brand.com" 
-                    className="rounded-xl h-11"
-                  />
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> Public Email (Optional)</Label>
+                  <Input type="email" value={formData.contactEmail} onChange={e => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))} placeholder="contact@brand.com" className="rounded-xl h-11" />
                 </div>
-             </div>
-
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="website" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Website</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showWebsite ? 'Public' : 'Hidden'}</span>
-                      <Switch checked={formData.showWebsite} onCheckedChange={checked => setFormData(prev => ({ ...prev, showWebsite: checked }))} />
-                    </div>
-                  </div>
-                  <Input 
-                    id="website" 
-                    value={formData.website}
-                    onChange={e => setFormData(prev => ({ ...prev, website: e.target.value }))}
-                    placeholder="https://www.brand.com" 
-                    className="rounded-xl h-11"
-                  />
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Website (Optional)</Label>
+                  <Input value={formData.website} onChange={e => setFormData(prev => ({ ...prev, website: e.target.value }))} placeholder="https://www.company.com" className="rounded-xl h-11" />
                 </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="instagram" className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram (@)</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-bold uppercase opacity-40">{formData.showInstagram ? 'Public' : 'Hidden'}</span>
-                      <Switch checked={formData.showInstagram} onCheckedChange={checked => setFormData(prev => ({ ...prev, showInstagram: checked }))} />
-                    </div>
-                  </div>
-                  <Input 
-                    id="instagram" 
-                    value={formData.instagram}
-                    onChange={e => setFormData(prev => ({ ...prev, instagram: e.target.value.replace("@", "") }))}
-                    placeholder="brand_user" 
-                    className="rounded-xl h-11"
-                  />
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram (Optional)</Label>
+                  <Input value={formData.instagram} onChange={e => setFormData(prev => ({ ...prev, instagram: e.target.value.replace('@', '') }))} placeholder="brand_handle" className="rounded-xl h-11" />
                 </div>
              </div>
           </CardContent>
@@ -586,7 +562,7 @@ export default function NovaOrganizacaoPage() {
 
         <div className="flex justify-end gap-3 pt-4">
           <Button type="button" variant="ghost" asChild className="rounded-xl px-8 font-bold text-muted-foreground">
-            <Link href="/dashboard/organizations">Cancel</Link>
+            <Link href="/dashboard/organizacoes">Cancel</Link>
           </Button>
           <Button 
             type="submit" 

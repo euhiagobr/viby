@@ -34,6 +34,8 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { cn, validateCPF, validateCNPJ } from '@/lib/utils';
+import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
+import { EventLocation } from '@/components/events';
 
 export default function OrganizationSettingsPage() {
   const { currentOrg, userRole, refreshOrg } = useCurrentOrganization();
@@ -49,7 +51,6 @@ export default function OrganizationSettingsPage() {
 
   React.useEffect(() => {
     if (currentOrg) {
-      // Regra de migração silenciosa para tipoOrganizacao
       const initialType = currentOrg.tipoOrganizacao || (currentOrg.cnpj ? 'company' : 'individual');
 
       setFormData({
@@ -68,14 +69,22 @@ export default function OrganizationSettingsPage() {
         razaoSocial: currentOrg.razaoSocial || currentOrg.legalName || "",
         nomeFantasia: currentOrg.nomeFantasia || currentOrg.name || "",
         representanteLegalCpf: currentOrg.representanteLegalCpf || "",
-        cep: currentOrg.cep || "",
-        street: currentOrg.street || "",
-        number: currentOrg.number || "",
-        complement: currentOrg.complement || "",
-        neighborhood: currentOrg.neighborhood || "",
-        city: currentOrg.city || "",
-        state: currentOrg.state || "",
-        country: currentOrg.country || "Brasil",
+        address: currentOrg.address || { 
+          venueName: "",
+          addressLine1: "", 
+          addressLine2: "",
+          streetNumber: "",
+          neighborhood: "", 
+          city: "", 
+          stateRegion: "", 
+          country: "Brasil", 
+          countryCode: "BR",
+          postalCode: "", 
+          latitude: null, 
+          longitude: null,
+          formattedAddress: "",
+          isCustomized: false
+        },
         showPhone: currentOrg.showPhone ?? true,
         showEmail: currentOrg.showEmail ?? true,
         showWebsite: currentOrg.showWebsite ?? true,
@@ -87,25 +96,6 @@ export default function OrganizationSettingsPage() {
     }
   }, [currentOrg]);
 
-  const handleCepBlur = async () => {
-    if (!formData?.cep) return;
-    const cleanCep = formData.cep.replace(/\D/g, "");
-    if (cleanCep.length !== 8) return;
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-      const data = await response.json();
-      if (!data.erro) {
-        setFormData((prev: any) => ({
-          ...prev,
-          street: data.logradouro || prev.street,
-          neighborhood: data.bairro || prev.neighborhood,
-          city: data.localidade || prev.city,
-          state: data.uf || prev.state
-        }));
-      }
-    } catch (e) {}
-  };
-
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
     const file = e.target.files?.[0];
     if (!file || !storage || !currentOrg) return;
@@ -116,7 +106,7 @@ export default function OrganizationSettingsPage() {
     try {
       const fileName = `organizations/${currentOrg.id}/${type}_${Date.now()}`;
       const storageRef = ref(storage, fileName);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
 
       uploadTask.on('state_changed', 
         (snapshot) => setProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
@@ -135,7 +125,6 @@ export default function OrganizationSettingsPage() {
     e.preventDefault();
     if (!db || !currentOrg) return;
 
-    // Validações Fiscais
     if (formData.tipoOrganizacao === 'individual') {
       if (!validateCPF(formData.cpf)) {
         toast({ variant: "destructive", title: "CPF Inválido" });
@@ -156,8 +145,18 @@ export default function OrganizationSettingsPage() {
     try {
       const { username, ...updateData } = formData;
 
-      await updateDoc(doc(db, 'organizations', currentOrg.id), {
+      // Aliases para busca rápida
+      const searchableData = {
         ...updateData,
+        city: updateData.address.city,
+        state: updateData.address.stateRegion,
+        latitude: updateData.address.latitude,
+        longitude: updateData.address.longitude,
+        neighborhood: updateData.address.neighborhood
+      };
+
+      await updateDoc(doc(db, 'organizations', currentOrg.id), {
+        ...searchableData,
         updatedAt: serverTimestamp(),
       });
 
@@ -184,8 +183,7 @@ export default function OrganizationSettingsPage() {
       </div>
 
       <form onSubmit={handleSave} className="space-y-8">
-        {/* TIPO DE CONTA (IMUTÁVEL APÓS CRIAÇÃO NO STRIPE) */}
-        <Card className="border-none shadow-sm rounded-[2rem]">
+        <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="bg-muted/30">
             <CardTitle className="text-lg flex items-center gap-2">
                <Fingerprint className="w-5 h-5 text-secondary" /> Tipo de Conta
@@ -211,7 +209,6 @@ export default function OrganizationSettingsPage() {
           </CardContent>
         </Card>
 
-        {/* IDENTIDADE VISUAL (PRESERVADA) */}
         <Card className="border-none shadow-sm overflow-hidden rounded-[2.5rem]">
           <CardHeader className="bg-muted/30">
             <CardTitle className="text-lg flex items-center gap-2"><Camera className="w-5 h-5 text-secondary" /> Identidade Visual</CardTitle>
@@ -247,7 +244,6 @@ export default function OrganizationSettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Informações Básicas (PRESERVADAS) */}
         <Card className="border-none shadow-sm rounded-[2rem]">
            <CardHeader><CardTitle className="text-lg">Informações do Perfil</CardTitle></CardHeader>
            <CardContent className="space-y-6">
@@ -273,7 +269,6 @@ export default function OrganizationSettingsPage() {
            </CardContent>
         </Card>
 
-        {/* NOVOS CAMPOS FISCAIS */}
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -340,38 +335,19 @@ export default function OrganizationSettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Endereço (PRESERVADO) */}
-        <Card className="border-none shadow-sm rounded-[2rem]">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-secondary" /> Endereço Sede</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-60">CEP</Label>
-                <Input value={formData.cep} onChange={e => setFormData({...formData, cep: e.target.value})} onBlur={handleCepBlur} required className="rounded-xl h-11" />
-              </div>
-              <div className="md:col-span-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Rua / Logradouro</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[8px] font-bold uppercase opacity-40">{formData.showAddress ? 'Público' : 'Oculto'}</span>
-                    <Switch checked={formData.showAddress} onCheckedChange={c => setFormData({...formData, showAddress: c})} />
-                  </div>
-                </div>
-                <Input value={formData.street} onChange={e => setFormData({...formData, street: e.target.value})} required className="rounded-xl h-11" />
-              </div>
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 px-2">
+            <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
+              <MapPin className="w-5 h-5" />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nº</Label><Input value={formData.number} onChange={e => setFormData({...formData, number: e.target.value})} required className="rounded-xl h-11" /></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento</Label><Input value={formData.complement} onChange={e => setFormData({...formData, complement: e.target.value})} className="rounded-xl h-11" /></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={formData.neighborhood} onChange={e => setFormData({...formData, neighborhood: e.target.value})} required className="rounded-xl h-11" /></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label><div className="flex gap-2"><Input value={formData.city} readOnly className="rounded-xl h-11 bg-muted/30" /><Input value={formData.state} readOnly className="rounded-xl h-11 bg-muted/30 w-16" /></div></div>
-            </div>
-          </CardContent>
-        </Card>
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Localização da Marca</h2>
+          </div>
+          <EventLocation 
+            address={formData.address} 
+            onChange={v => setFormData({...formData, address: v})} 
+          />
+        </div>
 
-        {/* Contato (PRESERVADO) */}
         <Card className="border-none shadow-sm rounded-[2rem]">
            <CardHeader><CardTitle className="text-lg">Presença Digital e Contato</CardTitle></CardHeader>
            <CardContent className="space-y-6">
