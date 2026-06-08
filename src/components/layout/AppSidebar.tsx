@@ -77,7 +77,7 @@ export function AppSidebar() {
   }
 
   const personalItems = [
-    { title: t('nav.discovery'), url: "/dashboard", icon: Globe },
+    { title: t('nav.discovery'), url: "/dashboard", icon: Globe, exact: true },
     { title: t('nav.tickets'), url: "/dashboard/ingressos", icon: Ticket },
     { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
     { title: t('nav.organizations'), url: "/dashboard/organizacoes", icon: Building2 },
@@ -108,7 +108,8 @@ export function AppSidebar() {
       title: t('nav.dashboard'), 
       url: `/dashboard/organizacoes/${currentOrg.username}`, 
       icon: LayoutGrid,
-      visible: true 
+      visible: true,
+      exact: true 
     },
     { 
       title: t('nav.events'), 
@@ -174,19 +175,22 @@ export function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarGroupContent className="px-3">
               <SidebarMenu>
-                {orgItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={pathname === item.url || pathname?.startsWith(item.url)}>
-                      <Link href={item.url} className={cn(
-                        "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
-                        (pathname === item.url || pathname?.startsWith(item.url)) ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "hover:bg-muted text-muted-foreground"
-                      )}>
-                        <item.icon className="w-4 h-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {orgItems.map((item) => {
+                  const isActive = item.exact ? pathname === item.url : pathname?.startsWith(item.url);
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <Link href={item.url} className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
+                          isActive ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "hover:bg-muted text-muted-foreground"
+                        )}>
+                          <item.icon className="w-4 h-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -198,26 +202,29 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent className="px-3">
             <SidebarMenu>
-              {personalItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname === item.url}>
-                    <Link href={item.url} className={cn(
-                      "flex items-center justify-between px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
-                      pathname === item.url ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground"
-                    )}>
-                      <div className="flex items-center gap-3">
-                        <item.icon className="w-4 h-4" />
-                        <span>{item.title}</span>
-                      </div>
-                      {item.badge && (
-                        <span className="bg-secondary text-white text-[9px] font-black h-4 w-4 rounded-full flex items-center justify-center animate-in zoom-in duration-300">
-                          {item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {personalItems.map((item) => {
+                const isActive = item.exact ? pathname === item.url : pathname?.startsWith(item.url);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <Link href={item.url} className={cn(
+                        "flex items-center justify-between px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
+                        isActive ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground"
+                      )}>
+                        <div className="flex items-center gap-3">
+                          <item.icon className="w-4 h-4" />
+                          <span>{item.title}</span>
+                        </div>
+                        {item.badge && (
+                          <span className="bg-secondary text-white text-[9px] font-black h-4 w-4 rounded-full flex items-center justify-center animate-in zoom-in duration-300">
+                            {item.badge}
+                          </span>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
