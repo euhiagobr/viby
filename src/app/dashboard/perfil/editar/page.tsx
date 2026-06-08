@@ -38,7 +38,8 @@ import {
   Coins,
   Mail,
   Upload,
-  BadgeCheck
+  BadgeCheck,
+  Info
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn, validateCPF } from "@/lib/utils"
@@ -89,6 +90,7 @@ export default function EditarPerfilPage() {
   const [avatarProgress, setAvatarProgress] = useState<number | null>(null)
   const [bannerProgress, setBannerProgress] = useState<number | null>(null)
   const [hasValidCPF, setHasValidCPF] = useState(false)
+  const [skipCPF, setSkipCPF] = useState(false)
   const [isDataLoaded, setIsDataLoaded] = useState(false)
 
   useEffect(() => {
@@ -162,7 +164,7 @@ export default function EditarPerfilPage() {
       const userRef = doc(db, "users", user.uid)
       const { cpf, username, email, uid, ...safeData } = formData; 
 
-      if (!hasValidCPF) {
+      if (!hasValidCPF && !skipCPF) {
         const clean = cpf.replace(/\D/g, "");
         if (!validateCPF(clean)) throw new Error("CPF inválido.");
         const cpfRes = await updateUserCPF(user.uid, clean);
@@ -274,25 +276,47 @@ export default function EditarPerfilPage() {
                 <Input value={formData.name} onChange={(e) => setFormData((prev:any) => ({...prev, name: e.target.value}))} required className="rounded-xl h-12" />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2 ml-1">
-                  <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Protegido)
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2 ml-1">
+                    <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Protegido)
+                  </Label>
+                  {!hasValidCPF && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-black uppercase opacity-40 italic">Vincular depois</span>
+                      <Switch checked={skipCPF} onCheckedChange={setSkipCPF} />
+                    </div>
+                  )}
+                </div>
                 <div className="relative">
                   <Input 
                     value={formData.cpf} 
                     onChange={e => !cpfIsReadOnly && setFormData({...formData, cpf: formatCPFInput(e.target.value)})}
-                    readOnly={cpfIsReadOnly}
+                    readOnly={cpfIsReadOnly || skipCPF}
                     placeholder="000.000.000-00"
-                    className={cn("rounded-xl h-12 font-mono font-bold pr-10", cpfIsReadOnly ? "bg-muted/50 cursor-not-allowed" : "border-dashed border-secondary/30")} 
+                    className={cn(
+                      "rounded-xl h-12 font-mono font-bold pr-10", 
+                      (cpfIsReadOnly || skipCPF) ? "bg-muted/50 cursor-not-allowed" : "border-dashed border-secondary/30"
+                    )} 
+                    required={!skipCPF && !hasValidCPF}
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {cpfIsReadOnly ? <Lock className="w-4 h-4 text-muted-foreground opacity-30" /> : <ShieldCheck className="w-4 h-4 text-secondary" />}
                   </div>
                 </div>
                 {!hasValidCPF && (
-                   <div className="p-3 bg-orange-50 rounded-xl border border-dashed border-orange-200 flex items-start gap-2 mt-2">
-                      <AlertTriangle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
-                      <p className="text-[9px] font-bold text-orange-800 uppercase leading-tight">O CPF informado será vinculado permanentemente para transferências seguras.</p>
+                   <div className={cn(
+                     "p-3 rounded-xl border border-dashed flex items-start gap-2 mt-2 transition-colors",
+                     skipCPF ? "bg-orange-50 border-orange-200" : "bg-muted/50 border-border"
+                   )}>
+                      {skipCPF ? <AlertTriangle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" /> : <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />}
+                      <p className={cn(
+                        "text-[9px] font-bold uppercase leading-tight",
+                        skipCPF ? "text-orange-800" : "text-muted-foreground"
+                      )}>
+                        {skipCPF 
+                          ? "Atenção: Sem o CPF vinculado, você não poderá realizar compras ou receber transferências da plataforma." 
+                          : "O CPF informado será vinculado permanentemente para transferências seguras."}
+                      </p>
                    </div>
                 )}
               </div>
