@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -91,7 +90,7 @@ export default function EditarPerfilPage() {
   })
   
   const [saving, setSaving] = useState(false)
-  const [uploadProgress, setUploadProgress] = setUploadProgress(null)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [isFetchingCPF, setIsFetchingCPF] = useState(false)
   const [hasOriginalCPF, setHasOriginalCPF] = useState(false)
 
