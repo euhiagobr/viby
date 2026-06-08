@@ -68,25 +68,35 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         setLiveStatus(null);
       }
 
-      // 2. Atualizar Preço Dinâmico (para Divulgação com regras de horário)
+      // 2. Atualizar Preço Dinâmico (Soporte a Madrugada)
       if (event.type === 'divulgacao' && event.disclosurePrices?.length > 0) {
-        const sortedPrices = [...event.disclosurePrices].sort((a, b) => a.untilTime.localeCompare(b.untilTime));
-        
-        // Encontra o primeiro preço cujo horário "até" ainda não passou hoje
-        const currentActive = sortedPrices.find(p => {
-          const [hours, minutes] = p.untilTime.split(':').map(Number);
-          const limit = new Date(start.getTime()); // Baseado no dia do evento
-          limit.setHours(hours, minutes, 0, 0);
-          return now < limit;
-        });
+        let activePrice = null;
+        let lastLimit = new Date(start.getTime());
 
-        // Se nenhum for válido (passou de todos os horários), exibe o último da lista ou o primeiro se não houver lógica
-        setCurrentDisplayPrice(currentActive || sortedPrices[sortedPrices.length - 1]);
+        for (const p of event.disclosurePrices) {
+          const [h, m] = p.untilTime.split(':').map(Number);
+          let limitDate = new Date(lastLimit.getTime());
+          limitDate.setHours(h, m, 0, 0);
+
+          // Se o limite é anterior ou igual ao limite anterior, significa que virou o dia
+          if (limitDate <= lastLimit) {
+            limitDate.setDate(limitDate.getDate() + 1);
+          }
+
+          if (now < limitDate) {
+            activePrice = p;
+            break;
+          }
+          lastLimit = limitDate;
+        }
+
+        // Se todos os horários passaram, fixa no último valor da lista
+        setCurrentDisplayPrice(activePrice || event.disclosurePrices[event.disclosurePrices.length - 1]);
       }
     };
     
     update();
-    const interval = setInterval(update, 10000); // Check a cada 10s para precisão de horário
+    const interval = setInterval(update, 10000); 
     return () => clearInterval(interval);
   }, [eventDates, t, event.disclosurePrices, event.type]);
 

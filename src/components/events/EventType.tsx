@@ -51,8 +51,7 @@ export function EventType({
   const handleUpdatePrice = (index: number, field: keyof DisclosurePrice, val: any) => {
     const newPrices = [...disclosurePrices];
     newPrices[index] = { ...newPrices[index], [field]: val };
-    // Ordena automaticamente por horário para manter a lógica sequencial
-    newPrices.sort((a, b) => a.untilTime.localeCompare(b.untilTime));
+    // Removido o sort alfabético para permitir que 03:00 siga 21:00 (lógica de madrugada)
     onDisclosurePricesChange?.(newPrices);
   };
 
@@ -173,8 +172,8 @@ export function EventType({
           <div className="p-4 bg-secondary/5 rounded-2xl flex gap-3 border border-secondary/10">
             <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
             <p className="text-[8px] font-bold text-secondary uppercase leading-tight">
-              Os preços mudarão automaticamente no card do evento conforme o horário avançar. 
-              Mantenha os horários em ordem cronológica.
+              Os preços mudarão automaticamente conforme o horário avançar. 
+              Mantenha os itens na ordem em que as viradas ocorrem (mesmo se passar da meia-noite).
             </p>
           </div>
         </div>

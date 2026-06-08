@@ -61,7 +61,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const { formatPriceWithOriginal, rates } = useCurrency();
 
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
-  const [selectedOccurrence, setSelectedOccurrence] = React.useState<any>(null);
   const [activeDisclosurePrice, setActiveDisplayPrice] = React.useState<any>(null);
 
   const eventRef = React.useMemo(() => (db ? doc(db, 'events', id) : null), [db, id]);
@@ -79,17 +78,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
   const { data: promotions } = useDoc<any>(promosRef);
 
-  const occurrencesQuery = useMemoFirebase(() => {
-    if (!db || !event?.isRecurring || !event?.id) return null;
-    return query(
-      collection(db, 'recurring_occurrences'),
-      where('parentId', '==', event.id),
-      where('status', '==', 'active')
-    );
-  }, [db, event?.id, event?.isRecurring]);
-  const { data: rawOccurrences, loading: occLoading } = useCollection<any>(occurrencesQuery);
-
-  // Monitoramento de Horário para Preços de Divulgação
+  // Monitoramento de Horário para Preços de Divulgação (Suporte Madrugada)
   React.useEffect(() => {
     if (event?.type !== 'divulgacao' || !event.disclosurePrices?.length) return;
 
@@ -97,16 +86,29 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
       const now = new Date();
       const eventStart = event.date?.toDate ? event.date.toDate() : new Date(event.date);
       
-      const sorted = [...event.disclosurePrices].sort((a, b) => a.untilTime.localeCompare(b.untilTime));
-      
-      const current = sorted.find(p => {
-        const [h, m] = p.untilTime.split(':').map(Number);
-        const limit = new Date(eventStart.getTime());
-        limit.setHours(h, m, 0, 0);
-        return now < limit;
-      });
+      let currentActive = null;
+      let lastLimit = new Date(eventStart.getTime());
 
-      setActiveDisplayPrice(current || sorted[sorted.length - 1]);
+      // Seguimos a ordem cronológica informada pelo usuário, lidando com viradas de dia
+      for (const p of event.disclosurePrices) {
+        const [h, m] = p.untilTime.split(':').map(Number);
+        let limitDate = new Date(lastLimit.getTime());
+        limitDate.setHours(h, m, 0, 0);
+
+        // Se o limite é anterior ao ponto atual, é o dia seguinte
+        if (limitDate <= lastLimit) {
+          limitDate.setDate(limitDate.getDate() + 1);
+        }
+
+        if (now < limitDate) {
+          currentActive = p;
+          break;
+        }
+        lastLimit = limitDate;
+      }
+
+      // Se passou de todos, fica o último valor
+      setActiveDisplayPrice(currentActive || event.disclosurePrices[event.disclosurePrices.length - 1]);
     };
 
     updateActivePrice();
