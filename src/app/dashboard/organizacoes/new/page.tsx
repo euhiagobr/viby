@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -412,10 +411,11 @@ export default function NovaOrganizacaoPage() {
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">
+                  <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">
                     {isIndividual ? "Nome Completo" : "Nome Fantasia"}
                   </Label>
                   <Input 
+                    id="name" 
                     placeholder={isIndividual ? "Seu nome como no documento" : "Ex: Viby Entretenimento"} 
                     value={formData.name}
                     onChange={handleNameChange}
@@ -425,9 +425,10 @@ export default function NovaOrganizacaoPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username exclusivo (@)</Label>
+                  <Label htmlFor="username" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username exclusivo (@)</Label>
                   <div className="relative">
                     <Input 
+                      id="username" 
                       placeholder="Somente letras e números" 
                       value={formData.username}
                       onChange={e => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") }))}
@@ -549,7 +550,7 @@ export default function NovaOrganizacaoPage() {
                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CEP</Label>
                   <Input 
                     value={formData.cep}
-                    onChange={e => setFormData(prev => ({ ...prev, cep: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
+                    onChange={e => setFormData(prev => ({ ...prev, CEP: e.target.value.replace(/\D/g, "").substring(0, 8) }))}
                     onBlur={handleCepBlur}
                     placeholder="00000-000" 
                     required
@@ -589,17 +590,25 @@ export default function NovaOrganizacaoPage() {
 
         <Card className="border-none shadow-sm rounded-[2rem]">
           <CardHeader>
-             <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contato</CardTitle>
+             <CardTitle className="text-lg flex items-center gap-2"><Globe className="w-5 h-5 text-secondary" /> Contato & Presença Digital</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp</Label>
-                  <Input value={formData.phone} onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))} placeholder="(00) 00000-0000" className="rounded-xl h-11" required />
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp (Opcional)</Label>
+                  <Input value={formData.phone} onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))} placeholder="(00) 00000-0000" className="rounded-xl h-11" />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail Público</Label>
-                  <Input type="email" value={formData.contactEmail} onChange={e => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))} placeholder="contato@empresa.com" className="rounded-xl h-11" required />
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail Público (Opcional)</Label>
+                  <Input type="email" value={formData.contactEmail} onChange={e => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))} placeholder="contato@empresa.com" className="rounded-xl h-11" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Oficial (Opcional)</Label>
+                  <Input value={formData.website} onChange={e => setFormData(prev => ({ ...prev, website: e.target.value }))} placeholder="https://www.empresa.com" className="rounded-xl h-11" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram (Opcional)</Label>
+                  <Input value={formData.instagram} onChange={e => setFormData(prev => ({ ...prev, instagram: e.target.value.replace('@', '') }))} placeholder="usuario_instagram" className="rounded-xl h-11" />
                 </div>
              </div>
           </CardContent>
