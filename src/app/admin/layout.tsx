@@ -31,7 +31,8 @@ import {
   Building2,
   RefreshCw,
   TicketPercent,
-  Bell
+  Bell,
+  Handshake
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -98,6 +99,7 @@ export default function AdminLayout({
     { title: 'Páginas', url: '/admin/paginas', icon: Building2, permission: 'organizations.view' as any },
     { title: 'Usuários', url: '/admin/usuarios', icon: Users, permission: 'users.view' as any },
     { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket, permission: 'tickets.view' as any },
+    { title: 'Afiliados', url: '/admin/afiliados', icon: Handshake, permission: 'marketing.view' as any },
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone, permission: 'marketing.view' as any },
     { title: 'Cupons Globais', url: '/admin/cupons', icon: TicketPercent, permission: 'marketing.coupons' as any },
     { title: 'Campanhas', url: '/admin/campanhas', icon: Zap, permission: 'marketing.campaigns' as any },
@@ -146,19 +148,22 @@ export default function AdminLayout({
 
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar">
           <p className="px-4 text-[10px] font-black uppercase text-white/40 tracking-widest mb-4">Gestão do Sistema</p>
-          {visibleItems.map((item) => (
-            <Link 
-              key={item.url} 
-              href={item.url}
-              className={cn(
-                'flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm',
-                (pathname === item.url || (item.url !== '/admin' && pathname?.startsWith(item.url))) ? 'bg-white/10 text-white shadow-inner' : 'text-white/60 hover:text-white hover:bg-white/5'
-              )}
-            >
-              <item.icon className="w-4 h-4" />
-              {item.title}
-            </Link>
-          ))}
+          {visibleItems.map((item) => {
+            const isActive = pathname === item.url || (item.url !== '/admin' && pathname?.startsWith(item.url));
+            return (
+              <Link 
+                key={item.url} 
+                href={item.url}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all font-semibold text-sm',
+                  isActive ? 'bg-white/10 text-white shadow-inner' : 'text-white/60 hover:text-white hover:bg-white/5'
+                )}
+              >
+                <item.icon className="w-4 h-4" />
+                {item.title}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="p-4 mt-auto space-y-2 border-t border-white/5">

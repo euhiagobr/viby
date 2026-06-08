@@ -1,0 +1,59 @@
+
+{
+  "collections": {
+    "affiliateCodes": {
+      "description": "Códigos de afiliados e regras de comissionamento.",
+      "fields": {
+        "id": "string (código único)",
+        "code": "string (código amigável)",
+        "userId": "string (UID do usuário afiliado)",
+        "userName": "string (Nome do afiliado)",
+        "commissionType": "fixed (inicialmente)",
+        "commissionValue": "number (valor por ingresso)",
+        "active": "boolean",
+        "createdAt": "timestamp"
+      }
+    },
+    "affiliateCommissions": {
+      "description": "Registro individual de comissões geradas por vendas.",
+      "fields": {
+        "affiliateUserId": "string",
+        "affiliateCode": "string",
+        "organizationId": "string",
+        "eventId": "string",
+        "orderId": "string",
+        "registrationIds": "array (lista de IDs de ingressos)",
+        "quantity": "number",
+        "commissionPerTicket": "number",
+        "totalCommission": "number",
+        "status": "pending | paid | cancelled | reversed",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
+    "affiliatePayouts": {
+      "description": "Lançamentos de pagamentos efetuados aos afiliados.",
+      "fields": {
+        "affiliateUserId": "string",
+        "affiliateCode": "string",
+        "referenceMonth": "string (YYYY-MM)",
+        "commissionCount": "number",
+        "amount": "number",
+        "status": "pending | paid",
+        "paidAt": "timestamp (opcional)",
+        "notes": "string",
+        "createdAt": "timestamp"
+      }
+    }
+  },
+  "modifications": {
+    "organizations": {
+      "fields": {
+        "affiliateUserId": "string (opcional)",
+        "affiliateCode": "string (opcional)",
+        "affiliateStartDate": "timestamp (opcional)",
+        "affiliateEndDate": "timestamp (opcional)"
+      }
+    }
+  }
+}

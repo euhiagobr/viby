@@ -71,7 +71,8 @@ import {
   Lock,
   Coins,
   Info,
-  Percent
+  Percent,
+  Handshake
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -97,6 +98,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { sendVerificationStatusEmail } from "@/app/actions/email"
+import { AffiliateCode } from "@/types/affiliate"
 
 const ORG_ROLES = [
   { value: 'owner', label: 'Proprietário' },
@@ -130,6 +132,9 @@ export default function AdminPaginasPage() {
 
   const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
+
+  const affiliatesQuery = useMemoFirebase(() => db ? query(collection(db, "affiliateCodes"), where("active", "==", true)) : null, [db])
+  const { data: affiliates } = useCollection<AffiliateCode>(affiliatesQuery)
 
   const ownerIds = React.useMemo(() => {
     if (!orgs) return [];
@@ -348,6 +353,34 @@ export default function AdminPaginasPage() {
     }
   }
 
+  const handleAffiliateLink = (affCode: string) => {
+    if (!affCode) {
+      setEditingOrg({
+        ...editingOrg,
+        affiliateUserId: deleteField(),
+        affiliateCode: deleteField(),
+        affiliateStartDate: deleteField(),
+        affiliateEndDate: deleteField()
+      })
+      return
+    }
+
+    const aff = affiliates?.find(a => a.code === affCode)
+    if (!aff) return
+
+    const startDate = new Date()
+    const endDate = new Date()
+    endDate.setDate(startDate.getDate() + 90)
+
+    setEditingOrg({
+      ...editingOrg,
+      affiliateUserId: aff.userId,
+      affiliateCode: aff.code,
+      affiliateStartDate: startDate.toISOString(),
+      affiliateEndDate: endDate.toISOString()
+    })
+  }
+
   return (
     <div className="space-y-8 pb-20">
       <div className="flex flex-col gap-2">
@@ -459,9 +492,9 @@ export default function AdminPaginasPage() {
                        <TabsTrigger value="geral" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Informações</TabsTrigger>
                        <TabsTrigger value="visual" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Identidade</TabsTrigger>
                        <TabsTrigger value="taxas" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Taxas</TabsTrigger>
+                       <TabsTrigger value="afiliados" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Afiliado</TabsTrigger>
                        <TabsTrigger value="fiscal" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Fiscais</TabsTrigger>
                        <TabsTrigger value="endereco" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Localização</TabsTrigger>
-                       <TabsTrigger value="social" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Contatos</TabsTrigger>
                        <TabsTrigger value="membros" className="rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent font-black uppercase text-[10px] h-full px-0">Equipe</TabsTrigger>
                     </TabsList>
                  </div>
@@ -514,6 +547,52 @@ export default function AdminPaginasPage() {
                              </div>
                           </TabsContent>
 
+                          <TabsContent value="afiliados" className="space-y-8 mt-0">
+                             <Card className="border-none shadow-sm rounded-[2rem] bg-muted/20 border-2 border-dashed">
+                                <CardContent className="p-8 space-y-6">
+                                   <div className="flex items-center gap-4">
+                                      <div className="p-3 bg-secondary/10 rounded-2xl text-secondary"><Handshake className="w-6 h-6" /></div>
+                                      <div>
+                                         <h3 className="text-lg font-black uppercase italic text-primary tracking-tighter">Programa de Afiliados</h3>
+                                         <p className="text-[10px] font-bold uppercase text-muted-foreground">Vincular esta marca a um parceiro estratégico.</p>
+                                      </div>
+                                   </div>
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                      <div className="space-y-2">
+                                         <Label className="text-[10px] font-black uppercase opacity-60">Afiliado Responsável</Label>
+                                         <Select value={editingOrg?.affiliateCode || "none"} onValueChange={handleAffiliateLink}>
+                                            <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Sem Afiliado" /></SelectTrigger>
+                                            <SelectContent className="rounded-xl">
+                                               <SelectItem value="none">Nenhum / Remover</SelectItem>
+                                               {affiliates?.map(a => <SelectItem key={a.id} value={a.code}>{a.userName} ({a.code})</SelectItem>)}
+                                            </SelectContent>
+                                         </Select>
+                                      </div>
+                                      {editingOrg?.affiliateCode && (
+                                        <div className="space-y-2">
+                                           <Label className="text-[10px] font-black uppercase opacity-60">Data Final da Campanha</Label>
+                                           <Input 
+                                             type="date" 
+                                             value={editingOrg.affiliateEndDate?.split('T')[0] || ""} 
+                                             onChange={e => setEditingOrg({...editingOrg, affiliateEndDate: new Date(e.target.value).toISOString()})}
+                                             className="rounded-xl h-11"
+                                           />
+                                        </div>
+                                      )}
+                                   </div>
+                                   {editingOrg?.affiliateCode && (
+                                     <div className="p-6 bg-white rounded-3xl border shadow-sm flex items-center justify-between">
+                                        <div className="space-y-1">
+                                           <p className="text-[9px] font-black uppercase text-muted-foreground">Comissão p/ Ingresso</p>
+                                           <p className="text-xl font-black text-primary">{formatCurrency(affiliates?.find(a => a.code === editingOrg.affiliateCode)?.commissionValue || 0)}</p>
+                                        </div>
+                                        <Badge className="bg-secondary text-white uppercase text-[8px] font-black">VINCULADO</Badge>
+                                     </div>
+                                   )}
+                                </CardContent>
+                             </Card>
+                          </TabsContent>
+
                           <TabsContent value="visual" className="space-y-8 mt-0">
                              <div className="space-y-6">
                                 <Label className="text-[10px] font-black uppercase opacity-60">Logo da Marca</Label>
@@ -538,7 +617,7 @@ export default function AdminPaginasPage() {
                                    <label htmlFor="admin-edit-banner" className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                                       <Upload className="w-10 h-10 mb-2" /><span className="text-[10px] font-black uppercase tracking-widest">Trocar Capa</span>
                                    </label>
-                                   <input id="admin-edit-banner" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'banner')} />
+                                   <input id="admin-edit-banner" type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                                 </div>
                                 {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
                              </div>
@@ -696,39 +775,6 @@ export default function AdminPaginasPage() {
                                      </div>
                                    </div>
                                    <div className="flex gap-2"><Input value={editingOrg?.city || ""} readOnly className="rounded-xl h-11 bg-muted/30" /><Input value={editingOrg?.state || ""} readOnly className="rounded-xl h-11 bg-muted/30 w-14" /></div>
-                                </div>
-                             </div>
-                          </TabsContent>
-
-                          <TabsContent value="social" className="space-y-8 mt-0">
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-3">
-                                   <div className="flex items-center justify-between">
-                                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp</Label>
-                                     <Switch checked={editingOrg?.showPhone ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showPhone: v})} />
-                                   </div>
-                                   <Input value={editingOrg?.phone || ""} onChange={e => setEditingOrg({...editingOrg, phone: e.target.value})} className="rounded-xl h-11" />
-                                </div>
-                                <div className="space-y-3">
-                                   <div className="flex items-center justify-between">
-                                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail Público</Label>
-                                     <Switch checked={editingOrg?.showEmail ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showEmail: v})} />
-                                   </div>
-                                   <Input value={editingOrg?.contactEmail || ""} onChange={e => setEditingOrg({...editingOrg, contactEmail: e.target.value})} className="rounded-xl h-11" />
-                                </div>
-                                <div className="space-y-3">
-                                   <div className="flex items-center justify-between">
-                                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site</Label>
-                                     <Switch checked={editingOrg?.showWebsite ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showWebsite: v})} />
-                                   </div>
-                                   <Input value={editingOrg?.website || ""} onChange={e => setEditingOrg({...editingOrg, website: e.target.value})} className="rounded-xl h-11" />
-                                </div>
-                                <div className="space-y-3">
-                                   <div className="flex items-center justify-between">
-                                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram</Label>
-                                     <Switch checked={editingOrg?.showInstagram ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showInstagram: v})} />
-                                   </div>
-                                   <Input value={editingOrg?.instagram || ""} onChange={e => setEditingOrg({...editingOrg, instagram: e.target.value})} className="rounded-xl h-11" />
                                 </div>
                              </div>
                           </TabsContent>

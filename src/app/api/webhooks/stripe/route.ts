@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
@@ -37,7 +38,6 @@ export async function POST(req: Request) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         
-        // 1. Caso seja checkout de Ingressos (Pedido)
         if (session.metadata?.type === 'order_checkout' && session.metadata?.orderId) {
           const orderId = session.metadata.orderId;
           const orderRef = db.collection("orders").doc(orderId);
@@ -60,44 +60,83 @@ export async function POST(req: Request) {
                   updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
 
-                for (let j = 0; j < item.quantity; j++) {
-                  const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-                  const regRef = db.collection("registrations").doc();
-                  
-                  // Congelamento de Valores em BRL na data da venda
-                  const priceBRL = Number((item.financials?.customerFinalPrice || item.price) * exchangeData.rate);
+                // Lógica de Comissão de Afiliado
+                const orgRef = db.collection("organizations").doc(item.organizationId);
+                const orgSnap = await transaction.get(orgRef);
+                const regIds: string[] = [];
 
-                  transaction.set(regRef, {
-                    eventId: item.eventId,
-                    eventTitle: item.eventTitle,
-                    eventImage: item.eventImage || '',
-                    eventDate: item.eventDate,
-                    eventCity: item.eventCity,
-                    userId: userId,
-                    userName: orderData.userName,
-                    userEmail: orderData.userEmail,
-                    organizationId: item.organizationId,
-                    ticketBasePrice: item.price,
-                    price: item.financials?.customerFinalPrice || item.price,
-                    currency: item.currency || 'BRL',
-                    // Dados Históricos de Câmbio
-                    exchangeRate: exchangeData.rate,
-                    exchangeDate: exchangeData.date,
-                    priceBRL: priceBRL,
-                    administrativeFeeAmount: item.financials?.administrativeFeeAmount || 0,
-                    producerFeeAmount: item.financials?.producerFeeAmount || 0,
-                    producerNetAmount: item.financials?.producerNetAmount || item.price,
-                    ticketTypeName: item.ticketTypeName,
-                    batchName: item.batchName,
-                    paymentStatus: "Pago",
-                    status: "active",
-                    ticketCode,
-                    stripeSessionId: session.id,
-                    orderId,
-                    confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    timestamp: admin.firestore.FieldValue.serverTimestamp()
-                  });
+                if (orgSnap.exists) {
+                  const org = orgSnap.data()!;
+                  const now = new Date();
+                  const affStart = org.affiliateStartDate ? new Date(org.affiliateStartDate) : null;
+                  const affEnd = org.affiliateEndDate ? new Date(org.affiliateEndDate) : null;
+
+                  const isAffiliateActive = org.affiliateUserId && 
+                    (!affStart || now >= affStart) && 
+                    (!affEnd || now <= affEnd);
+
+                  for (let j = 0; j < item.quantity; j++) {
+                    const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+                    const regRef = db.collection("registrations").doc();
+                    regIds.push(regRef.id);
+                    
+                    const priceBRL = Number((item.financials?.customerFinalPrice || item.price) * exchangeData.rate);
+
+                    transaction.set(regRef, {
+                      eventId: item.eventId,
+                      eventTitle: item.eventTitle,
+                      eventImage: item.eventImage || '',
+                      eventDate: item.eventDate,
+                      eventCity: item.eventCity,
+                      userId: userId,
+                      userName: orderData.userName,
+                      userEmail: orderData.userEmail,
+                      organizationId: item.organizationId,
+                      ticketBasePrice: item.price,
+                      price: item.financials?.customerFinalPrice || item.price,
+                      currency: item.currency || 'BRL',
+                      exchangeRate: exchangeData.rate,
+                      exchangeDate: exchangeData.date,
+                      priceBRL: priceBRL,
+                      administrativeFeeAmount: item.financials?.administrativeFeeAmount || 0,
+                      producerFeeAmount: item.financials?.producerFeeAmount || 0,
+                      producerNetAmount: item.financials?.producerNetAmount || item.price,
+                      ticketTypeName: item.ticketTypeName,
+                      batchName: item.batchName,
+                      paymentStatus: "Pago",
+                      status: "active",
+                      ticketCode,
+                      stripeSessionId: session.id,
+                      orderId,
+                      confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+                      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                      timestamp: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                  }
+
+                  if (isAffiliateActive) {
+                    const affCodeSnap = await transaction.get(db.collection("affiliateCodes").doc(org.affiliateCode));
+                    if (affCodeSnap.exists) {
+                      const affCodeData = affCodeSnap.data()!;
+                      const commissionValue = affCodeData.commissionValue || 0;
+                      const totalCommission = commissionValue * item.quantity;
+
+                      const commRef = db.collection("affiliateCommissions").doc();
+                      transaction.set(commRef, {
+                        affiliateUserId: org.affiliateUserId,
+                        affiliateCode: org.affiliateCode,
+                        organizationId: item.organizationId,
+                        eventId: item.eventId,
+                        orderId,
+                        registrationIds: regIds,
+                        quantity: item.quantity,
+                        commissionPerTicket: commissionValue,
+                        totalCommission,
+                        status: 'pending',
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                      });
+                    }
+                  }
                 }
               }
               transaction.update(orderRef, { status: 'paid', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -105,7 +144,6 @@ export async function POST(req: Request) {
           }
         }
         
-        // 2. Caso seja recarga de saldo de anúncios (Viby Ads)
         if (session.metadata?.type === 'ad_topup' && session.metadata?.orgId) {
           const { orgId, baseAmount, couponCode, totalToPay } = session.metadata;
           const amount = parseFloat(baseAmount);
@@ -119,7 +157,6 @@ export async function POST(req: Request) {
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
               });
               
-              // Registra transação no extrato da organização
               const txRef = orgRef.collection("transactions").doc();
               transaction.set(txRef, {
                 type: 'ad_topup',
@@ -131,7 +168,6 @@ export async function POST(req: Request) {
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Registra entrada no Ledger Fiscal (ERP)
               const taxRef = db.collection("tax_ads").doc();
               transaction.set(taxRef, {
                 orgId,
@@ -145,7 +181,6 @@ export async function POST(req: Request) {
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Se usou cupom, incrementa o uso
               if (couponCode) {
                  const couponQ = await db.collection("ad_coupons").where("code", "==", couponCode).limit(1).get();
                  if (!couponQ.empty) {

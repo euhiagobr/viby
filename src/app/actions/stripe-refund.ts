@@ -1,3 +1,4 @@
+
 'use server';
 
 import Stripe from 'stripe';
@@ -89,6 +90,20 @@ export async function processStripeRefund(params: {
       refundedAt: admin.firestore.FieldValue.serverTimestamp(),
       refundExecutorId: executorUid,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Lógica de Reversão de Comissão de Afiliado
+    const commQ = await db.collection("affiliateCommissions")
+      .where("registrationIds", "array-contains", registrationId)
+      .where("status", "==", "pending")
+      .get();
+
+    commQ.forEach(doc => {
+      batch.update(doc.ref, { 
+        status: 'reversed', 
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reversalReason: 'Ticket Refunded'
+      });
     });
 
     const logRef = db.collection('financial_logs').doc();
