@@ -7,12 +7,12 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { EVENT_TYPES } from "@/lib/constants"
 import { cn } from "@/lib/utils"
-import { Info, AlertTriangle, Coins, Clock, ArrowRight, Plus, Trash2 } from "lucide-react"
+import { Info, Coins, Clock, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface DisclosurePrice {
   price: number;
-  label: string;
+  untilTime: string; // Formato HH:mm
 }
 
 interface EventTypeProps {
@@ -44,13 +44,15 @@ export function EventType({
 
   const handleAddPrice = () => {
     if (disclosurePrices.length >= 5) return;
-    const newPrices = [...disclosurePrices, { price: 0, label: "" }];
+    const newPrices = [...disclosurePrices, { price: 0, untilTime: "22:00" }];
     onDisclosurePricesChange?.(newPrices);
   };
 
   const handleUpdatePrice = (index: number, field: keyof DisclosurePrice, val: any) => {
     const newPrices = [...disclosurePrices];
     newPrices[index] = { ...newPrices[index], [field]: val };
+    // Ordena automaticamente por horário para manter a lógica sequencial
+    newPrices.sort((a, b) => a.untilTime.localeCompare(b.untilTime));
     onDisclosurePricesChange?.(newPrices);
   };
 
@@ -99,7 +101,7 @@ export function EventType({
         <div className="space-y-4 animate-in slide-in-from-top-2">
           <div className="flex items-center justify-between">
             <Label className="text-[10px] font-black uppercase text-secondary flex items-center gap-1.5">
-              <Coins className="w-3 h-3" /> Preços de Entrada
+              <Coins className="w-3 h-3" /> Cronograma de Preços
             </Label>
             <span className="text-[8px] font-bold uppercase opacity-40">{disclosurePrices.length}/5</span>
           </div>
@@ -117,26 +119,32 @@ export function EventType({
             )}
 
             {disclosurePrices.map((item, index) => (
-              <div key={index} className="flex gap-2 items-end group animate-in slide-in-from-left-2">
-                <div className="w-32 space-y-1">
+              <div key={index} className="flex gap-2 items-end group animate-in slide-in-from-left-2 bg-muted/20 p-3 rounded-2xl border border-dashed border-border/40">
+                <div className="w-28 space-y-1">
                   <Label className="text-[8px] font-black uppercase opacity-40 ml-1">Valor (R$)</Label>
-                  <Input 
-                    type="number"
-                    step="0.01"
-                    value={item.price ?? ""} 
-                    onChange={e => handleUpdatePrice(index, 'price', parseFloat(e.target.value) || 0)} 
-                    placeholder="0,00" 
-                    className="rounded-xl h-10 border-secondary/20 font-bold"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-30">R$</span>
+                    <Input 
+                      type="number"
+                      step="0.01"
+                      value={item.price ?? ""} 
+                      onChange={e => handleUpdatePrice(index, 'price', parseFloat(e.target.value) || 0)} 
+                      placeholder="0,00" 
+                      className="rounded-xl h-10 border-none bg-white pl-8 font-black text-xs"
+                    />
+                  </div>
                 </div>
                 <div className="flex-1 space-y-1">
-                  <Label className="text-[8px] font-black uppercase opacity-40 ml-1">Regra (ex: Masculino, Até 22h)</Label>
-                  <Input 
-                    value={item.label} 
-                    onChange={e => handleUpdatePrice(index, 'label', e.target.value)} 
-                    placeholder="Descrição do valor" 
-                    className="rounded-xl h-10 border-secondary/20"
-                  />
+                  <Label className="text-[8px] font-black uppercase opacity-40 ml-1">Válido Até</Label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 opacity-30 text-secondary" />
+                    <Input 
+                      type="time"
+                      value={item.untilTime} 
+                      onChange={e => handleUpdatePrice(index, 'untilTime', e.target.value)} 
+                      className="rounded-xl h-10 border-none bg-white pl-8 font-bold text-xs"
+                    />
+                  </div>
                 </div>
                 <Button 
                   type="button" 
@@ -157,14 +165,18 @@ export function EventType({
                 onClick={handleAddPrice}
                 className="w-full h-10 border-2 border-dashed border-muted text-muted-foreground hover:text-secondary hover:border-secondary/30 rounded-xl font-bold text-[9px] uppercase"
               >
-                <Plus className="w-3 h-3 mr-1" /> Adicionar outro valor
+                <Plus className="w-3 h-3 mr-1" /> Adicionar próxima virada
               </Button>
             )}
           </div>
           
-          <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight mt-2 px-1">
-            Estes valores são apenas informativos para o público. A cobrança (se houver) é feita diretamente no local.
-          </p>
+          <div className="p-4 bg-secondary/5 rounded-2xl flex gap-3 border border-secondary/10">
+            <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+            <p className="text-[8px] font-bold text-secondary uppercase leading-tight">
+              Os preços mudarão automaticamente no card do evento conforme o horário avançar. 
+              Mantenha os horários em ordem cronológica.
+            </p>
+          </div>
         </div>
       )}
     </div>

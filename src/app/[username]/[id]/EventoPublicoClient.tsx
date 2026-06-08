@@ -58,10 +58,11 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const auth = useAuth();
   const { user } = useUser(auth);
   const { totalCount } = useCart();
-  const { formatPriceWithOriginal } = useCurrency();
+  const { formatPriceWithOriginal, rates } = useCurrency();
 
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
   const [selectedOccurrence, setSelectedOccurrence] = React.useState<any>(null);
+  const [activeDisclosurePrice, setActiveDisplayPrice] = React.useState<any>(null);
 
   const eventRef = React.useMemo(() => (db ? doc(db, 'events', id) : null), [db, id]);
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef);
@@ -78,12 +79,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
   const { data: promotions } = useDoc<any>(promosRef);
 
-  const memberRef = React.useMemo(() => 
-    (db && user && event?.organizationId) ? doc(db, 'organizations', event.organizationId, 'members', user.uid) : null,
-    [db, user, event?.organizationId]
-  );
-  const { data: membership } = useDoc<any>(memberRef);
-
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !event?.isRecurring || !event?.id) return null;
     return query(
@@ -94,41 +89,40 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   }, [db, event?.id, event?.isRecurring]);
   const { data: rawOccurrences, loading: occLoading } = useCollection<any>(occurrencesQuery);
 
+  // Monitoramento de Horário para Preços de Divulgação
+  React.useEffect(() => {
+    if (event?.type !== 'divulgacao' || !event.disclosurePrices?.length) return;
+
+    const updateActivePrice = () => {
+      const now = new Date();
+      const eventStart = event.date?.toDate ? event.date.toDate() : new Date(event.date);
+      
+      const sorted = [...event.disclosurePrices].sort((a, b) => a.untilTime.localeCompare(b.untilTime));
+      
+      const current = sorted.find(p => {
+        const [h, m] = p.untilTime.split(':').map(Number);
+        const limit = new Date(eventStart.getTime());
+        limit.setHours(h, m, 0, 0);
+        return now < limit;
+      });
+
+      setActiveDisplayPrice(current || sorted[sorted.length - 1]);
+    };
+
+    updateActivePrice();
+    const timer = setInterval(updateActivePrice, 10000);
+    return () => clearInterval(timer);
+  }, [event]);
+
   React.useEffect(() => {
     const vsrc = searchParams.get('vsrc');
     if (vsrc === 'qr' && event?.organizationId) {
-      recordQrScan({
-        organizationId: event.organizationId,
-        eventId: id,
-        scanType: 'event'
-      });
+      recordQrScan({ organizationId: event.organizationId, eventId: id, scanType: 'event' });
     }
   }, [searchParams, event?.organizationId, id]);
 
-  React.useEffect(() => {
-    if (!id || event?.status !== 'Ativo') return;
-    const key = `viby_v_${id}`;
-    const last = localStorage.getItem(key);
-    const now = Date.now();
-    if (!last || now - parseInt(last) > 1000 * 60 * 30) {
-      fetch('/api/events/track-view', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId: id })
-      }).catch(() => {});
-      localStorage.setItem(key, now.toString());
-    }
-  }, [id, event?.status]);
-
-  const isOwner = !!membership;
-
-  const occurrences = React.useMemo(() => {
-    if (!rawOccurrences) return [];
-    return [...rawOccurrences].sort((a, b) => a.date.localeCompare(b.date));
-  }, [rawOccurrences]);
-
   const isEnded = React.useMemo(() => {
-    if (!event) false;
+    if (!event) return false;
     const parseDate = (val: any) => {
       if (!val) return null;
       if (val.toDate) return val.toDate();
@@ -166,7 +160,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
               onClick={() => setIsShareModalOpen(true)}
               className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/10 gap-2 h-10"
             >
-              <Share2 className="w-3.5 h-3.5" /> Compartilhar Evento
+              <Share2 className="w-3.5 h-3.5" /> Compartilhar
             </Button>
             <Button variant="outline" size="icon" className="rounded-full relative" asChild>
                <Link href="/dashboard/carrinho">
@@ -191,11 +185,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 <div className="flex flex-wrap gap-2">
                    <AgeRatingBadge code={event.ageRating?.code || 'free'} showLabel className="bg-white/80 backdrop-blur-md shadow-sm px-3 py-1 rounded-full border" />
                    <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 rounded-full shadow-lg h-8 flex items-center">{event.categoryName || 'Evento'}</Badge>
-                   {event.isRecurring && (
-                     <Badge className="bg-white text-primary border-none text-[10px] font-black uppercase flex items-center gap-1.5 px-4 rounded-full shadow-lg h-8">
-                       <RefreshCw className="w-3 h-3 text-secondary animate-spin-slow" /> Evento Recorrente
-                     </Badge>
-                   )}
                    <EventShare eventId={id} title={event.title} url={`/${username}/${id}`} />
                 </div>
                 <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tighter uppercase italic leading-[0.8] drop-shadow-2xl">{event.title}</h1>
@@ -207,7 +196,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                      interested={event.interestedCount || 0} 
                      going={event.goingCount || 0} 
                      shares={event.sharesCount || 0} 
-                     isOwner={isOwner}
+                     isOwner={!!user && event.organizationId === user.uid}
                    />
                 </div>
              </div>
@@ -220,152 +209,60 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 </div>
              </Card>
 
-             {event.isRecurring && (
-               <section className="space-y-6 animate-in slide-in-from-top-4 duration-500">
-                  <div className="flex items-center gap-3 px-2">
-                    <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
-                      <Calendar className="w-5 h-5" />
-                    </div>
-                    <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Escolha uma Data</h2>
-                  </div>
-
-                  {occLoading ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                      {[1,2,3].map(i => <div key={i} className="h-32 bg-muted rounded-[2rem] animate-pulse" />)}
-                    </div>
-                  ) : occurrences.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                       {occurrences.slice(0, 6).map((occ: any) => (
-                         <button 
-                           key={occ.id} 
-                           onClick={() => {
-                              setSelectedOccurrence(occ);
-                              setTimeout(() => {
-                                document.getElementById('bilheteria')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              }, 100);
-                           }}
-                           className={cn(
-                             "p-6 rounded-[2rem] border-2 transition-all text-left space-y-2 group",
-                             selectedOccurrence?.id === occ.id 
-                               ? "border-secondary bg-secondary/5 ring-4 ring-secondary/10 shadow-xl" 
-                               : "border-border/60 bg-white hover:border-secondary/40"
-                           )}
-                         >
-                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-secondary transition-colors">
-                              {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}
-                            </p>
-                            <p className="text-2xl font-black text-primary italic leading-none">
-                              {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                            </p>
-                            <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground uppercase pt-1">
-                               <Clock className="w-3.5 h-3.5 text-secondary" /> {occ.startTime}
-                            </div>
-                         </button>
-                       ))}
-                    </div>
-                  ) : (
-                    <div className="p-8 bg-muted/20 rounded-[2rem] border-2 border-dashed flex flex-col items-center gap-3 text-center">
-                       <CalendarX className="w-8 h-8 text-muted-foreground opacity-30" />
-                       <p className="text-xs font-bold text-muted-foreground uppercase">Nenhuma data disponível no momento</p>
-                    </div>
-                  )}
-               </section>
-             )}
-
-             <div id="bilheteria" className="scroll-mt-32 space-y-8">
-                {event.isRecurring && !selectedOccurrence && event.type === 'interno' && (
-                  <div className="p-8 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex flex-col items-center text-center gap-4 animate-in zoom-in-95">
-                     <Calendar className="w-10 h-10 text-secondary" />
-                     <div className="space-y-1">
-                        <h3 className="text-lg font-black uppercase italic text-primary">Selecione uma data acima</h3>
-                        <p className="text-xs font-medium text-muted-foreground max-w-xs uppercase">Para liberar a bilheteria, escolha primeiro em qual dia você deseja participar.</p>
-                     </div>
-                  </div>
-                )}
-
-                {(!event.isRecurring || selectedOccurrence) && event.type === 'interno' && (
-                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                      {selectedOccurrence && (
-                        <div className="mb-6 p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-center justify-between">
-                           <div className="flex items-center gap-4">
-                              <div className="p-3 bg-secondary text-white rounded-2xl shadow-lg">
-                                 <Calendar className="w-6 h-6" />
-                              </div>
-                              <div>
-                                 <p className="text-[10px] font-black uppercase tracking-widest text-secondary">Data Selecionada</p>
-                                 <p className="text-lg font-black text-primary uppercase italic">
-                                   {new Date(selectedOccurrence.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                 </p>
-                              </div>
-                           </div>
-                           <Button variant="ghost" size="sm" className="rounded-xl font-bold uppercase text-[9px]" onClick={() => setSelectedOccurrence(null)}>Trocar Data</Button>
-                        </div>
-                      )}
-                      <BilheteriaPublic 
-                        event={{
-                          ...event,
-                          occurrenceId: selectedOccurrence?.id,
-                          date: selectedOccurrence ? selectedOccurrence.date : event.date,
-                          title: selectedOccurrence ? `${event.title} (${new Date(selectedOccurrence.date + 'T12:00:00').toLocaleDateString('pt-BR')})` : event.title,
-                          isSoldOut: selectedOccurrence?.ingressosVendidos >= selectedOccurrence?.capacidadeMaxima
-                        }} 
-                        globalFees={globalFees} 
-                        promotions={promotions} 
-                        orgSettings={organization} 
-                      />
-                  </div>
-                )}
-             </div>
-
-             {!event.isRecurring && <EventDateTime startDate={event.date} endDate={event.endDate} isPublic />}
-             
              <EventLocation 
                 address={event.address || { city: event.city, neighborhood: event.location }} 
-                locations={event.locations} 
-                isMultiLocation={event.isMultiLocation} 
                 isPublic 
              />
           </div>
 
           <aside className="lg:col-span-4 space-y-8">
              <div className="sticky top-28 space-y-8">
-                {event.type === 'externo' && event.externalUrl && (
-                  <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 border-t-8 border-primary space-y-6">
-                     <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Bilheteria Externa</h2>
-                     <p className="text-sm font-medium text-muted-foreground leading-relaxed">As vendas para este evento ocorrem em uma plataforma terceira.</p>
-                     <Button className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic gap-2 shadow-lg transition-transform active:scale-95" asChild>
-                        <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Link de Ingressos <ArrowRight className="w-5 h-5" /></a>
-                     </Button>
-                  </Card>
-                )}
-
                 {event.type === 'divulgacao' && (
                   <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 border-t-8 border-secondary space-y-6">
                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Info className="w-5 h-5" /></div>
-                        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Entrada</h2>
+                        <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Coins className="w-5 h-5" /></div>
+                        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Preços de Entrada</h2>
                      </div>
                      <div className="space-y-4">
                         {(event.disclosurePrices || []).length > 0 ? (
-                           <div className="grid grid-cols-1 gap-2">
-                             {(event.disclosurePrices as any[]).map((p, idx) => (
-                               <div key={idx} className="p-4 bg-muted/30 rounded-2xl border border-dashed flex items-center justify-between gap-4">
-                                  <span className="text-[9px] font-black uppercase opacity-60 flex-1">{p.label || "Geral"}</span>
-                                  <span className="font-black text-lg text-primary uppercase italic shrink-0">
-                                     {p.price > 0 ? formatPriceWithOriginal(p.price, event.currency || 'BRL') : 'Grátis'}
-                                  </span>
-                               </div>
-                             ))}
+                           <div className="grid grid-cols-1 gap-3">
+                             {event.disclosurePrices.map((p: any, idx: number) => {
+                               const isCurrent = activeDisclosurePrice?.untilTime === p.untilTime;
+                               return (
+                                 <div key={idx} className={cn(
+                                   "p-4 rounded-2xl border transition-all relative overflow-hidden",
+                                   isCurrent ? "bg-secondary/5 border-secondary shadow-md ring-2 ring-secondary/10" : "bg-muted/30 border-dashed border-border/60 opacity-60"
+                                 )}>
+                                    {isCurrent && <div className="absolute top-0 right-0 p-1.5 bg-secondary text-white text-[7px] font-black uppercase rounded-bl-xl">Vigente Agora</div>}
+                                    <div className="flex items-center justify-between gap-4">
+                                       <div className="space-y-1">
+                                          <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase">
+                                             <Clock className="w-3 h-3" /> Até {p.untilTime}
+                                          </div>
+                                          <p className="text-2xl font-black text-primary italic leading-none">
+                                            {p.price > 0 ? formatPriceWithOriginal(p.price, event.currency || 'BRL') : 'Grátis'}
+                                          </p>
+                                       </div>
+                                       {!isCurrent && <Badge variant="ghost" className="text-[7px] uppercase font-bold">Lote Programado</Badge>}
+                                    </div>
+                                 </div>
+                               );
+                             })}
                            </div>
                         ) : (
-                          <div className="p-4 bg-muted/30 rounded-2xl border border-dashed flex items-center justify-between">
-                            <span className="text-[10px] font-black uppercase opacity-60">Status</span>
-                            <span className="font-black text-xl text-primary uppercase italic">Grátis</span>
+                          <div className="p-6 bg-muted/30 rounded-2xl border border-dashed flex items-center justify-center">
+                            <span className="font-black text-2xl text-primary uppercase italic">Grátis</span>
                           </div>
                         )}
-                        <p className="text-[9px] text-muted-foreground font-medium leading-relaxed uppercase">Este evento não possui venda de ingressos pela Viby. O pagamento (se houver) é realizado diretamente no local.</p>
+                        <p className="text-[9px] text-muted-foreground font-medium leading-relaxed uppercase bg-muted/20 p-3 rounded-xl">
+                          Este evento é apenas para divulgação. Os valores acima são informados pelo organizador e pagos diretamente no local da experiência.
+                        </p>
                      </div>
                   </Card>
+                )}
+
+                {event.type === 'interno' && (
+                   <BilheteriaPublic event={event} globalFees={globalFees} promotions={promotions} orgSettings={organization} />
                 )}
 
                 <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8">
@@ -388,10 +285,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 <EventCoOrganizers eventId={id} currentOrgId={event.organizationId} isPublic />
              </div>
           </aside>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 py-16">
-          <AdsRenderer location="event_page_bottom" googleSlotId="event-page-bottom-slot" className="min-h-[140px]" />
         </div>
       </main>
       <Footer />

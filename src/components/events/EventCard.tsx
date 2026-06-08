@@ -31,6 +31,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const cardRef = React.useRef<HTMLDivElement>(null)
 
   const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string; icon?: any } | null>(null);
+  const [currentDisplayPrice, setCurrentDisplayPrice] = React.useState<any>(null);
 
   const eventDates = React.useMemo(() => {
     const parseDate = (val: any) => {
@@ -46,6 +47,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const isEnded = React.useMemo(() => eventDates.end < new Date(), [eventDates.end]);
 
+  // Lógica reativa de atualização de status e preços
   React.useEffect(() => {
     const update = () => {
       const now = new Date();
@@ -53,6 +55,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       const diffStart = start.getTime() - now.getTime();
       const isToday = now.toDateString() === start.toDateString();
 
+      // 1. Atualizar Status Live
       if (end < now) {
         setLiveStatus({ label: t('event.finished'), colorClass: "bg-muted text-muted-foreground border-none" });
       } else if (now >= start && now < end) {
@@ -64,11 +67,28 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       } else {
         setLiveStatus(null);
       }
+
+      // 2. Atualizar Preço Dinâmico (para Divulgação com regras de horário)
+      if (event.type === 'divulgacao' && event.disclosurePrices?.length > 0) {
+        const sortedPrices = [...event.disclosurePrices].sort((a, b) => a.untilTime.localeCompare(b.untilTime));
+        
+        // Encontra o primeiro preço cujo horário "até" ainda não passou hoje
+        const currentActive = sortedPrices.find(p => {
+          const [hours, minutes] = p.untilTime.split(':').map(Number);
+          const limit = new Date(start.getTime()); // Baseado no dia do evento
+          limit.setHours(hours, minutes, 0, 0);
+          return now < limit;
+        });
+
+        // Se nenhum for válido (passou de todos os horários), exibe o último da lista ou o primeiro se não houver lógica
+        setCurrentDisplayPrice(currentActive || sortedPrices[sortedPrices.length - 1]);
+      }
     };
+    
     update();
-    const interval = setInterval(update, 30000); // Check a cada 30s
+    const interval = setInterval(update, 10000); // Check a cada 10s para precisão de horário
     return () => clearInterval(interval);
-  }, [eventDates, t]);
+  }, [eventDates, t, event.disclosurePrices, event.type]);
 
   const distance = React.useMemo(() => {
     if (userLocation && typeof event.latitude === 'number' && typeof event.longitude === 'number') {
@@ -80,22 +100,18 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const pricingDisplay = React.useMemo(() => {
     if (event.type === 'divulgacao') {
-      const prices = event.disclosurePrices || [];
-      
-      if (prices.length === 0) {
-        return <span className="text-green-600 font-black italic uppercase text-xs">{t('event.no_tickets')}</span>;
+      if (!currentDisplayPrice) {
+        return <span className="text-green-600 font-black italic uppercase text-[10px]">{t('event.no_tickets')}</span>;
       }
-
-      const first = prices[0];
-      const othersCount = prices.length - 1;
 
       return (
         <div className="flex flex-col items-end">
           <div className="flex items-center gap-1">
-             {formatPriceWithOriginal(first.price, event.currency || 'BRL')}
-             {othersCount > 0 && <span className="text-[8px] font-black text-secondary bg-secondary/5 px-1 rounded">+{othersCount}</span>}
+             {formatPriceWithOriginal(currentDisplayPrice.price, event.currency || 'BRL')}
           </div>
-          {first.label && <span className="text-[8px] font-black uppercase text-muted-foreground opacity-60 line-clamp-1">{first.label}</span>}
+          <div className="flex items-center gap-1 text-[8px] font-black uppercase text-muted-foreground opacity-60">
+             <Clock className="w-2.5 h-2.5" /> Até {currentDisplayPrice.untilTime}
+          </div>
         </div>
       );
     }
@@ -117,7 +133,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         {formatPriceWithOriginal(min, event.currency || 'BRL')}
       </div>
     );
-  }, [event, t, formatPriceWithOriginal]);
+  }, [event, t, formatPriceWithOriginal, currentDisplayPrice]);
 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
 
