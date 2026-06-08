@@ -2,12 +2,12 @@
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, limit, doc, where } from "firebase/firestore"
+import { collection, query, limit, doc, where, orderBy } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, MapPin, FilterX, Navigation, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox } from "lucide-react"
+import { Search, MapPin, FilterX, Navigation, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox, Tag } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -54,6 +54,12 @@ export default function LandingPageClient() {
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
+
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!db) return null
+    return query(collection(db, "categories"), orderBy("name", "asc"))
+  }, [db])
+  const { data: categories } = useCollection<any>(categoriesQuery)
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -197,9 +203,9 @@ export default function LandingPageClient() {
               {t('home.hero_subtitle')}
             </p>
 
-            <Card className="bg-white/10 backdrop-blur-2xl border-white/10 rounded-[3rem] p-6 md:p-10 shadow-2xl mt-12 w-full text-left">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                <div className="md:col-span-4 relative">
+            <Card className="bg-white/10 backdrop-blur-2xl border-white/10 rounded-[3rem] p-6 md:p-8 shadow-2xl mt-12 w-full text-left">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                <div className="md:col-span-3 relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
                   <Input 
                     placeholder={t('home.search_placeholder')} 
@@ -211,6 +217,21 @@ export default function LandingPageClient() {
                 
                 {hasMounted && (
                   <>
+                    <div className="md:col-span-2">
+                       <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                          <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
+                             <Tag className="w-4 h-4 text-secondary mr-2" />
+                             <SelectValue placeholder="Categoria" />
+                          </SelectTrigger>
+                          <SelectContent>
+                             <SelectItem value="all">Todas Categorias</SelectItem>
+                             {categories?.map((cat: any) => (
+                               <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                             ))}
+                          </SelectContent>
+                       </Select>
+                    </div>
+
                     <div className="md:col-span-2">
                       <Popover>
                         <PopoverTrigger asChild>
@@ -238,16 +259,16 @@ export default function LandingPageClient() {
                         onChange={(e) => setSearchCity(e.target.value)}
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-1">
                       <Select value={radiusKm} onValueChange={setRadiusKm}>
                         <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
                             <Navigation className="w-4 h-4 text-secondary mr-2" />
                             <SelectValue placeholder={t('home.radius_label')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="10">{t('home.radius_10')}</SelectItem>
-                          <SelectItem value="50">{t('home.radius_50')}</SelectItem>
-                          <SelectItem value="100">{t('home.radius_100')}</SelectItem>
+                          <SelectItem value="10">10km</SelectItem>
+                          <SelectItem value="50">50km</SelectItem>
+                          <SelectItem value="100">100km</SelectItem>
                           <SelectItem value="unlimited">{t('home.unlimited')}</SelectItem>
                         </SelectContent>
                       </Select>

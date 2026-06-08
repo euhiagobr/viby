@@ -21,7 +21,8 @@ import {
   TrendingUp,
   Sparkles,
   History,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Tag
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -41,7 +42,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { EVENT_CATEGORIES } from "@/lib/constants"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
@@ -73,6 +73,12 @@ export default function ExplorarPage() {
   
   const isAdmin = profile?.role === 'admin'
 
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!db) return null
+    return query(collection(db, "categories"), orderBy("name", "asc"))
+  }, [db])
+  const { data: categories } = useCollection<any>(categoriesQuery)
+
   const eventsQuery = React.useMemo(() => {
     if (!db) return null
     return query(collection(db, "events"), where("status", "==", "Ativo"))
@@ -100,9 +106,7 @@ export default function ExplorarPage() {
         normalizeText(e.organizer?.name || "").includes(searchNorm) ||
         (e.searchKeywords && e.searchKeywords.some((k: string) => k.includes(searchNorm)));
 
-      const matchesCategory = selectedCategory === 'all' || 
-        e.categoryId === selectedCategory || 
-        (e.categories && e.categories.includes(selectedCategory));
+      const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
       
       let matchesDate = true;
       if (dateFilter !== 'all') {
@@ -186,6 +190,18 @@ export default function ExplorarPage() {
             <Input placeholder={t('home.search_placeholder')} className="pl-10 h-11 rounded-xl" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
 
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+             <SelectTrigger className="w-48 h-11 rounded-xl border-dashed">
+                <div className="flex items-center gap-2 font-bold text-xs"><Tag className="w-3 h-3 text-secondary" /><SelectValue placeholder="Categoria" /></div>
+             </SelectTrigger>
+             <SelectContent className="rounded-xl">
+                <SelectItem value="all">Todas Categorias</SelectItem>
+                {categories?.map((cat: any) => (
+                  <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                ))}
+             </SelectContent>
+          </Select>
+
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("rounded-xl h-11 border-dashed gap-2 font-bold text-xs uppercase", dateFilter !== 'all' && "bg-secondary/10 border-secondary text-secondary")}>
@@ -218,9 +234,9 @@ export default function ExplorarPage() {
                <div className="flex items-center gap-2 font-bold text-xs"><Navigation className="w-3 h-3" /><SelectValue /></div>
             </SelectTrigger>
             <SelectContent className="rounded-xl">
-               <SelectItem value="10">{t('home.radius_10')}</SelectItem>
-               <SelectItem value="50">{t('home.radius_50')}</SelectItem>
-               <SelectItem value="unlimited">{t('home.unlimited')}</SelectItem>
+               <SelectItem value="10">10km</SelectItem>
+               <SelectItem value="50">50km</SelectItem>
+               <SelectItem value="unlimited">Ilimitado</SelectItem>
             </SelectContent>
           </Select>
         </div>
