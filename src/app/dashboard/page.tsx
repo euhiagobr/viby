@@ -23,7 +23,9 @@ import {
   Sparkles,
   History,
   Calendar as CalendarIcon,
-  Tag
+  Tag,
+  MapPin,
+  Inbox
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -61,11 +63,13 @@ import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useTranslation } from "@/i18n/i18n-context"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { calculateDistance } from "@/lib/location-utils"
 
 export default function ExplorarPage() {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
+  const [searchCity, setSearchCity] = useState('')
   const [radiusKm, setRadiusKm] = useState('50')
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
@@ -98,7 +102,7 @@ export default function ExplorarPage() {
 
   useEffect(() => {
     getCurrentLocation()
-      .then(setUserLocation)
+      .then(loc => { if(loc) setUserLocation(loc); })
       .catch(() => console.warn("GPS negado. Fallback ativado."));
   }, []);
 
@@ -112,40 +116,53 @@ export default function ExplorarPage() {
       const matchesSearch = !search || 
         normalizeText(e.title || "").includes(searchNorm) ||
         normalizeText(e.description || "").includes(searchNorm) ||
-        normalizeText(e.city || "").includes(searchNorm) ||
-        normalizeText(e.organizer?.name || "").includes(searchNorm) ||
         (e.searchKeywords && e.searchKeywords.some((k: string) => k.includes(searchNorm)));
+
+      const cityNorm = normalizeText(searchCity);
+      if (searchCity) {
+        const eventLoc = normalizeText(`${e.city || ""} ${e.state || ""}`);
+        if (!eventLoc.includes(cityNorm)) return false;
+      }
 
       const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
       
       let matchesDate = true;
+      const parseDate = (val: any) => {
+        if (!val) return null;
+        if (val.toDate) return val.toDate();
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      const eventDate = parseDate(e.date);
+      if (!eventDate) return false;
+
       if (dateFilter !== 'all') {
-        const eventDate = e.date?.toDate ? e.date.toDate() : new Date(e.date);
         const today = startOfToday();
-        
-        if (dateFilter === 'today') {
-          matchesDate = isSameDay(eventDate, today);
-        } else if (dateFilter === 'tomorrow') {
-          matchesDate = isSameDay(eventDate, addDays(today, 1));
-        } else if (dateFilter === 'week') {
-          const sunday = endOfWeek(today, { weekStartsOn: 0 });
-          matchesDate = eventDate >= today && eventDate <= sunday;
-        } else if (dateFilter === 'custom' && customDate) {
-          matchesDate = isSameDay(eventDate, customDate);
-        }
+        if (dateFilter === 'today') matchesDate = isSameDay(eventDate, today);
+        else if (dateFilter === 'tomorrow') matchesDate = isSameDay(eventDate, addDays(today, 1));
+        else if (dateFilter === 'week') matchesDate = eventDate >= today && eventDate <= endOfWeek(today);
+        else if (dateFilter === 'custom' && customDate) matchesDate = isSameDay(eventDate, customDate);
+      }
+      if (!matchesDate) return false;
+
+      if (userLocation && radiusKm !== 'unlimited' && e.latitude && e.longitude) {
+        const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
+        if (dist > parseInt(radiusKm)) return false;
       }
       
-      return matchesSearch && matchesCategory && matchesDate;
+      return matchesSearch && matchesCategory;
     });
 
     return result.map(e => {
-      // Injeção dinâmica de categoryName baseada no ID cruzado com a lista de categorias carregada
       const cat = categories?.find((c: any) => c.id === e.categoryId);
-      
       return {
         ...e,
         categoryName: e.categoryName || cat?.name || e.category || e.categoria,
-        _score: calculateEventScore(e, { userLocation, maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm) })
+        _score: calculateEventScore(e, { 
+          userLocation, 
+          maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm) 
+        })
       };
     }).sort((a, b) => {
       if (activeTab === 'recent') {
@@ -158,7 +175,7 @@ export default function ExplorarPage() {
       }
       return b._score - a._score;
     });
-  }, [allEvents, search, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate, categories])
+  }, [allEvents, search, searchCity, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate, categories])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];
@@ -192,6 +209,15 @@ export default function ExplorarPage() {
     return categories?.find((c: any) => c.id === selectedCategory)?.name || t('dashboard.all');
   }, [selectedCategory, categories, t]);
 
+  const clearFilters = () => {
+    setSearch("");
+    setSearchCity("");
+    setSelectedCategory("all");
+    setRadiusKm("50");
+    setDateFilter("all");
+    setCustomDate(undefined);
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -207,6 +233,11 @@ export default function ExplorarPage() {
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder={t('home.search_placeholder')} className="pl-10 h-11 rounded-xl" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+
+          <div className="relative w-full sm:w-48">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
+            <Input placeholder={t('home.where_placeholder')} className="pl-10 h-11 rounded-xl border-dashed" value={searchCity} onChange={(e) => setSearchCity(e.target.value)} />
           </div>
 
           <Dialog>
@@ -287,9 +318,16 @@ export default function ExplorarPage() {
             <SelectContent className="rounded-xl">
                <SelectItem value="10">10km</SelectItem>
                <SelectItem value="50">50km</SelectItem>
+               <SelectItem value="100">100km</SelectItem>
                <SelectItem value="unlimited">Ilimitado</SelectItem>
             </SelectContent>
           </Select>
+
+          {(search || searchCity || selectedCategory !== 'all' || dateFilter !== 'all') && (
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl text-destructive hover:bg-destructive/10" onClick={clearFilters}>
+              <FilterX className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -306,8 +344,10 @@ export default function ExplorarPage() {
            ) : (
              <>
                {unifiedFeed.length === 0 && !eventsLoading && (
-                 <div className="py-40 text-center bg-white rounded-[3rem] border-2 border-dashed opacity-40 mb-10">
+                 <div className="py-40 text-center bg-white rounded-[3rem] border-2 border-dashed opacity-40 mb-10 flex flex-col items-center gap-4">
+                   <Inbox className="w-10 h-10" />
                    <p className="text-xs font-black uppercase tracking-widest">{t('dashboard.no_events_filter')}</p>
+                   <Button variant="link" onClick={clearFilters} className="font-bold uppercase text-[10px]">Limpar todos os filtros</Button>
                  </div>
                )}
 
