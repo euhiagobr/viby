@@ -242,6 +242,35 @@ export default function ExplorarPage() {
         </div>
       </div>
 
+      {/* Balões de Categorias */}
+      <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
+        <Button 
+          variant={selectedCategory === 'all' ? 'default' : 'outline'}
+          size="sm"
+          className={cn(
+            "rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-9 transition-all shrink-0",
+            selectedCategory === 'all' ? "bg-secondary text-white border-secondary shadow-lg shadow-secondary/20" : "bg-white border-border text-muted-foreground hover:border-secondary hover:text-secondary"
+          )}
+          onClick={() => setSelectedCategory('all')}
+        >
+          {t('dashboard.all')}
+        </Button>
+        {categories?.map((cat: any) => (
+          <Button 
+            key={cat.id}
+            variant={selectedCategory === cat.id ? 'default' : 'outline'}
+            size="sm"
+            className={cn(
+              "rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-9 transition-all shrink-0",
+              selectedCategory === cat.id ? "bg-secondary text-white border-secondary shadow-lg shadow-secondary/20" : "bg-white border-border text-muted-foreground hover:border-secondary hover:text-secondary"
+            )}
+            onClick={() => setSelectedCategory(cat.id)}
+          >
+            {cat.name}
+          </Button>
+        ))}
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted/30 p-1 rounded-2xl h-14 w-full md:w-fit">
           <TabsTrigger value="all" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">{t('dashboard.all')}</TabsTrigger>

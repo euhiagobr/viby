@@ -282,6 +282,35 @@ export default function LandingPageClient() {
                   </Button>
                 </div>
               </div>
+
+              {/* Categorias em Balões */}
+              <div className="mt-8 flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                <Button 
+                  variant={selectedCategory === 'all' ? 'secondary' : 'outline'}
+                  size="sm"
+                  className={cn(
+                    "rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-9 transition-all shrink-0",
+                    selectedCategory === 'all' ? "bg-secondary text-white border-secondary" : "bg-white/5 border-white/20 text-white hover:bg-white/10"
+                  )}
+                  onClick={() => setSelectedCategory('all')}
+                >
+                  Todas
+                </Button>
+                {categories?.map((cat: any) => (
+                  <Button 
+                    key={cat.id}
+                    variant={selectedCategory === cat.id ? 'secondary' : 'outline'}
+                    size="sm"
+                    className={cn(
+                      "rounded-full font-black uppercase text-[10px] tracking-widest px-6 h-9 transition-all shrink-0",
+                      selectedCategory === cat.id ? "bg-secondary text-white border-secondary" : "bg-white/5 border-white/20 text-white hover:bg-white/10"
+                    )}
+                    onClick={() => setSelectedCategory(cat.id)}
+                  >
+                    {cat.name}
+                  </Button>
+                ))}
+              </div>
             </Card>
           </div>
         </div>
