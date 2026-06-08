@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -205,7 +206,7 @@ export default function LandingPageClient() {
 
             <Card className="bg-white/10 backdrop-blur-2xl border-white/10 rounded-[3rem] p-6 md:p-8 shadow-2xl mt-12 w-full text-left">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                <div className="md:col-span-3 relative">
+                <div className="md:col-span-4 relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
                   <Input 
                     placeholder={t('home.search_placeholder')} 
@@ -217,21 +218,6 @@ export default function LandingPageClient() {
                 
                 {hasMounted && (
                   <>
-                    <div className="md:col-span-2">
-                       <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                          <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
-                             <Tag className="w-4 h-4 text-secondary mr-2" />
-                             <SelectValue placeholder="Categoria" />
-                          </SelectTrigger>
-                          <SelectContent>
-                             <SelectItem value="all">Todas Categorias</SelectItem>
-                             {categories?.map((cat: any) => (
-                               <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                             ))}
-                          </SelectContent>
-                       </Select>
-                    </div>
-
                     <div className="md:col-span-2">
                       <Popover>
                         <PopoverTrigger asChild>
@@ -250,7 +236,7 @@ export default function LandingPageClient() {
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <div className="md:col-span-2 relative">
+                    <div className="md:col-span-3 relative">
                       <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
                       <Input 
                         placeholder={t('home.where_placeholder')} 
@@ -261,8 +247,8 @@ export default function LandingPageClient() {
                     </div>
                     <div className="md:col-span-1">
                       <Select value={radiusKm} onValueChange={setRadiusKm}>
-                        <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
-                            <Navigation className="w-4 h-4 text-secondary mr-2" />
+                        <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white px-2">
+                            <Navigation className="w-4 h-4 text-secondary mr-1" />
                             <SelectValue placeholder={t('home.radius_label')} />
                         </SelectTrigger>
                         <SelectContent>

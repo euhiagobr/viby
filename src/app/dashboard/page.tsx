@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -189,18 +190,6 @@ export default function ExplorarPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder={t('home.search_placeholder')} className="pl-10 h-11 rounded-xl" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-             <SelectTrigger className="w-48 h-11 rounded-xl border-dashed">
-                <div className="flex items-center gap-2 font-bold text-xs"><Tag className="w-3 h-3 text-secondary" /><SelectValue placeholder="Categoria" /></div>
-             </SelectTrigger>
-             <SelectContent className="rounded-xl">
-                <SelectItem value="all">Todas Categorias</SelectItem>
-                {categories?.map((cat: any) => (
-                  <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                ))}
-             </SelectContent>
-          </Select>
 
           <Popover>
             <PopoverTrigger asChild>
