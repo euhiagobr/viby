@@ -83,6 +83,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     }
 
     setLoading(true);
+    console.log("[OrganizationContext] Iniciando listeners para UID:", user.uid);
 
     // 1. Ouvinte para Organizações que o usuário É DONO (Consulta Direta)
     const ownerQuery = query(collection(db, 'organizations'), where('ownerId', '==', user.uid));
@@ -94,7 +95,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       } as Organization));
 
       setOrganizations(prev => {
-        // Preserva organizações onde o usuário é membro, mas atualiza as que ele é dono
         const memberOnlyOrgs = prev.filter(p => !ownedOrgs.some(o => o.id === p.id));
         return [...ownedOrgs, ...memberOnlyOrgs];
       });
@@ -104,6 +104,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     // 2. Ouvinte para Convites e Membros via Collection Group (Indispensável para convites)
     const membersCG = query(collectionGroup(db, 'members'), where('userId', '==', user.uid));
     const unsubMembers = onSnapshot(membersCG, async (memberSnap) => {
+      console.log("[OrganizationContext] Membros (CG) Snapshot recebido. Docs:", memberSnap.size);
+      
       const acceptedPromises: Promise<Organization | null>[] = [];
       const invitations: any[] = [];
 
@@ -111,6 +113,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         const mData = mDoc.data();
         const orgId = mDoc.ref.parent.parent?.id;
         
+        console.log(`[OrganizationContext] Doc membro ID: ${mDoc.id}, Status: ${mData.status}, OrgID: ${orgId}`);
+
         if (!orgId) continue;
 
         if (mData.status === 'accepted' || !mData.status) {
@@ -120,20 +124,21 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             )
           );
         } else if (mData.status === 'pending') {
-          // Convite Pendente de Equipe
+          console.log("[OrganizationContext] Convite pendente detectado para org:", orgId);
           invitations.push({ id: orgId, ...mData, type: 'team_invite' });
         }
       }
 
       const memberOrgs = (await Promise.all(acceptedPromises)).filter((o): o is Organization => o !== null);
       
-      // Carrega nomes das organizações para os convites pendentes
       const invitesWithNames = await Promise.all(invitations.map(async (inv) => {
         const orgSnap = await getDoc(doc(db, 'organizations', inv.id));
         return { ...inv, orgName: orgSnap.exists() ? orgSnap.data().name : "Organização Desconhecida" };
       }));
 
+      console.log("[OrganizationContext] Convites processados:", invitesWithNames.length);
       setPendingInvitations(invitesWithNames);
+      
       setOrganizations(prev => {
         const ownedOnes = prev.filter(o => o.ownerId === user.uid);
         const combined = [...ownedOnes];
@@ -142,11 +147,15 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         });
         return combined;
       });
+    }, (error) => {
+      console.error("[OrganizationContext] Erro no listener de membros (CG):", error);
     });
 
     // 3. Ouvinte para Parcerias Pendentes (Collection Group em 'partners')
     const partnersCG = query(collectionGroup(db, 'partners'), where('orgId', '==', user.uid), where('status', '==', 'pending'));
     const unsubPartners = onSnapshot(partnersCG, async (partnerSnap) => {
+      console.log("[OrganizationContext] Parcerias (CG) Snapshot recebido. Docs:", partnerSnap.size);
+      
       const pings = await Promise.all(partnerSnap.docs.map(async (pDoc) => {
         const pData = pDoc.data();
         const eventId = pDoc.ref.parent.parent?.id;
@@ -164,6 +173,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         };
       }));
       setPendingPartnerships(pings.filter(p => p !== null));
+    }, (error) => {
+      console.error("[OrganizationContext] Erro no listener de parcerias (CG):", error);
     });
 
     // 4. Ouvintes de Notificações e Suporte
@@ -182,7 +193,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     };
   }, [db, user, isInitialized]);
 
-  // Sincronização da Organização Selecionada
   useEffect(() => {
     if (organizations.length > 0) {
       const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;

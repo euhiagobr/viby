@@ -48,18 +48,24 @@ export default function SolicitacoesPage() {
   
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null);
 
-  // Consulta de saques do usuário (em todas as suas marcas)
-  // Removido orderBy para evitar erros de índice ausente durante o protótipo
+  // DEBUG LOGS
+  React.useEffect(() => {
+    console.log("[SolicitacoesPage] Monitoramento de dados do Contexto:");
+    console.log("-> Convites de Equipe:", pendingInvitations.length, pendingInvitations);
+    console.log("-> Parcerias de Evento:", pendingPartnerships.length, pendingPartnerships);
+    console.log("-> Carregando Contexto:", contextLoading);
+  }, [pendingInvitations, pendingPartnerships, contextLoading]);
+
   const payoutRequestsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return query(collection(db, "payout_requests"), where("userId", "==", user.uid));
   }, [db, user]);
   
-  const { data: rawSaques, loading: saquesLoading, error: saquesError } = useCollection<any>(payoutRequestsQuery);
+  const { data: rawSaques, loading: saquesLoading } = useCollection<any>(payoutRequestsQuery);
 
   const saques = React.useMemo(() => {
     if (!rawSaques) return [];
-    return [...rawSaques].sort((a, b) => {
+    return [...rawSales].sort((a, b) => {
       const tA = a.requestedAt?.seconds || 0;
       const tB = b.requestedAt?.seconds || 0;
       return tB - tA;
@@ -91,12 +97,11 @@ export default function SolicitacoesPage() {
         toast({ title: "Convite aceito!", description: `Agora você faz parte da equipe de ${invite.orgName}.` });
       })
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: memberRef.path,
           operation: 'update',
           requestResourceData: updateData
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        }));
       })
       .finally(() => setActionLoadingId(null));
   };
@@ -120,11 +125,10 @@ export default function SolicitacoesPage() {
         toast({ title: "Convite recusado" });
       })
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: memberRef.path,
           operation: 'delete'
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        }));
       })
       .finally(() => setActionLoadingId(null));
   };
@@ -146,12 +150,11 @@ export default function SolicitacoesPage() {
         toast({ title: "Parceria confirmada!", description: "O evento agora será exibido no seu perfil." });
       })
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: partnerRef.path,
           operation: 'update',
           requestResourceData: updateData
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        }));
       })
       .finally(() => setActionLoadingId(null));
   };
@@ -167,11 +170,10 @@ export default function SolicitacoesPage() {
         toast({ title: "Convite removido" });
       })
       .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: partnerRef.path,
           operation: 'delete'
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        }));
       })
       .finally(() => setActionLoadingId(null));
   };
@@ -283,12 +285,6 @@ export default function SolicitacoesPage() {
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {saquesLoading ? (
                  <div className="col-span-full py-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
-              ) : saquesError ? (
-                <div className="col-span-full p-8 bg-destructive/5 rounded-2xl border border-destructive text-center">
-                   <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-2" />
-                   <p className="text-xs font-bold text-destructive uppercase">Erro ao carregar saques</p>
-                   <p className="text-[10px] text-muted-foreground mt-1">Verifique sua conexão ou tente novamente.</p>
-                </div>
               ) : saques && saques.length > 0 ? (
                  saques.map((saque: any) => (
                     <Card key={saque.id} className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
