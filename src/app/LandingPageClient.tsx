@@ -123,14 +123,19 @@ export default function LandingPageClient() {
       return true;
     });
 
-    return result.map(e => ({
-      ...e,
-      _score: calculateEventScore(e, {
-        userLocation,
-        maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm)
-      })
-    })).sort((a, b) => b._score - a._score);
-  }, [events, searchName, searchCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
+    return result.map(e => {
+      // Injeção dinâmica de categoryName caso não esteja denormalizado no evento
+      const cat = categories?.find((c: any) => c.id === e.categoryId);
+      return {
+        ...e,
+        categoryName: e.categoryName || cat?.name || e.category || e.categoria,
+        _score: calculateEventScore(e, {
+          userLocation,
+          maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm)
+        })
+      };
+    }).sort((a, b) => b._score - a._score);
+  }, [events, categories, searchName, searchCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];

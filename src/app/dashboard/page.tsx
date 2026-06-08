@@ -138,23 +138,27 @@ export default function ExplorarPage() {
       return matchesSearch && matchesCategory && matchesDate;
     });
 
-    if (activeTab === 'recent') {
-      return result.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    }
-
-    if (activeTab === 'trending') {
-      return result.sort((a, b) => {
+    return result.map(e => {
+      // Injeção dinâmica de categoryName baseada no ID cruzado com a lista de categorias carregada
+      const cat = categories?.find((c: any) => c.id === e.categoryId);
+      
+      return {
+        ...e,
+        categoryName: e.categoryName || cat?.name || e.category || e.categoria,
+        _score: calculateEventScore(e, { userLocation, maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm) })
+      };
+    }).sort((a, b) => {
+      if (activeTab === 'recent') {
+        return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+      }
+      if (activeTab === 'trending') {
         const scoreA = (a.viewsCount || 0) + (a.interestedCount || 0) * 2;
         const scoreB = (b.viewsCount || 0) + (b.interestedCount || 0) * 2;
         return scoreB - scoreA;
-      });
-    }
-
-    return result.map(e => ({
-      ...e,
-      _score: calculateEventScore(e, { userLocation, maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm) })
-    })).sort((a, b) => b._score - a._score);
-  }, [allEvents, search, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate])
+      }
+      return b._score - a._score;
+    });
+  }, [allEvents, search, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate, categories])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];

@@ -145,8 +145,8 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   
-  // Tenta pegar o nome da categoria de múltiplos campos possíveis
-  const displayCategory = event.categoryName || event.category || event.categoryLabel;
+  // Resiliência na leitura da categoria: tenta vários campos comuns
+  const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
 
   return (
     <Card 
