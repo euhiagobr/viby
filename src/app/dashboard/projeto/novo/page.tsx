@@ -9,7 +9,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, AlertTriangle } from "lucide-react"
+import { Loader2, ArrowLeft, AlertTriangle, Building2, MapPin } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -86,6 +86,21 @@ export default function NovoEventoPage() {
   const [ticketMode, setTicketMode] = useState<any>('free')
   const [batches, setBatches] = useState<any[]>([])
   const [totalCapacity, setTotalCapacity] = useState(100)
+
+  const handleUseOrgLocation = () => {
+    if (!currentOrg?.address) {
+      toast({ variant: "destructive", title: "Endereço não configurado", description: "Vá nas configurações da marca para definir o endereço da sede." });
+      return;
+    }
+    setFormData(prev => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        ...currentOrg.address
+      }
+    }));
+    toast({ title: "Local importado!", description: "Dados da sede preenchidos com sucesso." });
+  }
 
   const handleImageUpload = async (file: File) => {
     if (!storage || !user) return
@@ -256,11 +271,33 @@ export default function NovoEventoPage() {
            </CardContent>
         </Card>
 
-        <EventLocation 
-          address={formData.address} 
-          onChange={v => setFormData({...formData, address: v})} 
-          status={formData.status}
-        />
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 px-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Localização</h2>
+            </div>
+            
+            {currentOrg?.address?.latitude && (
+               <Button 
+                type="button" 
+                variant="outline" 
+                onClick={handleUseOrgLocation}
+                className="rounded-xl h-10 px-4 gap-2 font-black uppercase text-[10px] border-secondary text-secondary hover:bg-secondary/5 shadow-sm"
+               >
+                 <Building2 className="w-3.5 h-3.5" /> Usar Local da Sede
+               </Button>
+            )}
+          </div>
+
+          <EventLocation 
+            address={formData.address} 
+            onChange={v => setFormData({...formData, address: v})} 
+            status={formData.status}
+          />
+        </div>
 
         {formData.type === 'interno' && (
           <BilheteriaAdmin 
