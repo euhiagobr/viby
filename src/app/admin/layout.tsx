@@ -1,10 +1,11 @@
+
 'use client';
 
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { 
   Loader2, 
   ShieldCheck, 
@@ -40,6 +41,7 @@ import { cn } from '@/lib/utils';
 import Footer from '@/components/layout/Footer';
 import Image from "next/image"
 import { UserNav } from '@/components/layout/UserNav';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 export default function AdminLayout({
   children,
@@ -48,51 +50,34 @@ export default function AdminLayout({
 }) {
   const auth = useAuth();
   const db = useFirestore();
-  const { user, profile, loading: authLoading, isInitialized } = useUser(auth);
+  const { user, isInitialized, loading: authLoading } = useUser(auth);
   const router = useRouter();
   const pathname = usePathname();
-  const [verifying, setVerifying] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { adminProfile, hasPermission, loading: permsLoading } = useAdminPermissions();
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
   useEffect(() => {
-    async function checkAdmin() {
-      if (!isInitialized || authLoading) return;
-      
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-
-      // Verificação robusta de role admin
-      if (db && user) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists() && userDoc.data()?.role === 'admin') {
-            setIsAdmin(true);
-          } else {
-            toast({
-              variant: 'destructive',
-              title: 'Acesso Negado',
-              description: 'Esta área é restrita a administradores globais.',
-            });
-            router.push('/dashboard');
-          }
-        } catch (e) {
-          console.error("[Admin Guard] Error:", e);
-          router.push('/dashboard');
-        }
-      }
-      setVerifying(false)
+    if (!isInitialized || authLoading || permsLoading) return;
+    
+    if (!user) {
+      router.push('/login');
+      return;
     }
 
-    checkAdmin();
-  }, [user, profile, isInitialized, authLoading, db, router]);
+    if (!adminProfile || adminProfile.status === 'Desativado') {
+      toast({
+        variant: 'destructive',
+        title: 'Acesso Negado',
+        description: 'Você não possui permissão para acessar o console administrativo.',
+      });
+      router.push('/dashboard');
+    }
+  }, [user, isInitialized, authLoading, permsLoading, adminProfile, router]);
 
-  if (authLoading || verifying || !isInitialized) {
+  if (authLoading || permsLoading || !isInitialized) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
@@ -101,31 +86,34 @@ export default function AdminLayout({
     );
   }
 
-  if (!isAdmin) return null;
+  if (!adminProfile) return null;
 
   const navItems = [
-    { title: 'Painel', url: '/admin', icon: LayoutDashboard },
-    { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays },
-    { title: 'Recorrentes', url: '/admin/eventos-recorrentes', icon: RefreshCw },
-    { title: 'Páginas', url: '/admin/paginas', icon: Building2 },
-    { title: 'Usuários', url: '/admin/usuarios', icon: Users },
-    { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket },
-    { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone },
-    { title: 'Cupons Globais', url: '/admin/cupons', icon: TicketPercent },
-    { title: 'Campanhas', url: '/admin/campanhas', icon: Zap },
-    { title: 'Fiscal / Impostos', url: '/admin/imposto', icon: Scale },
-    { title: 'Transferências', url: '/admin/transferencias', icon: SendHorizontal },
-    { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark },
-    { title: 'Presença', url: '/admin/presenca', icon: UserCheck },
-    { title: 'Extrato Global', url: '/admin/extrato', icon: Receipt },
-    { title: 'Notificações', url: '/admin/notificacoes', icon: Bell },
-    { title: 'Logs do Sistema', url: '/admin/logs', icon: Terminal },
-    { title: 'E-mails Enviados', url: '/admin/emails', icon: Mail },
-    { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert },
-    { title: 'Suporte', url: '/admin/suporte', icon: LifeBuoy },
-    { title: 'Categorias', url: '/admin/categorias', icon: Tag },
-    { title: 'Configurações', url: '/admin/configuracoes', icon: SettingsIcon },
+    { title: 'Painel', url: '/admin', icon: LayoutDashboard, permission: 'dashboard.view' as any },
+    { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays, permission: 'events.view' as any },
+    { title: 'Recorrentes', url: '/admin/eventos-recorrentes', icon: RefreshCw, permission: 'events.view' as any },
+    { title: 'Páginas', url: '/admin/paginas', icon: Building2, permission: 'organizations.view' as any },
+    { title: 'Usuários', url: '/admin/usuarios', icon: Users, permission: 'users.view' as any },
+    { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket, permission: 'tickets.view' as any },
+    { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone, permission: 'marketing.view' as any },
+    { title: 'Cupons Globais', url: '/admin/cupons', icon: TicketPercent, permission: 'marketing.coupons' as any },
+    { title: 'Campanhas', url: '/admin/campanhas', icon: Zap, permission: 'marketing.campaigns' as any },
+    { title: 'Fiscal / Impostos', url: '/admin/imposto', icon: Scale, permission: 'financial.view' as any },
+    { title: 'Transferências', url: '/admin/transferencias', icon: SendHorizontal, permission: 'financial.payouts' as any },
+    { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark, permission: 'financial.view' as any },
+    { title: 'Presença', url: '/admin/presenca', icon: UserCheck, permission: 'dashboard.view' as any },
+    { title: 'Extrato Global', url: '/admin/extrato', icon: Receipt, permission: 'financial.view' as any },
+    { title: 'Notificações', url: '/admin/notificacoes', icon: Bell, permission: 'marketing.notifications' as any },
+    { title: 'Logs do Sistema', url: '/admin/logs', icon: Terminal, permission: 'settings.view' as any },
+    { title: 'E-mails Enviados', url: '/admin/emails', icon: Mail, permission: 'settings.view' as any },
+    { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert, permission: 'events.approve' as any },
+    { title: 'Suporte', url: '/admin/suporte', icon: LifeBuoy, permission: 'tickets.view' as any },
+    { title: 'Categorias', url: '/admin/categorias', icon: Tag, permission: 'settings.view' as any },
+    { title: 'Equipe Admin', url: '/admin/configuracoes/equipe', icon: Users, permission: 'admins.view' as any },
+    { title: 'Configurações', url: '/admin/configuracoes', icon: SettingsIcon, permission: 'settings.edit' as any },
   ];
+
+  const visibleItems = navItems.filter(item => hasPermission(item.permission));
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex">
@@ -155,7 +143,7 @@ export default function AdminLayout({
 
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar">
           <p className="px-4 text-[10px] font-black uppercase text-white/40 tracking-widest mb-4">Gestão do Sistema</p>
-          {navItems.map((item) => (
+          {visibleItems.map((item) => (
             <Link 
               key={item.url} 
               href={item.url}
@@ -195,12 +183,12 @@ export default function AdminLayout({
         <header className="h-16 border-b border-border bg-white flex items-center justify-between px-8 sticky top-0 z-50">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-secondary" />
-            <h2 className="font-bold text-xs uppercase tracking-widest">Plataforma Administrativa</h2>
+            <h2 className="font-bold text-xs uppercase tracking-widest">Console: {adminProfile.cargo.toUpperCase()}</h2>
           </div>
           <div className="flex items-center gap-4">
              <div className="flex flex-col items-end hidden sm:flex text-right">
-                <span className="text-xs font-black uppercase italic text-primary leading-none">{profile?.name || 'Administrador'}</span>
-                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Viby Control Center</span>
+                <span className="text-xs font-black uppercase italic text-primary leading-none">{adminProfile.nome} {adminProfile.sobrenome}</span>
+                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Viby System Control</span>
              </div>
              <UserNav />
           </div>
