@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -216,7 +215,7 @@ export default function EditarPerfilPage() {
             </CardHeader>
             <CardContent className="p-0">
                <div 
-                 className="relative h-48 bg-muted border-b border-border group cursor-pointer overflow-hidden"
+                 className="relative h-48 bg-muted border-b border-border group cursor-pointer relative overflow-hidden"
                  onClick={() => document.getElementById('user-banner-up')?.click()}
                >
                  {formData.banner ? (
@@ -305,18 +304,28 @@ export default function EditarPerfilPage() {
                 </div>
                 {!hasValidCPF && (
                    <div className={cn(
-                     "p-3 rounded-xl border border-dashed flex items-start gap-2 mt-2 transition-colors",
+                     "p-4 rounded-[1.5rem] border-2 border-dashed flex items-start gap-4 mt-4 transition-all duration-300",
                      skipCPF ? "bg-orange-50 border-orange-200" : "bg-muted/50 border-border"
                    )}>
-                      {skipCPF ? <AlertTriangle className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" /> : <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />}
-                      <p className={cn(
-                        "text-[9px] font-bold uppercase leading-tight",
-                        skipCPF ? "text-orange-800" : "text-muted-foreground"
+                      <div className={cn(
+                        "p-2 rounded-xl shrink-0",
+                        skipCPF ? "bg-orange-100 text-orange-600" : "bg-muted text-muted-foreground"
                       )}>
-                        {skipCPF 
-                          ? "Atenção: Sem o CPF vinculado, você não poderá realizar compras ou receber transferências da plataforma." 
-                          : "O CPF informado será vinculado permanentemente para transferências seguras."}
-                      </p>
+                        {skipCPF ? <AlertTriangle className="w-5 h-5" /> : <Info className="w-5 h-5" />}
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className={cn("text-xs font-black uppercase italic", skipCPF ? "text-orange-800" : "text-muted-foreground")}>
+                           {skipCPF ? "Atenção: Recebimentos Bloqueados" : "Segurança Cadastral"}
+                        </h4>
+                        <p className={cn(
+                          "text-[10px] font-medium uppercase leading-relaxed",
+                          skipCPF ? "text-orange-700" : "text-muted-foreground"
+                        )}>
+                          {skipCPF 
+                            ? "Você pode atualizar seu perfil agora, mas não poderá realizar compras pagas ou receber transferências da carteira até que o CPF seja vinculado e validado." 
+                            : "O CPF informado será vinculado permanentemente para habilitar compras e transferências seguras na plataforma."}
+                        </p>
+                      </div>
                    </div>
                 )}
               </div>
