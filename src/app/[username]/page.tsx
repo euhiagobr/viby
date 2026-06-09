@@ -1,8 +1,7 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
-import { doc, getDoc, getFirestore } from 'firebase/firestore';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
+import { getAdminDb } from '@/lib/firebase/admin';
 import ProfilePageClient from './ProfilePageClient';
 
 const RESERVED_ROUTES = [
@@ -19,12 +18,13 @@ const RESERVED_ROUTES = [
   'support',
   'help',
   'onboarding',
-  'faq'
+  'faq',
+  'recorrente',
+  'ganhe-dinheiro'
 ];
 
-/**
- * Converte Timestamps do Firestore em strings para serialização segura no RSC.
- */
+const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
+
 function serializeData(data: any) {
   if (!data) return data;
   const serialized = { ...data };
@@ -39,23 +39,19 @@ function serializeData(data: any) {
 }
 
 async function getProfileData(username: string) {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app);
-  
+  const db = getAdminDb();
   try {
-    const usernameRef = doc(db, "usernames", username.toLowerCase().trim());
-    const usernameSnap = await getDoc(usernameRef);
-
-    if (!usernameSnap.exists()) return null;
-    const { uid, type } = usernameSnap.data();
+    const usernameSnap = await db.collection("usernames").doc(username.toLowerCase().trim()).get();
+    if (!usernameSnap.exists) return null;
     
+    const { uid, type } = usernameSnap.data()!;
     const targetColl = type === 'user' ? 'users' : 'organizations';
-    const dataSnap = await getDoc(doc(db, targetColl, uid));
+    const dataSnap = await db.collection(targetColl).doc(uid).get();
     
-    if (!dataSnap.exists()) return null;
+    if (!dataSnap.exists) return null;
     return serializeData({ id: dataSnap.id, type, ...dataSnap.data() });
   } catch (e) {
-    console.error("Erro ao buscar dados do perfil no servidor:", e);
+    console.error("Erro ao buscar perfil no servidor:", e);
     return null;
   }
 }
@@ -68,29 +64,38 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   }
 
   const profile = await getProfileData(username);
+  if (!profile) return { title: 'Perfil não encontrado' };
 
-  if (!profile) {
-    return {
-      title: 'Perfil não encontrado',
-    };
-  }
-
-  const name = profile.type === 'organization' ? profile.name : (profile.name || profile.displayName);
-  const title = `${name} • @${username} | Viby`;
+  const name = profile.type === 'organization' ? profile.name : (profile.name || profile.displayName || username);
+  const title = `${name} • Viby`;
   const description = profile.bio || `Confira o perfil oficial de ${name} na Viby. Eventos, experiências e conexões culturais.`;
-  
+  const image = profile.avatar || profile.banner || VIBY_DEFAULT_IMAGE;
+  const url = `https://viby.club/${username}`;
+
   return {
     title,
     description,
+    alternates: { canonical: `/${username}` },
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: 'Viby',
+      images: [{ url: image, width: 1200, height: 630 }],
+      locale: 'pt_BR',
+      type: 'profile',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [image],
+    },
   };
 }
 
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
-  
-  if (RESERVED_ROUTES.includes(username.toLowerCase())) {
-    return null;
-  }
-
+  if (RESERVED_ROUTES.includes(username.toLowerCase())) return null;
   return <ProfilePageClient username={username} />;
 }
