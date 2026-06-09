@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -89,7 +88,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -99,6 +97,7 @@ import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { sendVerificationStatusEmail } from "@/app/actions/email"
 import { AffiliateCode } from "@/types/affiliate"
+import { formatCurrency } from "@/lib/financial-utils"
 
 const ORG_ROLES = [
   { value: 'owner', label: 'Proprietário' },
@@ -255,15 +254,17 @@ export default function AdminPaginasPage() {
     const file = e.target.files?.[0]
     if (!file || !storage || !editingOrg) return
 
-    setUploadProgress(0)
+    const setProgress = type === 'avatar' ? setAvatarProgress : setBannerProgress;
+    setProgress(0);
+
     try {
       const fileName = `organizations/${editingOrg.id}/${type}_${Date.now()}`
       const storageRef = ref(storage, fileName)
       const uploadTask = uploadBytesResumable(storageRef, file)
 
       uploadTask.on('state_changed', 
-        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) },
+        (snapshot) => setProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+        () => { setProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setEditingOrg((prev: any) => ({ ...prev, [type]: downloadURL }))
@@ -354,7 +355,7 @@ export default function AdminPaginasPage() {
   }
 
   const handleAffiliateLink = (affCode: string) => {
-    if (!affCode) {
+    if (!affCode || affCode === 'none') {
       setEditingOrg({
         ...editingOrg,
         affiliateUserId: deleteField(),
