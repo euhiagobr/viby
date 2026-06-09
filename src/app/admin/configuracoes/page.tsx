@@ -129,7 +129,7 @@ export default function AdminConfiguracoesPage() {
         },
         (error) => {
           setUploadProgress(prev => ({ ...prev, [type]: null }));
-          toast({ variant: "destructive", title: "Erro no upload", description: error.message });
+          toast({ variant: "destructive", title: "Erro no Upload", description: error.message });
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
@@ -138,8 +138,9 @@ export default function AdminConfiguracoesPage() {
           toast({ title: "Arquivo atualizado!" });
         }
       );
-    } catch (err) {
+    } catch (err: any) {
       setUploadProgress(prev => ({ ...prev, [type]: null }));
+      toast({ variant: "destructive", title: "Falha Crítica", description: err.message });
     }
   };
 
@@ -162,7 +163,11 @@ export default function AdminConfiguracoesPage() {
         },
         (error) => {
           setUploadProgress(prev => ({ ...prev, [progressKey]: null }));
-          toast({ variant: "destructive", title: "Falha de Permissão", description: "Verifique seu nível de acesso administrador." });
+          toast({ 
+            variant: "destructive", 
+            title: "Erro de Permissão", 
+            description: `Falha ao gravar no Storage: ${error.message}` 
+          });
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
@@ -175,8 +180,9 @@ export default function AdminConfiguracoesPage() {
           toast({ title: "Banner carregado!" });
         }
       );
-    } catch (err) {
+    } catch (err: any) {
       setUploadProgress(prev => ({ ...prev, [progressKey]: null }));
+      toast({ variant: "destructive", title: "Falha Técnica", description: err.message });
     }
   };
 
@@ -243,7 +249,7 @@ export default function AdminConfiguracoesPage() {
           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
             <CardHeader className="bg-muted/30 p-8 border-b">
                <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Identidade Visual</CardTitle>
-               <CardDescription>Nome da rede, logotipos e banners rotativos da Home.</CardDescription>
+               <CardDescription className="font-medium">Nome da rede, logotipos e banners rotativos da Home.</CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-10">
               <div className="space-y-2">

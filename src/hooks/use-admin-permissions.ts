@@ -28,8 +28,8 @@ export function useAdminPermissions() {
   
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
-  // Buffer de referência para estabilizar o objeto de saída
-  const stableProfile = useRef<any>(null);
+  // Buffer de referência para estabilizar o objeto de saída e evitar loops de profundidade
+  const stableProfileRef = useRef<any>(null);
 
   const adminProfile = useMemo(() => {
     if (!authInitialized || userLoading || adminLoading) return null;
@@ -53,18 +53,18 @@ export function useAdminPermissions() {
       };
     }
 
-    // Compara chaves críticas para manter a mesma referência de objeto se nada mudou
+    // Se o resultado for idêntico ao anterior em termos de UID e Cargo, mantém a mesma referência
     if (
-      stableProfile.current && 
+      stableProfileRef.current && 
       result && 
-      stableProfile.current.uid === result.uid && 
-      stableProfile.current.cargo === result.cargo &&
-      stableProfile.current.status === result.status
+      stableProfileRef.current.uid === result.uid && 
+      stableProfileRef.current.cargo === result.cargo &&
+      stableProfileRef.current.status === result.status
     ) {
-      return stableProfile.current;
+      return stableProfileRef.current;
     }
 
-    stableProfile.current = result;
+    stableProfileRef.current = result;
     return result;
   }, [dbAdminProfile, userRole, userId, authInitialized, userLoading, adminLoading, profile?.name, user?.email]);
 

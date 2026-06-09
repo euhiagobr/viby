@@ -6,18 +6,15 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // Função robusta de verificação administrativa sincronizada com Firestore
+    // Função central de autorização administrativa para o Storage
     function isAdmin() {
       return isSignedIn() && (
-        // 1. UID Mestre para Bootstrap
+        // 1. UID Mestre para Bootstrap (AqTVL8VRTZT435pZudkObzMGsrR2)
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
-        // 2. Custom Claims
+        // 2. Custom Claims (se existirem)
         request.auth.token.admin == true ||
-        // 3. Coleção dedicada de admins (Mais performático no Storage)
-        firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid)) ||
-        // 4. Role no documento de usuário
-        (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) && 
-         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        // 3. Verificação na coleção de administradores do Firestore
+        firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid))
       );
     }
 
@@ -25,15 +22,18 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Regra Global de Leitura (Pública para vitrines)
     match /{allPaths=**} {
       allow read: if true;
     }
 
-    // Escrita administrativa centralizada
+    // --- PASTA ADMINISTRATIVA ---
+    // Permite gravação total para quem é admin na pasta /admin/
     match /admin/{allPaths=**} {
       allow write: if isAdmin();
     }
 
+    // --- PASTAS DE USUÁRIOS E ORGANIZAÇÕES ---
     match /users/{userId}/{allPaths=**} {
       allow write: if isAdmin() || isOwner(userId);
     }
