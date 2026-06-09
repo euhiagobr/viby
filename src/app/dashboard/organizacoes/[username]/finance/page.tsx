@@ -37,7 +37,10 @@ import {
   CreditCard,
   Percent,
   Scale,
-  Calculator
+  Calculator,
+  Handshake,
+  Calendar,
+  AlertTriangle
 } from 'lucide-react';
 import { formatCurrency, VIBY_BUYER_MARKUP, VIBY_ORGANIZER_FEE, VIBY_MIN_FEE_BRL } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -82,6 +85,28 @@ function OrganizationFinanceContent() {
   const [isSimulatorOpen, setIsSimulatorOpen] = React.useState(false);
 
   const sessionId = searchParams.get('session_id');
+
+  // Consulta de Afiliado vinculado à marca
+  const affiliateCodeRef = React.useMemo(() => (db && currentOrg?.affiliateCode) ? doc(db, "affiliateCodes", currentOrg.affiliateCode) : null, [db, currentOrg?.affiliateCode]);
+  const { data: affiliateInfo } = useDoc<any>(affiliateCodeRef);
+
+  // Consulta de Comissões geradas para o afiliado por esta marca
+  const affiliateCommissionsQuery = useMemoFirebase(() => {
+    if (!db || !currentOrg) return null;
+    return query(collection(db, "affiliateCommissions"), where("organizationId", "==", currentOrg.id));
+  }, [db, currentOrg?.id]);
+  const { data: affiliateCommissions } = useCollection<any>(affiliateCommissionsQuery);
+
+  const affiliateStats = React.useMemo(() => {
+    if (!affiliateCommissions) return { totalTickets: 0, totalCommission: 0 };
+    return affiliateCommissions.reduce((acc, comm) => {
+      if (comm.status !== 'cancelled' && comm.status !== 'reversed') {
+        acc.totalTickets += (comm.quantity || 0);
+        acc.totalCommission += (comm.totalCommission || 0);
+      }
+      return acc;
+    }, { totalTickets: 0, totalCommission: 0 });
+  }, [affiliateCommissions]);
 
   React.useEffect(() => {
     if (adsSettings?.minRechargeValue) {
@@ -268,8 +293,13 @@ function OrganizationFinanceContent() {
     );
   }
 
+  if (!currentOrg) return null;
+
   const currentCommission = currentOrg?.customOrganizerPercent ?? (VIBY_ORGANIZER_FEE * 100);
   const currentMinFee = currentOrg?.customOrganizerMinFee ?? VIBY_MIN_FEE_BRL;
+
+  const isAffiliateActive = currentOrg?.affiliateCode && 
+    (!currentOrg.affiliateEndDate || new Date() <= new Date(currentOrg.affiliateEndDate));
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
@@ -302,7 +332,66 @@ function OrganizationFinanceContent() {
               <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Disponível para impulsionamento</p>
            </CardContent>
         </Card>
+
+        {isAffiliateActive && (
+          <Card className="border-none shadow-sm bg-secondary text-white border-l-4 border-white/20">
+             <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-60 tracking-widest">Afiliado Ativo</CardTitle></CardHeader>
+             <CardContent>
+                <div className="text-xl font-black italic uppercase">{currentOrg.affiliateCode}</div>
+                <p className="text-[8px] font-bold uppercase opacity-60 mt-1">Sua conta possui um padrinho/afiliado</p>
+             </CardContent>
+          </Card>
+        )}
       </div>
+
+      {isAffiliateActive && (
+        <section className="space-y-6">
+           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 px-2">
+              <Handshake className="w-4 h-4 text-secondary" /> Programa de Afiliados
+           </h3>
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden border-t-8 border-secondary">
+              <CardContent className="p-8">
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                    <div className="space-y-4">
+                       <div className="flex items-center gap-3">
+                          <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><CheckCircle2 className="w-5 h-5" /></div>
+                          <div>
+                             <p className="text-[9px] font-black uppercase text-muted-foreground">Responsável</p>
+                             <p className="font-bold text-sm text-primary uppercase">{affiliateInfo?.userName || "Afiliado Viby"}</p>
+                          </div>
+                       </div>
+                       <div className="flex items-center gap-8">
+                          <div className="space-y-1">
+                             <p className="text-[9px] font-black uppercase text-muted-foreground">Comissão p/ Ingresso</p>
+                             <p className="text-xl font-black text-secondary">{formatCurrency(affiliateInfo?.commissionValue || 0)}</p>
+                          </div>
+                          <div className="space-y-1">
+                             <p className="text-[9px] font-black uppercase text-muted-foreground">Vencimento do Vínculo</p>
+                             <div className="flex items-center gap-1.5 text-sm font-bold">
+                                <Calendar className="w-3.5 h-3.5 opacity-40" />
+                                {currentOrg.affiliateEndDate ? new Date(currentOrg.affiliateEndDate).toLocaleDateString('pt-BR') : "Indeterminado"}
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="p-6 bg-muted/20 rounded-[2rem] border border-dashed flex flex-col items-center justify-center text-center gap-1">
+                       <p className="text-[9px] font-black uppercase text-muted-foreground mb-1">Geração de Valor</p>
+                       <p className="text-3xl font-black text-primary">{affiliateStats.totalTickets}</p>
+                       <p className="text-[8px] font-bold text-secondary uppercase">Ingressos vinculados ao afiliado</p>
+                    </div>
+                 </div>
+                 
+                 <div className="mt-8 p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
+                    <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed">
+                       Sua marca está vinculada a um parceiro de indicação. Esta comissão é retida pela Viby e repassada ao afiliado sem custos adicionais à sua porcentagem de repasse líquido padrão.
+                    </p>
+                 </div>
+              </CardContent>
+           </Card>
+        </section>
+      )}
 
       <div className="space-y-6">
          <div className="flex items-center justify-between px-2">
@@ -527,3 +616,4 @@ export default function OrganizationFinancePage() {
     </React.Suspense>
   );
 }
+
