@@ -8,8 +8,8 @@ import { slugify } from '@/lib/slug-utils';
  * @fileOverview Server Actions para gestão de eventos com geração de slug único.
  */
 
-async function generateUniqueSlug(db: admin.firestore.Firestore, orgId: string, title: string, currentEventId?: string) {
-  const baseSlug = slugify(title);
+async function generateUniqueSlug(db: admin.firestore.Firestore, orgId: string, title: string, currentEventId?: string, manualSlug?: string) {
+  const baseSlug = manualSlug ? slugify(manualSlug) : slugify(title);
   let slug = baseSlug;
   let counter = 1;
 
@@ -91,6 +91,37 @@ export async function updateEventAction(params: {
     return { success: true, slug };
   } catch (e: any) {
     console.error("[Events Action] Update Failure:", e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Server Action exclusiva para atualizar ou regenerar o slug de um evento.
+ */
+export async function updateEventSlugAction(params: {
+  eventId: string;
+  orgId: string;
+  newTitle?: string;
+  manualSlug?: string;
+}) {
+  const db = getAdminDb();
+  try {
+    const eventRef = db.collection('events').doc(params.eventId);
+    const eventSnap = await eventRef.get();
+    
+    if (!eventSnap.exists) throw new Error("Evento não encontrado.");
+    const eventData = eventSnap.data()!;
+
+    const source = params.manualSlug || params.newTitle || eventData.title;
+    const slug = await generateUniqueSlug(db, params.orgId, source, params.eventId, params.manualSlug);
+
+    await eventRef.update({
+      slug,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, slug };
+  } catch (e: any) {
     return { success: false, error: e.message };
   }
 }
