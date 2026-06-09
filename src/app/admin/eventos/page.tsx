@@ -27,7 +27,8 @@ import {
   Link as LinkIcon,
   CheckCircle2,
   Save,
-  Globe
+  Globe,
+  Info
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -153,7 +154,7 @@ export default function AdminEventosPage() {
     if (!dateValue) return "---";
     try {
       let d = dateValue?.toDate ? dateValue.toDate() : new Date(dateValue);
-      return d.toLocaleDateString('pt-BR');
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     } catch (e) { return "---"; }
   }
 
