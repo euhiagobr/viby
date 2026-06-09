@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -16,6 +15,12 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    // Categorias - PUBLICO PARA DESCOBERTA
+    match /categories/{catId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Users
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin() || true; // Public for social profiles
@@ -26,7 +31,7 @@ service cloud.firestore {
       }
     }
 
-    // Usernames Index - PUBLICO PARA VALIDACAO
+    // Usernames Index - PUBLICO PARA VALIDACAO E ROTAS
     match /usernames/{username} {
       allow read, list: if true;
       allow write: if request.auth != null;
@@ -60,7 +65,8 @@ service cloud.firestore {
       allow write: if request.auth != null && (isOwner(resource.data.ownerId) || isAdmin() || request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2");
 
       match /members/{userId} {
-         allow read, write: if request.auth != null && (isOwner(userId) || isAdmin() || request.auth.uid == get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId);
+         allow read: if request.auth != null;
+         allow write: if request.auth != null && (isOwner(userId) || isAdmin() || request.auth.uid == get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId);
       }
     }
 
@@ -81,6 +87,16 @@ service cloud.firestore {
       match /comments/{commentId} {
         allow read: if true;
         allow write: if request.auth != null;
+      }
+      
+      match /setores/{setorId} {
+        allow read: if true;
+        allow write: if request.auth != null;
+        
+        match /assentos/{assentoId} {
+          allow read: if true;
+          allow write: if request.auth != null;
+        }
       }
     }
 
