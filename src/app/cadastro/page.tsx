@@ -106,9 +106,9 @@ export default function CadastroPage() {
               <div className="bg-secondary/10 border-2 border-dashed border-secondary/30 rounded-3xl p-6 flex items-center gap-4 shadow-sm">
                 <div className="p-3 bg-secondary rounded-2xl text-white shadow-lg"><Handshake className="w-6 h-6" /></div>
                 <div className="space-y-0.5">
-                   <p className="font-black uppercase italic text-secondary text-xs">Convite Ativado!</p>
+                   <p className="font-black uppercase italic text-secondary text-xs">Olá!</p>
                    <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">
-                     Sua conta será vinculada a <span className="text-primary font-black">@{affiliateInfo.name}</span>.
+                     Você acaba de usar o código de convite de <span className="text-primary font-black">@{affiliateInfo.name}</span>. Aproveite essa Viby!
                    </p>
                 </div>
               </div>
