@@ -7,30 +7,46 @@ import EventoPublicoClient from './EventoPublicoClient';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Home, CalendarX, ArrowLeft } from 'lucide-react';
+import { redirect } from 'next/navigation';
 
-async function getEventBySlug(username: string, slug: string) {
+async function getEventBySlugOrId(username: string, slugOrId: string) {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     
-    // 1. Localizar Organização pelo Username
+    // 1. Localizar Organização pelo Username para garantir contexto
     const usernameRef = doc(db, "usernames", username.toLowerCase());
     const usernameSnap = await getDoc(usernameRef);
     if (!usernameSnap.exists() || usernameSnap.data().type !== 'organization') return null;
     
     const orgId = usernameSnap.data().uid;
 
-    // 2. Localizar Evento pelo Slug e OrganizationId
+    // 2. Tentar localizar o Evento pelo Slug
     const q = query(
       collection(db, "events"),
       where("organizationId", "==", orgId),
-      where("slug", "==", slug),
+      where("slug", "==", slugOrId),
       limit(1)
     );
     const snap = await getDocs(q);
     
-    if (snap.empty) return null;
-    return { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
+    if (!snap.empty) {
+      return { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
+    }
+
+    // 3. Fallback: Tentar localizar pelo ID diretamente
+    const eventRef = doc(db, "events", slugOrId);
+    const eventSnap = await getDoc(eventRef);
+    
+    if (eventSnap.exists()) {
+      const data = eventSnap.data();
+      // Valida se o evento realmente pertence a essa organização
+      if (data.organizationId === orgId) {
+        return { id: eventSnap.id, ...data } as any;
+      }
+    }
+
+    return null;
   } catch (e) {
     console.error("[getEventData Server Error]", e);
     return null;
@@ -39,7 +55,7 @@ async function getEventBySlug(username: string, slug: string) {
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<Metadata> {
   const { username, slug } = await params;
-  const event = await getEventBySlug(username, slug);
+  const event = await getEventBySlugOrId(username, slug);
 
   if (!event) {
     return { title: 'Evento não encontrado' };
@@ -66,7 +82,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       title,
       description,
       type: 'article',
-      url: `https://viby.club/${username}/${slug}`,
+      url: `https://viby.club/${username}/${event.slug || event.id}`,
       images: [{ url: ogImageUrl.toString(), width: 1200, height: 630, alt: event.title }],
     },
     twitter: { card: 'summary_large_image', title, description, images: [ogImageUrl.toString()] }
@@ -75,7 +91,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 
 export default async function EventoPublicoPage({ params }: { params: Promise<{ username: string, slug: string }> }) {
   const { username, slug } = await params;
-  const event = await getEventBySlug(username, slug);
+  const event = await getEventBySlugOrId(username, slug);
 
   if (!event) {
     return (
@@ -93,6 +109,11 @@ export default async function EventoPublicoPage({ params }: { params: Promise<{ 
         </div>
       </div>
     );
+  }
+
+  // Se o usuário acessou pelo ID mas o evento tem um slug diferente, redireciona para a URL amigável
+  if (event.slug && event.slug !== slug) {
+    redirect(`/${username}/${event.slug}`);
   }
 
   const addr = event.address || {};
