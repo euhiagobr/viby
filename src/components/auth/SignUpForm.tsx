@@ -28,7 +28,9 @@ import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Informe seu nome completo." }),
-  username: z.string().min(5, "Mínimo 5 caracteres").regex(/^[a-z0-9._]+$/, "Somente minúsculas, números, ponto e underline"),
+  username: z.string()
+    .min(5, "O nome de usuário deve ter no mínimo 5 caracteres.")
+    .regex(/^[a-z0-9._]+$/, "Somente minúsculas, números, ponto e underline"),
   cpf: z.string().length(11, "CPF deve ter 11 dígitos"),
   email: z.string().email({ message: "E-mail inválido." }),
   gender: z.string().min(1, "Selecione seu gênero"),
@@ -66,18 +68,22 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
   const watchCPF = form.watch("cpf");
 
   React.useEffect(() => {
-    if (!db || !watchUsername || watchUsername.length < 5) {
+    const cleanUsername = watchUsername?.toLowerCase().trim();
+    
+    if (!db || !cleanUsername || cleanUsername.length < 5) {
       setUsernameStatus('idle');
       return;
     }
-    if (!validateUsername(watchUsername)) {
+    
+    if (!validateUsername(cleanUsername)) {
       setUsernameStatus('invalid');
       return;
     }
+
     setCheckingUsername(true);
     const timer = setTimeout(async () => {
       try {
-        const usernameRef = doc(db, "usernames", watchUsername.toLowerCase().trim());
+        const usernameRef = doc(db, "usernames", cleanUsername);
         const snap = await getDoc(usernameRef);
         setUsernameStatus(snap.exists() ? 'taken' : 'valid');
       } catch (e) {

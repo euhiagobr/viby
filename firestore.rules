@@ -26,13 +26,13 @@ service cloud.firestore {
       }
     }
 
-    // Usernames Index
+    // Usernames Index - PUBLICO PARA VALIDACAO
     match /usernames/{username} {
       allow read, list: if true;
       allow write: if request.auth != null;
     }
 
-    // Affiliate System
+    // Affiliate System - PUBLICO PARA VALIDACAO NO CADASTRO
     match /affiliateCodes/{code} {
       allow read, list: if true;
       allow write: if isAdmin();

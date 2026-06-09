@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { useFirestore, useDoc } from "@/firebase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Handshake, Info, ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { Handshake, Info, ArrowLeft, Loader2, Sparkles, Database } from "lucide-react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 import Footer from "@/components/layout/Footer";
 import Link from "next/link";
@@ -35,43 +35,52 @@ export default function CadastroPage() {
         return;
       }
 
-      console.log("[Affiliate Debug] Iniciando Validação para:", refCode);
+      console.group("[Affiliate Debug] Inspecionando Referência");
+      console.log("Raw refCode from URL:", refCode);
       setValidating(true);
       
       try {
         const cleanRef = refCode.trim();
+
+        // TESTE DE CONECTIVIDADE: Tentar listar 1 documento qualquer da coleção
+        console.log("Testing collection connectivity...");
+        const connectivitySnap = await getDocs(query(collection(db, "affiliateCodes"), limit(1)));
+        console.log("Collection reachable?", !connectivitySnap.empty || connectivitySnap.size === 0);
+
         let codeDocSnap = null;
         
         // 1. Tentar localizar por ID de documento (String)
+        console.log("Trying find by Document ID:", cleanRef);
         const codeDocRef = doc(db, "affiliateCodes", cleanRef);
         const directSnap = await getDoc(codeDocRef);
         
         if (directSnap.exists()) {
            codeDocSnap = directSnap;
-           console.log("[Affiliate Debug] Localizado por ID.");
+           console.log("Found by ID!");
         } else {
            // 2. Tentar por query no campo 'code' (String)
-           console.log("[Affiliate Debug] Não achou por ID. Tentando Query por campo 'code' (string)...");
+           console.log("Not found by ID. Trying field 'code' as string...");
            const qString = query(collection(db, "affiliateCodes"), where("code", "==", cleanRef), limit(1));
            const qStringSnap = await getDocs(qString);
            
            if (!qStringSnap.empty) {
               codeDocSnap = qStringSnap.docs[0];
-              console.log("[Affiliate Debug] Localizado por query de string.");
+              console.log("Found by string field query!");
            } else if (/^\d+$/.test(cleanRef)) {
               // 3. Fallback: Tentar por query no campo 'code' como Número
-              console.log("[Affiliate Debug] Tentando Query por campo 'code' (number)...");
+              console.log("Trying field 'code' as number...");
               const qNum = query(collection(db, "affiliateCodes"), where("code", "==", parseInt(cleanRef)), limit(1));
               const qNumSnap = await getDocs(qNum);
               if (!qNumSnap.empty) {
                 codeDocSnap = qNumSnap.docs[0];
-                console.log("[Affiliate Debug] Localizado por query numérica.");
+                console.log("Found by numeric field query!");
               }
            }
         }
 
         if (codeDocSnap && codeDocSnap.exists()) {
           const affiliateData = codeDocSnap.data() as any;
+          console.log("Affiliate Data Loaded:", affiliateData);
 
           if (affiliateData.active !== false) {
             setAffiliateInfo({ 
@@ -80,17 +89,16 @@ export default function CadastroPage() {
               userId: affiliateData.userId
             });
             setIsValidCode(true);
-            console.log("[Affiliate Debug] Vínculo estabelecido com UID:", affiliateData.userId);
           } else {
-            console.warn("[Affiliate Debug] O código está inativo no sistema.");
+            console.warn("Affiliate is inactive.");
             setIsValidCode(false);
           }
         } else {
-          console.warn("[Affiliate Debug] Documento não encontrado no Firestore em nenhuma das tentativas.");
+          console.warn("No document matched this code in any lookup method.");
           setIsValidCode(false);
         }
       } catch (error: any) {
-        console.error("[Affiliate Debug] Erro de rede ou permissão:", error.message);
+        console.error("Firestore Error:", error.code, error.message);
         
         if (error.code === 'permission-denied') {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -98,9 +106,9 @@ export default function CadastroPage() {
             operation: 'list'
           }));
         }
-        
         setIsValidCode(false);
       } finally {
+        console.groupEnd();
         setValidating(false);
       }
     };
