@@ -3,32 +3,26 @@
 
 import * as React from "react"
 import { useDoc, useFirestore, useAuth, useUser } from "@/firebase"
-import { doc, collection, query, where, getDocs, updateDoc, serverTimestamp, increment } from "firebase/firestore"
+import { doc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Separator } from "@/components/ui/separator"
 import { 
   Calendar, 
   MapPin, 
-  Share2, 
   ArrowLeft, 
-  Ticket, 
   Info,
   BadgeCheck,
   Loader2,
   CheckCircle2,
   Clock,
-  ExternalLink,
   ShieldCheck,
-  Zap,
-  ArrowRight,
-  Target,
-  Users
+  ArrowRight
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { toast } from "@/hooks/use-toast"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { BilheteriaPublic, EventInterest, EventShare, EventSEO, EventCoOrganizers } from "@/components/events"
@@ -63,7 +57,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
   const { data: promotions } = useDoc<any>(promosRef)
 
-  // Rastreamento de visualização (Server-side trigger)
   React.useEffect(() => {
     if (id) {
        fetch('/api/events/track-view', {
@@ -89,7 +82,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const endDateVal = event.endDate ? (event.endDate.toDate ? event.endDate.toDate() : new Date(event.endDate)) : new Date(d.getTime() + 4 * 60 * 60 * 1000);
   
   const isEnded = endDateVal < new Date();
-  const isVibyOfficial = event.curationType === 'curadoria';
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
@@ -166,26 +158,19 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                           {event.description}
                        </p>
                     </div>
-                    {event.tags?.length > 0 && (
-                      <div className="mt-10 pt-8 border-t border-dashed flex flex-wrap gap-2">
-                         {event.tags.map((tag: string) => (
-                           <Badge key={tag} variant="secondary" className="rounded-xl px-4 h-8 text-[10px] font-black uppercase tracking-widest bg-muted text-muted-foreground border-none">#{tag}</Badge>
-                         ))}
-                      </div>
-                    )}
                  </Card>
               </section>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <Card className="border-none shadow-sm rounded-3xl bg-white p-8 flex items-center gap-6 group hover:shadow-md transition-all">
-                    <div className="p-4 bg-muted rounded-2xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors"><Calendar className="w-8 h-8" /></div>
+                 <Card className="border-none shadow-sm rounded-3xl bg-white p-8 flex items-center gap-6">
+                    <div className="p-4 bg-muted rounded-2xl text-secondary"><Calendar className="w-8 h-8" /></div>
                     <div>
                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Data do Evento</p>
                        <p className="text-lg font-bold text-primary">{d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                     </div>
                  </Card>
-                 <Card className="border-none shadow-sm rounded-3xl bg-white p-8 flex items-center gap-6 group hover:shadow-md transition-all">
-                    <div className="p-4 bg-muted rounded-2xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors"><Clock className="w-8 h-8" /></div>
+                 <Card className="border-none shadow-sm rounded-3xl bg-white p-8 flex items-center gap-6">
+                    <div className="p-4 bg-muted rounded-2xl text-secondary"><Clock className="w-8 h-8" /></div>
                     <div>
                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Horário de Início</p>
                        <p className="text-lg font-bold text-primary">{d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>

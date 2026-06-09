@@ -11,9 +11,9 @@ import { Home, CalendarX, ArrowLeft } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
 /**
- * @fileOverview Rota Unificada Mestre de Eventos.
- * Resolve tanto IDs quanto Slugs sob o parâmetro dinâmico [slug].
- * ESTA É A ÚNICA ROTA DINÂMICA PERMITIDA NESTE NÍVEL.
+ * @fileOverview Rota Unificada de Eventos.
+ * Resolve tanto IDs (legado/admin) quanto Slugs sob o parâmetro [slug].
+ * Esta é a única rota dinâmica permitida neste nível para evitar conflitos.
  */
 
 async function getEventData(username: string, param: string) {
@@ -29,7 +29,7 @@ async function getEventData(username: string, param: string) {
     const orgId = usernameSnap.data().uid;
     const normalizedParam = param.trim();
 
-    // 2. Tentar resolver o parâmetro como ID (Prioridade para links diretos/legados)
+    // 2. Tentar resolver o parâmetro como ID (Prioridade para links diretos)
     const eventIdRef = doc(db, "events", normalizedParam);
     const eventIdSnap = await getDoc(eventIdRef);
     
@@ -40,7 +40,7 @@ async function getEventData(username: string, param: string) {
       }
     }
 
-    // 3. Tentar resolver o parâmetro como Slug (SEO / URLs Amigáveis)
+    // 3. Tentar resolver o parâmetro como Slug
     const slugLower = normalizedParam.toLowerCase();
     const q = query(
       collection(db, "events"),
@@ -110,7 +110,7 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  // Redirecionamento Canônico: Se acessou por ID mas existe um Slug definido, redireciona para a URL amigável
+  // Redirecionamento Canônico: Se acessou por ID mas existe um Slug, redireciona
   if (event.slug && event.slug !== resolvedParams.slug) {
     redirect(`/${resolvedParams.username}/${event.slug}`);
   }
