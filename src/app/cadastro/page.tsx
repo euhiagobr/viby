@@ -28,25 +28,35 @@ export default function CadastroPage() {
 
   React.useEffect(() => {
     const checkAffiliateCode = async () => {
-      if (!refCode || !db) return;
+      if (!refCode || !db) {
+        setIsValidCode(null);
+        return;
+      }
 
       setValidating(true);
       try {
-        const codeDocRef = doc(db, "affiliateCodes", refCode);
+        // Normaliza o código para busca exata no ID do documento
+        const cleanRef = refCode.trim();
+        const codeDocRef = doc(db, "affiliateCodes", cleanRef);
         const codeDocSnap = await getDoc(codeDocRef);
 
         if (codeDocSnap.exists()) {
           const affiliateData = codeDocSnap.data();
-          setAffiliateInfo({ 
-            name: affiliateData.userName || "Afiliado Viby", 
-            code: refCode,
-            userId: affiliateData.userId
-          });
-          setIsValidCode(true);
+          if (affiliateData.active !== false) {
+            setAffiliateInfo({ 
+              name: affiliateData.userName || "Afiliado Viby", 
+              code: cleanRef,
+              userId: affiliateData.userId
+            });
+            setIsValidCode(true);
+          } else {
+            setIsValidCode(false);
+          }
         } else {
           setIsValidCode(false);
         }
       } catch (error) {
+        console.warn("[Affiliate Validation] Error:", error);
         setIsValidCode(false);
       } finally {
         setValidating(false);
@@ -84,7 +94,7 @@ export default function CadastroPage() {
                 <Loader2 className="w-4 h-4 animate-spin text-secondary" />
                 <span className="text-[10px] font-black uppercase tracking-widest opacity-40 text-primary">Validando convite...</span>
               </div>
-            ) : isValidCode && affiliateInfo ? (
+            ) : isValidCode === true && affiliateInfo ? (
               <div className="bg-secondary/10 border-2 border-dashed border-secondary/30 rounded-3xl p-6 flex items-center gap-4 shadow-sm">
                 <div className="p-3 bg-secondary rounded-2xl text-white shadow-lg"><Handshake className="w-6 h-6" /></div>
                 <div className="space-y-0.5">
@@ -94,7 +104,7 @@ export default function CadastroPage() {
                    </p>
                 </div>
               </div>
-            ) : !validating && (
+            ) : isValidCode === false && (
               <div className="bg-orange-50 border-2 border-dashed border-orange-200 rounded-3xl p-6 flex items-center gap-4">
                 <div className="p-3 bg-orange-100 rounded-2xl text-orange-600"><Info className="w-6 h-6" /></div>
                 <div className="space-y-0.5">

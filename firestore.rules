@@ -19,7 +19,7 @@ service cloud.firestore {
     // Users can read their own data and admins can read all user data
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId);
+      allow write: if isOwner(userId) || isAdmin();
       
       // Sensitive data subcollection
       match /private/sensitive {
@@ -30,20 +30,19 @@ service cloud.firestore {
     // Organizations can be read by anyone, but only written to by owners/admins
     match /organizations/{orgId} {
       allow read: if true;
-      allow write: if request.auth != null && (request.auth.uid == resource.data.ownerId || isAdmin() || request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2");
+      allow write: if request.auth != null && (isOwner(resource.data.ownerId) || isAdmin() || request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2");
 
       match /members/{userId} {
-         allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin() || request.auth.uid == get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId);
+         allow read, write: if request.auth != null && (isOwner(userId) || isAdmin() || request.auth.uid == get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId);
       }
     }
 
-    // Affiliate Codes: Public read for validation during signup
+    // Affiliate System
     match /affiliateCodes/{code} {
         allow read: if true;
         allow write: if isAdmin();
     }
 
-    // Affiliate Commissions: Only the affiliate or admin can read
     match /affiliate_commissions/{commissionId} {
         allow read: if request.auth != null && (request.auth.uid == resource.data.affiliateId || isAdmin());
         allow write: if false; // Server-only
@@ -63,7 +62,7 @@ service cloud.firestore {
     // Support Tickets
     match /support_tickets/{ticketId} {
       allow create: if request.auth != null;
-      allow read, update: if request.auth != null && (request.auth.uid == resource.data.userId || isAdmin());
+      allow read, update: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
       allow delete: if isAdmin();
     }
 
@@ -80,20 +79,26 @@ service cloud.firestore {
     }
 
     match /xp_logs/{logId} {
-      allow read: if request.auth != null && (request.auth.uid == resource.data.userId || isAdmin());
+      allow read: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
       allow write: if isAdmin();
     }
+
+    // Financial Ledger (ERP)
+    match /tax_tickets/{taxId} { allow read: if isAdmin(); }
+    match /tax_ads/{taxId} { allow read: if isAdmin(); }
+    match /internal_expenses/{id} { allow read, write: if isAdmin(); }
 
     // General match for other public collections
     match /categories/{catId} { allow read: if true; }
     match /events/{eventId} { 
       allow read: if true; 
-      allow write: if request.auth != null; // Permission logic inside dashboard/actions
+      allow write: if request.auth != null;
     }
     match /usernames/{username} { allow read: if true; }
     match /ads/{adId} { allow read: if true; }
+    match /settings/{docId} { allow read: if true; allow write: if isAdmin(); }
 
-    // General catch-all to deny all other access
+    // General catch-all
     match /{document=**} {
       allow read: if isAdmin();
       allow write: if isAdmin();
