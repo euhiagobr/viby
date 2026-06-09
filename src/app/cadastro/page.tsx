@@ -33,15 +33,21 @@ export default function CadastroPage() {
         return;
       }
 
+      console.log("[Affiliate Debug] Validating Ref Code:", refCode);
       setValidating(true);
+      
       try {
-        // Normaliza o código para busca exata no ID do documento
         const cleanRef = refCode.trim();
         const codeDocRef = doc(db, "affiliateCodes", cleanRef);
+        console.log("[Affiliate Debug] Accessing Firestore Path:", codeDocRef.path);
+        
         const codeDocSnap = await getDoc(codeDocRef);
+        console.log("[Affiliate Debug] Document Exists:", codeDocSnap.exists());
 
         if (codeDocSnap.exists()) {
           const affiliateData = codeDocSnap.data();
+          console.log("[Affiliate Debug] Document Data:", affiliateData);
+
           if (affiliateData.active !== false) {
             setAffiliateInfo({ 
               name: affiliateData.userName || "Afiliado Viby", 
@@ -49,14 +55,17 @@ export default function CadastroPage() {
               userId: affiliateData.userId
             });
             setIsValidCode(true);
+            console.log("[Affiliate Debug] Link successfully established with UID:", affiliateData.userId);
           } else {
+            console.warn("[Affiliate Debug] Code is inactive.");
             setIsValidCode(false);
           }
         } else {
+          console.warn("[Affiliate Debug] Code not found in collection 'affiliateCodes'.");
           setIsValidCode(false);
         }
-      } catch (error) {
-        console.warn("[Affiliate Validation] Error:", error);
+      } catch (error: any) {
+        console.error("[Affiliate Debug] Validation Error:", error.message, error);
         setIsValidCode(false);
       } finally {
         setValidating(false);

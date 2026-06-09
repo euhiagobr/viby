@@ -18,17 +18,22 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Regra Global de Leitura
+    // Regra Global de Leitura (Assets Públicos)
     match /{allPaths=**} {
       allow read: if true;
     }
 
-    // Pasta Administrativa
+    // Pasta Administrativa - Bypass total para Super Admin
     match /admin/{allPaths=**} {
       allow write: if isAdmin();
     }
 
-    // Usuários
+    // Pasta de Ads
+    match /ads/{allPaths=**} {
+      allow write: if isAdmin() || isSignedIn();
+    }
+
+    // Usuários - Proteção de Perfil
     match /users/{userId}/{allPaths=**} {
       allow write: if isAdmin() || isOwner(userId);
     }
@@ -42,14 +47,12 @@ service firebase.storage {
       allow write: if isAdmin() || isSignedIn();
     }
     
-    match /ads/{allPaths=**} {
-      allow write: if isAdmin() || isSignedIn();
-    }
-    
+    // Suporte
     match /support/{userId}/{allPaths=**} {
       allow write: if isAdmin() || isOwner(userId);
     }
 
+    // Comprovantes Financeiros
     match /payout_proofs/{allPaths=**} {
       allow write: if isAdmin();
     }

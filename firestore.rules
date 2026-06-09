@@ -27,17 +27,13 @@ service cloud.firestore {
       }
     }
 
-    // Organizations can be read by anyone, but only written to by owners/admins
-    match /organizations/{orgId} {
+    // Public indices for discovery and mentions
+    match /usernames/{username} {
       allow read: if true;
-      allow write: if request.auth != null && (isOwner(resource.data.ownerId) || isAdmin() || request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2");
-
-      match /members/{userId} {
-         allow read, write: if request.auth != null && (isOwner(userId) || isAdmin() || request.auth.uid == get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId);
-      }
+      allow write: if request.auth != null;
     }
 
-    // Affiliate System
+    // Affiliate System - Public read for validation during signup
     match /affiliateCodes/{code} {
         allow read: if true;
         allow write: if isAdmin();
@@ -59,6 +55,16 @@ service cloud.firestore {
         allow update, delete: if isAdmin();
     }
 
+    // Organizations and Members
+    match /organizations/{orgId} {
+      allow read: if true;
+      allow write: if request.auth != null && (isOwner(resource.data.ownerId) || isAdmin() || request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2");
+
+      match /members/{userId} {
+         allow read, write: if request.auth != null && (isOwner(userId) || isAdmin() || request.auth.uid == get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId);
+      }
+    }
+
     // Support Tickets
     match /support_tickets/{ticketId} {
       allow create: if request.auth != null;
@@ -66,42 +72,26 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Notifications
-    match /notifications/{notifId} {
-      allow read, update: if request.auth != null && request.auth.uid == resource.data.targetUid;
-      allow create, delete: if isAdmin();
-    }
-
-    // Gamification
-    match /user_gamification/{userId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /xp_logs/{logId} {
-      allow read: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
-      allow write: if isAdmin();
-    }
-
-    // Financial Ledger (ERP)
-    match /tax_tickets/{taxId} { allow read: if isAdmin(); }
-    match /tax_ads/{taxId} { allow read: if isAdmin(); }
-    match /internal_expenses/{id} { allow read, write: if isAdmin(); }
-
-    // General match for other public collections
-    match /categories/{catId} { allow read: if true; }
+    // Events and Registrations
     match /events/{eventId} { 
       allow read: if true; 
       allow write: if request.auth != null;
+      
+      match /partners/{partnerId} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
     }
-    match /usernames/{username} { allow read: if true; }
-    match /ads/{adId} { allow read: if true; }
-    match /settings/{docId} { allow read: if true; allow write: if isAdmin(); }
 
-    // General catch-all
+    match /registrations/{regId} {
+      allow read: if request.auth != null && (isOwner(resource.data.userId) || isAdmin() || get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid);
+      allow create: if request.auth != null;
+      allow update: if isAdmin() || (request.auth != null && get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid);
+    }
+
+    // General catch-all for admins
     match /{document=**} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
   }
 }
