@@ -17,43 +17,48 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Regra Global de Leitura (Assets Públicos)
-    match /{allPaths=**} {
+    // --- REGRAS PÚBLICAS ---
+    
+    match /admin/site/{allPaths=**} {
       allow read: if true;
-    }
-
-    // Pasta Administrativa - Bypass total para Super Admin
-    match /admin/{allPaths=**} {
       allow write: if isAdmin();
     }
 
-    // Pasta de Ads
-    match /ads/{allPaths=**} {
-      allow write: if isAdmin() || isSignedIn();
+    match /users/{userId}/avatar {
+      allow read: if true;
+      allow write: if isOwner(userId) || isAdmin();
     }
 
-    // Usuários - Proteção de Perfil
-    match /users/{userId}/{allPaths=**} {
-      allow write: if isAdmin() || isOwner(userId);
+    match /organizations/{orgId}/{type} {
+      // type can be 'avatar' or 'banner'
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
     }
 
-    // Organizações e Eventos
-    match /organizations/{orgId}/{allPaths=**} {
-      allow write: if isAdmin() || isSignedIn();
+    match /events/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isOwner(userId) || isAdmin();
     }
 
-    match /events/{eventId}/{allPaths=**} {
-      allow write: if isAdmin() || isSignedIn();
+    match /ads/{orgId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
+    }
+
+    // --- REGRAS PRIVADAS ---
+
+    match /support/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    match /payout_proofs/{orgId}/{allPaths=**} {
+      allow read: if isAdmin() || isSignedIn();
+      allow write: if isAdmin();
     }
     
-    // Suporte
-    match /support/{userId}/{allPaths=**} {
-      allow write: if isAdmin() || isOwner(userId);
-    }
-
-    // Comprovantes Financeiros
-    match /payout_proofs/{allPaths=**} {
-      allow write: if isAdmin();
+    match /expenses/{userId}/{allPaths=**} {
+      allow read, write: if isAdmin();
     }
   }
 }
