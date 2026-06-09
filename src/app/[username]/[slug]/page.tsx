@@ -1,6 +1,5 @@
 /**
- * @fileOverview ROTA DESATIVADA.
- * Esta rota foi consolidada em src/app/[username]/[event]/page.tsx
- * para evitar conflitos de parâmetros dinâmicos no Next.js App Router.
+ * @fileOverview ROTA DESATIVADA PARA ELIMINAR CONFLITO.
+ * Toda a lógica foi movida para src/app/[username]/[event]/page.tsx
+ * Não deve haver export default aqui para o Next.js ignorar esta pasta.
  */
-export default function RemovedPage() { return null; }

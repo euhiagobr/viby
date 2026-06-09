@@ -11,8 +11,7 @@ import { redirect } from 'next/navigation';
 
 /**
  * @fileOverview Rota Unificada Master de Eventos.
- * Resolve o evento por ID ou Slug, eliminando conflitos de FileSystem Routing.
- * Esta rota substitui [id] e [slug].
+ * Resolve o evento por ID ou Slug, eliminando conflitos de roteamento.
  */
 
 async function getEventData(username: string, eventParam: string) {
@@ -20,15 +19,14 @@ async function getEventData(username: string, eventParam: string) {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     
-    // 1. Localizar UID da Organização pelo username
     const usernameRef = doc(db, "usernames", username.toLowerCase());
     const usernameSnap = await getDoc(usernameRef);
-    if (!usernameSnap.exists() || usernameSnap.data().type !== 'organization') return null;
+    if (!usernameSnap.exists()) return null;
     
     const orgId = usernameSnap.data().uid;
     const normalizedParam = eventParam.trim();
 
-    // 2. TENTATIVA 1: Buscar por ID (Prioridade para links internos/legados)
+    // 1. Tentar por ID (Prioridade)
     const eventIdRef = doc(db, "events", normalizedParam);
     const eventIdSnap = await getDoc(eventIdRef);
     
@@ -39,7 +37,7 @@ async function getEventData(username: string, eventParam: string) {
       }
     }
 
-    // 3. TENTATIVA 2: Buscar por Slug (SEO)
+    // 2. Tentar por Slug
     const slugLower = normalizedParam.toLowerCase();
     const q = query(
       collection(db, "events"),
@@ -55,7 +53,7 @@ async function getEventData(username: string, eventParam: string) {
 
     return null;
   } catch (e) {
-    console.error("[Unified Event Router Error]", e);
+    console.error("[Event Router Error]", e);
     return null;
   }
 }
@@ -109,7 +107,7 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  // REDIRECIONAMENTO CANÔNICO: Se acessou por ID, mas o evento tem um Slug, força a URL amigável
+  // Se acessou por ID, mas existe Slug, redireciona para a URL amigável
   if (event.slug && event.slug !== eventParam) {
     redirect(`/${username}/${event.slug}`);
   }
