@@ -1,167 +1,329 @@
-rules_version = '2';
 
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
+    
+    // --- FUNÇÕES DE AUXÍLIO GLOBAIS ---
+    
     function isSignedIn() {
       return request.auth != null;
     }
 
+    // Função central de autorização administrativa
     function isAdmin() {
       return isSignedIn() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2"
+        // 1. UID Mestre para Bootstrap (Acesso total)
+        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
+        // 2. Verificação via Custom Claims
+        request.auth.token.admin == true ||
+        // 3. Verificação via estrutura granular
+        exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) ||
+        // 4. Fallback: Usuário com role 'admin' no perfil principal
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        // 1. UID Mestre para Bootstrap
+        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
+        // 2. Verificação granular
+        (exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/system_admins/$(request.auth.uid)).data.cargo == 'super_admin') ||
+        // 3. Admin Legado
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
-    // Configurações Globais - LEITURA PÚBLICA PARA FUNCIONAMENTO DO APP
-    match /settings/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
+    // --- HIERARQUIA DE ORGANIZAÇÃO ---
+
+    function getMemberData(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data;
     }
-    
-    match /system_settings/{docId} {
-      allow read: if true;
+
+    function isOrgOwner(orgId) {
+      return isSignedIn() && (
+        get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId == request.auth.uid ||
+        getMemberData(orgId).role == 'owner'
+      );
+    }
+
+    function isOrgAdmin(orgId) {
+      return isSignedIn() && (isOrgOwner(orgId) || getMemberData(orgId).role == 'admin');
+    }
+
+    function isOrgEditor(orgId) {
+      return isSignedIn() && (isOrgAdmin(orgId) || getMemberData(orgId).role == 'editor');
+    }
+
+    function isOrgMember(orgId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    // --- REGRAS POR COLEÇÃO ---
+
+    match /system_admins/{adminId} {
+      allow get: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // --- PROGRAMA DE AFILIADOS ---
+
+    match /affiliateCodes/{code} {
+      // Leitura pública necessária para validação no formulário de cadastro
+      allow get, list: if true;
+      // Escrita restrita a Admin ou ao próprio usuário no momento do cadastro automático
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == request.resource.data.userId);
+    }
+
+    match /affiliate_stats/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin(); // Atualizações de saldo via Server Action/Admin apenas
+    }
+
+    match /affiliate_commissions/{commId} {
+      allow read: if isSignedIn() && (resource.data.affiliateId == request.auth.uid || isAdmin());
       allow write: if isAdmin();
     }
 
-    // Categorias - PÚBLICO PARA FILTROS
+    match /affiliate_payouts/{payoutId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if isAdmin();
+    }
+
+    match /affiliateCommissions/{commId} {
+      allow read: if isAdmin();
+      allow write: if false; // Via Server/Webhook apenas
+    }
+
+    match /affiliatePayouts/{payoutId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // --- USUÁRIOS E PERFIS ---
+
+    match /users/{userId} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId)
+                    || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'followingCount', 'totalXp', 'level', 'preferredCurrency', 'language']));
+      
+      match /private/sensitive {
+        allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      }
+    }
+
+    match /organizations/{orgId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      
+      allow update: if (isAdmin() || isOrgOwner(orgId)) 
+                    || (isOrgAdmin(orgId) 
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                           .hasAny(['ownerId', 'verified', 'status', 'plan', 'stripeAccountId', 'adBalance', 'blockedBalance']))
+                    || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'totalAttendeesCount', 'totalViews', 'totalReach']));
+
+      match /members/{memberId} {
+        allow read: if isAdmin() 
+                    || (isSignedIn() && request.auth.uid == memberId)
+                    || (isSignedIn() && isOrgMember(orgId));
+        
+        allow create: if isSignedIn() && (isAdmin() || request.auth.uid == memberId || isOrgAdmin(orgId));
+        allow update: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && request.resource.data.role in ['editor', 'member', 'finance', 'checkin']);
+        allow delete: if isAdmin() || isOrgOwner(orgId) || (isOrgAdmin(orgId) && resource.data.role != 'owner');
+      }
+
+      match /transactions/{txId} {
+        allow read: if isAdmin() || isOrgAdmin(orgId) || (isSignedIn() && request.auth.uid == resource.data.userId);
+        allow write: if false; 
+      }
+    }
+
+    // --- EVENTOS E CONTEÚDO ---
+
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if isAdmin() || isOrgEditor(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() || isOrgEditor(resource.data.organizationId);
+
+      match /partners/{partnerId} {
+        allow read: if true;
+        allow write: if isAdmin() || isOrgAdmin(get(/databases/$(database)/documents/events/$(eventId)).data.organizationId);
+      }
+
+      match /interests/{userId} {
+        allow read: if true;
+        allow write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      }
+    }
+
     match /categories/{catId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Usuários e Perfis
-    match /users/{userId} {
-      allow read: if true; // Perfil público
-      allow write: if isOwner(userId) || isAdmin();
-      
-      match /private/sensitive {
-        allow read, write: if isOwner(userId) || isAdmin();
-      }
-    }
-
-    // Índice de Usernames e Afiliados - PÚBLICO PARA VALIDAÇÃO
-    match /usernames/{username} {
-      allow read, list: if true;
-      allow write: if isSignedIn() || isAdmin();
-    }
-
-    match /affiliateCodes/{code} {
-      allow read, list: if true;
-      allow write: if isAdmin();
-    }
-
-    // Gamificação e Status Sociais - LEITURA PÚBLICA (Vitrine Cultural)
-    match /user_gamification/{userId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    match /cultural_stats/{userId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    match /xp_logs/{logId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    match /user_badges/{badgeId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Organizações e Membros
-    match /organizations/{orgId} {
-      allow read: if true;
-      allow write: if isSignedIn() && (isOwner(resource.data.ownerId) || isAdmin());
-
-      match /members/{userId} {
-         allow read: if isSignedIn();
-         allow write: if isSignedIn() && (isOwner(userId) || isAdmin() || request.auth.uid == get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId);
-      }
-    }
-
-    // Eventos e Ingressos
-    match /events/{eventId} { 
+    match /usernames/{username} { 
       allow read: if true; 
-      allow write: if isSignedIn();
-      
-      match /partners/{partnerId} {
-        allow read: if true;
-        allow write: if isSignedIn();
-      }
-      
-      match /interests/{interestId} {
-        allow read: if true;
-        allow write: if isSignedIn();
-      }
-      
-      match /comments/{commentId} {
-        allow read: if true;
-        allow write: if isSignedIn();
-      }
-    }
-
-    match /registrations/{regId} {
-      allow read: if isSignedIn() && (
-        isOwner(resource.data.userId) || 
-        isAdmin() || 
-        get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid
-      );
-      allow create: if isSignedIn();
-      allow update: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid);
-    }
-
-    // Viby Ads
-    match /ads/{adId} {
-      allow read: if true;
-      allow write: if isAdmin();
-      
-      match /viewers/{userId} {
-        allow read, write: if isSignedIn();
-      }
-    }
-
-    // Suporte
-    match /support_tickets/{ticketId} {
-      allow create: if isSignedIn();
-      allow read, update: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
-      allow delete: if isAdmin();
-    }
-    
-    // Financeiro
-    match /wallets/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow write: if isAdmin();
-    }
-    
-    match /payout_requests/{reqId} {
-      allow create: if isSignedIn();
-      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isAdmin() || (isSignedIn() && (request.resource.data.uid == request.auth.uid || request.resource.data.type == 'organization'));
+      allow delete: if isAdmin() || (isSignedIn() && (request.resource.data.uid == request.auth.uid || request.resource.data.type == 'organization'));
       allow update: if isAdmin();
     }
 
-    // Logs e Auditoria
-    match /system_logs/{logId} {
-      allow read, write: if isAdmin();
+    // --- NOTIFICAÇÕES E SISTEMA ---
+
+    match /notifications/{notifId} {
+      allow read, list: if isAdmin() || (isSignedIn() && (resource == null || resource.data.targetUid == request.auth.uid || request.query.filters.targetUid == request.auth.uid));
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || (isSignedIn() && (resource == null || resource.data.targetUid == request.auth.uid));
+      allow delete: if isAdmin();
     }
-    
-    match /sent_emails/{emailId} {
+
+    match /qr_scans/{id} {
+      allow read: if isAdmin() || isOrgAdmin(resource.data.organizationId);
+      allow create: if true;
+    }
+
+    match /recurring_events/{id} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin() || isOrgAdmin(request.resource.data.organizationId);
+    }
+
+    match /recurring_occurrences/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isOrgEditor(request.resource.data.organizationId);
+    }
+
+    // --- TRANSAÇÕES E FINANCEIRO (TRAVAS DE OURO) ---
+
+    match /registrations/{regId} {
+      allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.userId || isOrgMember(resource.data.organizationId)));
+      allow create: if isSignedIn(); 
+      allow update: if isAdmin() || (isSignedIn() && isOrgEditor(resource.data.organizationId));
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+    }
+
+    match /tax_tickets/{id} {
       allow read: if isAdmin();
       allow write: if false;
     }
 
-    // Regra Geral de Segurança
-    match /{document=**} {
-      allow read, write: if isAdmin();
+    match /tax_ads/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /wallets/{uid} { 
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin()); 
+      allow write: if false; 
+    }
+    
+    match /wallet_transactions/{id} { 
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin()); 
+      allow write: if false; 
+    }
+
+    match /payout_requests/{id} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.userId;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // --- ADS E MARKETING ---
+
+    match /ads/{id} {
+      allow read: if true;
+      allow create: if isAdmin() || isOrgAdmin(request.resource.data.organizationId);
+      allow update: if isAdmin() || isOrgAdmin(request.resource.data.organizationId);
+      allow delete: if isAdmin() || isOrgOwner(request.resource.data.organizationId);
+    }
+
+    match /ad_coupons/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /coupons/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isOrgEditor(request.resource.data.organizationId);
+    }
+
+    // --- CONFIGURAÇÕES E GAMIFICAÇÃO ---
+
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /system_settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /levels/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /badges/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /xp_rules/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /user_gamification/{uid} {
+      allow read: if true;
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+    }
+
+    match /xp_logs/{id} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == request.resource.data.userId);
+    }
+
+    match /cultural_stats/{uid} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /follows/{id} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+    }
+
+    // --- REGRAS DE GRUPO DE COLEÇÕES ---
+
+    match /{path=**}/partners/{partnerId} { 
+      allow read, list: if isSignedIn() && (request.auth.uid == partnerId || resource.data.orgId == request.auth.uid || isAdmin());
+    }
+    
+    match /{path=**}/members/{memberId} { 
+      allow read, list: if isSignedIn() && (request.auth.uid == memberId || resource.data.userId == request.auth.uid || isAdmin());
+    }
+    
+    match /{path=**}/transactions/{id} { 
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId); 
     }
   }
 }
