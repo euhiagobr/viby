@@ -97,7 +97,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
       <EventSEO event={event} username={username} />
       
-      {/* HEADER PADRONIZADO DO SITE */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -127,19 +126,19 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
         </div>
       </nav>
 
-      <main className="flex-1 container mx-auto px-4 py-8 md:py-12 max-w-6xl space-y-12">
-        {/* BANNER DE CAPA PREMIUM */}
-        <section className="relative h-[400px] md:h-[550px] w-full rounded-[2.5rem] md:rounded-[4rem] overflow-hidden shadow-2xl border-4 border-white">
-           <Image 
-             src={event.image || "https://picsum.photos/seed/event/1200/800"} 
-             alt={event.title} 
-             fill 
-             className={cn("object-cover", isEnded && "grayscale")}
-             priority
-             unoptimized 
-           />
-           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-           <div className="absolute bottom-0 left-0 p-8 md:p-16 w-full">
+      {/* BANNER DE CAPA 100% LARGURA */}
+      <section className="relative h-[400px] md:h-[600px] w-full overflow-hidden bg-primary">
+         <Image 
+           src={event.image || "https://picsum.photos/seed/event/1920/1080"} 
+           alt={event.title} 
+           fill 
+           className={cn("object-cover", isEnded && "grayscale")}
+           priority
+           unoptimized 
+         />
+         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+         <div className="absolute bottom-0 left-0 w-full p-8 md:p-20">
+            <div className="container mx-auto max-w-6xl">
               <div className="max-w-4xl space-y-6">
                  <div className="flex flex-wrap gap-3">
                     <Badge className="bg-secondary text-white border-none px-5 h-7 rounded-full font-black uppercase italic text-[10px] tracking-widest shadow-lg">
@@ -148,16 +147,18 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     {isEnded && <Badge className="bg-red-500 text-white border-none px-5 h-7 rounded-full font-black uppercase text-[10px] tracking-widest">Encerrado</Badge>}
                     <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-xl shadow-lg h-7" showLabel />
                  </div>
-                 <h1 className="text-4xl md:text-7xl font-black text-white uppercase italic tracking-tighter leading-[0.85]">{event.title}</h1>
+                 <h1 className="text-4xl md:text-8xl font-black text-white uppercase italic tracking-tighter leading-[0.85]">{event.title}</h1>
                  <div className="flex flex-wrap gap-4 text-white/90 text-sm font-bold uppercase tracking-tight">
                     <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10">
                        <MapPin className="w-4 h-4 text-secondary" /> {event.address?.venueName || event.location}, {event.city}
                     </div>
                  </div>
               </div>
-           </div>
-        </section>
+            </div>
+         </div>
+      </section>
 
+      <main className="flex-1 container mx-auto px-4 py-12 md:py-20 max-w-6xl space-y-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
            <div className="lg:col-span-8 space-y-16">
               <section className="space-y-6">
