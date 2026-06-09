@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -38,21 +39,12 @@ import {
   Edit,
   Save,
   BadgeCheck,
-  X,
   CheckCircle2,
   ShieldCheck,
   Lock,
-  Eye,
-  EyeOff,
   ShieldBan,
   AtSign,
   AlertTriangle,
-  Globe,
-  MapPin,
-  Trophy,
-  Coins,
-  Languages,
-  Mail,
   Fingerprint
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -82,9 +74,12 @@ export default function AdminUsuariosPage() {
   const [isSaving, setIsSaving] = React.useState(false)
   const [tempCPF, setTempCPF] = React.useState("")
 
+  // Estabilização do ID para evitar loops
+  const adminUid = adminProfile?.uid;
+
   const usersQuery = useMemoFirebase(() => 
-    (db && user && adminProfile) ? query(collection(db, "users"), orderBy("createdAt", "desc")) : null, 
-    [db, user, adminProfile]
+    (db && adminUid) ? query(collection(db, "users"), orderBy("createdAt", "desc")) : null, 
+    [db, adminUid]
   )
   const { data: users, loading: loadingUsers } = useCollection<any>(usersQuery)
 
@@ -357,7 +352,7 @@ export default function AdminUsuariosPage() {
                             className={cn("rounded-xl h-12 font-mono text-lg", !isSuperAdmin ? "bg-muted/30" : "border-dashed border-secondary/30")}
                           />
                           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                             {isSuperAdmin ? <ShieldCheck className="w-5 h-5 text-secondary" /> : <Lock className="w-5 h-5 text-muted-foreground opacity-30" />}
+                             {isSuperAdmin ? <ShieldCheck className="w-5 h-5 text-secondary" /> : <Lock className="w-4 h-4 text-muted-foreground opacity-30" />}
                           </div>
                        </div>
                        {isSuperAdmin && (
@@ -391,50 +386,6 @@ export default function AdminUsuariosPage() {
                                 <SelectItem value="top">Top (Premium)</SelectItem>
                              </SelectContent>
                           </Select>
-                       </div>
-                       <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase opacity-60">Gênero</Label>
-                          <Select value={editingUser?.gender || ""} onValueChange={v => setEditingUser({...editingUser, gender: v})}>
-                             <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                             <SelectContent className="rounded-xl">
-                                <SelectItem value="masculino">Masculino</SelectItem>
-                                <SelectItem value="feminino">Feminino</SelectItem>
-                                <SelectItem value="outro">Outro</SelectItem>
-                             </SelectContent>
-                          </Select>
-                       </div>
-                    </div>
-
-                    <Separator className="border-dashed" />
-
-                    {/* Localização e Preferências */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={editingUser?.city || ""} onChange={e => setEditingUser({...editingUser, city: e.target.value})} className="rounded-xl h-11" /></div>
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Estado</Label><Input value={editingUser?.state || ""} onChange={e => setEditingUser({...editingUser, state: e.target.value})} className="rounded-xl h-11 uppercase" maxLength={2} /></div>
-                       </div>
-                       <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                             <Label className="text-[10px] font-black uppercase opacity-60">Moeda</Label>
-                             <Select value={editingUser?.preferredCurrency || "BRL"} onValueChange={v => setEditingUser({...editingUser, preferredCurrency: v})}>
-                                <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                                <SelectContent className="rounded-xl">
-                                   <SelectItem value="BRL">BRL (R$)</SelectItem>
-                                   <SelectItem value="USD">USD ($)</SelectItem>
-                                   <SelectItem value="EUR">EUR (€)</SelectItem>
-                                </SelectContent>
-                             </Select>
-                          </div>
-                          <div className="space-y-2">
-                             <Label className="text-[10px] font-black uppercase opacity-60">Idioma</Label>
-                             <Select value={editingUser?.language || "pt-BR"} onValueChange={v => setEditingUser({...editingUser, language: v})}>
-                                <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                                <SelectContent className="rounded-xl">
-                                   <SelectItem value="pt-BR">Português</SelectItem>
-                                   <SelectItem value="en-US">Inglês</SelectItem>
-                                </SelectContent>
-                             </Select>
-                          </div>
                        </div>
                     </div>
 

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -40,22 +41,10 @@ import {
   Edit,
   Save,
   BadgeCheck,
-  CheckCircle2,
-  ShieldCheck,
   Globe,
-  Eye,
-  EyeOff,
   ShieldBan,
   AtSign,
-  AlertTriangle,
-  Users,
   ArrowRightLeft,
-  Calendar,
-  Layers,
-  ChevronRight,
-  UserX,
-  Plus,
-  Layout,
   X,
   User,
   Camera,
@@ -71,7 +60,8 @@ import {
   Coins,
   Info,
   Percent,
-  Handshake
+  Handshake,
+  ChevronRight
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -88,6 +78,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -98,6 +89,7 @@ import Link from "next/link"
 import { sendVerificationStatusEmail } from "@/app/actions/email"
 import { AffiliateCode } from "@/types/affiliate"
 import { formatCurrency } from "@/lib/financial-utils"
+import { useAdminPermissions } from "@/hooks/use-admin-permissions"
 
 const ORG_ROLES = [
   { value: 'owner', label: 'Proprietário' },
@@ -112,6 +104,7 @@ export default function AdminPaginasPage() {
   const db = useFirestore()
   const app = useFirebaseApp()
   const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
+  const { adminProfile } = useAdminPermissions()
 
   const [search, setSearch] = React.useState("")
   const [activeTypeFilter, setActiveTypeFilter] = React.useState("all")
@@ -126,13 +119,23 @@ export default function AdminPaginasPage() {
   const [newOwnerUsername, setNewOwnerUsername] = React.useState("")
   
   const [isSaving, setIsSaving] = React.useState(false)
-  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
+  const [avatarProgress, setAvatarProgress] = React.useState<number | null>(null)
+  const [bannerProgress, setBannerProgress] = React.useState<number | null>(null)
   const [ownerProfilesCache, setOwnerProfilesCache] = React.useState<Record<string, any>>({})
 
-  const orgsQuery = useMemoFirebase(() => db ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, [db])
+  // Estabilização do ID para evitar loops no useMemoFirebase
+  const adminUid = adminProfile?.uid;
+
+  const orgsQuery = useMemoFirebase(() => 
+    (db && adminUid) ? query(collection(db, "organizations"), orderBy("createdAt", "desc")) : null, 
+    [db, adminUid]
+  )
   const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery)
 
-  const affiliatesQuery = useMemoFirebase(() => db ? query(collection(db, "affiliateCodes"), where("active", "==", true)) : null, [db])
+  const affiliatesQuery = useMemoFirebase(() => 
+    (db && adminUid) ? query(collection(db, "affiliateCodes"), where("active", "==", true)) : null, 
+    [db, adminUid]
+  )
   const { data: affiliates } = useCollection<AffiliateCode>(affiliatesQuery)
 
   const ownerIds = React.useMemo(() => {
@@ -229,7 +232,6 @@ export default function AdminPaginasPage() {
         transaction.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() });
       });
 
-      // Gatilho de e-mail exclusivo para o PROPRIETÁRIO se o status de verificação mudou
       if (editingOrg.verified !== originalOrg?.verified && editingOrg.ownerProfile?.email) {
          sendVerificationStatusEmail({
             to: editingOrg.ownerProfile.email,
@@ -268,11 +270,11 @@ export default function AdminPaginasPage() {
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setEditingOrg((prev: any) => ({ ...prev, [type]: downloadURL }))
-          setUploadProgress(null)
+          setProgress(null)
           toast({ title: `${type === 'avatar' ? 'Logo' : 'Capa'} atualizada!` })
         }
       )
-    } catch (err) { setUploadProgress(null) }
+    } catch (err) { setProgress(null) }
   }
 
   const handleCepBlur = async () => {
@@ -451,7 +453,7 @@ export default function AdminPaginasPage() {
                 </TableCell>
                 <TableCell className="p-6 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingOrg(org); setOriginalOrg(org); setOriginalUsername(org.username); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingOrg({...org}); setOriginalOrg(org); setOriginalUsername(org.username); setIsEditOrgOpen(true); }}><Edit className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setTransferOrg(org); setIsTransferOpen(true); }} title="Transferir Titularidade"><ArrowRightLeft className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className={cn("h-8 w-8", org.status === 'Bloqueado' ? "text-green-600" : "text-orange-500")} onClick={() => handleToggleBlock(org.id, org.status)} title="Suspender/Ativar"><ShieldBan className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleSoftDelete(org.id, org.name)}><Trash2 className="w-4 h-4" /></Button>
@@ -618,9 +620,10 @@ export default function AdminPaginasPage() {
                                    <label htmlFor="admin-edit-banner" className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                                       <Upload className="w-10 h-10 mb-2" /><span className="text-[10px] font-black uppercase tracking-widest">Trocar Capa</span>
                                    </label>
-                                   <input id="admin-edit-banner" type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                   <input id="admin-edit-banner" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'banner')} />
                                 </div>
-                                {uploadProgress !== null && <Progress value={uploadProgress} className="h-1" />}
+                                {bannerProgress !== null && <Progress value={bannerProgress} className="h-1" />}
+                                {avatarProgress !== null && <Progress value={avatarProgress} className="h-1" />}
                              </div>
                           </TabsContent>
 
@@ -789,7 +792,7 @@ export default function AdminPaginasPage() {
               </Tabs>
               
               <DialogFooter className="p-8 border-t bg-muted/30">
-                 <Button type="submit" disabled={isSaving || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic text-lg">
+                 <Button type="submit" disabled={isSaving || bannerProgress !== null || avatarProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic text-lg">
                     {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Todas as Alterações
                  </Button>
               </DialogFooter>
@@ -816,11 +819,11 @@ function OrgMembersList({ orgId }: { orgId: string }) {
   const [newMemberUser, setNewMemberUser] = React.useState("")
   const [adding, setAdding] = React.useState(false)
   const [memberToDecline, setMemberToDecline] = React.useState<any>(null)
+  const [membersWithProfiles, setMembersWithProfiles] = React.useState<any[]>([])
 
-  const membersQuery = useMemoFirebase(() => orgId && db ? collection(db, "organizations", orgId, "members") : null, [db, orgId])
+  const membersQuery = useMemoFirebase(() => (orgId && db) ? collection(db, "organizations", orgId, "members") : null, [db, orgId])
   const { data: members, loading } = useCollection<any>(membersQuery)
   
-  const [membersWithProfiles, setMembersWithProfiles] = React.useState<any[]>([])
   const membersIdsString = React.useMemo(() => members?.map(m => m.userId).sort().join(',') || '', [members]);
   
   React.useEffect(() => {
@@ -828,6 +831,7 @@ function OrgMembersList({ orgId }: { orgId: string }) {
       setMembersWithProfiles([]);
       return;
     }
+    let isSubscribed = true;
     const fetch = async () => {
       const results = await Promise.all(members.map(async (m) => {
         try {
@@ -837,9 +841,10 @@ function OrgMembersList({ orgId }: { orgId: string }) {
           return { ...m, profile: null }
         }
       }))
-      setMembersWithProfiles(results)
+      if (isSubscribed) setMembersWithProfiles(results)
     }
     fetch()
+    return () => { isSubscribed = false; }
   }, [membersIdsString, db])
 
   const handleAdd = async () => {
@@ -847,9 +852,9 @@ function OrgMembersList({ orgId }: { orgId: string }) {
     setAdding(true)
     try {
       const cleanUser = newMemberUser.toLowerCase().trim().replace('@', '')
-      const uSnap = await getDocs(query(collection(db, "usernames"), where("username", "==", cleanUser), limit(1)))
+      const uSnap = await getDocs(query(collection(db, "usernames"), where("__name__", "==", cleanUser), limit(1)))
       if (uSnap.empty) throw new Error("Usuário não encontrado.")
-      const uid = uSnap.docs[0].id
+      const uid = uSnap.docs[0].data().uid
       await setDoc(doc(db, "organizations", orgId, "members", uid), { userId: uid, role: 'editor', status: 'accepted', updatedAt: serverTimestamp() })
       setNewMemberUser(""); toast({ title: "Membro adicionado!" })
     } catch (e: any) { toast({ variant: "destructive", title: "Erro", description: e.message }) }
@@ -936,3 +941,4 @@ function OrgMembersList({ orgId }: { orgId: string }) {
     </div>
   )
 }
+import { UserX } from "lucide-react"
