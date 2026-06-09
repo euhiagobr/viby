@@ -1,0 +1,26 @@
+
+{
+  "collection": "follows",
+  "description": "Relacionamentos de seguimento entre usuários e entre usuários e organizações.",
+  "fields": {
+    "id": "string (followerId_followingId)",
+    "followerId": "string (UID do usuário que segue)",
+    "followingId": "string (ID do alvo - Usuário ou Organização)",
+    "targetType": "string (user | organization)",
+    "timestamp": "serverTimestamp"
+  },
+  "security_rules": {
+    "read": "Público para leitura e listagem.",
+    "write": "Criação e remoção permitida apenas ao proprietário do followerId."
+  },
+  "indexes": [
+    {
+      "followerId": "ASC",
+      "timestamp": "DESC"
+    },
+    {
+      "followingId": "ASC",
+      "timestamp": "DESC"
+    }
+  ]
+}

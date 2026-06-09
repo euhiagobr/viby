@@ -162,6 +162,15 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
 
+    // --- SISTEMA DE SEGUIDORES ---
+
+    match /follows/{followId} {
+      allow read, list: if true;
+      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+      allow update: if false;
+    }
+
     // --- GAMIFICAÇÃO (AUDITORIA APLICADA) ---
 
     match /user_gamification/{uid} {
@@ -175,9 +184,7 @@ service cloud.firestore {
     }
 
     match /xp_logs/{id} {
-      // Regra de Menor Privilégio: Logs individuais são privados
       allow read: if isAdmin() || (isSignedIn() && (resource == null || resource.data.userId == request.auth.uid));
-      // Permite ao cliente gravar seu próprio log de atividade cultural
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
