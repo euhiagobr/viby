@@ -2,9 +2,9 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
-import { useFirestore, useDoc } from "@/firebase";
+import { useFirestore, useDoc, useAuth, useUser } from "@/firebase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Handshake, Info, ArrowLeft, Loader2, Sparkles } from "lucide-react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 
 export default function CadastroPage() {
   const db = useFirestore();
+  const auth = useAuth();
+  const router = useRouter();
+  const { user, profile, loading: authLoading, isInitialized } = useUser(auth);
   const searchParams = useSearchParams();
   const refCode = searchParams.get("ref");
 
@@ -25,6 +28,22 @@ export default function CadastroPage() {
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const siteName = settings?.siteName || "Viby";
+
+  // Proteção: Redireciona usuários logados
+  React.useEffect(() => {
+    if (!isInitialized || authLoading) return;
+
+    if (user) {
+      const hasMandatoryData = !!(profile?.username && profile?.cpfHash);
+      const isComplete = profile !== null && hasMandatoryData && !profile?.needsCPFUpdate;
+
+      if (!isComplete) {
+        router.replace("/onboarding");
+      } else {
+        router.replace("/dashboard");
+      }
+    }
+  }, [user, profile, isInitialized, authLoading, router]);
 
   React.useEffect(() => {
     const checkAffiliateCode = async () => {
@@ -38,14 +57,14 @@ export default function CadastroPage() {
         const cleanRef = refCode.trim();
         let foundData = null;
 
-        // 1. Tentar localizar por ID de documento (Mais performático)
+        // 1. Tentar localizar por ID de documento
         const codeDocRef = doc(db, "affiliateCodes", cleanRef);
         const directSnap = await getDoc(codeDocRef);
         
         if (directSnap.exists()) {
           foundData = directSnap.data();
         } else {
-          // 2. Fallback: Tentar busca por campo (Caso o ID seja diferente do código)
+          // 2. Fallback: Tentar busca por campo
           const q = query(collection(db, "affiliateCodes"), where("code", "==", cleanRef), limit(1));
           const querySnap = await getDocs(q);
           if (!querySnap.empty) {
@@ -73,6 +92,14 @@ export default function CadastroPage() {
 
     checkAffiliateCode();
   }, [refCode, db]);
+
+  if (!isInitialized || authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">

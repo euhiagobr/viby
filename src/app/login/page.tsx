@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -37,8 +38,8 @@ function LoginContent() {
     if (!isInitialized || authLoading) return;
 
     if (user) {
-      const hasMandatoryData = !!(profile?.username && profile?.cpf);
-      const isComplete = profile !== null && hasMandatoryData;
+      const hasMandatoryData = !!(profile?.username && profile?.cpfHash);
+      const isComplete = profile !== null && hasMandatoryData && !profile?.needsCPFUpdate;
 
       if (!isComplete) {
         router.replace("/onboarding");
