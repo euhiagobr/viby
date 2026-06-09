@@ -8,7 +8,7 @@ export const ALL_PERMISSIONS: AdminPermission[] = [
   'events.view', 'events.edit', 'events.approve', 'events.reject', 'events.hide',
   'tickets.view', 'tickets.reply', 'tickets.close',
   'financial.view', 'financial.withdrawals', 'financial.refunds', 'financial.payouts',
-  'marketing.view', 'marketing.coupons', 'marketing.campaigns', 'marketing.notifications',
+  'marketing.view', 'marketing.coupons', 'marketing.campaigns', 'marketing.notifications', 'marketing.emails',
   'reports.view',
   'settings.view', 'settings.edit',
   'admins.view', 'admins.create', 'admins.edit', 'admins.delete', 'admins.permissions'
@@ -22,7 +22,8 @@ export const ROLE_PERMISSIONS_MATRIX: Record<AdminRole, AdminPermission[]> = {
     'organizations.view', 'organizations.edit', 'organizations.suspend',
     'events.view', 'events.edit', 'events.approve', 'events.reject', 'events.hide',
     'tickets.view', 'tickets.reply', 'tickets.close',
-    'reports.view'
+    'reports.view',
+    'marketing.emails'
   ],
   support: [
     'dashboard.view',
@@ -43,7 +44,7 @@ export const ROLE_PERMISSIONS_MATRIX: Record<AdminRole, AdminPermission[]> = {
   ],
   marketing: [
     'dashboard.view',
-    'marketing.view', 'marketing.coupons', 'marketing.campaigns', 'marketing.notifications'
+    'marketing.view', 'marketing.coupons', 'marketing.campaigns', 'marketing.notifications', 'marketing.emails'
   ]
 };
 

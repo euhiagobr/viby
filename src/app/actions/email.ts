@@ -1,3 +1,4 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -83,6 +84,40 @@ function getEmailTemplate(branding: any, content: string) {
       </div>
     </div>
   `;
+}
+
+export async function sendManualMarketingEmail(data: { to: string; subject: string; content: string; senderName?: string }) {
+  try {
+    const branding = await getBranding();
+    const transporter = await getTransporter();
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
+
+    const formattedBody = data.content.replace(/\n/g, '<br>');
+    const htmlContent = getEmailTemplate(branding, `<div style="font-size: 16px; line-height: 1.6; color: #334155;">${formattedBody}</div>`);
+
+    await transporter.sendMail({
+      from: `"${data.senderName || branding.siteName}" <${smtpUser}>`,
+      to: data.to,
+      subject: data.subject,
+      html: htmlContent
+    });
+
+    await logSentEmail({
+      recipientEmail: data.to,
+      recipientName: "Destinatário Manual",
+      subject: data.subject,
+      content: htmlContent,
+      type: "manual_marketing",
+      sender: data.senderName || "Viby Marketing"
+    });
+
+    return { success: true };
+  } catch (e: any) {
+    console.error("[sendManualMarketingEmail]", e);
+    return { success: false, error: e.message };
+  }
 }
 
 export async function sendOTPRecoveryEmail(data: { to: string; userName: string; otpCode: string }) {
@@ -448,7 +483,7 @@ export async function sendPayoutConfirmedEmail(data: { to: string; userName: str
       <p>Olá, <strong>${data.userName}</strong>. O repasse solicitado para a organização <strong>${data.orgName}</strong> foi processado.</p>
       <div style="background: #f0fdf4; padding: 20px; border-radius: 15px; border: 1px solid #bbf7d0; text-align: center; margin: 20px 0;">
         <p style="margin: 0; font-size: 11px; font-weight: 800; color: #166534; text-transform: uppercase;">Valor do Repasse:</p>
-        <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: 900; color: #16a34a;">${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.amount)}</p>
+        <p style="margin: 5px 0; font-size: 24px; font-weight: 900; color: #16a34a;">${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.amount)}</p>
       </div>
       <div style="text-align: center;">
         <a href="${data.proofUrl}" style="background-color: #000; color: white; padding: 12px 25px; text-decoration: none; border-radius: 10px; font-weight: 800; font-size: 12px; text-transform: uppercase; display: inline-block;">Ver Comprovante</a>

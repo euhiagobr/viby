@@ -32,7 +32,8 @@ import {
   RefreshCw,
   TicketPercent,
   Bell,
-  Handshake
+  Handshake,
+  Send
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -97,6 +98,7 @@ export default function AdminLayout({
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone, permission: 'marketing.view' as any },
     { title: 'Cupons Globais', url: '/admin/cupons', icon: TicketPercent, permission: 'marketing.coupons' as any },
     { title: 'Campanhas', url: '/admin/campanhas', icon: Zap, permission: 'marketing.campaigns' as any },
+    { title: 'E-mail Marketing', url: '/admin/marketing', icon: Send, permission: 'marketing.emails' as any },
     { title: 'Fiscal / Impostos', url: '/admin/imposto', icon: Scale, permission: 'financial.view' as any },
     { title: 'Transferências', url: '/admin/transferencias', icon: SendHorizontal, permission: 'financial.payouts' as any },
     { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark, permission: 'financial.view' as any },
