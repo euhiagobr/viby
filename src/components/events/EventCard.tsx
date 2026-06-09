@@ -147,7 +147,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     <Card 
       ref={cardRef}
       className={cn(
-        "group overflow-hidden border-none shadow-md bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-2xl cursor-pointer relative",
+        "group flex flex-col h-full overflow-hidden border-none shadow-md bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-2xl cursor-pointer relative",
         isSponsored && "ring-1 ring-secondary/20",
         isEnded && "opacity-60 grayscale"
       )}
@@ -161,7 +161,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         </div>
       )}
 
-      <div className="relative h-48 w-full bg-muted">
+      <div className="relative aspect-[16/10] w-full bg-muted overflow-hidden shrink-0">
         <Image src={versionedImageUrl || `https://picsum.photos/seed/${event.id}/600/400`} alt={event.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 group-hover:scale-105" unoptimized />
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
           {liveStatus && (
@@ -192,7 +192,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         )}
       </div>
 
-      <CardContent className="p-5 space-y-4">
+      <CardContent className="p-5 flex flex-col flex-1 gap-4">
         <div className="space-y-1">
           <div className="flex justify-between items-start gap-2">
             <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title}</h3>
@@ -201,7 +201,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-dashed border-border/60">
+        <div className="flex items-center justify-between pt-3 mt-auto border-t border-dashed border-border/60">
            <div className="flex flex-col gap-0.5">
               <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{t('event.when')}</p>
               <div className="flex items-center gap-1 text-[11px] font-black text-primary">
@@ -217,7 +217,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
            </div>
         </div>
 
-        <Button className="w-full h-10 bg-primary text-white font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary">
+        <Button className="w-full h-10 bg-primary text-white font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
            {event.type === 'divulgacao' ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
         </Button>
       </CardContent>
