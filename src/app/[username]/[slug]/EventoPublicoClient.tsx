@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -24,7 +23,8 @@ import {
   Map as MapIcon,
   Navigation,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Wallet
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -69,7 +69,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const { data: globalFees } = useDoc<any>(feesRef)
 
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
-  const { data: promotions } = useDoc<any>(promosRef)
+  const { data: promotions } = useDoc<any>( promosRef)
 
   const siteName = settings?.siteName || "Viby"
 
@@ -99,12 +99,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   
   const isEnded = endDateVal < new Date();
   const isVibyCurated = event.curationType === 'curadoria';
+  const isExternalSale = event.type === 'externo' && event.externalUrl;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
       <EventSEO event={event} username={username} />
       
-      {/* 1. HEADER GLOBAL */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -115,9 +115,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                 {settings?.logoUrl ? (
                   <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-10 w-auto object-contain" priority unoptimized />
                 ) : (
-                  <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg"><span className="text-white font-black text-lg">V</span></div>
+                  <span className="text-xl font-black tracking-tight italic uppercase text-primary ml-1">{siteName}</span>
                 )}
-                {!settings?.logoUrl && <span className="text-xl font-black tracking-tight italic uppercase text-primary ml-1">{siteName}</span>}
              </Link>
           </div>
           <div className="flex items-center gap-4">
@@ -143,7 +142,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
         </div>
       </nav>
 
-      {/* 2. HERO DO EVENTO (CAPA 100%) */}
       <section className="relative h-[450px] md:h-[650px] w-full overflow-hidden bg-primary shrink-0">
          <Image 
            src={event.image || "https://picsum.photos/seed/event/1920/1080"} 
@@ -175,7 +173,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
          </div>
       </section>
 
-      {/* 3. AÇÕES RÁPIDAS E CONTEXTO SOCIAL */}
       <div className="bg-white border-b border-border/60 sticky top-16 z-40 shadow-sm">
          <div className="container mx-auto px-4 max-w-6xl py-4 flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-10">
@@ -193,9 +190,15 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                >
                   <Share2 className="w-4 h-4" /> Compartilhar
                </Button>
-               <Button asChild className="flex-1 sm:flex-none h-12 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-xs px-8 hover:scale-105 transition-transform">
-                  <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-4 h-4" /></Link>
-               </Button>
+               {isExternalSale ? (
+                 <Button asChild className="flex-1 sm:flex-none h-12 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-xs px-8 hover:scale-105 transition-transform">
+                   <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ExternalLink className="ml-2 w-4 h-4" /></a>
+                 </Button>
+               ) : (
+                 <Button asChild className="flex-1 sm:flex-none h-12 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-xs px-8 hover:scale-105 transition-transform">
+                   <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-4 h-4" /></Link>
+                 </Button>
+               )}
             </div>
          </div>
       </div>
@@ -203,12 +206,10 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
       <main className="flex-1 container mx-auto px-4 py-12 md:py-20 max-w-6xl">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
            
-           {/* CONTEÚDO PRINCIPAL */}
            <div className="lg:col-span-8 space-y-20">
               
-              {/* 4. INFORMAÇÕES DE DATA E HORA */}
               <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 flex items-center gap-6 group hover:shadow-md transition-all">
+                 <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 flex items-center gap-6 group hover:shadow-md transition-all border border-border/50">
                     <div className="p-5 bg-muted rounded-3xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
                        <Calendar className="w-10 h-10" />
                     </div>
@@ -219,7 +220,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                        </p>
                     </div>
                  </Card>
-                 <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 flex items-center gap-6 group hover:shadow-md transition-all">
+                 <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 flex items-center gap-6 group hover:shadow-md transition-all border border-border/50">
                     <div className="p-5 bg-muted rounded-3xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
                        <Clock className="w-10 h-10" />
                     </div>
@@ -232,13 +233,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </Card>
               </section>
 
-              {/* 5. DESCRIÇÃO DO EVENTO (Rich Content) */}
               <section className="space-y-8">
                  <div className="flex items-center gap-3 px-2">
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Info className="w-5 h-5" /></div>
                     <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Sobre a Experiência</h2>
                  </div>
-                 <Card className="border-none shadow-sm rounded-[3rem] bg-white overflow-hidden p-10 md:p-16 relative">
+                 <Card className="border-none shadow-sm rounded-[3rem] bg-white overflow-hidden p-10 md:p-16 relative border border-border/50">
                     <RichText 
                       content={event.description} 
                       className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed max-w-3xl" 
@@ -249,8 +249,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </Card>
               </section>
 
-              {/* 8. BILHETERIA */}
-              {event.ticketMode !== 'none' && (
+              {event.ticketMode !== 'none' && !isExternalSale && (
                 <div id="bilheteria" className="scroll-mt-32">
                    <BilheteriaPublic 
                     event={event} 
@@ -261,13 +260,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                 </div>
               )}
 
-              {/* 6. MAPA + LOCALIZAÇÃO */}
               <section className="space-y-8">
                  <div className="flex items-center gap-3 px-2">
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><MapIcon className="w-5 h-5" /></div>
                     <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Localização</h2>
                  </div>
-                 <Card className="border-none shadow-sm rounded-[3rem] bg-white overflow-hidden p-0 relative group">
+                 <Card className="border-none shadow-sm rounded-[3rem] bg-white overflow-hidden p-0 relative group border border-border/50">
                     <div className="h-[400px] w-full">
                        <LocationMap 
                          latitude={event.latitude || -23.55052} 
@@ -289,7 +287,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                                 <Navigation className="w-4 h-4 fill-current" /> Google Maps
                              </a>
                           </Button>
-                          <Button variant="ghost" className="rounded-2xl h-14 px-8 font-bold uppercase text-[10px] gap-2" asChild>
+                          <Button asChild variant="ghost" className="rounded-2xl h-14 px-8 font-bold uppercase text-[10px] gap-2 hover:bg-muted">
                              <a href={`https://www.waze.com/ul?q=${encodeURIComponent(event.address?.formattedAddress || event.location)}&navigate=yes`} target="_blank">Waze</a>
                           </Button>
                        </div>
@@ -300,21 +298,20 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
               <EventCoOrganizers isPublic eventId={id} currentOrgId={event.organizationId} className="pt-10 border-t border-dashed" />
            </div>
 
-           {/* 7. SIDEBAR (ORGANIZAÇÃO) */}
            <aside className="lg:col-span-4 space-y-8">
-              <Card className="border-none shadow-xl rounded-[2.5rem] bg-primary text-white overflow-hidden sticky top-40">
+              <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden sticky top-40 border border-border/50">
                  <div className="p-10 space-y-10 relative">
                     <div className="space-y-6">
-                       <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Responsável</p>
+                       <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40 text-primary">Responsável</p>
                        <Link href={`/${org?.username || username}`} className="flex items-center gap-5 group">
-                          <Avatar className="h-20 w-20 border-4 border-white/20 p-0.5 group-hover:scale-105 transition-transform rounded-[1.8rem] overflow-hidden">
+                          <Avatar className="h-20 w-20 border-4 border-muted/30 p-0.5 group-hover:scale-105 transition-transform rounded-[1.8rem] overflow-hidden">
                              <AvatarImage src={org?.avatar} className="object-cover" />
-                             <AvatarFallback className="font-black bg-white/10 text-2xl">{org?.name?.charAt(0)}</AvatarFallback>
+                             <AvatarFallback className="font-black bg-muted text-2xl">{org?.name?.charAt(0)}</AvatarFallback>
                           </Avatar>
                           <div className="space-y-1">
                              <div className="flex items-center gap-2">
-                                <h4 className="font-black text-xl uppercase italic leading-tight tracking-tighter">{org?.name || "Organizador"}</h4>
-                                {(org?.verified || org?.isVerified) && <BadgeCheck className="w-5 h-5 fill-secondary text-primary" />}
+                                <h4 className="font-black text-xl uppercase italic leading-tight tracking-tighter text-primary">{org?.name || "Organizador"}</h4>
+                                {(org?.verified || org?.isVerified) && <BadgeCheck className="w-5 h-5 fill-secondary text-white" />}
                              </div>
                              <div className="flex flex-col">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-secondary">@{org?.username || username}</span>
@@ -324,15 +321,15 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                        </Link>
                     </div>
 
-                    <Separator className="bg-white/10" />
+                    <Separator className="bg-muted" />
 
                     <div className="space-y-8">
                        <div className="flex items-center justify-between">
                           <div className="space-y-1">
-                             <p className="text-[8px] font-black uppercase opacity-40 tracking-widest">Seguidores</p>
-                             <p className="text-xl font-black italic tracking-tighter">{(org?.followersCount || 0).toLocaleString()}</p>
+                             <p className="text-[8px] font-black uppercase opacity-40 tracking-widest text-primary">Seguidores</p>
+                             <p className="text-xl font-black italic tracking-tighter text-primary">{(org?.followersCount || 0).toLocaleString()}</p>
                           </div>
-                          <Button asChild variant="outline" className="h-9 px-4 rounded-xl border-white/20 text-white font-black uppercase italic text-[9px] hover:bg-white/10 transition-all">
+                          <Button asChild variant="outline" className="h-9 px-4 rounded-xl border-secondary/20 text-secondary font-black uppercase italic text-[9px] hover:bg-secondary/5 transition-all">
                              <Link href={`/${org?.username || username}`}>Seguir Marca</Link>
                           </Button>
                        </div>
@@ -340,15 +337,20 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
-                       <Button asChild className="w-full h-16 bg-secondary text-white font-black rounded-3xl shadow-2xl uppercase italic text-base hover:scale-105 transition-transform shadow-secondary/20">
-                          <Link href="#bilheteria">Garantir Meu Lugar <ArrowRight className="ml-2 w-5 h-5" /></Link>
-                       </Button>
+                       {isExternalSale ? (
+                         <Button asChild className="w-full h-16 bg-primary text-white font-black rounded-3xl shadow-2xl uppercase italic text-base hover:scale-105 transition-transform">
+                            <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Garantir no Site Oficial <ArrowRight className="ml-2 w-5 h-5" /></a>
+                         </Button>
+                       ) : (
+                         <Button asChild className="w-full h-16 bg-secondary text-white font-black rounded-3xl shadow-2xl uppercase italic text-base hover:scale-105 transition-transform shadow-secondary/20">
+                            <Link href="#bilheteria">Garantir Meu Lugar <ArrowRight className="ml-2 w-5 h-5" /></Link>
+                         </Button>
+                       )}
                     </div>
                  </div>
-                 <div className="absolute -bottom-20 -right-20 w-48 h-48 bg-secondary/10 rounded-full blur-3xl" />
               </Card>
 
-              <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-10 space-y-8">
+              <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-10 space-y-8 border border-border/50">
                  <div className="flex items-center gap-4">
                     <div className="p-3 bg-secondary/5 rounded-2xl text-secondary"><ShieldCheck className="w-6 h-6" /></div>
                     <h3 className="text-sm font-black uppercase italic text-primary tracking-tighter leading-tight">Protocolo de Segurança Viby</h3>
