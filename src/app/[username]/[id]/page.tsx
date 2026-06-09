@@ -1,8 +1,6 @@
 /**
- * @fileOverview ROTA DESATIVADA.
- * Substituída pela rota unificada: src/app/[username]/[event]/page.tsx
- * para eliminar conflitos de parâmetros dinâmicos no Next.js.
+ * @fileOverview ROTA DESATIVADA PERMANENTEMENTE.
+ * Esta rota foi desativada para eliminar o conflito de roteamento no Next.js (slug name conflict).
+ * Toda a lógica foi movida para src/app/[username]/[event]/page.tsx.
+ * NÃO ADICIONAR EXPORT DEFAULT NESTE ARQUIVO.
  */
-export default function InactivePage() {
-  return null;
-}

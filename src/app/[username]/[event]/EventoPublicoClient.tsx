@@ -43,7 +43,7 @@ import { AgeRatingBadge } from '@/lib/age-rating';
 import { useCurrency } from '@/contexts/CurrencyContext';
 
 /**
- * @fileOverview Visualização pública do evento unificada para a rota [event].
+ * @fileOverview Visualização pública do evento unificada.
  */
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter();
@@ -136,7 +136,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     <div className="min-h-screen bg-background pb-32 selection:bg-secondary selection:text-white w-full overflow-x-hidden">
       <EventSEO event={event} username={username} />
       
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-2xl border-b border-border/40">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/40">
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full"><ArrowLeft className="w-5 h-5" /></Button>

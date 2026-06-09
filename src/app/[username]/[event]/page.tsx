@@ -10,9 +10,8 @@ import { Home, CalendarX, ArrowLeft } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
 /**
- * @fileOverview Rota Unificada de Eventos.
- * Resolve o evento por ID ou Slug, priorizando ID em caso de colisão.
- * Implementa redirecionamento canônico para Slugs.
+ * @fileOverview Rota Unificada Master de Eventos.
+ * Resolve o evento por ID ou Slug, eliminando conflitos de FileSystem Routing.
  */
 
 async function getEventData(username: string, eventParam: string) {
@@ -20,31 +19,32 @@ async function getEventData(username: string, eventParam: string) {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     
-    // 1. Localizar Organização
+    // 1. Localizar UID da Organização pelo username
     const usernameRef = doc(db, "usernames", username.toLowerCase());
     const usernameSnap = await getDoc(usernameRef);
     if (!usernameSnap.exists() || usernameSnap.data().type !== 'organization') return null;
     
     const orgId = usernameSnap.data().uid;
-    const normalizedParam = eventParam.toLowerCase().trim();
+    const normalizedParam = eventParam.trim();
 
-    // 2. TENTATIVA 1: Buscar por ID (Globalmente Único)
+    // 2. TENTATIVA 1: Buscar por ID (Prioridade para links internos/legados)
     const eventIdRef = doc(db, "events", eventParam);
     const eventIdSnap = await getDoc(eventIdRef);
     
     if (eventIdSnap.exists()) {
       const data = eventIdSnap.data();
-      // Valida se pertence a esta organização para evitar cross-tenant access via URL
       if (data.organizationId === orgId) {
         return { id: eventIdSnap.id, ...data } as any;
       }
     }
 
-    // 3. TENTATIVA 2: Buscar por Slug (Único por Organização)
+    // 3. TENTATIVA 2: Buscar por Slug (SEO)
+    // Nota: Slugs são salvos em lowercase na criação, a busca deve refletir isso
+    const slugLower = normalizedParam.toLowerCase();
     const q = query(
       collection(db, "events"),
       where("organizationId", "==", orgId),
-      where("slug", "==", normalizedParam),
+      where("slug", "==", slugLower),
       limit(1)
     );
     const slugSnap = await getDocs(q);
@@ -95,7 +95,7 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
           </div>
           <h1 className="text-5xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-none mb-4">OPS!</h1>
           <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tight text-primary">Evento <span className="text-secondary">Indisponível</span></h2>
-          <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">Não encontramos o evento. Verifique o link ou procure na página inicial.</p>
+          <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">Não encontramos este evento. Verifique o endereço ou procure na página inicial.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
           <Button variant="outline" asChild className="flex-1 h-14 rounded-2xl font-black uppercase italic border-2 gap-2 border-primary/10">
@@ -109,7 +109,7 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  // REDIRECIONAMENTO CANÔNICO: Se acessou por ID, mas tem Slug, força a URL amigável
+  // REDIRECIONAMENTO CANÔNICO: Se acessou por ID, mas o evento tem um Slug, força a URL amigável
   if (event.slug && event.slug !== eventParam) {
     redirect(`/${username}/${event.slug}`);
   }
