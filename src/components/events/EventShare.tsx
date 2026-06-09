@@ -2,10 +2,8 @@
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
-import { Share2, Link as LinkIcon, Instagram, Phone } from "lucide-react"
+import { Share2, Link as LinkIcon, Phone } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
-import { useFirestore } from "@/firebase"
-import { doc, updateDoc, increment, serverTimestamp } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 
 interface EventShareProps {
@@ -15,15 +13,14 @@ interface EventShareProps {
 }
 
 /**
- * Componente de compartilhamento com contabilização de métricas.
+ * Componente de compartilhamento com contabilização de métricas via API Server-Side.
  * Implementa proteção contra spam via localStorage (cooldown de 30s).
  */
 export function EventShare({ eventId, title, url }: EventShareProps) {
-  const db = useFirestore()
   const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${url}` : url
 
   const trackShare = React.useCallback(async () => {
-    if (!db || !eventId) return
+    if (!eventId) return
 
     // Lógica Anti-Spam: Cooldown de 30 segundos por dispositivo/evento
     const storageKey = `viby_share_cooldown_${eventId}`
@@ -35,16 +32,16 @@ export function EventShare({ eventId, title, url }: EventShareProps) {
     }
 
     try {
-      const eventRef = doc(db, "events", eventId)
-      await updateDoc(eventRef, {
-        sharesCount: increment(1),
-        updatedAt: serverTimestamp()
-      })
+      await fetch('/api/events/track-share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId })
+      });
       localStorage.setItem(storageKey, now.toString())
     } catch (e) {
       console.warn("[Share Tracking Error]", e)
     }
-  }, [db, eventId])
+  }, [eventId])
 
   const handleCopy = () => {
     navigator.clipboard.writeText(fullUrl)

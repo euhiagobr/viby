@@ -92,6 +92,27 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   const renderRef = React.useRef<HTMLDivElement>(null);
   const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}${data.url}${data.url.includes('?') ? '&' : '?'}vsrc=qr`;
 
+  const trackShare = React.useCallback(async () => {
+    if (data.type !== 'event' || !data.eventId) return;
+
+    const storageKey = `viby_share_cooldown_${data.eventId}`;
+    const lastShare = localStorage.getItem(storageKey);
+    const now = Date.now();
+
+    if (lastShare && now - parseInt(lastShare) < 30000) return;
+
+    try {
+      await fetch('/api/events/track-share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: data.eventId })
+      });
+      localStorage.setItem(storageKey, now.toString());
+    } catch (e) {
+      console.warn("[Share Tracking Error]", e);
+    }
+  }, [data.eventId, data.type]);
+
   const loadAssets = React.useCallback(async () => {
     setIsAssetsLoaded(false);
     try {
@@ -126,6 +147,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     toast({ title: "Link copiado!" });
+    trackShare();
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -137,6 +159,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           text: `Confira ${data.title} na Viby!`,
           url: shareUrl,
         });
+        trackShare();
       } catch (err) { /* ignore */ }
     } else {
       handleCopyLink();
@@ -198,6 +221,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       
       setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
       toast({ title: "Arte gerada com sucesso!" });
+      trackShare(); // Consideramos o download como um compartilhamento bem-sucedido
     } catch (err: any) {
       console.error("[Download Error]", err);
       toast({ 
