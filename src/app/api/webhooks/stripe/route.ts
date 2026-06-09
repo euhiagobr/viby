@@ -49,7 +49,7 @@ export async function POST(req: Request) {
               const orderData = orderSnap.data()!;
               const userId = session.metadata!.userId;
               const items = orderData.items || [];
-              const exchangeData = orderData.exchangeData || { rate: 1, date: new Date().toISOString().slice(0, 10) };
+              const currency = (orderData.currency || 'BRL').toUpperCase();
 
               for (const item of items) {
                 const targetRef = item.occurrenceId 
@@ -67,8 +67,6 @@ export async function POST(req: Request) {
 
                 if (orgSnap.exists) {
                   const org = orgSnap.data()!;
-                  
-                  // LÓGICA DE AFILIADO VIBY PROGRAM (Automático)
                   const affiliateId = org.originalAffiliateId;
                   const affExpireAt = org.affiliateExpireAt ? new Date(org.affiliateExpireAt) : null;
                   const isAffiliateValid = affiliateId && affExpireAt && new Date() <= affExpireAt;
@@ -78,8 +76,6 @@ export async function POST(req: Request) {
                     const regRef = db.collection("registrations").doc();
                     regIds.push(regRef.id);
                     
-                    const priceBRL = Number((item.financials?.customerFinalPrice || item.price) * exchangeData.rate);
-
                     transaction.set(regRef, {
                       eventId: item.eventId,
                       eventTitle: item.eventTitle,
@@ -92,12 +88,7 @@ export async function POST(req: Request) {
                       organizationId: item.organizationId,
                       ticketBasePrice: item.price,
                       price: item.financials?.customerFinalPrice || item.price,
-                      currency: item.currency || 'BRL',
-                      exchangeRate: exchangeData.rate,
-                      exchangeDate: exchangeData.date,
-                      priceBRL: priceBRL,
-                      administrativeFeeAmount: item.financials?.administrativeFeeAmount || 0,
-                      producerFeeAmount: item.financials?.producerFeeAmount || 0,
+                      currency: currency,
                       producerNetAmount: item.financials?.producerNetAmount || item.price,
                       ticketTypeName: item.ticketTypeName,
                       batchName: item.batchName,
@@ -116,7 +107,7 @@ export async function POST(req: Request) {
                   if (isAffiliateValid) {
                     const statsRef = db.collection("affiliate_stats").doc(affiliateId);
                     const statsSnap = await transaction.get(statsRef);
-                    const stats = statsSnap.data() || { totalTicketsSold: 0 };
+                    const stats = statsSnap.data() || { totalTicketsSold: 0, balances: {} };
                     
                     const level = getAffiliateLevel(stats.totalTicketsSold + item.quantity);
                     const commissionAmount = level.commission * item.quantity;
@@ -131,6 +122,7 @@ export async function POST(req: Request) {
                       eventId: item.eventId,
                       registrationIds: regIds,
                       amount: commissionAmount,
+                      currency: currency, // Mantém a moeda original da venda
                       status: 'pending',
                       availableAt: admin.firestore.Timestamp.fromDate(availableDate),
                       createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -138,8 +130,8 @@ export async function POST(req: Request) {
 
                     transaction.update(statsRef, {
                        totalTicketsSold: admin.firestore.FieldValue.increment(item.quantity),
-                       balancePending: admin.firestore.FieldValue.increment(commissionAmount),
-                       totalEarned: admin.firestore.FieldValue.increment(commissionAmount),
+                       [`balances.${currency}.pending`]: admin.firestore.FieldValue.increment(commissionAmount),
+                       [`balances.${currency}.totalEarned`]: admin.firestore.FieldValue.increment(commissionAmount),
                        currentLevel: level.level,
                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
                     });

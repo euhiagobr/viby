@@ -3,13 +3,15 @@
 
 import { getAdminDb } from '@/lib/firebase/admin';
 import * as admin from 'firebase-admin';
-import { getAffiliateLevel } from '@/lib/affiliate-utils';
+import { CurrencyCode } from '@/contexts/CurrencyContext';
 
 export async function requestAffiliatePayout(params: {
   userId: string;
   amount: number;
+  currency: CurrencyCode;
   pixKey: string;
   pixType: string;
+  bankDetails?: string;
 }) {
   const db = getAdminDb();
   
@@ -20,28 +22,36 @@ export async function requestAffiliatePayout(params: {
 
       if (!statsSnap.exists) throw new Error("Conta de afiliado não localizada.");
       const stats = statsSnap.data()!;
+      const currency = params.currency || 'BRL';
 
-      if (stats.balanceAvailable < params.amount) {
-        throw new Error("Saldo disponível insuficiente.");
+      const balanceData = stats.balances?.[currency] || { available: 0 };
+
+      if (balanceData.available < params.amount) {
+        throw new Error(`Saldo disponível em ${currency} insuficiente.`);
       }
 
-      if (params.amount < 50) {
-        throw new Error("O valor mínimo para saque é R$ 50,00.");
+      // Valores mínimos variam conforme moeda (exemplo simplificado)
+      const minAmount = currency === 'BRL' ? 50 : 20;
+      if (params.amount < minAmount) {
+        throw new Error(`O valor mínimo para saque em ${currency} é ${minAmount}.`);
       }
 
       const payoutRef = db.collection('affiliate_payouts').doc();
       transaction.set(payoutRef, {
         userId: params.userId,
         amount: params.amount,
+        currency: currency,
         pixKey: params.pixKey,
         pixType: params.pixType,
+        bankDetails: params.bankDetails || "",
         status: 'Pendente',
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
+      // Atualiza o saldo específico da moeda
       transaction.update(statsRef, {
-        balanceAvailable: admin.firestore.FieldValue.increment(-params.amount),
-        totalWithdrawn: admin.firestore.FieldValue.increment(params.amount),
+        [`balances.${currency}.available`]: admin.firestore.FieldValue.increment(-params.amount),
+        [`balances.${currency}.totalWithdrawn`]: admin.firestore.FieldValue.increment(params.amount),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
@@ -67,9 +77,9 @@ export async function getAffiliatePublicRanking() {
       
       return {
         name: userData?.name || "Membro Viby",
-        level: data.currentLevel,
-        sales: data.totalTicketsSold,
-        orgs: data.totalOrgsLinked
+        level: data.currentLevel || 0,
+        sales: data.totalTicketsSold || 0,
+        orgs: data.totalOrgsLinked || 0
       };
     }));
     

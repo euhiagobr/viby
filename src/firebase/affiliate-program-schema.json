@@ -17,40 +17,59 @@
       }
     },
     "affiliate_stats": {
-      "description": "Consolidado de performance do afiliado.",
+      "description": "Consolidado de performance do afiliado por moeda.",
       "fields": {
         "userId": "string (PK)",
-        "totalTicketsSold": "number",
+        "totalTicketsSold": "number (Contagem global para níveis)",
         "totalUsersReferred": "number",
         "totalOrgsLinked": "number",
         "currentLevel": "number (0-6)",
-        "balanceAvailable": "number",
-        "balancePending": "number",
-        "totalWithdrawn": "number",
-        "totalEarned": "number",
+        "balances": {
+          "BRL": {
+            "available": "number",
+            "pending": "number",
+            "totalEarned": "number",
+            "totalWithdrawn": "number"
+          },
+          "USD": {
+            "available": "number",
+            "pending": "number",
+            "totalEarned": "number",
+            "totalWithdrawn": "number"
+          },
+          "EUR": {
+            "available": "number",
+            "pending": "number",
+            "totalEarned": "number",
+            "totalWithdrawn": "number"
+          }
+        },
         "updatedAt": "timestamp"
       }
     },
     "affiliate_commissions": {
-      "description": "Registros individuais de ganhos.",
+      "description": "Registros individuais de ganhos em moedas isoladas.",
       "fields": {
         "affiliateId": "string",
         "referredUserId": "string",
         "organizationId": "string",
         "eventId": "string",
-        "registrationId": "string",
+        "registrationIds": "array",
         "amount": "number",
+        "currency": "BRL | USD | EUR",
         "status": "pending | available | cancelled | reversed",
-        "availableAt": "timestamp (segurança)",
+        "availableAt": "timestamp",
         "createdAt": "timestamp"
       }
     },
     "affiliate_payouts": {
-      "description": "Solicitações de saque.",
+      "description": "Solicitações de saque multimoeda.",
       "fields": {
         "userId": "string",
         "amount": "number",
-        "pixKey": "string",
+        "currency": "BRL | USD | EUR",
+        "pixKey": "string (Apenas para BRL)",
+        "bankDetails": "string (Para USD/EUR)",
         "pixType": "string",
         "status": "Pendente | Em análise | Pago | Cancelado",
         "processedAt": "timestamp",
