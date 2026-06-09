@@ -1,11 +1,10 @@
-
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, addDoc, serverTimestamp, doc, query, orderBy } from "firebase/firestore"
+import { collection, serverTimestamp, doc, query, orderBy } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,6 +29,7 @@ import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+import { createEventAction } from "@/app/actions/events"
 
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -158,10 +158,8 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
-      const eventData: any = {
+      const eventPayload: any = {
         ...formData,
-        organizationId: currentOrg.id,
-        organizerId: user.uid,
         organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "" },
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
@@ -173,17 +171,22 @@ export default function NovoEventoPage() {
         location: formData.address.neighborhood || formData.address.venueName,
         latitude: formData.address.latitude,
         longitude: formData.address.longitude,
-        createdAt: serverTimestamp()
       }
 
-      const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => 
+      const cleanData = JSON.parse(JSON.stringify(eventPayload, (key, value) => 
         value === undefined ? null : value
       ));
 
-      const docRef = await addDoc(collection(db, "events"), cleanData)
+      const result = await createEventAction({
+        orgId: currentOrg.id,
+        userId: user.uid,
+        eventData: cleanData
+      });
+
+      if (!result.success) throw new Error(result.error);
 
       if (formData.isRecurring && formData.recurringEndDate) {
-        await generateOccurrences(docRef.id, {
+        await generateOccurrences(result.id!, {
           name: formData.title,
           description: formData.description,
           organizationId: currentOrg.id,

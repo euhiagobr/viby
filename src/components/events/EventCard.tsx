@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -104,7 +103,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [userLocation, event.latitude, event.longitude]);
 
   const pricingDisplay = React.useMemo(() => {
-    // Para eventos externos, exibimos "Sob Consulta" no card conforme solicitação
     if (event.type === 'externo') {
       return <span className="text-secondary font-black italic uppercase text-[10px]">{t('event.under_consultation')}</span>;
     }
@@ -149,6 +147,8 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
 
   const curationLabel = event.curationType === 'curadoria' ? 'Curadoria' : 'Realização';
+  const username = event.organizer?.username || "evento";
+  const slugOrId = event.slug || event.id;
 
   return (
     <Card 
@@ -157,7 +157,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         isSponsored && "ring-1 ring-secondary/20",
         isEnded && "opacity-60 grayscale"
       )}
-      onClick={() => router.push(`/${event.organizer?.username || 'evento'}/${event.id}`)}
+      onClick={() => router.push(`/${username}/${slugOrId}`)}
     >
       {isSponsored && !isEnded && (
         <div className="absolute top-0 right-0 z-20">

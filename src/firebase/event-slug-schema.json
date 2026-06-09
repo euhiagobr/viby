@@ -1,0 +1,19 @@
+{
+  "collection": "events",
+  "description": "Suporte a URLs amigáveis (slugs) exclusivas por organização.",
+  "fields": {
+    "slug": {
+      "type": "string",
+      "description": "Identificador textual normalizado do evento (ex: show-de-verao-2024).",
+      "constraints": "Único por organizationId."
+    }
+  },
+  "logic": {
+    "generation": "Processado via Server Action createEventAction/updateEventAction.",
+    "normalization": "Lowercase, remove acentos, ç -> c, substitui espaços e especiais por hífen.",
+    "collision": "Adiciona sufixo incremental (-1, -2) se o slug já existir na mesma marca."
+  },
+  "routing": {
+    "public_url": "/[organization_username]/[event_slug]"
+  }
+}

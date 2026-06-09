@@ -1,11 +1,10 @@
-
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
-import { updateDoc, doc, serverTimestamp, collection, query, orderBy, where, deleteDoc } from "firebase/firestore"
+import { doc, collection, query, orderBy, where } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,8 +29,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
-import { generateOccurrences } from "@/services/recurring-event-service"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+import { updateEventAction } from "@/app/actions/events"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
@@ -129,19 +128,6 @@ export default function EditarEventoPage() {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
 
-    const isPublic = formData.status === 'Ativo';
-    if (isPublic) {
-      const { address } = formData;
-      if (!address.countryCode || !address.city || !address.addressLine1 || !address.latitude || !address.longitude) {
-        toast({ 
-          variant: "destructive", 
-          title: "Localização Incompleta", 
-          description: "Eventos ativos exigem endereço completo e coordenadas no mapa." 
-        });
-        return;
-      }
-    }
-
     setLoading(true)
     try {
       const searchKeywords = [
@@ -163,11 +149,17 @@ export default function EditarEventoPage() {
         location: formData.address.neighborhood || formData.address.venueName,
         latitude: formData.address.latitude,
         longitude: formData.address.longitude,
-        updatedAt: serverTimestamp()
       }
 
       const cleanData = JSON.parse(JSON.stringify(updateData, (key, value) => value === undefined ? null : value));
-      await updateDoc(eventRef, cleanData);
+      
+      const result = await updateEventAction({
+        eventId,
+        orgId: currentOrg.id,
+        eventData: cleanData
+      });
+
+      if (!result.success) throw new Error(result.error);
 
       toast({ title: "Evento Atualizado!" })
       router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
@@ -191,7 +183,7 @@ export default function EditarEventoPage() {
         </div>
         <div className="flex gap-3">
            <Button variant="outline" asChild className="rounded-xl h-11 border-secondary text-secondary font-bold uppercase text-[10px]">
-              <Link href={`/${currentOrg?.username}/${eventId}`} target="_blank"><Eye className="w-4 h-4 mr-2" /> Ver Público</Link>
+              <Link href={`/${currentOrg?.username}/${event?.slug || eventId}`} target="_blank"><Eye className="w-4 h-4 mr-2" /> Ver Público</Link>
            </Button>
            <Button onClick={handleSubmit} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
