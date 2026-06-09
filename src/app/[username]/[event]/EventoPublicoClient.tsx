@@ -1,4 +1,1 @@
-/**
- * @fileOverview COMPONENTE DESATIVADO.
- * Movido para src/app/[username]/[slug]/EventoPublicoClient.tsx
- */
+// ARQUIVO REMOVIDO. UTILIZAR src/app/[username]/[slug]/EventoPublicoClient.tsx

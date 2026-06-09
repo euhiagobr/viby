@@ -11,10 +11,10 @@ import { redirect } from 'next/navigation';
 
 /**
  * @fileOverview Rota Unificada Mestre de Eventos.
- * Único ponto de entrada dinâmico sob [username].
+ * Resolve tanto IDs quanto Slugs sob o parâmetro dinâmico [slug].
  */
 
-async function getEventData(username: string, eventParam: string) {
+async function getEventData(username: string, param: string) {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
@@ -24,7 +24,7 @@ async function getEventData(username: string, eventParam: string) {
     if (!usernameSnap.exists()) return null;
     
     const orgId = usernameSnap.data().uid;
-    const normalizedParam = eventParam.trim();
+    const normalizedParam = param.trim();
 
     // 1. Tentar por ID (Prioridade para links internos/legados)
     const eventIdRef = doc(db, "events", normalizedParam);
