@@ -59,15 +59,11 @@ export default function AdminConfiguracoesPage() {
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
   const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
-  const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
-  const googleAdsRef = React.useMemo(() => (db ? doc(db, 'system_settings', 'google_ads') : null), [db]);
 
   const { data: siteSettings, loading: loadingSite } = useDoc<any>(siteRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
   const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
   const { data: globalFees, loading: loadingFees } = useDoc<any>(feesRef);
-  const { data: adsSettings, loading: loadingAdsSettings } = useDoc<any>(adsRef);
-  const { data: googleAds, loading: loadingGoogle } = useDoc<any>(googleAdsRef);
 
   const [saving, setSaving] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<{ [key: string]: number | null }>({});
@@ -81,17 +77,16 @@ export default function AdminConfiguracoesPage() {
   const [stripeForm, setStripeForm] = React.useState({ publishableKey: '', secretKey: '', feePercent: '3.99', feeFixed: '0.39', mode: 'test' });
   const [emailForm, setEmailForm] = React.useState({ smtpHost: 'smtp.gmail.com', smtpPort: '465', smtpUser: '', smtpPass: '' });
   const [feesForm, setFeesForm] = React.useState({ buyerMarkupPercent: '15', organizerBasePercent: '10', organizerMinFee: '3.99' });
-  const [adsForm, setAdsForm] = React.useState({ minRechargeValue: '30.00', cpcValue: '0.50', cpmValue: '10.00' });
-  const [googleAdsForm, setGoogleAdsForm] = React.useState({ enabled: false, publisherId: '', adsenseCode: '', autoAds: true, testMode: false });
 
-  // Sincronização individual de estados para evitar loops de renderização massivos
   React.useEffect(() => {
-    if (siteSettings) setSiteForm({ 
-      siteName: siteSettings.siteName || 'Viby', 
-      logoUrl: siteSettings.logoUrl || '', 
-      siteIconUrl: siteSettings.siteIconUrl || siteSettings.iconUrl || '',
-      headerImages: siteSettings.headerImages || []
-    });
+    if (siteSettings) {
+      setSiteForm({ 
+        siteName: siteSettings.siteName || 'Viby', 
+        logoUrl: siteSettings.logoUrl || '', 
+        siteIconUrl: siteSettings.siteIconUrl || siteSettings.iconUrl || '',
+        headerImages: siteSettings.headerImages || []
+      });
+    }
   }, [siteSettings]);
 
   React.useEffect(() => {
@@ -200,8 +195,7 @@ export default function AdminConfiguracoesPage() {
       updatedBy: user.uid
     };
 
-    // Conversão de tipos numéricos
-    if (docId === 'fees' || docId === 'ads' || docId === 'stripe') {
+    if (docId === 'fees' || docId === 'stripe') {
       Object.keys(data).forEach(key => {
         if (typeof data[key] === 'string' && !isNaN(parseFloat(data[key]))) {
           updatePayload[key] = parseFloat(data[key]);
@@ -211,7 +205,6 @@ export default function AdminConfiguracoesPage() {
 
     if (docId === 'site') {
       updatePayload.imageVersion = increment(1);
-      // Garante que o array não tenha furos
       updatePayload.headerImages = data.headerImages.filter(Boolean);
     }
 
@@ -274,7 +267,7 @@ export default function AdminConfiguracoesPage() {
                           <Upload className="w-6 h-6" />
                        </label>
                        <input id="logo-up" type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'logoUrl')} />
-                       {uploadProgress.logoUrl !== null && uploadProgress.logoUrl !== undefined && <Progress value={uploadProgress.logoUrl} className="absolute bottom-0 h-1" />}
+                       {uploadProgress.logoUrl !== null && <Progress value={uploadProgress.logoUrl} className="absolute bottom-0 h-1" />}
                     </div>
                  </div>
                  <div className="space-y-4">
@@ -287,7 +280,7 @@ export default function AdminConfiguracoesPage() {
                           <Upload className="w-6 h-6" />
                        </label>
                        <input id="icon-up" type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'siteIconUrl')} />
-                       {uploadProgress.siteIconUrl !== null && uploadProgress.siteIconUrl !== undefined && <Progress value={uploadProgress.siteIconUrl} className="absolute bottom-0 h-1" />}
+                       {uploadProgress.siteIconUrl !== null && <Progress value={uploadProgress.siteIconUrl} className="absolute bottom-0 h-1" />}
                     </div>
                  </div>
               </div>

@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -55,28 +55,29 @@ export default function AdminLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { adminProfile, hasPermission, loading: permsLoading } = useAdminPermissions();
+  
+  const redirecting = useRef(false);
 
-  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
-  const { data: settings } = useDoc<any>(settingsRef)
-  const siteName = settings?.siteName || "Viby"
-
-  // Gestão de redirecionamento em efeito separado para evitar loops com o render
   useEffect(() => {
-    if (!isInitialized || authLoading || permsLoading) return;
+    if (!isInitialized || authLoading || permsLoading || redirecting.current) return;
     
     if (!user) {
+      redirecting.current = true;
       router.push('/login');
       return;
     }
 
     if (!adminProfile) {
+      redirecting.current = true;
       router.push('/dashboard');
     }
-  }, [user, isInitialized, authLoading, permsLoading, !!adminProfile, router]);
+  }, [user, isInitialized, authLoading, permsLoading, adminProfile, router]);
 
-  const isReady = isInitialized && !authLoading && !permsLoading && adminProfile;
+  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+  const siteName = settings?.siteName || "Viby"
 
-  if (!isReady) {
+  if (!isInitialized || authLoading || permsLoading || (!adminProfile && user)) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
@@ -184,11 +185,11 @@ export default function AdminLayout({
         <header className="h-16 border-b border-border bg-white flex items-center justify-between px-8 sticky top-0 z-50">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-secondary" />
-            <h2 className="font-bold text-xs uppercase tracking-widest">Console: {adminProfile.cargo.toUpperCase()}</h2>
+            <h2 className="font-bold text-xs uppercase tracking-widest">Console: {adminProfile?.cargo?.toUpperCase()}</h2>
           </div>
           <div className="flex items-center gap-4">
              <div className="flex flex-col items-end hidden sm:flex text-right">
-                <span className="text-xs font-black uppercase italic text-primary leading-none">{adminProfile.nome} {adminProfile.sobrenome}</span>
+                <span className="text-xs font-black uppercase italic text-primary leading-none">{adminProfile?.nome} {adminProfile?.sobrenome}</span>
                 <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Viby System Control</span>
              </div>
              <UserNav />

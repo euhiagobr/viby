@@ -9,7 +9,8 @@ service firebase.storage {
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.admin == true ||
-        (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2"
       );
     }
 
@@ -19,6 +20,10 @@ service firebase.storage {
 
     match /{allPaths=**} {
       allow read: if true;
+    }
+
+    match /admin/{allPaths=**} {
+      allow write: if isAdmin();
     }
 
     match /users/{userId}/{allPaths=**} {

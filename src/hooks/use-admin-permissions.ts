@@ -28,7 +28,7 @@ export function useAdminPermissions() {
   
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
-  // Mantemos uma referência estável para o resultado final para evitar re-renderizações no Layout
+  // Mantemos uma referência estável para o resultado final
   const stableAdminProfile = useRef<any>(null);
 
   const adminProfile = useMemo(() => {
@@ -53,20 +53,19 @@ export function useAdminPermissions() {
       };
     }
 
-    // Se o resultado for o mesmo (em termos de UID e Cargo), mantemos a referência anterior
+    // Se o resultado for o mesmo, mantém referência
     if (
       stableAdminProfile.current && 
       result && 
       stableAdminProfile.current.uid === result.uid && 
-      stableAdminProfile.current.cargo === result.cargo &&
-      stableAdminProfile.current.status === result.status
+      stableAdminProfile.current.cargo === result.cargo
     ) {
       return stableAdminProfile.current;
     }
 
     stableAdminProfile.current = result;
     return result;
-  }, [dbAdminProfile, userRole, userId, adminLoading, authInitialized, userLoading, profile?.name, user?.email]);
+  }, [dbAdminProfile, userRole, userId, authInitialized, userLoading, adminLoading, profile?.name, user?.email]);
 
   const hasPermission = useMemo(() => (permission: AdminPermission) => {
     if (!adminProfile) return false;
