@@ -104,7 +104,12 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [userLocation, event.latitude, event.longitude]);
 
   const pricingDisplay = React.useMemo(() => {
-    if (event.type === 'divulgacao' || event.type === 'externo') {
+    // Para eventos externos, exibimos "Sob Consulta" no card conforme solicitação
+    if (event.type === 'externo') {
+      return <span className="text-secondary font-black italic uppercase text-[10px]">{t('event.under_consultation')}</span>;
+    }
+
+    if (event.type === 'divulgacao') {
       if (!currentDisplayPrice) {
         return <span className="text-green-600 font-black italic uppercase text-[10px]">{t('event.no_tickets')}</span>;
       }
@@ -147,7 +152,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   return (
     <Card 
-      ref={cardRef}
       className={cn(
         "group flex flex-col h-full overflow-hidden border-none shadow-md bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-2xl cursor-pointer relative",
         isSponsored && "ring-1 ring-secondary/20",
