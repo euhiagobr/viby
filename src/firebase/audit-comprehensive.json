@@ -1,0 +1,47 @@
+
+{
+  "audit_id": "VIBY-AUDIT-2024-002",
+  "timestamp": "2024-05-20T10:00:00Z",
+  "summary": {
+    "critical_vulnerabilities": 1,
+    "permission_errors": 1,
+    "functional_gaps": 3,
+    "performance_risks": 1
+  },
+  "detailed_findings": [
+    {
+      "id": "ERR-001",
+      "target": "storage.rules",
+      "severity": "Crítico",
+      "description": "Leitura pública global habilitada em todo o bucket.",
+      "location": "storage.rules line 18: allow read: if true;",
+      "risk": "Exposição de documentos privados, comprovantes de pagamento e identidades (RG/CPF) anexadas em tickets de suporte.",
+      "fix": "Restringir leitura por caminhos específicos e autenticação."
+    },
+    {
+      "id": "ERR-002",
+      "target": "xp_logs",
+      "severity": "Alta",
+      "description": "Access Denied ao visualizar perfis de terceiros.",
+      "location": "src/app/[username]/ProfilePageClient.tsx",
+      "cause": "Regra do Firestore impede listagem de logs que não pertencem ao usuário logado, mas o componente tenta listar para exibir a timeline pública.",
+      "fix": "Ajustar consulta ou permitir leitura pública limitada."
+    },
+    {
+      "id": "ERR-003",
+      "target": "organizations",
+      "severity": "Média",
+      "description": "Ineficiência na resolução de nomes de proprietários.",
+      "location": "src/app/admin/paginas/page.tsx",
+      "cause": "Loop de consultas individuais para cada linha da tabela de páginas.",
+      "fix": "Denormalizar dados básicos do dono ou usar consulta por lote."
+    }
+  ],
+  "mapped_collections": [
+    "users", "usernames", "organizations", "events", "registrations", 
+    "follows", "user_gamification", "cultural_stats", "xp_logs", 
+    "badges", "xp_rules", "notifications", "support_tickets", 
+    "affiliateCodes", "affiliate_stats", "affiliate_commissions", 
+    "payout_requests", "system_logs", "settings", "system_settings", "ads"
+  ]
+}
