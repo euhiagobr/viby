@@ -39,11 +39,11 @@ export default function CadastroPage() {
       try {
         const cleanRef = refCode.trim();
         
-        // 1. Tentar localizar por ID de documento (Mais eficiente)
+        // 1. Tentar localizar por ID de documento (String)
         const codeDocRef = doc(db, "affiliateCodes", cleanRef);
         let codeDocSnap = await getDoc(codeDocRef);
         
-        // 2. Se não encontrou por ID, tentar por query no campo 'code'
+        // 2. Se não encontrou por ID, tentar por query no campo 'code' (String)
         if (!codeDocSnap.exists()) {
            console.log("[Affiliate Debug] Not found by ID. Trying query by 'code' field...");
            const q = query(collection(db, "affiliateCodes"), where("code", "==", cleanRef), limit(1));
@@ -51,6 +51,16 @@ export default function CadastroPage() {
            if (!qSnap.empty) {
               codeDocSnap = qSnap.docs[0] as any;
            }
+        }
+
+        // 3. Fallback: Tentar por query no campo 'code' como Número (Caso o código tenha sido salvo como número)
+        if (!codeDocSnap.exists() && /^\d+$/.test(cleanRef)) {
+          console.log("[Affiliate Debug] Trying query by 'code' as Number...");
+          const qNum = query(collection(db, "affiliateCodes"), where("code", "==", parseInt(cleanRef)), limit(1));
+          const qNumSnap = await getDocs(qNum);
+          if (!qNumSnap.empty) {
+            codeDocSnap = qNumSnap.docs[0] as any;
+          }
         }
 
         console.log("[Affiliate Debug] Document Found:", codeDocSnap.exists());

@@ -9,8 +9,7 @@ service firebase.storage {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
-        request.auth.token.admin == true
+        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2"
       );
     }
 
