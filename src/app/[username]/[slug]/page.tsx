@@ -1,7 +1,5 @@
 /**
- * @fileOverview ROTA DESATIVADA PARA ELIMINAR CONFLITO DE ROUTE MANIFEST.
- * O Next.js não permite nomes de parâmetros dinâmicos divergentes no mesmo nível.
- * Toda a lógica foi movida para src/app/[username]/[event]/page.tsx
+ * @fileOverview ROTA DESATIVADA PERMANENTEMENTE.
+ * Arquivo mantido apenas para evitar resíduos de diretório no Firebase Studio.
+ * Sem export default, o Next.js ignora esta pasta no Route Manifest.
  */
-export const dynamic = 'force-static';
-export default function InactivePage() { return null; }

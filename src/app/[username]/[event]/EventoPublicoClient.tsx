@@ -13,7 +13,6 @@ import {
   Share2,
   Clock,
   Coins,
-  Star,
   ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,7 +32,6 @@ import {
   EventTags, 
   EventLocation, 
   EventSEO, 
-  EventShare, 
   EventStats, 
   BilheteriaPublic,
   EventInterest,
