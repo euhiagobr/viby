@@ -79,7 +79,6 @@ export default function LandingPageClient() {
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
-  // Lógica de Carrossel Automático (Header)
   const [currentHeaderIdx, setCurrentHeaderIdx] = React.useState(0)
   const headerImages = React.useMemo(() => {
     if (settings?.headerImages?.length > 0) return settings.headerImages;
@@ -393,7 +392,7 @@ export default function LandingPageClient() {
             )}
 
             {unifiedFeed.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {unifiedFeed.map((item: any, idx: number) => (
                   item.type === 'ad' ? (
                     <AdsRenderer 

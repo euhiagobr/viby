@@ -47,7 +47,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const isEnded = React.useMemo(() => eventDates.end < new Date(), [eventDates.end]);
 
-  // Lógica reativa de atualização de status e preços
   React.useEffect(() => {
     const update = () => {
       const now = new Date();
@@ -55,7 +54,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       const diffStart = start.getTime() - now.getTime();
       const isToday = now.toDateString() === start.toDateString();
 
-      // 1. Atualizar Status Live
       if (end < now) {
         setLiveStatus({ label: t('event.finished'), colorClass: "bg-muted text-muted-foreground border-none" });
       } else if (now >= start && now < end) {
@@ -68,7 +66,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         setLiveStatus(null);
       }
 
-      // 2. Atualizar Preço Dinâmico (Soporte a Madrugada)
       if (event.type === 'divulgacao' && event.disclosurePrices?.length > 0) {
         let activePrice = null;
         let lastLimit = new Date(start.getTime());
@@ -144,73 +141,71 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [event, t, formatPriceWithOriginal, currentDisplayPrice]);
 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
-  
-  // Resiliência na leitura da categoria: tenta vários campos comuns
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
 
   return (
     <Card 
       ref={cardRef}
       className={cn(
-        "group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-2 hover:shadow-2xl rounded-[2rem] cursor-pointer relative",
-        isSponsored && "ring-2 ring-secondary/20",
+        "group overflow-hidden border-none shadow-md bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-2xl cursor-pointer relative",
+        isSponsored && "ring-1 ring-secondary/20",
         isEnded && "opacity-60 grayscale"
       )}
       onClick={() => router.push(`/${event.organizer?.username || 'evento'}/${event.id}`)}
     >
       {isSponsored && !isEnded && (
         <div className="absolute top-0 right-0 z-20">
-          <Badge className="bg-primary text-white rounded-none rounded-bl-2xl font-black text-[9px] uppercase px-4 py-2 flex items-center gap-1.5 shadow-lg">
-            <Megaphone className="w-3 h-3 text-secondary fill-secondary" /> {t('event.sponsored')}
+          <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg">
+            <Megaphone className="w-2.5 h-2.5 text-secondary fill-secondary" /> {t('event.sponsored')}
           </Badge>
         </div>
       )}
 
-      <div className="relative h-56 w-full bg-muted">
-        <Image src={versionedImageUrl || `https://picsum.photos/seed/${event.id}/600/400`} alt={event.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 group-hover:scale-110" unoptimized />
-        <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
+      <div className="relative h-48 w-full bg-muted">
+        <Image src={versionedImageUrl || `https://picsum.photos/seed/${event.id}/600/400`} alt={event.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 group-hover:scale-105" unoptimized />
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
           {liveStatus && (
-            <Badge className={cn("border-none shadow-xl px-4 py-1.5 text-[10px] font-black uppercase tracking-widest flex items-center gap-2", liveStatus.colorClass)}>
-              {liveStatus.icon && <liveStatus.icon className="w-3.5 h-3.5" />} {liveStatus.label}
+            <Badge className={cn("border-none shadow-md px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5", liveStatus.colorClass)}>
+              {liveStatus.icon && <liveStatus.icon className="w-3 h-3" />} {liveStatus.label}
             </Badge>
           )}
           {!isEnded && (
-            <div className="flex items-center gap-2">
-               <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1.5 rounded-xl shadow-lg" />
+            <div className="flex items-center gap-1.5">
+               <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-lg shadow-md" />
             </div>
           )}
         </div>
         
         {!isEnded && (
-          <div className="absolute bottom-4 right-4 flex items-center gap-2 z-10">
+          <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
             {displayCategory && (
-              <Badge className="bg-white/90 text-primary border-none shadow-2xl px-4 py-2 text-[10px] font-black uppercase flex items-center gap-1.5 ring-2 ring-primary/5">
-                <Tag className="w-3 h-3" /> {displayCategory}
+              <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1.5 text-[9px] font-black uppercase flex items-center gap-1">
+                <Tag className="w-2.5 h-2.5" /> {displayCategory}
               </Badge>
             )}
             {distance !== null && (
-              <Badge className="bg-white/95 text-secondary border-none shadow-2xl px-4 py-2 text-[11px] font-black uppercase flex items-center gap-1.5 ring-2 ring-secondary/10">
-                <Navigation className="w-3.5 h-3.5 fill-secondary" /> {distance < 1 ? `${(distance * 1000).toFixed(0)}m` : `${distance.toFixed(1)}km`}
+              <Badge className="bg-white/95 text-secondary border-none shadow-md px-3 py-1.5 text-[10px] font-black uppercase flex items-center gap-1">
+                <Navigation className="w-3 h-3 fill-secondary" /> {distance < 1 ? `${(distance * 1000).toFixed(0)}m` : `${distance.toFixed(1)}km`}
               </Badge>
             )}
           </div>
         )}
       </div>
 
-      <CardContent className="p-6 space-y-4">
+      <CardContent className="p-5 space-y-4">
         <div className="space-y-1">
           <div className="flex justify-between items-start gap-2">
-            <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title}</h3>
+            <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title}</h3>
             <EventInterest event={event} showButton={false} variant="compact" />
           </div>
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
+          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t border-dashed border-border/60">
+        <div className="flex items-center justify-between pt-3 border-t border-dashed border-border/60">
            <div className="flex flex-col gap-0.5">
-              <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">{t('event.when')}</p>
-              <div className="flex items-center gap-1.5 text-xs font-black text-primary">
-                 <Calendar className="w-3.5 h-3.5 text-secondary" />
+              <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{t('event.when')}</p>
+              <div className="flex items-center gap-1 text-[11px] font-black text-primary">
+                 <Calendar className="w-3 h-3 text-secondary" />
                  {eventDates.start.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
                  <span className="mx-0.5 opacity-20">|</span>
                  <Clock className="w-3 h-3 text-secondary/80" />
@@ -222,8 +217,8 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
            </div>
         </div>
 
-        <Button className="w-full h-12 bg-primary text-white font-black rounded-2xl uppercase italic text-[11px] gap-2 shadow-lg group-hover:bg-secondary">
-           {event.type === 'divulgacao' ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-4 h-4" />
+        <Button className="w-full h-10 bg-primary text-white font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary">
+           {event.type === 'divulgacao' ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
         </Button>
       </CardContent>
     </Card>
