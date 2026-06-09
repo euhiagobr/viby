@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Home, CalendarX, ArrowLeft } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
+/**
+ * @fileOverview Busca evento por Slug ou ID de forma resiliente.
+ */
 async function getEventBySlugOrId(username: string, slugOrId: string) {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -20,12 +23,13 @@ async function getEventBySlugOrId(username: string, slugOrId: string) {
     if (!usernameSnap.exists() || usernameSnap.data().type !== 'organization') return null;
     
     const orgId = usernameSnap.data().uid;
+    const normalizedSlug = slugOrId.toLowerCase().trim();
 
-    // 2. Tentar localizar o Evento pelo Slug
+    // 2. Tentar localizar o Evento pelo Slug (Case-Insensitive via normalização)
     const q = query(
       collection(db, "events"),
       where("organizationId", "==", orgId),
-      where("slug", "==", slugOrId),
+      where("slug", "==", normalizedSlug),
       limit(1)
     );
     const snap = await getDocs(q);
@@ -34,7 +38,7 @@ async function getEventBySlugOrId(username: string, slugOrId: string) {
       return { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
     }
 
-    // 3. Fallback: Tentar localizar pelo ID diretamente
+    // 3. Fallback: Tentar localizar pelo ID diretamente (Case-Sensitive como são IDs do Firestore)
     const eventRef = doc(db, "events", slugOrId);
     const eventSnap = await getDoc(eventRef);
     
@@ -111,7 +115,7 @@ export default async function EventoPublicoPage({ params }: { params: Promise<{ 
     );
   }
 
-  // Se o usuário acessou pelo ID mas o evento tem um slug diferente, redireciona para a URL amigável
+  // Redirecionamento de Canonização: Se acessou por ID ou slug com case errado, manda para o slug oficial
   if (event.slug && event.slug !== slug) {
     redirect(`/${username}/${event.slug}`);
   }
