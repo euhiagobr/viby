@@ -33,6 +33,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { BilheteriaPublic, EventInterest, EventSEO, EventCoOrganizers, EventStats } from "@/components/events"
+import { FollowButton } from "@/components/organizer/FollowButton"
 import Footer from "@/components/layout/Footer"
 import { AgeRatingBadge, AgeRatingWarning } from "@/lib/age-rating"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
@@ -354,9 +355,11 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                              <p className="text-[8px] font-black uppercase opacity-40 tracking-widest text-primary">Seguidores</p>
                              <p className="text-xl font-black italic tracking-tighter text-primary">{(org?.followersCount || 0).toLocaleString()}</p>
                           </div>
-                          <Button asChild variant="outline" className="h-9 px-4 rounded-xl border-secondary/20 text-secondary font-black uppercase italic text-[9px] hover:bg-secondary/5 transition-all">
-                             <Link href={`/${org?.username || username}`}>Seguir Marca</Link>
-                          </Button>
+                          <FollowButton 
+                            organizationId={event.organizationId} 
+                            username={org?.username || username} 
+                            className="h-9 px-4 text-[9px]"
+                          />
                        </div>
                        <AgeRatingWarning code={event.ageRating?.code || "free"} />
                     </div>
@@ -385,8 +388,17 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     {(event.interestedCount || 0).toLocaleString()} pessoas marcaram interesse nesta experiência. Faça parte do momento.
                  </p>
                  <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl">
-                    <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">Transação Segura</span>
+                    {isExternalSale ? (
+                       <>
+                          <ShieldCheck className="w-5 h-5 text-blue-500" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-primary">Link Oficial</span>
+                       </>
+                    ) : (
+                       <>
+                          <CheckCircle2 className="w-5 h-5 text-green-500" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-primary">Transação Segura</span>
+                       </>
+                    )}
                  </div>
               </Card>
            </aside>
