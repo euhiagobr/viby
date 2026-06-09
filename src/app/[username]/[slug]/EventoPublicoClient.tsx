@@ -18,16 +18,20 @@ import {
   CheckCircle2,
   Clock,
   ShieldCheck,
-  ArrowRight
+  ArrowRight,
+  Share2
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { BilheteriaPublic, EventInterest, EventShare, EventSEO, EventCoOrganizers } from "@/components/events"
+import { BilheteriaPublic, EventInterest, EventSEO, EventCoOrganizers } from "@/components/events"
 import Footer from "@/components/layout/Footer"
 import { AgeRatingBadge, AgeRatingWarning } from "@/lib/age-rating"
 import { useCurrency } from "@/contexts/CurrencyContext"
+import { UserNav } from "@/components/layout/UserNav"
+import { ShareModal } from "@/components/sharing/ShareModal"
+import { RichText } from "@/components/ui/rich-text"
 
 interface EventoPublicoClientProps {
   id: string
@@ -41,6 +45,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const { user } = useUser(auth)
   const { formatPriceWithOriginal } = useCurrency()
   
+  const [isShareModalOpen, setIsShareModalOpen] = React.useState(false)
+
   const eventRef = React.useMemo(() => (db && id) ? doc(db, "events", id) : null, [db, id])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
@@ -50,11 +56,16 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   )
   const { data: org } = useDoc<any>(organizationRef)
 
+  const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db])
+  const { data: settings } = useDoc<any>(settingsRef)
+  
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db])
   const { data: globalFees } = useDoc<any>(feesRef)
 
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
   const { data: promotions } = useDoc<any>(promosRef)
+
+  const siteName = settings?.siteName || "Viby"
 
   React.useEffect(() => {
     if (id) {
@@ -86,6 +97,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
       <EventSEO event={event} username={username} />
       
+      {/* HEADER PADRONIZADO DO SITE */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -93,28 +105,30 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                 <ArrowLeft className="w-5 h-5" />
              </Button>
              <Link href="/" className="flex items-center gap-2 group">
-                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg transition-transform group-hover:scale-110">
-                   <span className="text-white font-black text-lg italic">V</span>
-                </div>
-                <span className="text-xl font-bold tracking-tight italic uppercase hidden sm:inline">Viby</span>
+                {settings?.logoUrl ? (
+                  <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-10 w-auto object-contain" priority unoptimized />
+                ) : (
+                  <span className="text-xl font-bold tracking-tight italic uppercase">{siteName}</span>
+                )}
              </Link>
           </div>
-          <div className="flex items-center gap-3">
-             <EventShare eventId={id} title={event.title} url={`/${username}/${event.slug || id}`} />
-             {user ? (
-                <Button variant="ghost" asChild className="font-bold text-[10px] uppercase tracking-widest px-4 h-9">
-                   <Link href="/dashboard">Meu Painel</Link>
-                </Button>
-             ) : (
-                <Button asChild className="bg-primary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 h-9">
-                   <Link href="/login">Entrar</Link>
-                </Button>
+          <div className="flex items-center gap-4">
+             {user ? <UserNav /> : (
+                <>
+                  <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest">
+                    <Link href="/login">Entrar</Link>
+                  </Button>
+                  <Button asChild className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/20">
+                    <Link href="/cadastro">Criar Conta</Link>
+                  </Button>
+                </>
              )}
           </div>
         </div>
       </nav>
 
       <main className="flex-1 container mx-auto px-4 py-8 md:py-12 max-w-6xl space-y-12">
+        {/* BANNER DE CAPA PREMIUM */}
         <section className="relative h-[400px] md:h-[550px] w-full rounded-[2.5rem] md:rounded-[4rem] overflow-hidden shadow-2xl border-4 border-white">
            <Image 
              src={event.image || "https://picsum.photos/seed/event/1200/800"} 
@@ -129,7 +143,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
               <div className="max-w-4xl space-y-6">
                  <div className="flex flex-wrap gap-3">
                     <Badge className="bg-secondary text-white border-none px-5 h-7 rounded-full font-black uppercase italic text-[10px] tracking-widest shadow-lg">
-                       {event.categoryName || "Evento"}
+                       {event.categoryName || "Experiência"}
                     </Badge>
                     {isEnded && <Badge className="bg-red-500 text-white border-none px-5 h-7 rounded-full font-black uppercase text-[10px] tracking-widest">Encerrado</Badge>}
                     <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-xl shadow-lg h-7" showLabel />
@@ -152,11 +166,10 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Sobre a Experiência</h2>
                  </div>
                  <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden p-8 md:p-12">
-                    <div className="prose prose-slate max-w-none">
-                       <p className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed whitespace-pre-line">
-                          {event.description}
-                       </p>
-                    </div>
+                    <RichText 
+                      content={event.description} 
+                      className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed" 
+                    />
                  </Card>
               </section>
 
@@ -200,7 +213,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                           <div className="space-y-1">
                              <div className="flex items-center gap-1.5">
                                 <h4 className="font-black text-lg uppercase italic leading-none">{org?.name || "Organizador"}</h4>
-                                {org?.verified && <BadgeCheck className="w-4 h-4 fill-secondary text-primary" />}
+                                {(org?.verified || org?.isVerified) && <BadgeCheck className="w-4 h-4 fill-secondary text-primary" />}
                              </div>
                              <p className="text-[10px] font-bold uppercase opacity-60">@{org?.username || username}</p>
                           </div>
@@ -214,9 +227,16 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                        <AgeRatingWarning code={event.ageRating?.code || "free"} />
                     </div>
 
-                    <div className="pt-4">
+                    <div className="grid grid-cols-1 gap-3">
                        <Button asChild className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm hover:scale-105 transition-transform">
                           <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-5 h-5" /></Link>
+                       </Button>
+                       <Button 
+                         variant="outline"
+                         onClick={() => setIsShareModalOpen(true)}
+                         className="w-full h-12 rounded-2xl border-white/20 text-white hover:bg-white/10 font-black uppercase italic text-[10px] gap-2"
+                       >
+                          <Share2 className="w-4 h-4" /> Compartilhar Experiência
                        </Button>
                     </div>
                  </div>
@@ -239,6 +259,24 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
            </aside>
         </div>
       </main>
+
+      {org && (
+        <ShareModal 
+          isOpen={isShareModalOpen} 
+          onOpenChange={setIsShareModalOpen} 
+          data={{
+            title: event.title,
+            username: username,
+            url: `/${username}/${event.slug || event.id}`,
+            logoUrl: event.image,
+            type: 'event',
+            organizationId: event.organizationId,
+            eventId: id,
+            verified: org.verified || org.isVerified
+          }}
+        />
+      )}
+
       <Footer />
     </div>
   )

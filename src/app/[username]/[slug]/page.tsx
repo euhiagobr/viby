@@ -14,13 +14,15 @@ async function getEventData(username: string, param: string) {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     
-    const usernameRef = doc(db, "usernames", username.toLowerCase());
+    // Resolve o ID da organização pelo username
+    const usernameRef = doc(db, "usernames", username.toLowerCase().trim());
     const usernameSnap = await getDoc(usernameRef);
     if (!usernameSnap.exists()) return null;
     
     const orgId = usernameSnap.data().uid;
     const normalizedParam = param.trim();
 
+    // 1. Tentar buscar por ID (direto)
     const eventIdRef = doc(db, "events", normalizedParam);
     const eventIdSnap = await getDoc(eventIdRef);
     
@@ -31,6 +33,7 @@ async function getEventData(username: string, param: string) {
       }
     }
 
+    // 2. Tentar buscar por Slug
     const slugLower = normalizedParam.toLowerCase();
     const q = query(
       collection(db, "events"),
@@ -46,20 +49,21 @@ async function getEventData(username: string, param: string) {
 
     return null;
   } catch (e) {
+    console.error("[Event Route Resolver] Error:", e);
     return null;
   }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<Metadata> {
-  const resolvedParams = await params;
-  const event = await getEventData(resolvedParams.username, resolvedParams.slug);
+  const { username, slug } = await params;
+  const event = await getEventData(username, slug);
   if (!event) return { title: 'Evento não encontrado' };
   return { title: `${event.title} | Viby` };
 }
 
 export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }) {
-  const resolvedParams = await params;
-  const event = await getEventData(resolvedParams.username, resolvedParams.slug);
+  const { username, slug } = await params;
+  const event = await getEventData(username, slug);
 
   if (!event) {
     return (
@@ -85,9 +89,10 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  if (event.slug && event.slug !== resolvedParams.slug) {
-    redirect(`/${resolvedParams.username}/${event.slug}`);
+  // Redirecionamento Canônico: Se entrou via ID mas existe um Slug, redireciona para a URL amigável
+  if (event.slug && event.slug !== slug) {
+    redirect(`/${username}/${event.slug}`);
   }
 
-  return <EventoPublicoClient id={event.id} username={resolvedParams.username} />;
+  return <EventoPublicoClient id={event.id} username={username} />;
 }
