@@ -11,9 +11,8 @@ import {
   BadgeCheck, 
   ShieldCheck, 
   Share2,
-  Clock,
-  Coins,
-  ExternalLink
+  ExternalLink,
+  Coins
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

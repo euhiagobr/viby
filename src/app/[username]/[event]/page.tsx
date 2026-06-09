@@ -11,7 +11,7 @@ import { redirect } from 'next/navigation';
 
 /**
  * @fileOverview Rota Unificada Master de Eventos.
- * Resolve o evento por ID ou Slug, eliminando conflitos de roteamento.
+ * Resolve o evento por ID ou Slug, eliminando conflitos de roteamento dinâmico.
  */
 
 async function getEventData(username: string, eventParam: string) {
@@ -26,7 +26,7 @@ async function getEventData(username: string, eventParam: string) {
     const orgId = usernameSnap.data().uid;
     const normalizedParam = eventParam.trim();
 
-    // 1. Tentar por ID (Prioridade)
+    // 1. Tentar por ID (Prioridade para links internos/legados)
     const eventIdRef = doc(db, "events", normalizedParam);
     const eventIdSnap = await getDoc(eventIdRef);
     
@@ -37,7 +37,7 @@ async function getEventData(username: string, eventParam: string) {
       }
     }
 
-    // 2. Tentar por Slug
+    // 2. Tentar por Slug (SEO / URLs Amigáveis)
     const slugLower = normalizedParam.toLowerCase();
     const q = query(
       collection(db, "events"),
@@ -107,7 +107,7 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  // Se acessou por ID, mas existe Slug, redireciona para a URL amigável
+  // Redirecionamento Canônico: Se acessou por ID mas existe Slug, manda para a URL bonita
   if (event.slug && event.slug !== resolvedParams.event) {
     redirect(`/${resolvedParams.username}/${event.slug}`);
   }
