@@ -2,18 +2,19 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    
+    // --- FUNÇÕES DE AUXÍLIO ---
+    
     function isSignedIn() {
       return request.auth != null;
     }
 
     // Função central de autorização administrativa para o Storage
+    // Adicionado check direto de UID mestre para máxima resiliência
     function isAdmin() {
       return isSignedIn() && (
-        // 1. UID Mestre para Bootstrap (AqTVL8VRTZT435pZudkObzMGsrR2)
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
-        // 2. Custom Claims (se existirem)
         request.auth.token.admin == true ||
-        // 3. Verificação na coleção de administradores do Firestore
         firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid))
       );
     }
@@ -22,7 +23,7 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Regra Global de Leitura (Pública para vitrines)
+    // Regra Global de Leitura (Pública para vitrines e SEO)
     match /{allPaths=**} {
       allow read: if true;
     }

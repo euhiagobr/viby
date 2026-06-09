@@ -120,7 +120,10 @@ export default function AdminConfiguracoesPage() {
     try {
       const fileName = `admin/site/${type}_${Date.now()}`;
       const storageRef = ref(storage, fileName);
-      const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
+      const uploadTask = uploadBytesResumable(storageRef, file, {
+        cacheControl: 'public,max-age=31536000,immutable',
+        customMetadata: { uploadedBy: user.uid }
+      });
 
       uploadTask.on('state_changed', 
         (snapshot) => {
@@ -128,8 +131,9 @@ export default function AdminConfiguracoesPage() {
           setUploadProgress(prev => ({ ...prev, [type]: progress }));
         },
         (error) => {
+          console.error("[Config-Upload] Logo Fail:", error);
           setUploadProgress(prev => ({ ...prev, [type]: null }));
-          toast({ variant: "destructive", title: "Erro no Upload", description: error.message });
+          toast({ variant: "destructive", title: "Erro de Permissão", description: "Verifique seu nível de acesso administrativo." });
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
@@ -146,7 +150,11 @@ export default function AdminConfiguracoesPage() {
 
   const handleHeaderUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
-    if (!file || !storage || !user) return;
+    // Validação robusta de sessão e instância
+    if (!file || !storage || !user || !auth.currentUser) {
+      toast({ variant: "destructive", title: "Sessão inválida", description: "Aguarde a sincronização da sua identidade de administrador." });
+      return;
+    }
 
     const progressKey = `header_${index}`;
     setUploadProgress(prev => ({ ...prev, [progressKey]: 0 }));
@@ -154,7 +162,17 @@ export default function AdminConfiguracoesPage() {
     try {
       const fileName = `admin/site/headers/banner_${index}_${Date.now()}`;
       const storageRef = ref(storage, fileName);
-      const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
+      
+      // Metadata é importante para auditoria no Storage
+      const metadata = {
+        cacheControl: 'public,max-age=31536000,immutable',
+        customMetadata: {
+          adminUid: user.uid,
+          slot: index.toString()
+        }
+      };
+
+      const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
       uploadTask.on('state_changed', 
         (snapshot) => {
@@ -162,11 +180,12 @@ export default function AdminConfiguracoesPage() {
           setUploadProgress(prev => ({ ...prev, [progressKey]: progress }));
         },
         (error) => {
+          console.error("[Config-Upload] Header Fail:", error.code, error.message);
           setUploadProgress(prev => ({ ...prev, [progressKey]: null }));
           toast({ 
             variant: "destructive", 
-            title: "Erro de Permissão", 
-            description: `Falha ao gravar no Storage: ${error.message}` 
+            title: "Acesso Negado (403)", 
+            description: "O Storage não reconheceu sua permissão de Admin. Tente recarregar a página." 
           });
         },
         async () => {
@@ -268,7 +287,7 @@ export default function AdminConfiguracoesPage() {
                           <Upload className="w-6 h-6" />
                        </label>
                        <input id="logo-up" type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'logoUrl')} />
-                       {uploadProgress.logoUrl !== null && <Progress value={uploadProgress.logoUrl} className="absolute bottom-0 h-1" />}
+                       {uploadProgress.logoUrl !== null && uploadProgress.logoUrl !== undefined && <Progress value={uploadProgress.logoUrl} className="absolute bottom-0 h-1" />}
                     </div>
                  </div>
                  <div className="space-y-4">
@@ -281,7 +300,7 @@ export default function AdminConfiguracoesPage() {
                           <Upload className="w-6 h-6" />
                        </label>
                        <input id="icon-up" type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'siteIconUrl')} />
-                       {uploadProgress.siteIconUrl !== null && <Progress value={uploadProgress.siteIconUrl} className="absolute bottom-0 h-1" />}
+                       {uploadProgress.siteIconUrl !== null && uploadProgress.siteIconUrl !== undefined && <Progress value={uploadProgress.siteIconUrl} className="absolute bottom-0 h-1" />}
                     </div>
                  </div>
               </div>
