@@ -1,0 +1,61 @@
+
+{
+  "collections": {
+    "users": {
+      "new_fields": {
+        "affiliateCode": "string (único)",
+        "referredBy": "string (UID do afiliado)",
+        "affiliateExpireAt": "timestamp (cadastro + 365 dias)",
+        "isAffiliateActive": "boolean"
+      }
+    },
+    "organizations": {
+      "new_fields": {
+        "originalAffiliateId": "string (congelado)",
+        "affiliateExpireAt": "timestamp (congelado)",
+        "originalOwnerId": "string (congelado)"
+      }
+    },
+    "affiliate_stats": {
+      "description": "Consolidado de performance do afiliado.",
+      "fields": {
+        "userId": "string (PK)",
+        "totalTicketsSold": "number",
+        "totalUsersReferred": "number",
+        "totalOrgsLinked": "number",
+        "currentLevel": "number (0-6)",
+        "balanceAvailable": "number",
+        "balancePending": "number",
+        "totalWithdrawn": "number",
+        "totalEarned": "number",
+        "updatedAt": "timestamp"
+      }
+    },
+    "affiliate_commissions": {
+      "description": "Registros individuais de ganhos.",
+      "fields": {
+        "affiliateId": "string",
+        "referredUserId": "string",
+        "organizationId": "string",
+        "eventId": "string",
+        "registrationId": "string",
+        "amount": "number",
+        "status": "pending | available | cancelled | reversed",
+        "availableAt": "timestamp (segurança)",
+        "createdAt": "timestamp"
+      }
+    },
+    "affiliate_payouts": {
+      "description": "Solicitações de saque.",
+      "fields": {
+        "userId": "string",
+        "amount": "number",
+        "pixKey": "string",
+        "pixType": "string",
+        "status": "Pendente | Em análise | Pago | Cancelado",
+        "processedAt": "timestamp",
+        "createdAt": "timestamp"
+      }
+    }
+  }
+}

@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 import { doc, getDoc, runTransaction, serverTimestamp, increment } from "firebase/firestore"
@@ -18,6 +19,7 @@ import Image from "next/image"
 import { updateUserCPF } from "@/app/actions/user"
 import { maskCPF } from "@/lib/crypto-utils"
 import { sendWelcomeEmail, sendAdminNewUserAlert } from "@/app/actions/email"
+import { generateAffiliateCode } from "@/lib/affiliate-utils"
 
 const DEFAULT_PROFILE_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media";
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -40,6 +42,7 @@ function CadastroContent() {
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid' | 'taken'>('idle')
   
   const router = useRouter()
+  const searchParams = useSearchParams()
   const auth = useAuth()
   const { user, profile, loading: authLoading, isInitialized } = useUser(auth)
   const db = useFirestore()
@@ -65,7 +68,6 @@ function CadastroContent() {
     }
     const newUsername = username.toLowerCase().trim()
     
-    // Check reserved list
     if (RESERVED_USERNAMES.includes(newUsername)) {
       setUsernameStatus('taken')
       return
@@ -108,8 +110,24 @@ function CadastroContent() {
 
       await updateProfile(userInstance, { displayName: name })
 
+      // Capturar afiliado via query param ou cookie
+      const refCode = searchParams.get('ref')?.toUpperCase();
+      let referredBy = null;
+      let expireAt = null;
+
+      if (refCode) {
+        const refSnap = await getDoc(doc(db, "affiliate_codes", refCode));
+        if (refSnap.exists()) {
+           referredBy = refSnap.data().userId;
+           const now = new Date();
+           expireAt = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+        }
+      }
+
       const cleanCPF = cpf.replace(/\D/g, "");
       const finalUsername = username.toLowerCase().trim();
+      const affiliateCode = generateAffiliateCode(name);
+      
       const userData = {
         uid: userInstance.uid,
         name,
@@ -122,13 +140,15 @@ function CadastroContent() {
         profileComplete: true,
         role: "user",
         status: "Ativo",
-        followingCount: 1, // Começa seguindo a Viby
+        followingCount: 1,
+        affiliateCode,
+        referredBy,
+        affiliateExpireAt: expireAt ? expireAt.toISOString() : null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
 
       await runTransaction(db, async (transaction) => {
-        // 1. Índices e Perfil
         transaction.set(doc(db, "usernames", finalUsername), { 
           uid: userInstance.uid, 
           type: 'user', 
@@ -136,34 +156,39 @@ function CadastroContent() {
           username: finalUsername 
         })
         transaction.set(doc(db, "users", userInstance.uid), userData)
+        transaction.set(doc(db, "affiliate_codes", affiliateCode), { userId: userInstance.uid, createdAt: serverTimestamp() })
+        
+        transaction.set(doc(db, "affiliate_stats", userInstance.uid), {
+          userId: userInstance.uid,
+          totalTicketsSold: 0,
+          totalUsersReferred: 0,
+          totalOrgsLinked: 0,
+          currentLevel: 0,
+          balanceAvailable: 0,
+          balancePending: 0,
+          totalWithdrawn: 0,
+          totalEarned: 0,
+          updatedAt: serverTimestamp()
+        });
 
-        // 2. Auto-follow Viby Oficial
+        if (referredBy) {
+          const statsRef = doc(db, "affiliate_stats", referredBy);
+          transaction.update(statsRef, {
+             totalUsersReferred: increment(1),
+             updatedAt: serverTimestamp()
+          });
+        }
+
         const followRef = doc(db, "follows", `${userInstance.uid}_${VIBY_OFFICIAL_UID}`);
         const vibyOrgRef = doc(db, "organizations", VIBY_OFFICIAL_UID);
-        
-        transaction.set(followRef, {
-          followerId: userInstance.uid,
-          followingId: VIBY_OFFICIAL_UID,
-          targetType: 'organization',
-          timestamp: serverTimestamp()
-        });
-        
-        transaction.update(vibyOrgRef, { 
-          followersCount: increment(1),
-          updatedAt: serverTimestamp() 
-        });
+        transaction.set(followRef, { followerId: userInstance.uid, followingId: VIBY_OFFICIAL_UID, targetType: 'organization', timestamp: serverTimestamp() });
+        transaction.update(vibyOrgRef, { followersCount: increment(1), updatedAt: serverTimestamp() });
       });
 
       await updateUserCPF(userInstance.uid, cleanCPF);
       
-      // Notificações
       sendWelcomeEmail({ to: email, userName: name }).catch(() => {});
-      sendAdminNewUserAlert({
-        userName: name,
-        username: finalUsername,
-        email: userData.email,
-        uid: userInstance.uid
-      }).catch(() => {});
+      sendAdminNewUserAlert({ userName: name, username: finalUsername, email: userData.email, uid: userInstance.uid }).catch(() => {});
 
       toast({ title: "Bem-vindo ao clube!" })
     } catch (error: any) {

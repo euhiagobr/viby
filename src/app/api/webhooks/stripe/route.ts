@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
+import { getAffiliateLevel, AFFILIATE_SAFETY_DAYS } from '@/lib/affiliate-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,20 +61,17 @@ export async function POST(req: Request) {
                   updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
 
-                // Lógica de Comissão de Afiliado
                 const orgRef = db.collection("organizations").doc(item.organizationId);
                 const orgSnap = await transaction.get(orgRef);
                 const regIds: string[] = [];
 
                 if (orgSnap.exists) {
                   const org = orgSnap.data()!;
-                  const now = new Date();
-                  const affStart = org.affiliateStartDate ? new Date(org.affiliateStartDate) : null;
-                  const affEnd = org.affiliateEndDate ? new Date(org.affiliateEndDate) : null;
-
-                  const isAffiliateActive = org.affiliateUserId && 
-                    (!affStart || now >= affStart) && 
-                    (!affEnd || now <= affEnd);
+                  
+                  // LÓGICA DE AFILIADO VIBY PROGRAM (Automático)
+                  const affiliateId = org.originalAffiliateId;
+                  const affExpireAt = org.affiliateExpireAt ? new Date(org.affiliateExpireAt) : null;
+                  const isAffiliateValid = affiliateId && affExpireAt && new Date() <= affExpireAt;
 
                   for (let j = 0; j < item.quantity; j++) {
                     const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -108,108 +106,49 @@ export async function POST(req: Request) {
                       ticketCode,
                       stripeSessionId: session.id,
                       orderId,
+                      affiliateId: isAffiliateValid ? affiliateId : null,
                       confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
                       createdAt: admin.firestore.FieldValue.serverTimestamp(),
                       timestamp: admin.firestore.FieldValue.serverTimestamp()
                     });
                   }
 
-                  if (isAffiliateActive) {
-                    const affCodeSnap = await transaction.get(db.collection("affiliateCodes").doc(org.affiliateCode));
-                    if (affCodeSnap.exists) {
-                      const affCodeData = affCodeSnap.data()!;
-                      const commissionValue = affCodeData.commissionValue || 0;
-                      const totalCommission = commissionValue * item.quantity;
+                  if (isAffiliateValid) {
+                    const statsRef = db.collection("affiliate_stats").doc(affiliateId);
+                    const statsSnap = await transaction.get(statsRef);
+                    const stats = statsSnap.data() || { totalTicketsSold: 0 };
+                    
+                    const level = getAffiliateLevel(stats.totalTicketsSold + item.quantity);
+                    const commissionAmount = level.commission * item.quantity;
+                    const availableDate = new Date();
+                    availableDate.setDate(availableDate.getDate() + AFFILIATE_SAFETY_DAYS);
 
-                      const commRef = db.collection("affiliateCommissions").doc();
-                      transaction.set(commRef, {
-                        affiliateUserId: org.affiliateUserId,
-                        affiliateCode: org.affiliateCode,
-                        organizationId: item.organizationId,
-                        eventId: item.eventId,
-                        orderId,
-                        registrationIds: regIds,
-                        quantity: item.quantity,
-                        commissionPerTicket: commissionValue,
-                        totalCommission,
-                        status: 'pending',
-                        createdAt: admin.firestore.FieldValue.serverTimestamp()
-                      });
-                    }
+                    const commRef = db.collection("affiliate_commissions").doc();
+                    transaction.set(commRef, {
+                      affiliateId,
+                      referredUserId: org.originalOwnerId,
+                      organizationId: item.organizationId,
+                      eventId: item.eventId,
+                      registrationIds: regIds,
+                      amount: commissionAmount,
+                      status: 'pending',
+                      availableAt: admin.firestore.Timestamp.fromDate(availableDate),
+                      createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    transaction.update(statsRef, {
+                       totalTicketsSold: admin.firestore.FieldValue.increment(item.quantity),
+                       balancePending: admin.firestore.FieldValue.increment(commissionAmount),
+                       totalEarned: admin.firestore.FieldValue.increment(commissionAmount),
+                       currentLevel: level.level,
+                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
                   }
                 }
               }
               transaction.update(orderRef, { status: 'paid', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
             });
           }
-        }
-        
-        if (session.metadata?.type === 'ad_topup' && session.metadata?.orgId) {
-          const { orgId, baseAmount, couponCode, totalToPay } = session.metadata;
-          const amount = parseFloat(baseAmount);
-          const orgRef = db.collection("organizations").doc(orgId);
-          
-          await db.runTransaction(async (transaction) => {
-            const orgSnap = await transaction.get(orgRef);
-            if (orgSnap.exists) {
-              transaction.update(orgRef, {
-                adBalance: admin.firestore.FieldValue.increment(amount),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-              });
-              
-              const txRef = orgRef.collection("transactions").doc();
-              transaction.set(txRef, {
-                type: 'ad_topup',
-                amount: amount,
-                totalCharged: parseFloat(totalToPay),
-                status: 'completed',
-                couponCode: couponCode || null,
-                stripeSessionId: session.id,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-              });
-
-              const taxRef = db.collection("tax_ads").doc();
-              transaction.set(taxRef, {
-                orgId,
-                orgName: orgSnap.data()?.name || 'Marca',
-                adTitle: 'Recarga Saldo Ads',
-                grossValue: amount,
-                netValue: amount,
-                taxValue: Number((amount * 0.11).toFixed(2)),
-                nfStatus: 'pendente',
-                status: 'ativo',
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-              });
-
-              if (couponCode) {
-                 const couponQ = await db.collection("ad_coupons").where("code", "==", couponCode).limit(1).get();
-                 if (!couponQ.empty) {
-                    transaction.update(couponQ.docs[0].ref, {
-                       currentUses: admin.firestore.FieldValue.increment(1),
-                       updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                 }
-              }
-            }
-          });
-        }
-        break;
-      }
-
-      case 'charge.refunded': {
-        const charge = event.data.object as Stripe.Charge;
-        const paymentIntentId = charge.payment_intent as string;
-        if (paymentIntentId) {
-          const regsSnap = await db.collection("registrations").where("paymentIntentId", "==", paymentIntentId).get();
-          const batch = db.batch();
-          regsSnap.forEach(regDoc => {
-            batch.update(regDoc.ref, { 
-              status: 'refunded', 
-              paymentStatus: 'Estornado (Stripe)',
-              updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-            });
-          });
-          await batch.commit();
         }
         break;
       }

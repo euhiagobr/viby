@@ -1,10 +1,11 @@
+
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useDoc } from "@/firebase"
-import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore"
+import { doc, getDoc, runTransaction, serverTimestamp, increment } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -79,7 +80,7 @@ const RESERVED_USERNAMES = [
 export default function NovaOrganizacaoPage() {
   const router = useRouter()
   const auth = useAuth()
-  const { user } = useUser(auth)
+  const { user, profile } = useUser(auth)
   const db = useFirestore()
   const app = useFirebaseApp()
 
@@ -220,8 +221,8 @@ export default function NovaOrganizacaoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!db || !user || usernameStatus !== 'valid') {
-        toast({ variant: "destructive", title: "Verifique os dados", description: "O nome de usuário escolhido não está disponível." })
+    if (!db || !user || !profile || usernameStatus !== 'valid') {
+        toast({ variant: "destructive", title: "Verifique os dados" })
         return
     }
 
@@ -269,15 +270,6 @@ export default function NovaOrganizacaoPage() {
           finalData.razaoSocial = "";
           finalData.nomeFantasia = "";
           finalData.representanteLegalCpf = "";
-        } else {
-          if (finalData.tipoOrganizacao === 'individual') {
-            finalData.cnpj = "";
-            finalData.razaoSocial = "";
-            finalData.nomeFantasia = "";
-            finalData.representanteLegalCpf = "";
-          } else {
-            finalData.cpf = "";
-          }
         }
 
         // Aliases para busca rápida
@@ -290,9 +282,17 @@ export default function NovaOrganizacaoPage() {
           neighborhood: finalData.address.neighborhood
         };
 
+        // Regras de Afiliado CONGELADAS
+        const affiliateData = {
+           originalAffiliateId: profile.referredBy || null,
+           affiliateExpireAt: profile.affiliateExpireAt || null,
+           originalOwnerId: user.uid
+        };
+
         transaction.set(orgRef, {
           id: orgId,
           ...searchableData,
+          ...affiliateData,
           username: normalizedUsername,
           slug: normalizedUsername,
           createdBy: user.uid,
@@ -311,6 +311,14 @@ export default function NovaOrganizacaoPage() {
           status: 'accepted',
           createdAt: serverTimestamp()
         })
+        
+        if (profile.referredBy) {
+          const statsRef = doc(db, "affiliate_stats", profile.referredBy);
+          transaction.update(statsRef, {
+             totalOrgsLinked: increment(1),
+             updatedAt: serverTimestamp()
+          });
+        }
       })
 
       toast({ title: "Organização criada!", description: "Sua marca está pronta para brilhar!" })
