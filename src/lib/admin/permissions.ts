@@ -23,14 +23,16 @@ export const ROLE_PERMISSIONS_MATRIX: Record<AdminRole, AdminPermission[]> = {
     'events.view', 'events.edit', 'events.approve', 'events.reject', 'events.hide',
     'tickets.view', 'tickets.reply', 'tickets.close',
     'reports.view',
-    'marketing.emails'
+    'marketing.emails',
+    'settings.view'
   ],
   support: [
     'dashboard.view',
     'users.view',
     'organizations.view',
     'events.view',
-    'tickets.view', 'tickets.reply', 'tickets.close'
+    'tickets.view', 'tickets.reply', 'tickets.close',
+    'settings.view'
   ],
   financial: [
     'dashboard.view',
