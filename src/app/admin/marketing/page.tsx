@@ -34,8 +34,7 @@ export default function AdminMarketingEmailPage() {
   const [formData, setFormData] = React.useState({
     to: "",
     subject: "",
-    content: "",
-    senderName: ""
+    content: ""
   });
 
   const siteSettingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db]);
@@ -70,6 +69,7 @@ export default function AdminMarketingEmailPage() {
   };
 
   const isConfigured = !!emailSettings?.smtpUser && !!emailSettings?.smtpPass;
+  const siteName = siteSettings?.siteName || "Viby";
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -78,7 +78,7 @@ export default function AdminMarketingEmailPage() {
           <Send className="w-8 h-8 text-secondary" />
           E-mail Marketing Manual
         </h1>
-        <p className="text-muted-foreground font-medium">Disparo individual de comunicados utilizando suas credenciais oficiais.</p>
+        <p className="text-muted-foreground font-medium">Disparo individual utilizando as credenciais e identidade visual oficial da plataforma.</p>
       </div>
 
       {!isConfigured && !loadingEmail && (
@@ -106,7 +106,7 @@ export default function AdminMarketingEmailPage() {
                <form onSubmit={handleSend} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Para (E-mail)</Label>
+                       <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Para (E-mail)</Label>
                        <div className="relative">
                           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
                           <Input 
@@ -120,14 +120,13 @@ export default function AdminMarketingEmailPage() {
                        </div>
                     </div>
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Nome do Remetente (Opcional)</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Remetente Oficial</Label>
                        <div className="relative">
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
                           <Input 
-                            placeholder={siteSettings?.siteName || "Viby"} 
-                            value={formData.senderName}
-                            onChange={e => setFormData({...formData, senderName: e.target.value})}
-                            className="pl-10 rounded-xl h-11" 
+                            value={siteName}
+                            readOnly
+                            className="pl-10 rounded-xl h-11 bg-muted/50 cursor-not-allowed font-bold" 
                           />
                        </div>
                     </div>
@@ -160,7 +159,7 @@ export default function AdminMarketingEmailPage() {
                     disabled={loading || !isConfigured} 
                     className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.01] transition-transform"
                   >
-                     {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Send className="w-6 h-6 mr-2" />}
+                     {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Send className="w-5 h-5 mr-2" />}
                      Disparar Agora
                   </Button>
                </form>
@@ -183,7 +182,7 @@ export default function AdminMarketingEmailPage() {
                        <div className="p-6 border-b flex justify-center bg-white">
                           {siteSettings?.logoUrl ? (
                              <img src={siteSettings.logoUrl} className="h-8 object-contain" alt="Logo" />
-                          ) : <span className="font-black italic text-xl uppercase">{siteSettings?.siteName || "Viby"}</span>}
+                          ) : <span className="font-black italic text-xl uppercase">{siteName}</span>}
                        </div>
                        <div className="p-8 space-y-6">
                           {formData.subject && <h2 className="font-black text-lg text-primary leading-tight">{formData.subject}</h2>}
@@ -192,7 +191,7 @@ export default function AdminMarketingEmailPage() {
                           </div>
                        </div>
                        <div className="p-6 bg-slate-50 border-t text-center">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">© 2026 {siteSettings?.siteName || "Viby"} • Porto Alegre, RS</p>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">© 2026 {siteName} • Porto Alegre, RS</p>
                        </div>
                     </div>
                  </div>
@@ -202,9 +201,9 @@ export default function AdminMarketingEmailPage() {
            <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
               <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
               <div className="space-y-1">
-                 <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Dica de Envio</h4>
+                 <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Reputação de Envio</h4>
                  <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-                    O sistema utiliza o template padrão do Viby. CLUB. O e-mail será enviado através de sua conta <strong>{emailSettings?.smtpUser || "não configurada"}</strong>. Certifique-se de que o destinatário autorizou o recebimento.
+                    O e-mail será enviado como <strong>"{siteName}"</strong> através de sua conta <strong>{emailSettings?.smtpUser || "não configurada"}</strong>, seguindo os mesmos padrões técnicos das notificações de sistema para maximizar a entregabilidade.
                  </p>
               </div>
            </div>

@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -86,7 +85,7 @@ function getEmailTemplate(branding: any, content: string) {
   `;
 }
 
-export async function sendManualMarketingEmail(data: { to: string; subject: string; content: string; senderName?: string }) {
+export async function sendManualMarketingEmail(data: { to: string; subject: string; content: string }) {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
@@ -97,8 +96,9 @@ export async function sendManualMarketingEmail(data: { to: string; subject: stri
     const formattedBody = data.content.replace(/\n/g, '<br>');
     const htmlContent = getEmailTemplate(branding, `<div style="font-size: 16px; line-height: 1.6; color: #334155;">${formattedBody}</div>`);
 
+    // Sincroniza o 'from' exatamente como os e-mails de sistema para evitar detecção de spam
     await transporter.sendMail({
-      from: `"${data.senderName || branding.siteName}" <${smtpUser}>`,
+      from: `"${branding.siteName}" <${smtpUser}>`,
       to: data.to,
       subject: data.subject,
       html: htmlContent
@@ -110,7 +110,7 @@ export async function sendManualMarketingEmail(data: { to: string; subject: stri
       subject: data.subject,
       content: htmlContent,
       type: "manual_marketing",
-      sender: data.senderName || "Viby Marketing"
+      sender: `Viby Marketing (${branding.siteName})`
     });
 
     return { success: true };
@@ -356,7 +356,7 @@ export async function sendSupportTicketReceivedEmail(data: { to: string; userNam
       from: `"${branding.siteName} Suporte" <${smtpUser}>`,
       to: data.to,
       subject: `🎧 Chamado aberto: #${data.ticketNumber}`,
-      html: getEmailTemplate(branding, content)
+      html: htmlContent
     });
 
     return { success: true };
