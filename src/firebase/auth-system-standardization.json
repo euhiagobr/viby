@@ -1,0 +1,36 @@
+
+{
+  "auth_standard": "Firebase Modular SDK (v9+)",
+  "implementation": {
+    "initialization": "src/firebase/auth.ts",
+    "usage_pattern": "Functional imports (e.g., createUserWithEmailAndPassword(auth, email, password))",
+    "collections": {
+      "users": {
+        "path": "/users/{uid}",
+        "fields": {
+          "uid": "string",
+          "email": "string",
+          "username": "string",
+          "name": "string",
+          "gender": "string",
+          "plan": "string",
+          "status": "string",
+          "profileComplete": "boolean",
+          "referredBy": "string | null",
+          "affiliateExpireAt": "iso-date | null",
+          "createdAt": "serverTimestamp",
+          "updatedAt": "serverTimestamp"
+        }
+      },
+      "usernames": {
+        "path": "/usernames/{username}",
+        "fields": {
+          "uid": "string",
+          "type": "string",
+          "email": "string",
+          "username": "string"
+        }
+      }
+    }
+  }
+}

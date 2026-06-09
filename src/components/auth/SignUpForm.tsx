@@ -8,7 +8,8 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useAuth, useUser, useFirestore } from "@/firebase";
+import { useAuth, useFirestore } from "@/firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Check, X, AtSign, Fingerprint, Lock, User, Mail } from "lucide-react";
 import { FirebaseError } from "firebase/app";
@@ -123,11 +124,11 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Username inválido ou ocupado", description: "Escolha outro @nick com pelo menos 5 caracteres." });
+      toast({ variant: "destructive", title: "Username inválido ou ocupado" });
       return;
     }
     if (cpfStatus !== 'valid') {
-      toast({ variant: "destructive", title: "CPF Inválido", description: "Verifique os dados ou se já possui conta." });
+      toast({ variant: "destructive", title: "CPF Inválido" });
       return;
     }
 
@@ -135,11 +136,10 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
     try {
       if (!auth || !db) throw new Error("Serviço de rede indisponível.");
       
-      const userCredential = await auth.createUserWithEmailAndPassword(values.email, values.password);
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       const uid = user.uid;
 
-      // Salva o CPF usando o padrão de segurança tripla
       const cpfRes = await updateUserCPF(uid, values.cpf);
       if (!cpfRes.success) throw new Error(cpfRes.error);
 
