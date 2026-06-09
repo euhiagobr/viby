@@ -140,6 +140,8 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
       const user = userCredential.user;
       const uid = user.uid;
 
+      // Importante: updateUserCPF agora usa transaction.set(..., {merge:true}) 
+      // o que permite criar o doc se ele ainda não existir.
       const cpfRes = await updateUserCPF(uid, values.cpf);
       if (!cpfRes.success) throw new Error(cpfRes.error);
 
@@ -157,7 +159,10 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
         const expireAt = new Date();
         expireAt.setDate(expireAt.getDate() + 365); 
 
-        transaction.update(userRef, {
+        // Usar transaction.set com merge: true para garantir a criação do documento base
+        transaction.set(userRef, {
+          uid,
+          email: values.email.toLowerCase().trim(),
           name: values.name,
           username: values.username.toLowerCase().trim(),
           gender: values.gender,
@@ -171,7 +176,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
           status: "Ativo",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
-        });
+        }, { merge: true });
 
         if (referredBy) {
           const statsRef = doc(db, "affiliate_stats", referredBy);

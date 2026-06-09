@@ -1,0 +1,34 @@
+
+{
+  "collection": "users",
+  "description": "Perfil de usuário unificado com dados de identidade, gamificação e segurança.",
+  "fields": {
+    "name": "string (Nome completo)",
+    "username": "string (único, a-z0-9._, min 5 chars)",
+    "email": "string (lowercase)",
+    "gender": "masculino | feminino | nao-binario | outro",
+    "cpfHash": "string (SHA256 para unicidade e busca)",
+    "cpfMasked": "string (***.***.***-XX para exibição)",
+    "profileComplete": "boolean (flag de conclusão de cadastro)",
+    "needsCPFUpdate": "boolean (migração de segurança)",
+    "plan": "free | pro | top",
+    "status": "Ativo | Bloqueado | Desativado",
+    "walletBalance": "number",
+    "totalXp": "number",
+    "level": "number",
+    "referredBy": "string (UID do afiliado, se houver)",
+    "affiliateExpireAt": "timestamp (validade da indicação)",
+    "createdAt": "timestamp",
+    "updatedAt": "timestamp"
+  },
+  "indexes": [
+    {
+      "collection": "usernames",
+      "fields": {
+        "uid": "string",
+        "type": "fixed: 'user'",
+        "username": "docId"
+      }
+    }
+  ]
+}

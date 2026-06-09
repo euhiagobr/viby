@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -43,6 +44,7 @@ export async function getUserCPF(userId: string, requestingUid: string) {
 /**
  * Atualiza o CPF de um usuário seguindo o novo padrão de segurança Triplo (Encrypted, Hash, Masked).
  * Implementa verificação de duplicidade via hash.
+ * Utiliza 'set' com merge para garantir funcionamento em novos cadastros.
  */
 export async function updateUserCPF(userId: string, cpf: string) {
   try {
@@ -68,13 +70,14 @@ export async function updateUserCPF(userId: string, cpf: string) {
       }
 
       // 2. Atualizar perfil público (Hash para busca, Masked para exibição)
-      transaction.update(db.collection("users").doc(userId), { 
+      // Usar set com merge em vez de update para evitar falhas se o doc for novo
+      transaction.set(db.collection("users").doc(userId), { 
         cpfHash,
         cpfMasked,
-        cpf: cpfMasked, // Fallback para compatibilidade temporária
+        cpf: cpfMasked, 
         needsCPFUpdate: false,
         updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-      });
+      }, { merge: true });
 
       // 3. Atualizar área restrita (Encrypted para recuperação/antifraude)
       const sensitiveRef = db.collection("users").doc(userId).collection("private").doc("sensitive");
