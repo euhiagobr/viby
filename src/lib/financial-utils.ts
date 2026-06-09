@@ -4,7 +4,7 @@
  * Implementa a regra única e centralizada para toda a plataforma com suporte a moedas nativas e persistência histórica.
  */
 
-import { CurrencyCode } from "@/contexts/CurrencyCode";
+import { CurrencyCode } from "@/contexts/CurrencyContext";
 
 export const VIBY_MIN_FEE_BRL = 3.99; // Taxa mínima em BRL
 export const VIBY_BUYER_MARKUP = 0.15; // 15% de taxa administrativa
