@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
@@ -17,15 +18,18 @@ export function useAdminPermissions() {
   const { user, profile, loading: userLoading, isInitialized: authInitialized } = useUser(auth);
   const db = useFirestore();
 
+  const userId = user?.uid;
+
   const adminRef = useMemo(() => 
-    (db && user) ? doc(db, 'system_admins', user.uid) : null, 
-    [db, user]
+    (db && userId) ? doc(db, 'system_admins', userId) : null, 
+    [db, userId]
   );
   
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
   /**
    * Resolve o perfil administrativo com suporte a fallback e UID mestre.
+   * Utiliza chaves primitivas para estabilidade de referência.
    */
   const adminProfile = useMemo(() => {
     if (!authInitialized || userLoading || adminLoading) return null;
@@ -36,9 +40,9 @@ export function useAdminPermissions() {
     }
     
     // 2. Fallback de Bootstrapping para UID Mestre ou Administradores Legados
-    if (user?.uid === MASTER_ADMIN_UID || profile?.role === 'admin') {
+    if (userId === MASTER_ADMIN_UID || profile?.role === 'admin') {
       return {
-        uid: user?.uid,
+        uid: userId,
         nome: profile?.name || "Super",
         sobrenome: "Admin",
         email: user?.email || "",
@@ -49,12 +53,13 @@ export function useAdminPermissions() {
     }
     
     return null;
-  }, [dbAdminProfile, profile, user, adminLoading, authInitialized, userLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dbAdminProfile?.uid, profile?.role, userId, adminLoading, authInitialized, userLoading]);
 
-  const hasPermission = (permission: AdminPermission) => {
+  const hasPermission = useMemo(() => (permission: AdminPermission) => {
     if (!adminProfile) return false;
     return checkAdminPermission(adminProfile, permission);
-  };
+  }, [adminProfile]);
 
   const isSuperAdmin = adminProfile?.cargo === 'super_admin';
 

@@ -74,10 +74,12 @@ export default function AdminEquipePage() {
   const [editingAdmin, setEditingAdmin] = React.useState<SystemAdmin | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  // Trava de Segurança: A consulta só dispara quando o usuário admin estiver totalmente carregado e validado
+  const adminUid = adminProfile?.uid;
+
+  // Estabilização da query usando IDs primitivos
   const teamQuery = useMemoFirebase(() => 
-    (db && user && adminProfile) ? query(collection(db, "system_admins"), orderBy("createdAt", "desc")) : null, 
-    [db, user, adminProfile]
+    (db && adminUid) ? query(collection(db, "system_admins"), orderBy("createdAt", "desc")) : null, 
+    [db, adminUid]
   );
   
   const { data: team, loading } = useCollection<SystemAdmin>(teamQuery);
@@ -225,23 +227,23 @@ export default function AdminEquipePage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTeam.length > 0 ? filteredTeam.map(admin => (
-              <TableRow key={admin.uid} className={cn("hover:bg-muted/10", admin.status === 'Desativado' && "opacity-50")}>
+            {filteredTeam.length > 0 ? filteredTeam.map(item => (
+              <TableRow key={item.uid} className={cn("hover:bg-muted/10", item.status === 'Desativado' && "opacity-50")}>
                 <TableCell className="p-6">
                   <div className="flex flex-col">
-                    <span className="font-bold text-sm uppercase italic text-primary">{admin.nome} {admin.sobrenome}</span>
-                    <span className="text-[10px] text-muted-foreground">{admin.email}</span>
+                    <span className="font-bold text-sm uppercase italic text-primary">{item.nome} {item.sobrenome}</span>
+                    <span className="text-[10px] text-muted-foreground">{item.email}</span>
                   </div>
                 </TableCell>
-                <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-secondary/20 text-secondary">{admin.cargo?.replace('_', ' ')}</Badge></TableCell>
+                <TableCell><Badge variant="outline" className="text-[9px] font-black uppercase border-secondary/20 text-secondary">{item.cargo?.replace('_', ' ')}</Badge></TableCell>
                 <TableCell className="text-center">
-                  <Badge className={cn("text-[8px] font-black uppercase", admin.status === 'Ativo' ? "bg-green-600" : "bg-red-500")}>{admin.status}</Badge>
+                  <Badge className={cn("text-[8px] font-black uppercase", item.status === 'Ativo' ? "bg-green-600" : "bg-red-500")}>{item.status}</Badge>
                 </TableCell>
                 <TableCell className="p-6 text-right">
-                  {isSuperAdmin && admin.uid !== user?.uid && (
+                  {isSuperAdmin && item.uid !== user?.uid && (
                     <div className="flex items-center justify-end gap-2">
-                      <button className="p-2 text-primary hover:bg-muted rounded-lg" onClick={() => { setEditingAdmin(admin); setIsEditOpen(true); }}><Edit className="w-4 h-4" /></button>
-                      <button className="p-2 text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => handleDelete(admin.uid)}><Trash2 className="w-4 h-4" /></button>
+                      <button className="p-2 text-primary hover:bg-muted rounded-lg" onClick={() => { setEditingAdmin(item); setIsEditOpen(true); }}><Edit className="w-4 h-4" /></button>
+                      <button className="p-2 text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => handleDelete(item.uid)}><Trash2 className="w-4 h-4" /></button>
                     </div>
                   )}
                 </TableCell>
