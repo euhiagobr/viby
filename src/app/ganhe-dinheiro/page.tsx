@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -27,7 +26,8 @@ import {
   Search,
   MessageCircle,
   Clock,
-  Check
+  Check,
+  Wallet
 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
@@ -37,6 +37,8 @@ import Footer from "@/components/layout/Footer"
 import { getAffiliatePublicRanking } from "@/app/actions/affiliates"
 import { useTranslation } from "@/i18n/i18n-context"
 import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
 
 export default function EarnMoneyPage() {
   const { t } = useTranslation()
