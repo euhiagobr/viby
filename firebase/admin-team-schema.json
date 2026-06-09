@@ -1,19 +1,18 @@
 
 {
   "collection": "system_admins",
-  "description": "Lista de administradores do painel /admin. Coleção isolada dos usuários comuns da plataforma para segurança e controle RBAC.",
+  "description": "Lista de administradores do console Viby com permissões granulares baseadas em RBAC.",
   "fields": {
-    "uid": "string (UID do Firebase Auth)",
+    "uid": "string (Firebase Auth UID)",
     "nome": "string",
     "sobrenome": "string",
     "email": "string",
-    "telefone": "string",
-    "cargo": "string (super_admin | admin | support | financial | moderator | marketing)",
-    "status": "string (Ativo | Desativado)",
-    "permissions": "map (AdminPermission: boolean)",
+    "cargo": "super_admin | admin | support | financial | moderator | marketing",
+    "status": "Ativo | Desativado",
+    "permissions": "map { permission_key: boolean }",
     "createdAt": "timestamp",
     "updatedAt": "timestamp",
-    "createdBy": "string (UID do super_admin criador)"
+    "createdBy": "string (UID)"
   },
-  "security_rules": "Leitura permitida apenas para quem já está na coleção 'system_admins' com status 'Ativo'. Escrita (Create/Delete) restrita a cargo='super_admin'. Update restrito a cargo='super_admin', proibido auto-edição de cargo/permissions."
+  "access_policy": "Permissão total de leitura e escrita para administradores ativos em todas as coleções do sistema."
 }

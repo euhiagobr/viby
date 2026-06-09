@@ -9,6 +9,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Função central de autorização administrativa
     function isAdmin() {
       return isSignedIn() && (
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
@@ -26,47 +27,47 @@ service cloud.firestore {
       );
     }
 
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
     // --- HIERARQUIA DE ORGANIZAÇÃO ---
+
+    function isOrgMember(orgId) {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId == request.auth.uid
+      );
+    }
 
     function getMemberData(orgId) {
       return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data;
     }
 
-    function isOrgOwner(orgId) {
+    function isOrgAdmin(orgId) {
       return isSignedIn() && (
+        isAdmin() || 
         get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId == request.auth.uid ||
+        getMemberData(orgId).role == 'admin' ||
         getMemberData(orgId).role == 'owner'
       );
-    }
-
-    function isOrgAdmin(orgId) {
-      return isSignedIn() && (isOrgOwner(orgId) || getMemberData(orgId).role == 'admin');
-    }
-
-    function isOrgEditor(orgId) {
-      return isSignedIn() && (isOrgAdmin(orgId) || getMemberData(orgId).role == 'editor');
-    }
-
-    function isOrgMember(orgId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
     }
 
     // --- REGRAS POR COLEÇÃO ---
 
     match /system_admins/{adminId} {
-      allow get: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
-      allow list: if isAdmin();
-      allow create, update, delete: if isSuperAdmin();
+      allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
+      allow write: if isSuperAdmin();
     }
 
     match /users/{userId} {
       allow get: if true;
       allow list: if isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow update: if isAdmin() || isOwner(userId);
       
       match /private/sensitive {
-        allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+        allow read, write: if isAdmin() || isOwner(userId);
       }
     }
 
@@ -79,20 +80,19 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if isAdmin() || isOrgAdmin(orgId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt']));
+      allow update: if isAdmin() || isOrgAdmin(orgId);
 
       match /members/{memberId} {
-        allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == memberId || isOrgMember(orgId)));
-        allow create: if isSignedIn() && (isAdmin() || request.auth.uid == memberId || isOrgAdmin(orgId));
-        allow update, delete: if isAdmin() || isOrgAdmin(orgId);
+        allow read: if isAdmin() || isSignedIn();
+        allow create, update, delete: if isAdmin() || isOrgAdmin(orgId);
       }
     }
 
     match /events/{eventId} {
       allow read: if true;
-      allow create: if isAdmin() || isOrgEditor(request.resource.data.organizationId);
-      allow update: if isAdmin() || isOrgEditor(resource.data.organizationId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['interestedCount', 'viewsCount', 'sharesCount', 'goingCount', 'updatedAt', 'ingressosVendidos']));
-      allow delete: if isAdmin() || isOrgEditor(resource.data.organizationId);
+      allow create: if isAdmin() || isOrgMember(request.resource.data.organizationId);
+      allow update: if isAdmin() || isOrgMember(resource.data.organizationId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['interestedCount', 'viewsCount', 'sharesCount', 'goingCount', 'updatedAt', 'ingressosVendidos']));
+      allow delete: if isAdmin() || isOrgAdmin(resource.data.organizationId);
 
       match /interests/{userId} {
         allow read: if true;
@@ -101,7 +101,7 @@ service cloud.firestore {
       
       match /partners/{partnerId} {
         allow read: if true;
-        allow write: if isAdmin() || isOrgAdmin(get(/databases/$(database)/documents/events/$(eventId)).data.organizationId);
+        allow write: if isAdmin() || isOrgAdmin(orgId);
       }
     }
 
@@ -112,19 +112,19 @@ service cloud.firestore {
     }
 
     match /follows/{followId} {
-      allow read, list: if true;
+      allow read: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
     }
 
     match /user_gamification/{uid} {
       allow read: if true;
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow write: if isAdmin() || isOwner(uid);
     }
 
     match /cultural_stats/{uid} {
       allow read: if true;
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow write: if isAdmin() || isOwner(uid);
     }
 
     match /xp_logs/{id} {
@@ -139,13 +139,24 @@ service cloud.firestore {
     }
 
     match /affiliateCodes/{code} {
-      allow read, list: if true;
+      allow read: if true;
       allow write: if isAdmin() || (isSignedIn() && request.auth.uid == request.resource.data.userId);
     }
 
     match /affiliate_stats/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow read: if isAdmin() || isOwner(uid);
       allow write: if isAdmin(); 
+    }
+
+    match /affiliate_commissions/{id} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.affiliateId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    match /payout_requests/{id} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
     }
 
     match /support_tickets/{id} {
@@ -156,14 +167,50 @@ service cloud.firestore {
 
     match /notifications/{id} {
       allow read: if isSignedIn() && resource.data.targetUid == request.auth.uid;
-      allow write: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isSignedIn() && resource.data.targetUid == request.auth.uid;
+      allow delete: if isAdmin();
     }
 
     match /system_logs/{id} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow create: if true; // Permite reporte de erros do client
     }
     
     match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /system_settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /ads/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || (isSignedIn() && resource.data.organizationId != null);
+      
+      match /viewers/{viewerId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+    match /tax_tickets/{id} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /tax_ads/{id} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    match /internal_expenses/{id} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /categories/{id} {
       allow read: if true;
       allow write: if isAdmin();
     }
