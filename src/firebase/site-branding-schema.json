@@ -1,3 +1,4 @@
+
 {
   "collection": "settings",
   "document": "site",
@@ -7,6 +8,7 @@
     "logoUrl": "string (URL do logotipo principal)",
     "iconUrl": "string (URL do favicon e ícones de app PWA)",
     "siteIconUrl": "string (Alias de prioridade para favicon dinâmico)",
+    "headerImages": "array of strings (URLs de banners para o carrossel da home)",
     "imageVersion": "number (Contador incremental para invalidação de cache de imagens de branding)",
     "updatedAt": "timestamp (Momento da última alteração)",
     "updatedBy": "string (UID do administrador responsável)"

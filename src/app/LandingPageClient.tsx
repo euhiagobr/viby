@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -44,6 +45,7 @@ import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useTranslation } from "@/i18n/i18n-context"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { AnimatePresence, motion } from "framer-motion"
 
 export default function LandingPageClient() {
   const { t } = useTranslation()
@@ -77,11 +79,25 @@ export default function LandingPageClient() {
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
+  // Lógica de Carrossel Automático (Header)
+  const [currentHeaderIdx, setCurrentHeaderIdx] = React.useState(0)
+  const headerImages = React.useMemo(() => {
+    if (settings?.headerImages?.length > 0) return settings.headerImages;
+    return [PlaceHolderImages.find(img => img.id === 'hero-bg')?.imageUrl || "https://picsum.photos/seed/vibyhero-event/1920/1080"];
+  }, [settings?.headerImages]);
+
+  React.useEffect(() => {
+    if (headerImages.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentHeaderIdx(prev => (prev + 1) % headerImages.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [headerImages.length]);
+
   const filteredAndSortedEvents = React.useMemo(() => {
     if (!events) return []
 
     let result = events.filter(e => {
-      // REGRA DE OURO: Eventos encerrados saem das vitrines
       if (!isEventVisible(e)) return false;
 
       const nameNorm = normalizeText(searchName);
@@ -124,7 +140,6 @@ export default function LandingPageClient() {
     });
 
     return result.map(e => {
-      // Injeção dinâmica de categoryName caso não esteja denormalizado no evento
       const cat = categories?.find((c: any) => c.id === e.categoryId);
       return {
         ...e,
@@ -163,8 +178,6 @@ export default function LandingPageClient() {
 
     return result;
   }, [filteredAndSortedEvents, eventsLoading])
-
-  const heroImage = PlaceHolderImages.find(img => img.id === 'hero-bg')?.imageUrl || "https://picsum.photos/seed/vibyhero-event/1920/1080"
 
   React.useEffect(() => {
     setHasMounted(true);
@@ -207,8 +220,19 @@ export default function LandingPageClient() {
       </nav>
 
       <section className="relative min-h-[85vh] flex items-center justify-center overflow-hidden bg-primary text-white text-center">
-        <div className="absolute inset-0 opacity-40 pointer-events-none">
-          <Image src={heroImage} alt="Hero Background" fill className="object-cover" priority unoptimized data-ai-hint="concert event" />
+        <div className="absolute inset-0 pointer-events-none">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={headerImages[currentHeaderIdx]}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.4 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.5 }}
+              className="absolute inset-0"
+            >
+              <Image src={headerImages[currentHeaderIdx]} alt="Hero Background" fill className="object-cover" priority unoptimized data-ai-hint="concert event" />
+            </motion.div>
+          </AnimatePresence>
           <div className="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/40 to-primary" />
         </div>
         <div className="container mx-auto px-4 relative z-10 py-20">
@@ -282,7 +306,6 @@ export default function LandingPageClient() {
                 )}
               </div>
 
-              {/* Botão de Modal de Categorias Responsivo */}
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 <Dialog>
                   <DialogTrigger asChild>

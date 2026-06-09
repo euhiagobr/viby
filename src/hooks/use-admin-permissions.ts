@@ -29,7 +29,7 @@ export function useAdminPermissions() {
 
   /**
    * Resolve o perfil administrativo com suporte a fallback e UID mestre.
-   * Utiliza chaves primitivas para estabilidade de referência.
+   * Utiliza chaves primitivas para estabilidade de referência e evita loops de re-renderização.
    */
   const adminProfile = useMemo(() => {
     if (!authInitialized || userLoading || adminLoading) return null;
@@ -53,7 +53,6 @@ export function useAdminPermissions() {
     }
     
     return null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dbAdminProfile?.uid, profile?.role, userId, adminLoading, authInitialized, userLoading]);
 
   const hasPermission = useMemo(() => (permission: AdminPermission) => {
