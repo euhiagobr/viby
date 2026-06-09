@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
@@ -9,8 +10,8 @@ import { checkAdminPermission, ALL_PERMISSIONS } from '@/lib/admin/permissions';
 const MASTER_ADMIN_UID = "AqTVL8VRTZT435pZudkObzMGsrR2";
 
 /**
- * @fileOverview Hook estabilizado para gestão de permissões administrativas.
- * Utiliza referências de memória para impedir loops infinitos no Layout.
+ * Hook para gestão de permissões administrativas.
+ * Estabilizado para prevenir loops de renderização no AdminLayout.
  */
 export function useAdminPermissions() {
   const auth = useAuth();
@@ -27,7 +28,7 @@ export function useAdminPermissions() {
   
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
-  // Buffer persistente para estabilizar o objeto de saída
+  // Buffer persistente para estabilizar o objeto de saída e quebrar o ciclo de renderização
   const stableProfileRef = useRef<any>(null);
 
   const adminProfile = useMemo(() => {
@@ -35,24 +36,36 @@ export function useAdminPermissions() {
 
     let result = null;
 
-    // 1. Prioridade: Cadastro granular no Firestore
-    if (dbAdminProfile && dbAdminProfile.status !== 'Desativado') {
+    // 1. Prioridade: Super Admin via UID
+    if (userId === MASTER_ADMIN_UID) {
+      result = {
+        uid: userId,
+        nome: profile?.name || "Super Admin",
+        sobrenome: "Viby",
+        email: user?.email || "",
+        cargo: 'super_admin',
+        status: 'Ativo',
+        permissions: ALL_PERMISSIONS.reduce((acc, p) => ({ ...acc, [p]: true }), {} as any)
+      };
+    }
+    // 2. Cadastro granular no Firestore
+    else if (dbAdminProfile && dbAdminProfile.status !== 'Desativado') {
       result = dbAdminProfile;
     }
-    // 2. Fallback: Mestre ou Role legada
-    else if (userId === MASTER_ADMIN_UID || userRole === 'admin') {
+    // 3. Fallback: Role legada
+    else if (userRole === 'admin') {
       result = {
         uid: userId,
         nome: profile?.name || "Admin",
         sobrenome: "Viby",
         email: user?.email || "",
-        cargo: userId === MASTER_ADMIN_UID ? 'super_admin' : 'admin',
+        cargo: 'admin',
         status: 'Ativo',
         permissions: ALL_PERMISSIONS.reduce((acc, p) => ({ ...acc, [p]: true }), {} as any)
       };
     }
 
-    // Comparação de valor para manter a referência estável e evitar loop de re-render
+    // Estabilização de referência para evitar Maximum update depth exceeded
     if (
       stableProfileRef.current && 
       result && 

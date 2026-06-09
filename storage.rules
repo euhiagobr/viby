@@ -1,15 +1,12 @@
+
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // --- FUNÇÕES DE AUXÍLIO ---
     
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Função central de autorização administrativa para o Storage
-    // Simplificada para máxima resiliência contra erros de rede/cotas no momento de validação
     function isAdmin() {
       return isSignedIn() && (
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
@@ -21,21 +18,22 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Regra Global de Leitura (Pública para vitrines e SEO)
+    // Regra Global de Leitura
     match /{allPaths=**} {
       allow read: if true;
     }
 
-    // --- PASTA ADMINISTRATIVA ---
+    // Pasta Administrativa
     match /admin/{allPaths=**} {
       allow write: if isAdmin();
     }
 
-    // --- PASTAS DE USUÁRIOS E ORGANIZAÇÕES ---
+    // Usuários
     match /users/{userId}/{allPaths=**} {
       allow write: if isAdmin() || isOwner(userId);
     }
 
+    // Organizações e Eventos
     match /organizations/{orgId}/{allPaths=**} {
       allow write: if isAdmin() || isSignedIn();
     }
@@ -49,11 +47,10 @@ service firebase.storage {
     }
     
     match /support/{userId}/{allPaths=**} {
-      allow read: if true;
       allow write: if isAdmin() || isOwner(userId);
     }
 
-    match /payout_proofs/{orgId}/{allPaths=**} {
+    match /payout_proofs/{allPaths=**} {
       allow write: if isAdmin();
     }
   }

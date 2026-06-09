@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -5,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { useFirestore, useDoc } from "@/firebase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Handshake, Info, ArrowLeft, Loader2, Sparkles } from "lucide-react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 import Footer from "@/components/layout/Footer";

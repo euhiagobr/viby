@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react";
@@ -224,7 +225,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
               <FormItem>
                 <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</FormLabel>
                 <div className="relative">
-                  <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                  <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
                   <FormControl>
                     <Input placeholder="seu.nick" className="h-14 rounded-2xl pl-12 pr-10 border-dashed border-primary/20" {...field} />
                   </FormControl>
