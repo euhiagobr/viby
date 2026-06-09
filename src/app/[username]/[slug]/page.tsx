@@ -19,6 +19,7 @@ async function getEventData(username: string, param: string) {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     
+    // 1. Resolver o UID da organização pelo username
     const usernameRef = doc(db, "usernames", username.toLowerCase());
     const usernameSnap = await getDoc(usernameRef);
     if (!usernameSnap.exists()) return null;
@@ -26,18 +27,19 @@ async function getEventData(username: string, param: string) {
     const orgId = usernameSnap.data().uid;
     const normalizedParam = param.trim();
 
-    // 1. Tentar por ID (Prioridade para links internos/legados)
+    // 2. Tentar resolver o parâmetro como ID (Prioridade para links diretos/legados)
     const eventIdRef = doc(db, "events", normalizedParam);
     const eventIdSnap = await getDoc(eventIdRef);
     
     if (eventIdSnap.exists()) {
       const data = eventIdSnap.data();
+      // Verifica se o evento realmente pertence a este username/organização
       if (data.organizationId === orgId) {
         return { id: eventIdSnap.id, ...data } as any;
       }
     }
 
-    // 2. Tentar por Slug (SEO / URLs Amigáveis)
+    // 3. Tentar resolver o parâmetro como Slug (SEO / URLs Amigáveis)
     const slugLower = normalizedParam.toLowerCase();
     const q = query(
       collection(db, "events"),
@@ -53,7 +55,7 @@ async function getEventData(username: string, param: string) {
 
     return null;
   } catch (e) {
-    console.error("[Event Router Error]", e);
+    console.error("[Unified Event Router Error]", e);
     return null;
   }
 }
@@ -107,7 +109,7 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  // Redirecionamento Canônico: Se acessou por ID mas existe Slug, manda para a URL bonita
+  // Redirecionamento Canônico: Se acessou por ID mas existe um Slug definido, redireciona para a URL amigável
   if (event.slug && event.slug !== resolvedParams.slug) {
     redirect(`/${resolvedParams.username}/${event.slug}`);
   }

@@ -1,1 +1,2 @@
-// ARQUIVO REMOVIDO. UTILIZAR src/app/[username]/[slug]/EventoPublicoClient.tsx
+// ARQUIVO DESATIVADO
+export default function InactiveComponent() { return null; }
