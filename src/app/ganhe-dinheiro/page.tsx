@@ -27,7 +27,8 @@ import {
   MessageCircle,
   Clock,
   Check,
-  Wallet
+  Wallet,
+  Loader2
 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
