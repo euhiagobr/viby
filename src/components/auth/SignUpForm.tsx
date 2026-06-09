@@ -12,7 +12,7 @@ import { useAuth, useFirestore } from "@/firebase";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Check, X, AtSign, Fingerprint } from "lucide-react";
 import { FirebaseError } from "firebase/app";
-import { doc, getDoc, runTransaction, serverTimestamp, collection, query, where, getDocs, limit } from "firebase/firestore";
+import { doc, getDoc, runTransaction, serverTimestamp, collection, query, where, getDocs, limit, increment } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { validateCPF, validateUsername } from "@/lib/utils";
 import { hashCPF } from "@/lib/crypto-utils";
@@ -35,10 +35,10 @@ const formSchema = z.object({
 });
 
 interface SignUpFormProps {
-  referredByCode?: string;
+  referredBy?: string; // UID do afiliado
 }
 
-export function SignUpForm({ referredByCode }: SignUpFormProps) {
+export function SignUpForm({ referredBy }: SignUpFormProps) {
   const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
@@ -122,18 +122,20 @@ export function SignUpForm({ referredByCode }: SignUpFormProps) {
 
     setIsLoading(true);
     try {
-      if (!auth) throw new Error("Serviço de autenticação indisponível.");
+      if (!auth || !db) throw new Error("Serviço de banco de dados indisponível.");
       
       const userCredential = await auth.createUserWithEmailAndPassword(values.email, values.password);
       const user = userCredential.user;
       const uid = user.uid;
 
+      // 1. Atualizar CPF de forma segura (Action Tripla)
       const cpfRes = await updateUserCPF(uid, values.cpf);
       if (!cpfRes.success) throw new Error(cpfRes.error);
 
-      await runTransaction(db!, async (transaction) => {
-        const usernameRef = doc(db!, "usernames", values.username.toLowerCase().trim());
-        const userRef = doc(db!, "users", uid);
+      // 2. Gravar Perfil e Vínculo de Afiliado Transacionalmente
+      await runTransaction(db, async (transaction) => {
+        const usernameRef = doc(db, "usernames", values.username.toLowerCase().trim());
+        const userRef = doc(db, "users", uid);
 
         transaction.set(usernameRef, { 
           uid, 
@@ -142,20 +144,33 @@ export function SignUpForm({ referredByCode }: SignUpFormProps) {
           username: values.username.toLowerCase().trim()
         });
 
+        const expireAt = new Date();
+        expireAt.setDate(expireAt.getDate() + 365); // Expira em 1 ano
+
         transaction.update(userRef, {
           name: values.name,
           username: values.username.toLowerCase().trim(),
           gender: values.gender,
-          referredBy: referredByCode || null,
+          referredBy: referredBy || null,
+          affiliateExpireAt: referredBy ? expireAt.toISOString() : null,
           profileComplete: true,
           plan: "free",
           walletBalance: 0,
-          totalXp: 0,
+          totalXp: 50, // XP de Boas-vindas
           level: 1,
           status: "Ativo",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
+
+        // 3. Incrementar estatística do afiliado padrinho
+        if (referredBy) {
+          const statsRef = doc(db, "affiliate_stats", referredBy);
+          transaction.update(statsRef, {
+            totalUsersReferred: increment(1),
+            updatedAt: serverTimestamp()
+          });
+        }
       });
 
       toast({ title: "Bem-vindo à Viby!", description: "Sua conta foi criada com sucesso." });

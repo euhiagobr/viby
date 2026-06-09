@@ -6,52 +6,59 @@ service cloud.firestore {
 
     // Helper function to check if a user is an admin
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // Users can read their own data and admins can read all user data
     match /users/{userId} {
-      allow read: if request.auth.uid == userId || isAdmin();
-      allow write: if request.auth.uid == userId;
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Organizations can be read by anyone, but only written to by admins
+    // Organizations can be read by anyone, but only written to by owners/admins
     match /organizations/{orgId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if request.auth != null && (request.auth.uid == resource.data.ownerId || isAdmin());
     }
 
-    // Affiliate profiles can only be read by the user themselves or an admin.
-    // Users can only update specific, non-critical fields.
-    match /affiliate_profiles/{userId} {
-        allow read: if request.auth.uid == userId || isAdmin();
-        allow create: if request.auth.uid == userId;
-        allow update: if request.auth.uid == userId &&
-                      request.resource.data.diff(resource.data).affectedKeys()
-                      .hasOnly(['payoutDetails']); // Example field
-        allow delete: if false; // Nobody can delete profiles
+    match /organizations/{orgId}/members/{userId} {
+       allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin() || request.auth.uid == get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId);
     }
 
-    // Affiliate commissions can only be read by the affiliate or an admin.
-    // No one but admins can create, update, or delete commissions directly.
-    match /affiliate_commissions/{commissionId} {
-        allow read: if get(/databases/$(database)/documents/affiliate_commissions/$(commissionId)).data.affiliateId == request.auth.uid || isAdmin();
-        allow create, update, delete: if isAdmin();
-    }
-
-    // Affiliate payouts can be created by the user, and read by the user or an admin.
-    // Users cannot update or delete their payout requests.
-    match /affiliate_payouts/{payoutId} {
-        allow create: if request.auth.uid == request.resource.data.userId;
-        allow read: if request.auth.uid == resource.data.userId || isAdmin();
-        allow update, delete: if isAdmin();
-    }
-
-    // Affiliate codes can be read by anyone but only created/modified by server-side processes (admins).
+    // Affiliate Codes: Public read for validation during signup
     match /affiliateCodes/{code} {
         allow read: if true;
         allow write: if isAdmin();
     }
+
+    // Affiliate Commissions: Only the affiliate or admin can read
+    match /affiliate_commissions/{commissionId} {
+        allow read: if request.auth != null && (request.auth.uid == resource.data.affiliateId || isAdmin());
+        allow write: if false; // Server-only
+    }
+
+    match /affiliate_stats/{userId} {
+        allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+        allow write: if false; // Server-only
+    }
+
+    match /affiliate_payouts/{payoutId} {
+        allow create: if request.auth != null;
+        allow read: if request.auth != null && (request.auth.uid == resource.data.userId || isAdmin());
+        allow update, delete: if isAdmin();
+    }
+
+    // Support Tickets
+    match /support_tickets/{ticketId} {
+      allow create: if request.auth != null;
+      allow read, update: if request.auth != null && (request.auth.uid == resource.data.userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // General match for other public collections
+    match /categories/{catId} { allow read: if true; }
+    match /events/{eventId} { allow read: if true; }
+    match /usernames/{username} { allow read: if true; }
 
     // General catch-all to deny all other access
     match /{document=**} {

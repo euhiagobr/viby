@@ -7,7 +7,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { useFirestore, useDoc } from "@/firebase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Handshake, Info, ArrowLeft } from "lucide-react";
+import { Handshake, Info, ArrowLeft, Loader2 } from "lucide-react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 import Footer from "@/components/layout/Footer";
 import Link from "next/link";
@@ -19,9 +19,9 @@ export default function CadastroPage() {
   const searchParams = useSearchParams();
   const refCode = searchParams.get("ref");
 
-  const [affiliateInfo, setAffiliateInfo] = React.useState<{ name: string; code: string } | null>(null);
+  const [affiliateInfo, setAffiliateInfo] = React.useState<{ name: string; code: string; userId: string } | null>(null);
   const [isValidCode, setIsValidCode] = React.useState<boolean | null>(null);
-  const [loading, setLoading] = React.useState(true);
+  const [validating, setValidating] = React.useState(false);
 
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
@@ -30,10 +30,11 @@ export default function CadastroPage() {
   React.useEffect(() => {
     const checkAffiliateCode = async () => {
       if (!refCode || !db) {
-        setLoading(false);
+        setValidating(false);
         return;
       }
 
+      setValidating(true);
       try {
         const codeDocRef = doc(db, "affiliateCodes", refCode);
         const codeDocSnap = await getDoc(codeDocRef);
@@ -42,7 +43,8 @@ export default function CadastroPage() {
           const affiliateData = codeDocSnap.data();
           setAffiliateInfo({ 
             name: affiliateData.userName || "Afiliado Viby", 
-            code: refCode
+            code: refCode,
+            userId: affiliateData.userId
           });
           setIsValidCode(true);
         } else {
@@ -52,7 +54,7 @@ export default function CadastroPage() {
         console.error("Error validating affiliate code:", error);
         setIsValidCode(false);
       } finally {
-        setLoading(false);
+        setValidating(false);
       }
     };
 
@@ -74,7 +76,7 @@ export default function CadastroPage() {
             <span className="text-xl font-bold tracking-tight italic uppercase">{siteName}</span>
           </Link>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest">
+            <Button variant="ghost" asChild className="font-semibold text-[10px] uppercase tracking-widest">
               <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" /> Voltar</Link>
             </Button>
           </div>
@@ -82,21 +84,26 @@ export default function CadastroPage() {
       </nav>
 
       <main className="flex-1 container mx-auto max-w-lg py-12 md:py-20 px-4">
-        {refCode && !loading && (
+        {refCode && (
           <div className="mb-8 animate-in fade-in duration-500">
-            {isValidCode && affiliateInfo ? (
+            {validating ? (
+              <div className="flex items-center justify-center p-4 bg-muted/20 rounded-2xl gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-secondary" />
+                <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Validando convite...</span>
+              </div>
+            ) : isValidCode && affiliateInfo ? (
               <Alert className="bg-secondary/5 border-secondary/20 rounded-2xl">
                 <Handshake className="h-4 w-4 text-secondary" />
-                <AlertTitle className="font-bold text-secondary">Convite Ativo!</AlertTitle>
-                <AlertDescription className="text-xs text-muted-foreground">
-                  Você está se cadastrando por indicação de <span className="font-bold">{affiliateInfo.name}</span>.
+                <AlertTitle className="font-black uppercase italic text-secondary text-xs">Convite Ativo!</AlertTitle>
+                <AlertDescription className="text-[10px] font-medium text-muted-foreground uppercase leading-tight mt-1">
+                  Você está se cadastrando por indicação de <span className="font-black text-primary">@{affiliateInfo.name}</span>.
                 </AlertDescription>
               </Alert>
-            ) : (
-              <Alert variant="destructive" className="rounded-2xl">
+            ) : !validating && (
+              <Alert variant="destructive" className="rounded-2xl bg-destructive/5">
                 <Info className="h-4 w-4" />
-                <AlertTitle>Referência não localizada</AlertTitle>
-                <AlertDescription className="text-xs">
+                <AlertTitle className="font-black uppercase italic text-xs">Referência não localizada</AlertTitle>
+                <AlertDescription className="text-[10px] font-medium uppercase leading-tight mt-1">
                   O código {refCode} não é mais válido. O cadastro prosseguirá normalmente.
                 </AlertDescription>
               </Alert>
@@ -110,7 +117,7 @@ export default function CadastroPage() {
             <CardDescription className="font-medium text-sm">O seu passaporte para o agora.</CardDescription>
           </CardHeader>
           <CardContent className="px-8 md:px-12">
-            <SignUpForm referredByCode={isValidCode ? refCode : undefined} />
+            <SignUpForm referredBy={isValidCode ? affiliateInfo?.userId : undefined} />
           </CardContent>
           <CardFooter className="flex flex-col items-center gap-4 border-t border-border mt-6 py-8 bg-muted/20">
             <p className="text-xs font-bold text-muted-foreground">
