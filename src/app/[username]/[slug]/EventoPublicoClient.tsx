@@ -26,7 +26,9 @@ import {
   ExternalLink,
   Copy,
   Tag,
-  Users
+  Users,
+  ShieldAlert,
+  InfoIcon
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -100,7 +102,11 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   
   const isEnded = dEnd ? (dEnd < new Date()) : false;
   const isVibyCurated = event.curationType === 'curadoria';
+  
+  // Lógica de Venda
   const isExternalSale = event.type === 'externo' && event.externalUrl;
+  const isVibySale = event.type === 'interno' && event.ticketMode !== 'none';
+  const isDivulgacao = event.type === 'divulgacao' || (!isExternalSale && !isVibySale);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
@@ -201,12 +207,15 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                >
                   <Share2 className="w-4 h-4" /> Material
                </Button>
-               {isExternalSale ? (
+               
+               {isExternalSale && (
                  <Button asChild className="flex-1 sm:flex-none h-12 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-xs px-8 hover:scale-105 transition-transform">
                    <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ExternalLink className="ml-2 w-4 h-4" /></a>
                  </Button>
-               ) : (
-                 <Button asChild className="flex-1 sm:flex-none h-12 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-xs px-8 hover:scale-105 transition-transform">
+               )}
+
+               {isVibySale && (
+                 <Button asChild className="flex-1 sm:flex-none h-12 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-xs px-8 hover:scale-105 transition-transform shadow-secondary/20">
                    <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-4 h-4" /></Link>
                  </Button>
                )}
@@ -271,7 +280,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
               </section>
 
               {/* BILHETERIA */}
-              {event.ticketMode !== 'none' && !isExternalSale && (
+              {isVibySale && (
                 <div id="bilheteria" className="scroll-mt-32">
                    <BilheteriaPublic 
                     event={event} 
@@ -365,11 +374,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
-                       {isExternalSale ? (
+                       {isExternalSale && (
                          <Button asChild className="w-full h-16 bg-primary text-white font-black rounded-3xl shadow-2xl uppercase italic text-base hover:scale-105 transition-transform">
                             <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ArrowRight className="ml-2 w-5 h-5" /></a>
                          </Button>
-                       ) : (
+                       )}
+                       {isVibySale && (
                          <Button asChild className="w-full h-16 bg-secondary text-white font-black rounded-3xl shadow-2xl uppercase italic text-base hover:scale-105 transition-transform shadow-secondary/20">
                             <Link href="#bilheteria">Garantir Meu Lugar <ArrowRight className="ml-2 w-5 h-5" /></Link>
                          </Button>
@@ -386,10 +396,13 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  <p className="text-xs text-muted-foreground leading-relaxed font-medium uppercase">
                     {(event.interestedCount || 0).toLocaleString()} pessoas marcaram interesse nesta experiência. Faça parte do momento.
                  </p>
-                 <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl">
+                 
+                 {/* Selo de Segurança Condicional */}
+                 {!isDivulgacao && (
+                   <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl">
                     {isExternalSale ? (
                        <>
-                          <ShieldCheck className="w-5 h-5 text-blue-500" />
+                          <ShieldAlert className="w-5 h-5 text-blue-500" />
                           <span className="text-[10px] font-black uppercase tracking-widest text-primary">Link Oficial</span>
                        </>
                     ) : (
@@ -398,7 +411,14 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                           <span className="text-[10px] font-black uppercase tracking-widest text-primary">Transação Segura</span>
                        </>
                     )}
-                 </div>
+                   </div>
+                 )}
+                 {isDivulgacao && (
+                   <div className="flex items-center gap-3 p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
+                      <InfoIcon className="w-5 h-5 text-secondary" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-primary">Informações Oficiais</span>
+                   </div>
+                 )}
               </Card>
            </aside>
         </div>
