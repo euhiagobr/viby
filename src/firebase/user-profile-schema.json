@@ -1,8 +1,8 @@
-
 {
   "collection": "users",
   "description": "Perfil de usuário unificado com dados de identidade, gamificação e segurança.",
   "fields": {
+    "uid": "string (UID do Firebase Auth)",
     "name": "string (Nome completo)",
     "username": "string (único, a-z0-9._, min 5 chars)",
     "email": "string (lowercase)",
@@ -10,7 +10,7 @@
     "cpfHash": "string (SHA256 para unicidade e busca)",
     "cpfMasked": "string (***.***.***-XX para exibição)",
     "profileComplete": "boolean (flag de conclusão de cadastro)",
-    "needsCPFUpdate": "boolean (migração de segurança)",
+    "needsCPFUpdate": "boolean (flag para migração de segurança)",
     "plan": "free | pro | top",
     "status": "Ativo | Bloqueado | Desativado",
     "walletBalance": "number",

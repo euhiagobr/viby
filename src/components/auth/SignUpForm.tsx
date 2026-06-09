@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react";
@@ -13,11 +12,11 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Check, X, AtSign, Fingerprint, Lock, User, Mail } from "lucide-react";
 import { FirebaseError } from "firebase/app";
-import { doc, getDoc, runTransaction, serverTimestamp, collection, query, where, getDocs, limit, increment } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { validateCPF, validateUsername } from "@/lib/utils";
 import { hashCPF } from "@/lib/crypto-utils";
-import { updateUserCPF } from "@/app/actions/user";
+import { finalizeUserRegistration } from "@/app/actions/user";
 import {
   Select,
   SelectContent,
@@ -138,54 +137,21 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
       
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
-      const uid = user.uid;
 
-      // Importante: updateUserCPF agora usa transaction.set(..., {merge:true}) 
-      // o que permite criar o doc se ele ainda não existir.
-      const cpfRes = await updateUserCPF(uid, values.cpf);
-      if (!cpfRes.success) throw new Error(cpfRes.error);
-
-      await runTransaction(db, async (transaction) => {
-        const usernameRef = doc(db, "usernames", values.username.toLowerCase().trim());
-        const userRef = doc(db, "users", uid);
-
-        transaction.set(usernameRef, { 
-          uid, 
-          type: 'user', 
-          email: values.email.toLowerCase().trim(),
-          username: values.username.toLowerCase().trim()
-        });
-
-        const expireAt = new Date();
-        expireAt.setDate(expireAt.getDate() + 365); 
-
-        // Usar transaction.set com merge: true para garantir a criação do documento base
-        transaction.set(userRef, {
-          uid,
-          email: values.email.toLowerCase().trim(),
-          name: values.name,
-          username: values.username.toLowerCase().trim(),
-          gender: values.gender,
-          referredBy: referredBy || null,
-          affiliateExpireAt: referredBy ? expireAt.toISOString() : null,
-          profileComplete: true,
-          plan: "free",
-          walletBalance: 0,
-          totalXp: 50,
-          level: 1,
-          status: "Ativo",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-
-        if (referredBy) {
-          const statsRef = doc(db, "affiliate_stats", referredBy);
-          transaction.update(statsRef, {
-            totalUsersReferred: increment(1),
-            updatedAt: serverTimestamp()
-          });
-        }
+      // Chama a Server Action atômica para criar o perfil completo
+      const registrationRes = await finalizeUserRegistration({
+        uid: user.uid,
+        email: values.email,
+        name: values.name,
+        username: values.username,
+        cpf: values.cpf,
+        gender: values.gender,
+        referredBy: referredBy || undefined
       });
+
+      if (!registrationRes.success) {
+        throw new Error(registrationRes.error);
+      }
 
       toast({ title: "Bem-vindo à Viby!", description: "Sua conta foi criada com sucesso." });
       router.replace("/dashboard");
@@ -235,7 +201,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
               <FormItem>
                 <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</FormLabel>
                 <div className="relative">
-                  <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                  <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground opacity-40" />
                   <FormControl>
                     <Input placeholder="seu.nick (min 5)" className="h-14 rounded-2xl pl-12 pr-10 border-dashed border-primary/20" {...field} />
                   </FormControl>
