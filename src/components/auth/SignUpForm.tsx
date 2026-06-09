@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react";
@@ -10,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth, useFirestore } from "@/firebase";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Check, X, AtSign, Fingerprint } from "lucide-react";
+import { Loader2, Check, X, AtSign, Fingerprint, Lock, User, Mail } from "lucide-react";
 import { FirebaseError } from "firebase/app";
 import { doc, getDoc, runTransaction, serverTimestamp, collection, query, where, getDocs, limit, increment } from "firebase/firestore";
 import { useRouter } from "next/navigation";
@@ -24,9 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
-  name: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }),
+  name: z.string().min(2, { message: "Informe seu nome completo." }),
   username: z.string().min(3, "Mínimo 3 caracteres").regex(/^[a-z0-9._]+$/, "Somente minúsculas, números, ponto e underline"),
   cpf: z.string().length(11, "CPF deve ter 11 dígitos"),
   email: z.string().email({ message: "E-mail inválido." }),
@@ -35,7 +35,7 @@ const formSchema = z.object({
 });
 
 interface SignUpFormProps {
-  referredBy?: string; // UID do afiliado
+  referredBy?: string; 
 }
 
 export function SignUpForm({ referredBy }: SignUpFormProps) {
@@ -115,24 +115,28 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
   }, [watchCPF, db]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (usernameStatus !== 'valid' || cpfStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Verifique os campos", description: "Username ou CPF não disponíveis." });
+    if (usernameStatus !== 'valid') {
+      toast({ variant: "destructive", title: "Username ocupado", description: "Escolha outro @nick para seu perfil." });
+      return;
+    }
+    if (cpfStatus !== 'valid') {
+      toast({ variant: "destructive", title: "CPF Inválido", description: "Verifique os dados ou se já possui conta." });
       return;
     }
 
     setIsLoading(true);
     try {
-      if (!auth || !db) throw new Error("Serviço de banco de dados indisponível.");
+      if (!auth || !db) throw new Error("Serviço de rede indisponível.");
       
       const userCredential = await auth.createUserWithEmailAndPassword(values.email, values.password);
       const user = userCredential.user;
       const uid = user.uid;
 
-      // 1. Atualizar CPF de forma segura (Action Tripla)
+      // 1. Vincular CPF (Segurança Tripla)
       const cpfRes = await updateUserCPF(uid, values.cpf);
       if (!cpfRes.success) throw new Error(cpfRes.error);
 
-      // 2. Gravar Perfil e Vínculo de Afiliado Transacionalmente
+      // 2. Transação de Criação de Identidade
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", values.username.toLowerCase().trim());
         const userRef = doc(db, "users", uid);
@@ -145,7 +149,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
         });
 
         const expireAt = new Date();
-        expireAt.setDate(expireAt.getDate() + 365); // Expira em 1 ano
+        expireAt.setDate(expireAt.getDate() + 365); 
 
         transaction.update(userRef, {
           name: values.name,
@@ -156,14 +160,13 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
           profileComplete: true,
           plan: "free",
           walletBalance: 0,
-          totalXp: 50, // XP de Boas-vindas
+          totalXp: 50,
           level: 1,
           status: "Ativo",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
 
-        // 3. Incrementar estatística do afiliado padrinho
         if (referredBy) {
           const statsRef = doc(db, "affiliate_stats", referredBy);
           transaction.update(statsRef, {
@@ -177,7 +180,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
       router.replace("/dashboard");
 
     } catch (error) {
-      let errorMessage = "Erro ao criar conta.";
+      let errorMessage = "Erro ao processar cadastro.";
       if (error instanceof FirebaseError) {
         switch (error.code) {
           case "auth/email-already-in-use": errorMessage = "E-mail já cadastrado."; break;
@@ -195,69 +198,74 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <FormField
           control={form.control}
           name="name"
           render={({ field }) => (
             <FormItem>
               <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Nome Completo</FormLabel>
-              <FormControl>
-                <Input placeholder="Seu nome" className="h-12 rounded-xl" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="username"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</FormLabel>
               <div className="relative">
-                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
                 <FormControl>
-                  <Input placeholder="seu.nick" className="h-12 rounded-xl pl-10 pr-10" {...field} />
+                  <Input placeholder="Como no seu documento" className="h-14 rounded-2xl pl-12 border-dashed border-primary/20 focus-visible:ring-secondary/30" {...field} />
                 </FormControl>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
-                  usernameStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
-                  (usernameStatus === 'taken' || usernameStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
-                </div>
               </div>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="cpf"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">CPF</FormLabel>
-              <div className="relative">
-                <Fingerprint className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
-                <FormControl>
-                  <Input 
-                    placeholder="000.000.000-00" 
-                    className="h-12 rounded-xl pl-10 pr-10 font-mono" 
-                    {...field} 
-                    onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").substring(0, 11))}
-                  />
-                </FormControl>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  {checkingCPF ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
-                  cpfStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
-                  (cpfStatus === 'taken' || cpfStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="username"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</FormLabel>
+                <div className="relative">
+                  <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                  <FormControl>
+                    <Input placeholder="seu.nick" className="h-14 rounded-2xl pl-12 pr-10 border-dashed border-primary/20" {...field} />
+                  </FormControl>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
+                    usernameStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
+                    (usernameStatus === 'taken' || usernameStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
+                  </div>
                 </div>
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="cpf"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">CPF (11 dígitos)</FormLabel>
+                <div className="relative">
+                  <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                  <FormControl>
+                    <Input 
+                      placeholder="000.000.000-00" 
+                      className="h-14 rounded-2xl pl-12 pr-10 font-mono border-dashed border-primary/20" 
+                      {...field} 
+                      onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").substring(0, 11))}
+                    />
+                  </FormControl>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {checkingCPF ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
+                    cpfStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
+                    (cpfStatus === 'taken' || cpfStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
+                  </div>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
@@ -265,9 +273,12 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">E-mail</FormLabel>
-              <FormControl>
-                <Input type="email" placeholder="seu@email.com" className="h-12 rounded-xl" {...field} />
-              </FormControl>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                <FormControl>
+                  <Input type="email" placeholder="seu@email.com" className="h-14 rounded-2xl pl-12 border-dashed border-primary/20" {...field} />
+                </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -281,16 +292,15 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
               <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Gênero</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger className="h-12 rounded-xl">
+                  <SelectTrigger className="h-14 rounded-2xl border-dashed border-primary/20 px-6">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                 </FormControl>
-                <SelectContent className="rounded-xl">
+                <SelectContent className="rounded-2xl">
                   <SelectItem value="masculino">Masculino</SelectItem>
                   <SelectItem value="feminino">Feminino</SelectItem>
                   <SelectItem value="nao-binario">Não-binário</SelectItem>
-                  <SelectItem value="outro">Outro</SelectItem>
-                  <SelectItem value="prefiro-nao-dizer">Prefiro não dizer</SelectItem>
+                  <SelectItem value="outro">Outro / Prefiro não dizer</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -303,10 +313,13 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Senha</FormLabel>
-              <FormControl>
-                <Input type="password" placeholder="••••••••" className="h-12 rounded-xl" {...field} />
-              </FormControl>
+              <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Senha de Acesso</FormLabel>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                <FormControl>
+                  <Input type="password" placeholder="Mínimo 6 caracteres" className="h-14 rounded-2xl pl-12 border-dashed border-primary/20" {...field} />
+                </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -315,9 +328,9 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
         <Button 
           type="submit" 
           disabled={isLoading || usernameStatus !== 'valid' || cpfStatus !== 'valid'} 
-          className="w-full bg-secondary text-white font-black h-16 rounded-2xl shadow-xl uppercase italic text-lg transition-transform hover:scale-[1.02] shadow-secondary/20 mt-4"
+          className="w-full bg-secondary text-white font-black h-20 rounded-[2rem] shadow-xl uppercase italic text-xl transition-all hover:scale-[1.02] shadow-secondary/30 mt-4 active:scale-95"
         >
-          {isLoading ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Concluir Cadastro"}
+          {isLoading ? <Loader2 className="mr-2 h-8 w-8 animate-spin" /> : "Concluir Cadastro"}
         </Button>
       </form>
     </Form>

@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
@@ -10,12 +9,11 @@ service firebase.storage {
     }
 
     // Função central de autorização administrativa para o Storage
-    // Adicionado check direto de UID mestre para máxima resiliência
+    // Simplificada para máxima resiliência contra erros de rede/cotas no momento de validação
     function isAdmin() {
       return isSignedIn() && (
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
-        request.auth.token.admin == true ||
-        firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid))
+        request.auth.token.admin == true
       );
     }
 
@@ -29,7 +27,6 @@ service firebase.storage {
     }
 
     // --- PASTA ADMINISTRATIVA ---
-    // Permite gravação total para quem é admin na pasta /admin/
     match /admin/{allPaths=**} {
       allow write: if isAdmin();
     }

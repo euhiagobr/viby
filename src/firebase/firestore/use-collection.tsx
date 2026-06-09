@@ -7,14 +7,14 @@ import {
   QuerySnapshot,
   DocumentData,
   FirestoreError,
+  Unsubscribe,
 } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
 import { FirestorePermissionError } from '../errors';
 
 /**
- * Hook resiliente para escutar coleções do Firestore.
- * Aprimorado com lógica profunda de extração de path para melhor depuração no ErrorManager.
- * Adicionada proteção contra erros de asserção interna do SDK (ID: ca9/b815).
+ * Hook resiliente para escutar coleções.
+ * Implementa controle rígido de ciclo de vida para prevenir erros de asserção ca9 e vazamento de listeners.
  */
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
@@ -22,11 +22,17 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [error, setError] = useState<FirestoreError | null>(null);
 
   const isMounted = useRef(true);
+  const unsubRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
     isMounted.current = true;
 
-    // Se a query for nula, o hook fica em estado de espera (útil para aguardar o Auth)
+    // Se a query mudar, limpamos o listener ativo imediatamente
+    if (unsubRef.current) {
+      unsubRef.current();
+      unsubRef.current = null;
+    }
+
     if (!query) {
       setLoading(false);
       return;
@@ -34,10 +40,8 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
 
     setLoading(true);
 
-    let unsubscribe: () => void;
-
     try {
-      unsubscribe = onSnapshot(
+      unsubRef.current = onSnapshot(
         query,
         (snapshot: QuerySnapshot<T>) => {
           if (!isMounted.current) return;
@@ -58,39 +62,30 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
             let path = 'collection_query';
             try {
               const q = query as any;
-              if (q._query?.path?.segments) {
-                path = q._query.path.segments.join('/');
-              } else if (q.query?.path?.segments) {
-                path = q.query.path.segments.join('/');
-              } else if (q.path) {
-                path = q.path;
-              }
-            } catch (e) {
-              console.warn("[Path Extraction Failed]", e);
-            }
+              if (q._query?.path?.segments) path = q._query.path.segments.join('/');
+            } catch (e) {}
             
-            const permissionError = new FirestorePermissionError({
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
               path: path,
               operation: 'list',
-            });
-            
-            errorEmitter.emit('permission-error', permissionError);
+            }));
             setData([]);
           } else {
-            console.error(`[Firestore Collection Error] ${serverError.code}`, serverError);
             setError(serverError);
           }
           setLoading(false);
         }
       );
     } catch (e) {
-      console.warn("[Firestore] Collection sync starting failed.");
       setLoading(false);
     }
 
     return () => {
       isMounted.current = false;
-      if (unsubscribe) unsubscribe();
+      if (unsubRef.current) {
+        unsubRef.current();
+        unsubRef.current = null;
+      }
     };
   }, [query]);
 

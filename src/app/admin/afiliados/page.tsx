@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -13,13 +12,9 @@ import {
   TrendingUp, 
   Users, 
   Ticket, 
-  Wallet,
-  ArrowUpRight,
   Inbox,
-  FilterX,
-  History,
-  CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  History
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -41,21 +36,23 @@ export default function AdminAfiliadosPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
-  const { isSuperAdmin } = useAdminPermissions()
+  const { isSuperAdmin, adminProfile } = useAdminPermissions()
   
   const [search, setSearch] = React.useState("")
   const [isProcessing, setIsProcessing] = React.useState(false)
 
-  // Consultas Estabilizadas (Usando useMemoFirebase para evitar loops)
+  const adminUid = adminProfile?.uid;
+
+  // Consultas Estabilizadas (Usando IDs primitivos nas dependências)
   const statsQuery = useMemoFirebase(() => {
-    if (!db) return null
+    if (!db || !adminUid) return null
     return query(collection(db, "affiliate_stats"), orderBy("totalTicketsSold", "desc"), limit(50))
-  }, [db])
+  }, [db, adminUid])
 
   const recentCommissionsQuery = useMemoFirebase(() => {
-    if (!db) return null
+    if (!db || !adminUid) return null
     return query(collection(db, "affiliate_commissions"), orderBy("createdAt", "desc"), limit(20))
-  }, [db])
+  }, [db, adminUid])
 
   const { data: stats, loading: loadingStats } = useCollection<any>(statsQuery)
   const { data: commissions, loading: loadingComms } = useCollection<any>(recentCommissionsQuery)
@@ -63,8 +60,8 @@ export default function AdminAfiliadosPage() {
   const filteredStats = React.useMemo(() => {
     if (!stats) return []
     return stats.filter(s => 
-      s.userId?.toLowerCase().includes(search.toLowerCase()) || 
-      s.userName?.toLowerCase().includes(search.toLowerCase())
+      s.userName?.toLowerCase().includes(search.toLowerCase()) ||
+      s.userId?.toLowerCase().includes(search.toLowerCase())
     )
   }, [stats, search])
 
@@ -106,7 +103,7 @@ export default function AdminAfiliadosPage() {
           <p className="text-muted-foreground font-medium">Gestão de crescimento e rede de indicações Viby.</p>
         </div>
         {isSuperAdmin && (
-          <Button onClick={handleGeneratePending} disabled={isProcessing} variant="outline" className="rounded-xl h-11 border-dashed gap-2 uppercase italic text-[10px] font-black">
+          <Button onClick={handleGeneratePending} disabled={isProcessing} variant="outline" className="rounded-xl h-11 border-dashed gap-2 uppercase italic text-[10px] font-black border-secondary text-secondary">
             {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Gerar Códigos Pendentes
           </Button>
@@ -120,7 +117,6 @@ export default function AdminAfiliadosPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* RANKING DE AFILIADOS */}
         <Card className="lg:col-span-8 border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="bg-muted/30 border-b p-8 flex flex-row items-center justify-between">
             <div>
@@ -153,7 +149,7 @@ export default function AdminAfiliadosPage() {
                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-black text-xs text-muted-foreground">#{idx + 1}</div>
                            <div className="flex flex-col">
                               <span className="font-bold text-sm uppercase italic text-primary">{s.userName || "Membro"}</span>
-                              <span className="text-[9px] text-muted-foreground uppercase font-black">ID: {s.id.slice(0, 8)}</span>
+                              <span className="text-[9px] text-muted-foreground uppercase font-black">ID: {s.userId?.slice(0, 8)}</span>
                            </div>
                         </div>
                       </TableCell>
@@ -177,7 +173,6 @@ export default function AdminAfiliadosPage() {
           </CardContent>
         </Card>
 
-        {/* ÚLTIMAS COMISSÕES */}
         <Card className="lg:col-span-4 border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
           <CardHeader className="bg-muted/30 border-b p-8">
             <CardTitle className="text-lg font-black italic uppercase tracking-tighter flex items-center gap-2">
@@ -213,7 +208,11 @@ export default function AdminAfiliadosPage() {
 }
 
 function MetricCard({ label, value, icon: Icon, color }: any) {
-   const colors: any = { blue: "bg-blue-50 text-blue-600 border-blue-200", secondary: "bg-secondary/5 text-secondary border-secondary/20", orange: "bg-orange-50 text-orange-600 border-orange-200" };
+   const colors: any = { 
+     blue: "border-blue-200 text-blue-600 bg-blue-50", 
+     secondary: "border-secondary/20 text-secondary bg-secondary/5", 
+     orange: "border-orange-200 text-orange-600 bg-orange-50" 
+   };
    return (
       <Card className={cn("border-none shadow-sm rounded-[1.5rem] bg-white border-l-4", colors[color])}>
          <CardContent className="p-6">

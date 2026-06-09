@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
@@ -10,8 +9,8 @@ import { checkAdminPermission, ALL_PERMISSIONS } from '@/lib/admin/permissions';
 const MASTER_ADMIN_UID = "AqTVL8VRTZT435pZudkObzMGsrR2";
 
 /**
- * @fileOverview Hook resiliente para gestão de permissões administrativas.
- * Otimizado com referências estáveis para evitar loops de re-renderização no Layout.
+ * @fileOverview Hook estabilizado para gestão de permissões administrativas.
+ * Utiliza referências de memória para impedir loops infinitos no Layout.
  */
 export function useAdminPermissions() {
   const auth = useAuth();
@@ -28,7 +27,7 @@ export function useAdminPermissions() {
   
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
-  // Buffer de referência para estabilizar o objeto de saída e evitar loops de profundidade
+  // Buffer persistente para estabilizar o objeto de saída
   const stableProfileRef = useRef<any>(null);
 
   const adminProfile = useMemo(() => {
@@ -36,11 +35,11 @@ export function useAdminPermissions() {
 
     let result = null;
 
-    // 1. Prioridade: Estrutura Granular Ativa
+    // 1. Prioridade: Cadastro granular no Firestore
     if (dbAdminProfile && dbAdminProfile.status !== 'Desativado') {
       result = dbAdminProfile;
     }
-    // 2. Fallback: Mestre ou Role Legada
+    // 2. Fallback: Mestre ou Role legada
     else if (userId === MASTER_ADMIN_UID || userRole === 'admin') {
       result = {
         uid: userId,
@@ -53,7 +52,7 @@ export function useAdminPermissions() {
       };
     }
 
-    // Se o resultado for idêntico ao anterior em termos de UID e Cargo, mantém a mesma referência
+    // Comparação de valor para manter a referência estável e evitar loop de re-render
     if (
       stableProfileRef.current && 
       result && 
@@ -73,13 +72,12 @@ export function useAdminPermissions() {
     return checkAdminPermission(adminProfile, permission);
   }, [adminProfile]);
 
-  const isSuperAdmin = adminProfile?.cargo === 'super_admin';
   const loading = !authInitialized || userLoading || adminLoading;
 
   return {
     adminProfile,
     hasPermission,
-    isSuperAdmin,
+    isSuperAdmin: adminProfile?.cargo === 'super_admin',
     loading
   };
 }
