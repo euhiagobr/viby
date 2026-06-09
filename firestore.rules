@@ -4,7 +4,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is an admin
+    // Helper functions
     function isAdmin() {
       return request.auth != null && (
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
@@ -16,43 +16,42 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // Users can read their own data and admins can read all user data
+    // Users
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin() || true; // Permissão de leitura pública para perfis sociais
+      allow read: if isOwner(userId) || isAdmin() || true; // Public for social profiles
       allow write: if isOwner(userId) || isAdmin();
       
-      // Sensitive data subcollection
       match /private/sensitive {
         allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
-    // Public indices for discovery and mentions
+    // Usernames Index
     match /usernames/{username} {
       allow read, list: if true;
       allow write: if request.auth != null;
     }
 
-    // Affiliate System - Public read and list for validation during signup
+    // Affiliate System
     match /affiliateCodes/{code} {
-        allow read, list: if true;
-        allow write: if isAdmin();
+      allow read, list: if true;
+      allow write: if isAdmin();
     }
 
     match /affiliate_commissions/{commissionId} {
-        allow read: if request.auth != null && (request.auth.uid == resource.data.affiliateId || isAdmin());
-        allow write: if false; // Server-only
+      allow read: if request.auth != null && (request.auth.uid == resource.data.affiliateId || isAdmin());
+      allow write: if false; // Server-only
     }
 
     match /affiliate_stats/{userId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow write: if false; // Server-only
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false; // Server-only
     }
 
     match /affiliate_payouts/{payoutId} {
-        allow create: if request.auth != null;
-        allow read: if request.auth != null && (request.auth.uid == resource.data.userId || isAdmin());
-        allow update, delete: if isAdmin();
+      allow create: if request.auth != null;
+      allow read: if request.auth != null && (request.auth.uid == resource.data.userId || isAdmin());
+      allow update, delete: if isAdmin();
     }
 
     // Organizations and Members
@@ -65,13 +64,6 @@ service cloud.firestore {
       }
     }
 
-    // Support Tickets
-    match /support_tickets/{ticketId} {
-      allow create: if request.auth != null;
-      allow read, update: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
-      allow delete: if isAdmin();
-    }
-
     // Events and Registrations
     match /events/{eventId} { 
       allow read: if true; 
@@ -81,12 +73,59 @@ service cloud.firestore {
         allow read: if true;
         allow write: if request.auth != null;
       }
+      
+      match /interests/{interestId} {
+        allow read, write: if request.auth != null;
+      }
+      
+      match /comments/{commentId} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
     }
 
     match /registrations/{regId} {
       allow read: if request.auth != null && (isOwner(resource.data.userId) || isAdmin() || get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid);
       allow create: if request.auth != null;
       allow update: if isAdmin() || (request.auth != null && get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid);
+    }
+
+    // Support Tickets
+    match /support_tickets/{ticketId} {
+      allow create: if request.auth != null;
+      allow read, update: if request.auth != null && (isOwner(resource.data.userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+    
+    // Wallet
+    match /wallets/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    match /wallet_transactions/{txId} {
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // Admin Specific
+    match /system_admins/{adminId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    match /system_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /sent_emails/{emailId} {
+      allow read: if isAdmin();
+      allow write: if false; // Server actions only
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // General catch-all for admins
