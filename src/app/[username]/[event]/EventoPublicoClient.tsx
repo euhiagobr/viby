@@ -43,8 +43,7 @@ import { AgeRatingBadge } from '@/lib/age-rating';
 import { useCurrency } from '@/contexts/CurrencyContext';
 
 /**
- * @fileOverview Visualização pública do evento.
- * Recebe o document ID do Firestore já resolvido pelo servidor.
+ * @fileOverview Visualização pública do evento unificada para a rota [event].
  */
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter();
