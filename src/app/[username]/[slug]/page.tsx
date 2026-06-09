@@ -25,7 +25,7 @@ async function getEventBySlugOrId(username: string, slugOrId: string) {
     const orgId = usernameSnap.data().uid;
     const normalizedSlug = slugOrId.toLowerCase().trim();
 
-    // 2. Tentar localizar o Evento pelo Slug (Case-Insensitive via normalização)
+    // 2. Tentar localizar o Evento pelo Slug
     const q = query(
       collection(db, "events"),
       where("organizationId", "==", orgId),
@@ -38,7 +38,7 @@ async function getEventBySlugOrId(username: string, slugOrId: string) {
       return { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
     }
 
-    // 3. Fallback: Tentar localizar pelo ID diretamente (Case-Sensitive como são IDs do Firestore)
+    // 3. Fallback: Tentar localizar pelo ID diretamente
     const eventRef = doc(db, "events", slugOrId);
     const eventSnap = await getDoc(eventRef);
     
