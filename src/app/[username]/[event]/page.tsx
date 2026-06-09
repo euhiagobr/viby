@@ -59,8 +59,8 @@ async function getEventData(username: string, eventParam: string) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string, event: string }> }): Promise<Metadata> {
-  const { username, event: eventParam } = await params;
-  const event = await getEventData(username, eventParam);
+  const resolvedParams = await params;
+  const event = await getEventData(resolvedParams.username, resolvedParams.event);
 
   if (!event) return { title: 'Evento não encontrado' };
 
@@ -80,8 +80,8 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 }
 
 export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, event: string }> }) {
-  const { username, event: eventParam } = await params;
-  const event = await getEventData(username, eventParam);
+  const resolvedParams = await params;
+  const event = await getEventData(resolvedParams.username, resolvedParams.event);
 
   if (!event) {
     return (
@@ -108,9 +108,9 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
   }
 
   // Se acessou por ID, mas existe Slug, redireciona para a URL amigável
-  if (event.slug && event.slug !== eventParam) {
-    redirect(`/${username}/${event.slug}`);
+  if (event.slug && event.slug !== resolvedParams.event) {
+    redirect(`/${resolvedParams.username}/${event.slug}`);
   }
 
-  return <EventoPublicoClient id={event.id} username={username} />;
+  return <EventoPublicoClient id={event.id} username={resolvedParams.username} />;
 }
