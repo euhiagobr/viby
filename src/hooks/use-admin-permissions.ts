@@ -11,7 +11,7 @@ const MASTER_ADMIN_UID = "AqTVL8VRTZT435pZudkObzMGsrR2";
 
 /**
  * @fileOverview Hook resiliente para gestão de permissões administrativas.
- * Otimizado para evitar loops de renderização infinitos usando referências estáveis.
+ * Otimizado com referências estáveis para evitar loops de re-renderização no Layout.
  */
 export function useAdminPermissions() {
   const auth = useAuth();
@@ -28,42 +28,43 @@ export function useAdminPermissions() {
   
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
-  // Mantemos uma referência estável para o resultado final
-  const stableAdminProfile = useRef<any>(null);
+  // Buffer de referência para estabilizar o objeto de saída
+  const stableProfile = useRef<any>(null);
 
   const adminProfile = useMemo(() => {
     if (!authInitialized || userLoading || adminLoading) return null;
 
     let result = null;
 
-    // 1. Prioridade para a nova estrutura granular
+    // 1. Prioridade: Estrutura Granular Ativa
     if (dbAdminProfile && dbAdminProfile.status !== 'Desativado') {
       result = dbAdminProfile;
     }
-    // 2. Fallback de Bootstrapping
+    // 2. Fallback: Mestre ou Role Legada
     else if (userId === MASTER_ADMIN_UID || userRole === 'admin') {
       result = {
         uid: userId,
-        nome: profile?.name || "Super",
-        sobrenome: "Admin",
+        nome: profile?.name || "Admin",
+        sobrenome: "Viby",
         email: user?.email || "",
-        cargo: 'super_admin',
+        cargo: userId === MASTER_ADMIN_UID ? 'super_admin' : 'admin',
         status: 'Ativo',
         permissions: ALL_PERMISSIONS.reduce((acc, p) => ({ ...acc, [p]: true }), {} as any)
       };
     }
 
-    // Se o resultado for o mesmo, mantém referência
+    // Compara chaves críticas para manter a mesma referência de objeto se nada mudou
     if (
-      stableAdminProfile.current && 
+      stableProfile.current && 
       result && 
-      stableAdminProfile.current.uid === result.uid && 
-      stableAdminProfile.current.cargo === result.cargo
+      stableProfile.current.uid === result.uid && 
+      stableProfile.current.cargo === result.cargo &&
+      stableProfile.current.status === result.status
     ) {
-      return stableAdminProfile.current;
+      return stableProfile.current;
     }
 
-    stableAdminProfile.current = result;
+    stableProfile.current = result;
     return result;
   }, [dbAdminProfile, userRole, userId, authInitialized, userLoading, adminLoading, profile?.name, user?.email]);
 

@@ -23,22 +23,13 @@ import {
   Camera, 
   Target, 
   RefreshCw,
-  Megaphone,
   Zap,
-  CalendarDays,
-  Info,
-  AlertTriangle,
-  ShieldCheck,
-  Key,
-  Lock,
-  ListChecks,
+  CheckCircle2,
   Trash2,
   Plus
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
 import { Badge } from '@/components/ui/badge';
@@ -72,7 +63,7 @@ export default function AdminConfiguracoesPage() {
     siteName: 'Viby', 
     logoUrl: '', 
     siteIconUrl: '', 
-    headerImages: [] as string[] 
+    headerImages: ['', '', '', '', ''] as string[] 
   });
   const [stripeForm, setStripeForm] = React.useState({ publishableKey: '', secretKey: '', feePercent: '3.99', feeFixed: '0.39', mode: 'test' });
   const [emailForm, setEmailForm] = React.useState({ smtpHost: 'smtp.gmail.com', smtpPort: '465', smtpUser: '', smtpPass: '' });
@@ -80,11 +71,15 @@ export default function AdminConfiguracoesPage() {
 
   React.useEffect(() => {
     if (siteSettings) {
+      const existingHeaders = siteSettings.headerImages || [];
+      const normalizedHeaders = [...existingHeaders];
+      while (normalizedHeaders.length < 5) normalizedHeaders.push('');
+
       setSiteForm({ 
         siteName: siteSettings.siteName || 'Viby', 
         logoUrl: siteSettings.logoUrl || '', 
         siteIconUrl: siteSettings.siteIconUrl || siteSettings.iconUrl || '',
-        headerImages: siteSettings.headerImages || []
+        headerImages: normalizedHeaders.slice(0, 5)
       });
     }
   }, [siteSettings]);
@@ -165,9 +160,9 @@ export default function AdminConfiguracoesPage() {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
           setUploadProgress(prev => ({ ...prev, [progressKey]: progress }));
         },
-        () => {
+        (error) => {
           setUploadProgress(prev => ({ ...prev, [progressKey]: null }));
-          toast({ variant: "destructive", title: "Erro no upload" });
+          toast({ variant: "destructive", title: "Falha de Permissão", description: "Verifique seu nível de acesso administrador." });
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
@@ -355,7 +350,7 @@ export default function AdminConfiguracoesPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Key className="w-3 h-3" /> Publishable Key</Label>
+                      <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><RefreshCw className="w-3 h-3" /> Publishable Key</Label>
                       <Input value={stripeForm.publishableKey} onChange={e => setStripeForm({...stripeForm, publishableKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" />
                    </div>
                    <div className="space-y-2">

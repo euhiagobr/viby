@@ -6,11 +6,18 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // Função robusta de verificação administrativa sincronizada com Firestore
     function isAdmin() {
       return isSignedIn() && (
+        // 1. UID Mestre para Bootstrap
+        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
+        // 2. Custom Claims
         request.auth.token.admin == true ||
-        (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
-        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2"
+        // 3. Coleção dedicada de admins (Mais performático no Storage)
+        firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid)) ||
+        // 4. Role no documento de usuário
+        (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) && 
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
@@ -22,6 +29,7 @@ service firebase.storage {
       allow read: if true;
     }
 
+    // Escrita administrativa centralizada
     match /admin/{allPaths=**} {
       allow write: if isAdmin();
     }
