@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -21,7 +20,8 @@ import {
   Inbox, 
   Share2,
   Info,
-  Coins
+  Coins,
+  Star
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -140,6 +140,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   if (!event) return null;
 
   const siteName = settings?.siteName || "Viby";
+  const isCuradoria = event.curationType === 'curadoria';
 
   return (
     <div className="min-h-screen bg-background pb-32 selection:bg-secondary selection:text-white w-full overflow-x-hidden">
@@ -267,22 +268,38 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                    <BilheteriaPublic event={event} globalFees={globalFees} promotions={promotions} orgSettings={organization} />
                 )}
 
-                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8">
-                   <div className="flex items-center gap-4">
-                      <Avatar className="h-16 w-16 border-2 border-secondary/10 shrink-0">
-                         <AvatarImage src={organization?.avatar} className="object-cover" />
-                         <AvatarFallback className="font-black bg-muted">{organization?.name?.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Realização</p>
-                         <h4 className="font-black text-lg uppercase italic text-primary leading-tight flex-wrap flex items-center gap-1.5">
-                           {organization?.name}
-                           {(organization?.verified || organization?.isVerified) && <BadgeCheck className="w-4 h-4 fill-blue-500 text-white shrink-0" />}
-                         </h4>
-                         <Link href={`/${organization?.username}`} className="text-[9px] font-black text-secondary uppercase hover:underline">Ver Perfil da Marca</Link>
+                <div className="space-y-4">
+                  <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8">
+                    <div className="flex items-center gap-4">
+                        <Avatar className="h-16 w-16 border-2 border-secondary/10 shrink-0">
+                          <AvatarImage src={organization?.avatar} className="object-cover" />
+                          <AvatarFallback className="font-black bg-muted">{organization?.name?.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">
+                            {isCuradoria ? 'Curadoria' : 'Realização'}
+                          </p>
+                          <h4 className="font-black text-lg uppercase italic text-primary leading-tight flex-wrap flex items-center gap-1.5">
+                            {organization?.name}
+                            {(organization?.verified || organization?.isVerified) && <BadgeCheck className="w-4 h-4 fill-blue-500 text-white shrink-0" />}
+                          </h4>
+                          <Link href={`/${organization?.username}`} className="text-[9px] font-black text-secondary uppercase hover:underline">Ver Perfil da Marca</Link>
+                        </div>
+                    </div>
+                  </Card>
+
+                  {isCuradoria && (
+                    <div className="p-5 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-3 animate-in zoom-in-95">
+                      <Star className="w-5 h-5 text-secondary shrink-0 mt-0.5 fill-secondary" />
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase text-secondary italic">Nota de Curadoria</p>
+                        <p className="text-[9px] text-muted-foreground font-medium leading-relaxed uppercase">
+                          A curadoria é uma forma de divulgar as melhores experiências da rede. Este evento foi selecionado pela nossa equipe para garantir maior visibilidade e alcance aos produtores locais.
+                        </p>
                       </div>
-                   </div>
-                </Card>
+                    </div>
+                  )}
+                </div>
 
                 <EventCoOrganizers eventId={id} currentOrgId={event.organizationId} isPublic />
              </div>
