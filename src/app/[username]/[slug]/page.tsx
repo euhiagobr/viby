@@ -9,17 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Home, CalendarX, ArrowLeft } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
-/**
- * @fileOverview Rota Unificada de Eventos no parâmetro [slug].
- * Resolve tanto IDs quanto Slugs.
- */
-
 async function getEventData(username: string, param: string) {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     
-    // 1. Resolver o UID da organização pelo username
     const usernameRef = doc(db, "usernames", username.toLowerCase());
     const usernameSnap = await getDoc(usernameRef);
     if (!usernameSnap.exists()) return null;
@@ -27,7 +21,6 @@ async function getEventData(username: string, param: string) {
     const orgId = usernameSnap.data().uid;
     const normalizedParam = param.trim();
 
-    // 2. Tentar resolver o parâmetro como ID
     const eventIdRef = doc(db, "events", normalizedParam);
     const eventIdSnap = await getDoc(eventIdRef);
     
@@ -38,7 +31,6 @@ async function getEventData(username: string, param: string) {
       }
     }
 
-    // 3. Tentar resolver o parâmetro como Slug
     const slugLower = normalizedParam.toLowerCase();
     const q = query(
       collection(db, "events"),
@@ -54,7 +46,6 @@ async function getEventData(username: string, param: string) {
 
     return null;
   } catch (e) {
-    console.error("[Unified Event Router Error]", e);
     return null;
   }
 }
@@ -62,22 +53,8 @@ async function getEventData(username: string, param: string) {
 export async function generateMetadata({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<Metadata> {
   const resolvedParams = await params;
   const event = await getEventData(resolvedParams.username, resolvedParams.slug);
-
   if (!event) return { title: 'Evento não encontrado' };
-
-  const city = event.address?.city || event.city || 'Brasil';
-  const title = `${event.title} • ${city} | Viby`;
-  const description = event.shortDescription || event.description?.substring(0, 160);
-  
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      images: event.image ? [{ url: event.image }] : [],
-    }
-  };
+  return { title: `${event.title} | Viby` };
 }
 
 export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }) {
@@ -108,7 +85,6 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  // Redirecionamento Canônico: Se acessou por ID mas existe um Slug, redireciona
   if (event.slug && event.slug !== resolvedParams.slug) {
     redirect(`/${resolvedParams.username}/${event.slug}`);
   }
