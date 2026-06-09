@@ -144,3 +144,63 @@ export async function getAffiliatePublicRanking() {
     return { success: false, error: e.message, ranking: [] };
   }
 }
+
+/**
+ * Processa a solicitação de saque de um afiliado.
+ * Deduz do saldo disponível e move para o estado pendente.
+ */
+export async function requestAffiliatePayout(params: {
+  userId: string;
+  amount: number;
+  currency: string;
+  pixKey?: string;
+  pixType?: string;
+  bankDetails?: string;
+}) {
+  const { userId, amount, currency, pixKey, pixType, bankDetails } = params;
+  if (!userId || !amount || amount <= 0) {
+    return { success: false, error: "Dados inválidos para saque." };
+  }
+
+  try {
+    return await firestore.runTransaction(async (transaction) => {
+      const statsRef = firestore.collection("affiliate_stats").doc(userId);
+      const statsSnap = await transaction.get(statsRef);
+
+      if (!statsSnap.exists) {
+        throw new Error("Estatísticas de afiliado não encontradas para este usuário.");
+      }
+
+      const stats = statsSnap.data()!;
+      const balance = stats.balances?.[currency];
+
+      if (!balance || (balance.available || 0) < amount) {
+        throw new Error(`Saldo insuficiente em ${currency}. Disponível: ${balance?.available || 0}`);
+      }
+
+      const payoutRef = firestore.collection("affiliate_payouts").doc();
+      const payoutData = {
+        userId,
+        amount,
+        currency,
+        pixKey: pixKey || null,
+        pixType: pixType || null,
+        bankDetails: bankDetails || null,
+        status: "Pendente",
+        createdAt: FieldValue.serverTimestamp()
+      };
+
+      transaction.set(payoutRef, payoutData);
+      transaction.update(statsRef, {
+        [`balances.${currency}.available`]: FieldValue.increment(-amount),
+        [`balances.${currency}.pending`]: FieldValue.increment(amount),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+
+      return { success: true };
+    });
+  } catch (e: any) {
+    console.error("[Affiliate Payout Error]", e);
+    return { success: false, error: e.message };
+  }
+}
