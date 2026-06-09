@@ -143,6 +143,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
 
+  // Rótulo de curadoria especial para a organização oficial
+  const curationLabel = event.curationType === 'curadoria' ? 'Curadoria' : 'Realização';
+
   return (
     <Card 
       ref={cardRef}
@@ -198,7 +201,10 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
             <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title}</h3>
             <EventInterest event={event} showButton={false} variant="compact" />
           </div>
-          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
+          <div className="flex flex-col">
+             <p className="text-[7px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none mb-0.5">{curationLabel}</p>
+             <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
+          </div>
         </div>
 
         <div className="flex items-center justify-between pt-3 mt-auto border-t border-dashed border-border/60">

@@ -10,7 +10,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Save, Handshake, Settings2, Ticket, RefreshCw, Eye } from "lucide-react"
+import { Loader2, ArrowLeft, Save, Handshake, Settings2, Ticket, RefreshCw, Eye, Star } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -32,6 +32,8 @@ import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+
+const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 export default function EditarEventoPage() {
   const params = useParams()
@@ -98,7 +100,8 @@ export default function EditarEventoPage() {
         isRecurring: event.isRecurring || false,
         frequency: event.frequency || "weekly",
         recurringEndDate: event.recurringEndDate || "",
-        currency: event.currency || dashboardCurrency || "BRL"
+        currency: event.currency || dashboardCurrency || "BRL",
+        curationType: event.curationType || "realização"
       })
       setTicketMode(event.ticketMode || 'free')
       setBatches(event.batches || [])
@@ -177,6 +180,8 @@ export default function EditarEventoPage() {
 
   if (eventLoading || !formData) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
 
+  const isVibyOfficial = currentOrg?.id === VIBY_OFFICIAL_UID;
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
       <div className="flex items-center justify-between">
@@ -227,6 +232,27 @@ export default function EditarEventoPage() {
                     />
                     <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
                   </div>
+
+                  {isVibyOfficial && (
+                    <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-3">
+                       <Label className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
+                          <Star className="w-4 h-4 fill-secondary" /> Tipo de Vínculo (Exclusivo Viby)
+                       </Label>
+                       <Select value={formData.curationType} onValueChange={v => setFormData({...formData, curationType: v})}>
+                          <SelectTrigger className="rounded-xl h-11 bg-white border-none shadow-sm">
+                             <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                             <SelectItem value="realização">Realização Direta</SelectItem>
+                             <SelectItem value="curadoria">Curadoria de Terceiros</SelectItem>
+                          </SelectContent>
+                       </Select>
+                       <p className="text-[9px] font-bold text-muted-foreground uppercase italic px-1">
+                          Define o rótulo exibido acima do nome da marca no card do evento.
+                       </p>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                       <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v})}>
