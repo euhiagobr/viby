@@ -1,180 +1,209 @@
+"use server"
 
-'use server';
+import { getAdminDb } from "@/lib/firebase/admin";
+import { FieldValue } from "firebase-admin/firestore";
 
-import { getAdminDb } from '@/lib/firebase/admin';
-import * as admin from 'firebase-admin';
-import { CurrencyCode } from '@/contexts/CurrencyContext';
-import { generateAffiliateCode } from '@/lib/affiliate-utils';
+const firestore = getAdminDb();
 
-export async function requestAffiliatePayout(params: {
-  userId: string;
-  amount: number;
-  currency: CurrencyCode;
-  pixKey: string;
-  pixType: string;
-  bankDetails?: string;
-}) {
-  const db = getAdminDb();
-  
+// Helper to generate a unique 10-digit numeric code
+const generateUniqueCode = async (): Promise<string> => {
+  let code = "";
+  let isUnique = false;
+  while (!isUnique) {
+    code = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+    const doc = await firestore.collection("affiliateCodes").doc(code).get();
+    if (!doc.exists) {
+      isUnique = true;
+    }
+  }
+  return code;
+};
+
+export async function generateAffiliateCodeAction(params: { userId: string }) {
+  const { userId } = params;
+  if (!userId) {
+    return { success: false, error: "Usuário não autenticado." };
+  }
+
   try {
-    return await db.runTransaction(async (transaction) => {
-      const statsRef = db.collection('affiliate_stats').doc(params.userId);
-      const statsSnap = await transaction.get(statsRef);
+    const userRef = firestore.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+    const userData = userDoc.data();
 
-      if (!statsSnap.exists) throw new Error("Conta de afiliado não localizada.");
-      const stats = statsSnap.data()!;
-      const currency = params.currency || 'BRL';
+    if (!userDoc.exists || !userData) {
+      return { success: false, error: "Usuário não encontrado." };
+    }
 
-      const balanceData = stats.balances?.[currency] || { available: 0 };
+    if (userData.affiliateCode) {
+      return { success: false, error: "Usuário já possui um código de afiliado." };
+    }
 
-      if (balanceData.available < params.amount) {
-        throw new Error(`Saldo disponível em ${currency} insuficiente.`);
-      }
+    const newCode = await generateUniqueCode();
 
-      const minAmount = currency === 'BRL' ? 50 : 20;
-      if (params.amount < minAmount) {
-        throw new Error(`O valor mínimo para saque em ${currency} é ${minAmount}.`);
-      }
+    // Update user document
+    await userRef.update({ affiliateCode: newCode });
 
-      const payoutRef = db.collection('affiliate_payouts').doc();
-      transaction.set(payoutRef, {
-        userId: params.userId,
-        amount: params.amount,
-        currency: currency,
-        pixKey: params.pixKey,
-        pixType: params.pixType,
-        bankDetails: params.bankDetails || "",
-        status: 'Pendente',
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      transaction.update(statsRef, {
-        [`balances.${currency}.available`]: admin.firestore.FieldValue.increment(-params.amount),
-        [`balances.${currency}.totalWithdrawn`]: admin.firestore.FieldValue.increment(params.amount),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      return { success: true };
+    // Create entry in affiliateCodes collection
+    await firestore.collection("affiliateCodes").doc(newCode).set({
+      code: newCode,
+      userId: userId,
+      userName: userData.name || "Usuário Viby",
+      active: true,
+      createdAt: FieldValue.serverTimestamp(),
+      commissionType: "default",
+      commissionValue: 0 
     });
+    
+    // Also create the stats doc if it doesn't exist
+    const statsRef = firestore.collection("affiliate_stats").doc(userId);
+    const statsSnap = await statsRef.get();
+    if (!statsSnap.exists) {
+        await statsRef.set({
+          userId: userId,
+          totalTicketsSold: 0,
+          totalUsersReferred: 0,
+          totalOrgsLinked: 0,
+          currentLevel: 0,
+          balances: {
+            BRL: { available: 0, pending: 0, totalEarned: 0, totalWithdrawn: 0 },
+            USD: { available: 0, pending: 0, totalEarned: 0, totalWithdrawn: 0 },
+            EUR: { available: 0, pending: 0, totalEarned: 0, totalWithdrawn: 0 }
+          },
+          updatedAt: FieldValue.serverTimestamp()
+        });
+    }
+
+    return { success: true, code: newCode };
   } catch (e: any) {
+    console.error("Error generating affiliate code:", e);
     return { success: false, error: e.message };
   }
 }
 
+export async function requestAffiliatePayout(params: {
+    userId: string,
+    amount: number,
+    currency: string,
+    pixKey: string,
+    pixType: string,
+    bankDetails: string
+}) {
+    const { userId, amount, currency, pixKey, pixType, bankDetails } = params;
+
+    if (!userId || !amount || !currency) {
+        return { success: false, error: "Parâmetros inválidos." };
+    }
+
+    try {
+        await firestore.collection("affiliate_payouts").add({
+            userId,
+            amount,
+            currency,
+            status: "Pendente",
+            method: currency === "BRL" ? "PIX" : "Bank Transfer",
+            details: currency === "BRL" ? { pixKey, pixType } : { bankDetails },
+            createdAt: FieldValue.serverTimestamp(),
+        });
+
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error requesting payout:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+export async function generatePendingAffiliateCodesAction() {
+    try {
+        const usersSnapshot = await firestore.collection('users').where('affiliateCode', '==', null).get();
+        const allUsersSnapshot = await firestore.collection('users').get();
+
+        if (usersSnapshot.empty) {
+            return { success: true, count: 0, skipped: allUsersSnapshot.size, errors: 0 };
+        }
+
+        let processedCount = 0;
+        let errorCount = 0;
+
+        for (const userDoc of usersSnapshot.docs) {
+            try {
+                const newCode = await generateUniqueCode();
+                await userDoc.ref.update({ affiliateCode: newCode });
+
+                await firestore.collection("affiliateCodes").doc(newCode).set({
+                    code: newCode,
+                    userId: userDoc.id,
+                    userName: userDoc.data().name || "N/A",
+                    active: true,
+                    createdAt: FieldValue.serverTimestamp(),
+                });
+                processedCount++;
+            } catch (e) {
+                console.error(`Failed to generate code for user ${userDoc.id}:`, e);
+                errorCount++;
+            }
+        }
+        
+        const skippedCount = allUsersSnapshot.size - processedCount;
+
+        return { success: true, count: processedCount, skipped: skippedCount, errors: errorCount };
+
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function reprocessUserAffiliateAction(uid: string) {
+    if (!uid) return { success: false, error: "UID do usuário é obrigatório."};
+    
+    try {
+        const userDoc = await firestore.collection('users').doc(uid).get();
+        if (!userDoc.exists) return { success: false, error: "Usuário não encontrado."};
+
+        const userData = userDoc.data();
+        const affiliateCode = userData?.affiliateCode;
+
+        if (!affiliateCode) return { success: false, error: "Usuário não possui código de afiliado."};
+        
+        const affiliateRef = firestore.collection('affiliateCodes').doc(affiliateCode);
+        const affiliateDoc = await affiliateRef.get();
+
+        if (affiliateDoc.exists) {
+            await affiliateRef.update({
+                userName: userData?.name || "N/A"
+            });
+            return { success: true };
+        } else {
+            return { success: false, error: "Código de afiliado não encontrado no índice."};
+        }
+
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
 export async function getAffiliatePublicRanking() {
-  const db = getAdminDb();
   try {
-    const snap = await db.collection('affiliate_stats')
-      .orderBy('totalTicketsSold', 'desc')
+    const statsSnap = await firestore.collection("affiliate_stats")
+      .orderBy("totalTicketsSold", "desc")
       .limit(10)
       .get();
-      
-    const results = await Promise.all(snap.docs.map(async (d) => {
+
+    const ranking = await Promise.all(statsSnap.docs.map(async (d) => {
       const data = d.data();
-      const userSnap = await db.collection('users').doc(data.userId).get();
+      const userSnap = await firestore.collection("users").doc(d.id).get();
       const userData = userSnap.data();
       
       return {
         name: userData?.name || userData?.displayName || "Membro Viby",
-        level: data.currentLevel || 0,
         sales: data.totalTicketsSold || 0,
+        level: data.currentLevel || 0,
         orgs: data.totalOrgsLinked || 0
       };
     }));
-    
-    return { success: true, ranking: results };
-  } catch (e) {
-    return { success: false, ranking: [] };
-  }
-}
 
-/**
- * Gera códigos de afiliado de 10 dígitos para usuários que ainda não possuem.
- */
-export async function generatePendingAffiliateCodesAction() {
-  const db = getAdminDb();
-  try {
-    const usersSnap = await db.collection('users').get();
-    
-    // Filtragem manual para maior precisão (caso campos estejam undefined)
-    const targets = usersSnap.docs.filter(d => !d.data().affiliateCode);
-    
-    if (targets.length === 0) return { success: true, count: 0 };
-
-    let count = 0;
-    const batch = db.batch();
-
-    for (const userDoc of targets) {
-      const newCode = await getUniqueAffiliateCode(db);
-      batch.update(userDoc.ref, { 
-        affiliateCode: newCode,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-      
-      // Criar índice de usernames
-      const usernameRef = db.collection('usernames').doc(newCode);
-      batch.set(usernameRef, {
-        uid: userDoc.id,
-        type: 'user',
-        username: newCode
-      });
-
-      count++;
-      
-      // Batch limit
-      if (count >= 400) break;
-    }
-
-    await batch.commit();
-    return { success: true, count };
+    return { success: true, ranking };
   } catch (e: any) {
-    return { success: false, error: e.message };
+    console.error("[Affiliate Action] Ranking Error:", e.message);
+    return { success: false, error: e.message, ranking: [] };
   }
-}
-
-/**
- * Reprocessa um usuário específico para garantir que tenha código de afiliado.
- */
-export async function reprocessUserAffiliateAction(uid: string) {
-  const db = getAdminDb();
-  try {
-    const userRef = db.collection('users').doc(uid);
-    const userSnap = await userRef.get();
-    if (!userSnap.exists) throw new Error("Usuário não encontrado.");
-
-    if (userSnap.data()?.affiliateCode) {
-      return { success: true, message: "Usuário já possui código." };
-    }
-
-    const newCode = await getUniqueAffiliateCode(db);
-    const batch = db.batch();
-    
-    batch.update(userRef, { 
-      affiliateCode: newCode,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    const usernameRef = db.collection('usernames').doc(newCode);
-    batch.set(usernameRef, {
-      uid: uid,
-      type: 'user',
-      username: newCode
-    });
-
-    await batch.commit();
-    return { success: true, code: newCode };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-async function getUniqueAffiliateCode(db: admin.firestore.Firestore): Promise<string> {
-  let attempts = 0;
-  while (attempts < 10) {
-    const code = generateAffiliateCode();
-    const snap = await db.collection('users').where('affiliateCode', '==', code).limit(1).get();
-    if (snap.empty) return code;
-    attempts++;
-  }
-  throw new Error("Falha ao gerar código único após 10 tentativas.");
 }

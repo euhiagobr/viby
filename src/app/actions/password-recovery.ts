@@ -101,11 +101,15 @@ export async function requestPasswordRecovery(identifier: string) {
 
     await batch.commit();
     
-    await sendOTPRecoveryEmail({
+    const emailResult = await sendOTPRecoveryEmail({
       to: targetEmail,
       userName: userName,
       otpCode: otpCode
     });
+
+    if (!emailResult.success) {
+      return { success: false, error: `Falha no SMTP: ${emailResult.error}` };
+    }
 
     await recordAuditLog({
       userId,

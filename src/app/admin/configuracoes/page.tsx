@@ -20,13 +20,16 @@ import {
   Layout, 
   Upload, 
   ImageIcon, 
+  Lock,
   Camera, 
   Target, 
   RefreshCw,
   Zap,
   CheckCircle2,
   Trash2,
-  Plus
+  Plus,
+  Megaphone,
+  Settings
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -258,10 +261,13 @@ export default function AdminConfiguracoesPage() {
       </div>
 
       <Tabs defaultValue="geral" className="space-y-6">
-        <TabsList className="bg-muted/50 p-1 rounded-xl h-12 flex-wrap">
+        <TabsList className="bg-muted/50 p-1 rounded-xl h-auto flex-wrap justify-start">
           <TabsTrigger value="geral" className="rounded-lg px-6 font-bold gap-2"><Layout className="w-4 h-4" /> Geral</TabsTrigger>
           <TabsTrigger value="pagamentos" className="rounded-lg px-6 font-bold gap-2"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
           <TabsTrigger value="taxas" className="rounded-lg px-6 font-bold gap-2"><Coins className="w-4 h-4" /> Taxas</TabsTrigger>
+          <TabsTrigger value="email" className="rounded-lg px-6 font-bold gap-2"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
+		      <TabsTrigger value="anuncios" className="rounded-lg px-6 font-bold gap-2"><Megaphone className="w-4 h-4" /> Anúncios</TabsTrigger>
+		      <TabsTrigger value="google-ads" className="rounded-lg px-6 font-bold gap-2"><Settings className="w-4 h-4" /> Google Ads</TabsTrigger>
         </TabsList>
 
         <TabsContent value="geral" className="space-y-8">
@@ -417,6 +423,65 @@ export default function AdminConfiguracoesPage() {
               </CardContent>
            </Card>
         </TabsContent>
+
+        <TabsContent value="email">
+           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
+              <CardHeader className="bg-muted/30 p-8 border-b">
+                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Servidor de E-mail (SMTP)</CardTitle>
+                 <CardDescription>Credenciais para envio de e-mails transacionais.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-60">Host do Servidor</Label>
+                      <Input value={emailForm.smtpHost} onChange={e => setEmailForm({...emailForm, smtpHost: e.target.value})} className="rounded-xl h-11" />
+                   </div>
+                   <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-60">Porta (ex: 465, 587)</Label>
+                      <Input value={emailForm.smtpPort} onChange={e => setEmailForm({...emailForm, smtpPort: e.target.value})} className="rounded-xl h-11" />
+                   </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-60">Usuário SMTP</Label>
+                      <Input value={emailForm.smtpUser} onChange={e => setEmailForm({...emailForm, smtpUser: e.target.value})} className="rounded-xl h-11" />
+                   </div>
+                   <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-60">Senha SMTP</Label>
+                      <Input type="password" value={emailForm.smtpPass} onChange={e => setEmailForm({...emailForm, smtpPass: e.target.value})} className="rounded-xl h-11" />
+                   </div>
+                </div>
+                <Button onClick={() => handleSave('settings', 'email', emailForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
+                   Salvar Configuração de E-mail
+                </Button>
+              </CardContent>
+           </Card>
+        </TabsContent>
+
+		<TabsContent value="anuncios">
+			<Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
+				<CardHeader className="bg-muted/30 p-8 border-b">
+					<CardTitle className="text-xl font-black italic uppercase tracking-tighter">Anúncios</CardTitle>
+					<CardDescription>Configurações de anúncios da plataforma.</CardDescription>
+				</CardHeader>
+				<CardContent className="p-8 space-y-8">
+					<p>Aqui você pode configurar as opções de anúncios.</p>
+				</CardContent>
+			</Card>
+		</TabsContent>
+
+		<TabsContent value="google-ads">
+			<Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
+				<CardHeader className="bg-muted/30 p-8 border-b">
+					<CardTitle className="text-xl font-black italic uppercase tracking-tighter">Google Ads</CardTitle>
+					<CardDescription>Configurações de integração com o Google Ads.</CardDescription>
+				</CardHeader>
+				<CardContent className="p-8 space-y-8">
+					<p>Aqui você pode configurar a integração com o Google Ads.</p>
+				</CardContent>
+			</Card>
+		</TabsContent>
+
       </Tabs>
     </div>
   );

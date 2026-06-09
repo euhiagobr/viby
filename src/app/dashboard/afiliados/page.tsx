@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { 
   Handshake, 
   Copy, 
@@ -24,14 +25,15 @@ import {
   Info,
   Globe,
   Star,
-  Coins
+  Coins,
+  Wand2
 } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
 import { getAffiliateLevel, getNextLevel } from "@/lib/affiliate-utils"
 import { formatCurrency } from "@/lib/financial-utils"
 import Link from "next/link"
-import { requestAffiliatePayout } from "@/app/actions/affiliates"
+import { requestAffiliatePayout, generateAffiliateCodeAction } from "@/app/actions/affiliates"
 import {
   Dialog,
   DialogContent,
@@ -52,11 +54,12 @@ import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+import { cn } from "@/lib/utils"
 
 export default function AffiliateDashboard() {
   const db = useFirestore()
   const auth = useAuth()
-  const { user, profile } = useUser(auth)
+  const { user, profile, forceRefresh } = useUser(auth)
   const { formatPrice } = useCurrency()
   
   const statsRef = React.useMemo(() => (db && user) ? doc(db, "affiliate_stats", user.uid) : null, [db, user])
@@ -81,12 +84,32 @@ export default function AffiliateDashboard() {
   const [bankDetails, setBankDetails] = React.useState("")
   const [payoutCurrency, setPayoutCurrency] = React.useState<CurrencyCode>("BRL")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [isGeneratingCode, setIsGeneratingCode] = React.useState(false);
 
-  const affiliateLink = typeof window !== 'undefined' ? `${window.location.origin}/cadastro?ref=${profile?.affiliateCode}` : ""
+  const affiliateCode = profile?.affiliateCode
+  const affiliateLink = typeof window !== 'undefined' ? `${window.location.origin}/cadastro?ref=${affiliateCode}` : ""
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(affiliateLink)
-    toast({ title: "Link copiado!", description: "Agora é só compartilhar e começar a ganhar." })
+  const handleCopy = (text: string, type: string) => {
+    navigator.clipboard.writeText(text)
+    toast({ title: `${type} copiado!`, description: "Agora é só compartilhar e começar a ganhar." })
+  }
+
+  const handleGenerateCode = async () => {
+    if (!user) return;
+    setIsGeneratingCode(true);
+    try {
+      const res = await generateAffiliateCodeAction({ userId: user.uid });
+      if (res.success) {
+        toast({ title: "Seu código foi gerado!", description: "Atualizamos seu perfil com o código: " + res.code });
+        forceRefresh(); // This will re-fetch the user profile data
+      } else {
+        throw new Error(res.error);
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao gerar código", description: e.message });
+    } finally {
+      setIsGeneratingCode(false);
+    }
   }
 
   const handlePayoutRequest = async (e: React.FormEvent) => {
@@ -132,10 +155,39 @@ export default function AffiliateDashboard() {
           </h1>
           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Sua central de ganhos multimoeda Viby.</p>
         </div>
-        <Button onClick={handleCopyLink} className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg hover:scale-105 transition-transform gap-2 uppercase italic">
-          <Copy className="w-4 h-4" /> Copiar Meu Link
-        </Button>
       </div>
+
+       {/* Affiliate Code Section */}
+      <Card className="border-dashed shadow-sm rounded-2xl bg-white">
+        <CardContent className="p-6">
+            {affiliateCode ? (
+                <div className="space-y-4">
+                    <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Seu Código de Afiliado</Label>
+                        <div className="flex items-center gap-2">
+                            <Input readOnly value={affiliateCode} className="h-12 text-lg font-black tracking-widest bg-muted/50" />
+                            <Button variant="outline" size="icon" className="h-12 w-12" onClick={() => handleCopy(affiliateCode, 'Código')}><Copy className="w-5 h-5" /></Button>
+                        </div>
+                    </div>
+                     <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Seu Link de Divulgação</Label>
+                        <div className="flex items-center gap-2">
+                            <Input readOnly value={affiliateLink} className="h-12 text-sm font-bold text-muted-foreground bg-muted/50" />
+                            <Button variant="outline" size="icon" className="h-12 w-12" onClick={() => handleCopy(affiliateLink, 'Link')}><Copy className="w-5 h-5" /></Button>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="text-center space-y-4 py-8">
+                    <h3 className="text-primary font-black uppercase italic">Você ainda não tem um código de afiliado.</h3>
+                    <p className="text-muted-foreground text-sm max-w-md mx-auto">Gere seu código para começar a convidar e ganhar comissões por cada venda.</p>
+                    <Button onClick={handleGenerateCode} disabled={isGeneratingCode} className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg hover:scale-105 transition-transform gap-2 uppercase italic">
+                        {isGeneratingCode ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />} Gerar meu código
+                    </Button>
+                </div>
+            )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* LADO ESQUERDO: PROGRESSO E HISTÓRICO */}
