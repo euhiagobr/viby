@@ -1,6 +1,7 @@
 /**
- * @fileOverview Componente desativado. Utilize o EventoPublicoClient em [slug]/EventoPublicoClient.tsx.
+ * @fileOverview ARQUIVO DESATIVADO.
+ * O componente real está em src/app/[username]/[slug]/EventoPublicoClient.tsx.
  */
-export default function DisabledIdClient() {
+export default function RemovedClient() {
   return null;
 }

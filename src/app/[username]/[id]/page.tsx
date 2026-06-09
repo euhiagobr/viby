@@ -1,7 +1,10 @@
 /**
- * @fileOverview Rota desativada para evitar conflitos de parâmetros dinâmicos no Next.js.
- * A lógica de visualização de eventos (por ID ou Slug) foi consolidada em src/app/[username]/[slug]/page.tsx.
+ * @fileOverview ARQUIVO DESATIVADO.
+ * Esta rota foi movida para src/app/[username]/[slug]/page.tsx.
+ * O Next.js não permite dois diretórios dinâmicos ([id] e [slug]) no mesmo nível.
+ * Por favor, remova o diretório src/app/[username]/[id] manualmente para limpar o sistema.
  */
-export default function DisabledIdPage() {
+export const dynamic = 'force-static';
+export default function RemovedPage() {
   return null;
 }

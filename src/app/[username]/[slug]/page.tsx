@@ -11,25 +11,26 @@ import { redirect } from 'next/navigation';
 
 /**
  * @fileOverview Busca evento por Slug ou ID de forma resiliente.
+ * Suporta redirecionamento automático para a URL canônica (Slug).
  */
 async function getEventBySlugOrId(username: string, slugOrId: string) {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     
-    // 1. Localizar Organização pelo Username para garantir contexto
+    // 1. Localizar Organização pelo Username para garantir o contexto correto
     const usernameRef = doc(db, "usernames", username.toLowerCase());
     const usernameSnap = await getDoc(usernameRef);
     if (!usernameSnap.exists() || usernameSnap.data().type !== 'organization') return null;
     
     const orgId = usernameSnap.data().uid;
-    const normalizedSlug = slugOrId.toLowerCase().trim();
+    const normalizedParam = slugOrId.toLowerCase().trim();
 
-    // 2. Tentar localizar o Evento pelo Slug
+    // 2. Tentar localizar o Evento pelo Slug oficial
     const q = query(
       collection(db, "events"),
       where("organizationId", "==", orgId),
-      where("slug", "==", normalizedSlug),
+      where("slug", "==", normalizedParam),
       limit(1)
     );
     const snap = await getDocs(q);
@@ -38,7 +39,7 @@ async function getEventBySlugOrId(username: string, slugOrId: string) {
       return { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
     }
 
-    // 3. Fallback: Tentar localizar pelo ID diretamente
+    // 3. Fallback: Tentar localizar pelo ID diretamente (caso o link seja antigo)
     const eventRef = doc(db, "events", slugOrId);
     const eventSnap = await getDoc(eventRef);
     
@@ -115,7 +116,7 @@ export default async function EventoPublicoPage({ params }: { params: Promise<{ 
     );
   }
 
-  // Redirecionamento de Canonização: Se acessou por ID ou slug com case errado, manda para o slug oficial
+  // Redirecionamento de Canonização: Se acessou por ID ou slug antigo, redireciona para o slug oficial atual
   if (event.slug && event.slug !== slug) {
     redirect(`/${username}/${event.slug}`);
   }
