@@ -3,7 +3,7 @@
 
 import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { AdminPermission, SystemAdmin } from '@/types/admin';
 import { checkAdminPermission, ALL_PERMISSIONS } from '@/lib/admin/permissions';
 
@@ -11,7 +11,7 @@ const MASTER_ADMIN_UID = "AqTVL8VRTZT435pZudkObzMGsrR2";
 
 /**
  * @fileOverview Hook resiliente para gestão de permissões administrativas.
- * Implementa bootstrapping via fallback para a UID mestre e usuários com role 'admin'.
+ * Otimizado para evitar loops de renderização infinitos usando referências estáveis.
  */
 export function useAdminPermissions() {
   const auth = useAuth();
@@ -19,6 +19,7 @@ export function useAdminPermissions() {
   const db = useFirestore();
 
   const userId = user?.uid;
+  const userRole = profile?.role;
 
   const adminRef = useMemo(() => 
     (db && userId) ? doc(db, 'system_admins', userId) : null, 
@@ -27,21 +28,21 @@ export function useAdminPermissions() {
   
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
-  /**
-   * Resolve o perfil administrativo com suporte a fallback e UID mestre.
-   * Utiliza chaves primitivas para estabilidade de referência e evita loops de re-renderização.
-   */
+  // Mantemos uma referência estável para o resultado final para evitar re-renderizações no Layout
+  const stableAdminProfile = useRef<any>(null);
+
   const adminProfile = useMemo(() => {
     if (!authInitialized || userLoading || adminLoading) return null;
 
-    // 1. Prioridade para a nova estrutura granular (se o documento existir)
+    let result = null;
+
+    // 1. Prioridade para a nova estrutura granular
     if (dbAdminProfile && dbAdminProfile.status !== 'Desativado') {
-      return dbAdminProfile;
+      result = dbAdminProfile;
     }
-    
-    // 2. Fallback de Bootstrapping para UID Mestre ou Administradores Legados
-    if (userId === MASTER_ADMIN_UID || profile?.role === 'admin') {
-      return {
+    // 2. Fallback de Bootstrapping
+    else if (userId === MASTER_ADMIN_UID || userRole === 'admin') {
+      result = {
         uid: userId,
         nome: profile?.name || "Super",
         sobrenome: "Admin",
@@ -49,11 +50,23 @@ export function useAdminPermissions() {
         cargo: 'super_admin',
         status: 'Ativo',
         permissions: ALL_PERMISSIONS.reduce((acc, p) => ({ ...acc, [p]: true }), {} as any)
-      } as SystemAdmin;
+      };
     }
-    
-    return null;
-  }, [dbAdminProfile?.uid, profile?.role, userId, adminLoading, authInitialized, userLoading]);
+
+    // Se o resultado for o mesmo (em termos de UID e Cargo), mantemos a referência anterior
+    if (
+      stableAdminProfile.current && 
+      result && 
+      stableAdminProfile.current.uid === result.uid && 
+      stableAdminProfile.current.cargo === result.cargo &&
+      stableAdminProfile.current.status === result.status
+    ) {
+      return stableAdminProfile.current;
+    }
+
+    stableAdminProfile.current = result;
+    return result;
+  }, [dbAdminProfile, userRole, userId, adminLoading, authInitialized, userLoading, profile?.name, user?.email]);
 
   const hasPermission = useMemo(() => (permission: AdminPermission) => {
     if (!adminProfile) return false;
@@ -61,7 +74,6 @@ export function useAdminPermissions() {
   }, [adminProfile]);
 
   const isSuperAdmin = adminProfile?.cargo === 'super_admin';
-
   const loading = !authInitialized || userLoading || adminLoading;
 
   return {

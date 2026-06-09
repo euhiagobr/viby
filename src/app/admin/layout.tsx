@@ -60,8 +60,8 @@ export default function AdminLayout({
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
+  // Gestão de redirecionamento em efeito separado para evitar loops com o render
   useEffect(() => {
-    // Aguarda toda a inicialização antes de tomar decisões de roteamento
     if (!isInitialized || authLoading || permsLoading) return;
     
     if (!user) {
@@ -70,27 +70,20 @@ export default function AdminLayout({
     }
 
     if (!adminProfile) {
-      toast({
-        variant: 'destructive',
-        title: 'Acesso Negado',
-        description: 'Seu perfil não possui as permissões administrativas necessárias.',
-      });
       router.push('/dashboard');
     }
-  }, [user, isInitialized, authLoading, permsLoading, adminProfile, router]);
+  }, [user, isInitialized, authLoading, permsLoading, !!adminProfile, router]);
 
-  if (authLoading || permsLoading || !isInitialized) {
+  const isReady = isInitialized && !authLoading && !permsLoading && adminProfile;
+
+  if (!isReady) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Autenticando Admin...</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando Identidade...</p>
       </div>
     );
   }
-
-  // Se após carregar não houver perfil, o useEffect cuidará do redirect, 
-  // mas aqui retornamos null para não vazar a interface
-  if (!adminProfile) return null;
 
   const navItems = [
     { title: 'Painel', url: '/admin', icon: LayoutDashboard, permission: 'dashboard.view' as any },

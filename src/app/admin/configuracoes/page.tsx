@@ -32,7 +32,8 @@ import {
   Key,
   Lock,
   ListChecks,
-  Trash2
+  Trash2,
+  Plus
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -40,6 +41,8 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export default function AdminConfiguracoesPage() {
   const db = useFirestore();
@@ -58,7 +61,6 @@ export default function AdminConfiguracoesPage() {
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
   const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
   const googleAdsRef = React.useMemo(() => (db ? doc(db, 'system_settings', 'google_ads') : null), [db]);
-  const eventTypesRef = React.useMemo(() => (db ? doc(db, 'settings', 'event_types') : null), [db]);
 
   const { data: siteSettings, loading: loadingSite } = useDoc<any>(siteRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
@@ -66,7 +68,6 @@ export default function AdminConfiguracoesPage() {
   const { data: globalFees, loading: loadingFees } = useDoc<any>(feesRef);
   const { data: adsSettings, loading: loadingAdsSettings } = useDoc<any>(adsRef);
   const { data: googleAds, loading: loadingGoogle } = useDoc<any>(googleAdsRef);
-  const { data: eventTypesSettings, loading: loadingEventTypes } = useDoc<any>(eventTypesRef);
 
   const [saving, setSaving] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<{ [key: string]: number | null }>({});
@@ -74,7 +75,6 @@ export default function AdminConfiguracoesPage() {
   const [siteForm, setSiteForm] = React.useState({ 
     siteName: 'Viby', 
     logoUrl: '', 
-    iconUrl: '', 
     siteIconUrl: '', 
     headerImages: [] as string[] 
   });
@@ -83,31 +83,43 @@ export default function AdminConfiguracoesPage() {
   const [feesForm, setFeesForm] = React.useState({ buyerMarkupPercent: '15', organizerBasePercent: '10', organizerMinFee: '3.99' });
   const [adsForm, setAdsForm] = React.useState({ minRechargeValue: '30.00', cpcValue: '0.50', cpmValue: '10.00' });
   const [googleAdsForm, setGoogleAdsForm] = React.useState({ enabled: false, publisherId: '', adsenseCode: '', autoAds: true, testMode: false });
-  const [eventTypesForm, setEventTypesForm] = React.useState({
-    divulgacao: { enabled: true, message: "" },
-    interno: { enabled: true, message: "" },
-    externo: { enabled: true, message: "" }
-  });
 
+  // Sincronização individual de estados para evitar loops de renderização massivos
   React.useEffect(() => {
     if (siteSettings) setSiteForm({ 
       siteName: siteSettings.siteName || 'Viby', 
       logoUrl: siteSettings.logoUrl || '', 
-      iconUrl: siteSettings.iconUrl || '',
       siteIconUrl: siteSettings.siteIconUrl || siteSettings.iconUrl || '',
       headerImages: siteSettings.headerImages || []
     });
-    if (stripeKeys) setStripeForm({ publishableKey: stripeKeys.publishableKey || '', secretKey: stripeKeys.secretKey || '', feePercent: stripeKeys.feePercent?.toString() || '3.99', feeFixed: stripeKeys.feeFixed?.toString() || '0.39', mode: stripeKeys.mode || 'test' });
-    if (emailSettings) setEmailForm({ smtpHost: emailSettings.smtpHost || 'smtp.gmail.com', smtpPort: emailSettings.smtpPort?.toString() || '465', smtpUser: emailSettings.smtpUser || '', smtpPass: emailSettings.smtpPass || '' });
-    if (globalFees) setFeesForm({ buyerMarkupPercent: globalFees.buyerMarkupPercent?.toString() || '15', organizerBasePercent: globalFees.organizerBasePercent?.toString() || '10', organizerMinFee: globalFees.organizerMinFee?.toString() || '3.99' });
-    if (adsSettings) setAdsForm({ minRechargeValue: adsSettings.minRechargeValue?.toString() || '30.00', cpcValue: adsSettings.cpcValue?.toString() || '0.50', cpmValue: adsSettings.cpmValue?.toString() || '10.00' });
-    if (googleAds) setGoogleAdsForm({ enabled: googleAds.enabled ?? false, publisherId: googleAds.publisherId || '', adsenseCode: googleAds.adsenseCode || '', autoAds: googleAds.autoAds ?? true, testMode: googleAds.testMode ?? false });
-    if (eventTypesSettings) setEventTypesForm({
-      divulgacao: eventTypesSettings.divulgacao || { enabled: true, message: "" },
-      interno: eventTypesSettings.interno || { enabled: true, message: "" },
-      externo: eventTypesSettings.externo || { enabled: true, message: "" }
+  }, [siteSettings]);
+
+  React.useEffect(() => {
+    if (stripeKeys) setStripeForm({ 
+      publishableKey: stripeKeys.publishableKey || '', 
+      secretKey: stripeKeys.secretKey || '', 
+      feePercent: stripeKeys.feePercent?.toString() || '3.99', 
+      feeFixed: stripeKeys.feeFixed?.toString() || '0.39', 
+      mode: stripeKeys.mode || 'test' 
     });
-  }, [siteSettings, stripeKeys, emailSettings, globalFees, adsSettings, googleAds, eventTypesSettings]);
+  }, [stripeKeys]);
+
+  React.useEffect(() => {
+    if (emailSettings) setEmailForm({ 
+      smtpHost: emailSettings.smtpHost || 'smtp.gmail.com', 
+      smtpPort: emailSettings.smtpPort?.toString() || '465', 
+      smtpUser: emailSettings.smtpUser || '', 
+      smtpPass: emailSettings.smtpPass || '' 
+    });
+  }, [emailSettings]);
+
+  React.useEffect(() => {
+    if (globalFees) setFeesForm({ 
+      buyerMarkupPercent: globalFees.buyerMarkupPercent?.toString() || '15', 
+      organizerBasePercent: globalFees.organizerBasePercent?.toString() || '10', 
+      organizerMinFee: globalFees.organizerMinFee?.toString() || '3.99' 
+    });
+  }, [globalFees]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logoUrl' | 'siteIconUrl') => {
     const file = e.target.files?.[0];
@@ -131,9 +143,9 @@ export default function AdminConfiguracoesPage() {
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          setSiteForm(prev => ({ ...prev, [type]: downloadURL, iconUrl: type === 'siteIconUrl' ? downloadURL : prev.iconUrl }));
+          setSiteForm(prev => ({ ...prev, [type]: downloadURL }));
           setUploadProgress(prev => ({ ...prev, [type]: null }));
-          toast({ title: "Upload concluído!", description: `${type === 'logoUrl' ? 'Logo' : 'Ícone'} atualizado.` });
+          toast({ title: "Arquivo atualizado!" });
         }
       );
     } catch (err) {
@@ -164,9 +176,11 @@ export default function AdminConfiguracoesPage() {
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          const newHeaders = [...siteForm.headerImages];
-          newHeaders[index] = downloadURL;
-          setSiteForm(prev => ({ ...prev, headerImages: newHeaders.filter(Boolean) }));
+          setSiteForm(prev => {
+            const newHeaders = [...prev.headerImages];
+            newHeaders[index] = downloadURL;
+            return { ...prev, headerImages: newHeaders };
+          });
           setUploadProgress(prev => ({ ...prev, [progressKey]: null }));
           toast({ title: "Banner carregado!" });
         }
@@ -186,6 +200,7 @@ export default function AdminConfiguracoesPage() {
       updatedBy: user.uid
     };
 
+    // Conversão de tipos numéricos
     if (docId === 'fees' || docId === 'ads' || docId === 'stripe') {
       Object.keys(data).forEach(key => {
         if (typeof data[key] === 'string' && !isNaN(parseFloat(data[key]))) {
@@ -196,11 +211,13 @@ export default function AdminConfiguracoesPage() {
 
     if (docId === 'site') {
       updatePayload.imageVersion = increment(1);
+      // Garante que o array não tenha furos
+      updatePayload.headerImages = data.headerImages.filter(Boolean);
     }
 
     try {
       await setDoc(doc(db, coll, docId), updatePayload, { merge: true });
-      toast({ title: 'Configuração salva!', description: `Os dados de "${docId}" foram atualizados.` });
+      toast({ title: 'Configuração salva!' });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Erro ao salvar', description: error.message });
     } finally {
@@ -208,40 +225,42 @@ export default function AdminConfiguracoesPage() {
     }
   };
 
-  if (loadingSite || loadingStripe || loadingEmail || loadingFees || loadingAdsSettings || loadingGoogle || loadingEventTypes) {
-    return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="animate-spin text-secondary" /></div>;
+  const isLoading = loadingSite || loadingStripe || loadingEmail || loadingFees;
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-[60vh]">
+        <Loader2 className="animate-spin text-secondary w-10 h-10" />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-8 pb-20">
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
-          <Globe className="w-8 h-8 text-secondary" /> Configurações
+          <Globe className="w-8 h-8 text-secondary" /> Configurações Globais
         </h1>
-        <p className="text-muted-foreground font-medium">Gestão de parâmetros globais, financeiros e segurança da plataforma.</p>
+        <p className="text-muted-foreground font-medium">Gestão de identidade, financeira e integrações da rede.</p>
       </div>
 
       <Tabs defaultValue="geral" className="space-y-6">
         <TabsList className="bg-muted/50 p-1 rounded-xl h-12 flex-wrap">
           <TabsTrigger value="geral" className="rounded-lg px-6 font-bold gap-2"><Layout className="w-4 h-4" /> Geral</TabsTrigger>
-          <TabsTrigger value="eventos" className="rounded-lg px-6 font-bold gap-2"><CalendarDays className="w-4 h-4" /> Eventos</TabsTrigger>
           <TabsTrigger value="pagamentos" className="rounded-lg px-6 font-bold gap-2"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
-          <TabsTrigger value="email" className="rounded-lg px-6 font-bold gap-2"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
           <TabsTrigger value="taxas" className="rounded-lg px-6 font-bold gap-2"><Coins className="w-4 h-4" /> Taxas</TabsTrigger>
-          <TabsTrigger value="ads" className="rounded-lg px-6 font-bold gap-2"><Megaphone className="w-4 h-4" /> Anúncios</TabsTrigger>
-          <TabsTrigger value="google-ads" className="rounded-lg px-6 font-bold gap-2"><Target className="w-4 h-4" /> Google Ads</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="geral" className="animate-in fade-in slide-in-from-top-2 duration-300">
+        <TabsContent value="geral" className="space-y-8">
           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
             <CardHeader className="bg-muted/30 p-8 border-b">
-               <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Identidade da Plataforma</CardTitle>
-               <CardDescription>Gerencie o nome, logo e os banners rotativos da home.</CardDescription>
+               <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Identidade Visual</CardTitle>
+               <CardDescription>Nome da rede, logotipos e banners rotativos da Home.</CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-10">
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase opacity-60">Nome da Plataforma</Label>
-                <Input value={siteForm.siteName} onChange={e => setSiteForm({...siteForm, siteName: e.target.value})} className="rounded-xl h-11" placeholder="Ex: Viby.Club" />
+                <Input value={siteForm.siteName} onChange={e => setSiteForm({...siteForm, siteName: e.target.value})} className="rounded-xl h-11" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -277,8 +296,8 @@ export default function AdminConfiguracoesPage() {
 
               <div className="space-y-6">
                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Banner Rotativo (Até 5 Imagens)</Label>
-                    <Badge variant="outline" className="text-[8px] font-black uppercase border-dashed">Alternância a cada 4s</Badge>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Banners do Carrossel (Até 5 Imagens)</Label>
+                    <Badge variant="outline" className="text-[8px] font-black uppercase border-dashed">Alternância: 4s</Badge>
                  </div>
                  
                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
@@ -298,8 +317,8 @@ export default function AdminConfiguracoesPage() {
                                     type="button" 
                                     onClick={() => {
                                       const newHeaders = [...siteForm.headerImages];
-                                      newHeaders.splice(i, 1);
-                                      setSiteForm({ ...siteForm, headerImages: newHeaders.filter(Boolean) });
+                                      newHeaders[i] = "";
+                                      setSiteForm({ ...siteForm, headerImages: newHeaders });
                                     }}
                                     className="p-1 bg-white text-destructive rounded-full hover:bg-destructive hover:text-white transition-colors"
                                   >
@@ -329,12 +348,12 @@ export default function AdminConfiguracoesPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        {/* Restante dos conteúdos de tabs omitidos para brevidade, mas mantidos na implementação real */}
-        <TabsContent value="pagamentos" className="space-y-8">
+
+        <TabsContent value="pagamentos">
            <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
               <CardHeader className="bg-muted/30 p-8 border-b">
                  <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Gateway Stripe</CardTitle>
-                 <CardDescription>Conecte as chaves da API para habilitar transações reais.</CardDescription>
+                 <CardDescription>Credenciais de conexão Connect.</CardDescription>
               </CardHeader>
               <CardContent className="p-8 space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -344,20 +363,47 @@ export default function AdminConfiguracoesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Key className="w-3 h-3" /> Publishable Key</Label>
-                      <Input value={stripeForm.publishableKey} onChange={e => setStripeForm({...stripeForm, publishableKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" placeholder="pk_..." />
+                      <Input value={stripeForm.publishableKey} onChange={e => setStripeForm({...stripeForm, publishableKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" />
                    </div>
                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Lock className="w-3 h-3" /> Secret / Restricted Key</Label>
-                      <Input type="password" value={stripeForm.secretKey} onChange={e => setStripeForm({...stripeForm, secretKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" placeholder="sk_... ou rk_..." />
+                      <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Lock className="w-3 h-3" /> Secret Key</Label>
+                      <Input type="password" value={stripeForm.secretKey} onChange={e => setStripeForm({...stripeForm, secretKey: e.target.value})} className="rounded-xl h-11 font-mono text-xs" />
                    </div>
                 </div>
                 <Button onClick={() => handleSave('settings', 'stripe', stripeForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
-                  {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Atualizar Configurações de Pagamento
+                   Atualizar Pagamentos
                 </Button>
               </CardContent>
            </Card>
         </TabsContent>
-        {/* Outras tabs continuam iguais */}
+
+        <TabsContent value="taxas">
+           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
+              <CardHeader className="bg-muted/30 p-8 border-b">
+                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Regras Financeiras</CardTitle>
+                 <CardDescription>Taxas padrão aplicadas a todas as vendas.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-8">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Markup Comprador (%)</Label>
+                       <Input value={feesForm.buyerMarkupPercent} onChange={e => setFeesForm({...feesForm, buyerMarkupPercent: e.target.value})} className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Comissão Produtor (%)</Label>
+                       <Input value={feesForm.organizerBasePercent} onChange={e => setFeesForm({...feesForm, organizerBasePercent: e.target.value})} className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Valor Mínimo (R$)</Label>
+                       <Input value={feesForm.organizerMinFee} onChange={e => setFeesForm({...feesForm, organizerMinFee: e.target.value})} className="rounded-xl h-11" />
+                    </div>
+                 </div>
+                 <Button onClick={() => handleSave('settings', 'fees', feesForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
+                    Atualizar Taxas
+                 </Button>
+              </CardContent>
+           </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
