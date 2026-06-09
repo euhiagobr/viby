@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -19,12 +18,15 @@ import {
   ShieldCheck, 
   Info,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Globe
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { sendManualMarketingEmail } from '@/app/actions/email';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import Link from 'next/link';
 
 export default function AdminMarketingEmailPage() {
   const db = useFirestore();
@@ -113,7 +115,7 @@ export default function AdminMarketingEmailPage() {
                             placeholder="exemplo@email.com" 
                             value={formData.to}
                             onChange={e => setFormData({...formData, to: e.target.value})}
-                            className="pl-10 rounded-xl h-11" 
+                            className="pl-10 h-11 rounded-xl" 
                           />
                        </div>
                     </div>
