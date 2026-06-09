@@ -9,12 +9,33 @@ import { Button } from '@/components/ui/button';
 import { Home, CalendarX, ArrowLeft } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
+/**
+ * @fileOverview Rota unificada para eventos. Resolve IDs e Slugs.
+ * Converte Timestamps para Strings para evitar Internal Server Error (Serialization Error).
+ */
+
+function serializeData(data: any) {
+  if (!data) return data;
+  const serialized = { ...data };
+  for (const key in serialized) {
+    if (serialized[key]?.toDate && typeof serialized[key].toDate === 'function') {
+      serialized[key] = serialized[key].toDate().toISOString();
+    } else if (Array.isArray(serialized[key])) {
+      serialized[key] = serialized[key].map((item: any) => 
+        (typeof item === 'object' && item !== null) ? serializeData(item) : item
+      );
+    } else if (typeof serialized[key] === 'object' && serialized[key] !== null) {
+      serialized[key] = serializeData(serialized[key]);
+    }
+  }
+  return serialized;
+}
+
 async function getEventData(username: string, param: string) {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     
-    // Resolve o ID da organização pelo username
     const usernameRef = doc(db, "usernames", username.toLowerCase().trim());
     const usernameSnap = await getDoc(usernameRef);
     if (!usernameSnap.exists()) return null;
@@ -22,18 +43,18 @@ async function getEventData(username: string, param: string) {
     const orgId = usernameSnap.data().uid;
     const normalizedParam = param.trim();
 
-    // 1. Tentar buscar por ID (direto)
+    // 1. Busca por ID
     const eventIdRef = doc(db, "events", normalizedParam);
     const eventIdSnap = await getDoc(eventIdRef);
     
     if (eventIdSnap.exists()) {
       const data = eventIdSnap.data();
       if (data.organizationId === orgId) {
-        return { id: eventIdSnap.id, ...data } as any;
+        return serializeData({ id: eventIdSnap.id, ...data });
       }
     }
 
-    // 2. Tentar buscar por Slug
+    // 2. Busca por Slug
     const slugLower = normalizedParam.toLowerCase();
     const q = query(
       collection(db, "events"),
@@ -44,7 +65,7 @@ async function getEventData(username: string, param: string) {
     const slugSnap = await getDocs(q);
     
     if (!slugSnap.empty) {
-      return { id: slugSnap.docs[0].id, ...slugSnap.docs[0].data() } as any;
+      return serializeData({ id: slugSnap.docs[0].id, ...slugSnap.docs[0].data() });
     }
 
     return null;
@@ -89,7 +110,6 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  // Redirecionamento Canônico: Se entrou via ID mas existe um Slug, redireciona para a URL amigável
   if (event.slug && event.slug !== slug) {
     redirect(`/${username}/${event.slug}`);
   }

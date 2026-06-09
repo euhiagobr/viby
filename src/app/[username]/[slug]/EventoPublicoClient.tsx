@@ -323,7 +323,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
               <EventCoOrganizers isPublic eventId={id} currentOrgId={event.organizationId} className="pt-10 border-t border-dashed" />
            </div>
 
-           {/* SIDEBAR CLEAN (BRANCA) */}
+           {/* SIDEBAR CLEAN */}
            <aside className="lg:col-span-4 space-y-8">
               <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden sticky top-40 border border-border/50">
                  <div className="p-10 space-y-10 relative">
@@ -337,7 +337,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                           <div className="space-y-1">
                              <div className="flex items-center gap-2">
                                 <h4 className="font-black text-xl uppercase italic leading-tight tracking-tighter text-primary">{org?.name || "Organizador"}</h4>
-                                {(org?.verified || org?.isVerified) && <BadgeCheck className="w-5 h-5 fill-secondary text-white" />}
+                                {(org?.verified || org?.isVerified) && <BadgeCheck className="w-5 h-5 fill-blue-500 text-white" />}
                              </div>
                              <div className="flex flex-col">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-secondary">@{org?.username || username}</span>
@@ -378,7 +378,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </div>
               </Card>
 
-              {/* CONTEXTO SOCIAL RESUMIDO */}
               <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-10 space-y-8 border border-border/50">
                  <div className="flex items-center gap-4">
                     <div className="p-3 bg-secondary/5 rounded-2xl text-secondary"><Users className="w-6 h-6" /></div>
@@ -405,7 +404,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
         </div>
       </main>
 
-      {/* SHARE MODAL INTEGRADO */}
       {org && (
         <ShareModal 
           isOpen={isShareModalOpen} 
