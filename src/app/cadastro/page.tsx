@@ -12,6 +12,8 @@ import Footer from "@/components/layout/Footer";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export default function CadastroPage() {
   const db = useFirestore();
@@ -33,39 +35,42 @@ export default function CadastroPage() {
         return;
       }
 
-      console.log("[Affiliate Debug] Validating Ref Code:", refCode);
+      console.log("[Affiliate Debug] Iniciando Validação para:", refCode);
       setValidating(true);
       
       try {
         const cleanRef = refCode.trim();
+        let codeDocSnap = null;
         
         // 1. Tentar localizar por ID de documento (String)
         const codeDocRef = doc(db, "affiliateCodes", cleanRef);
-        let codeDocSnap = await getDoc(codeDocRef);
+        const directSnap = await getDoc(codeDocRef);
         
-        // 2. Se não encontrou por ID, tentar por query no campo 'code' (String)
-        if (!codeDocSnap.exists()) {
-           console.log("[Affiliate Debug] Not found by ID. Trying query by 'code' field...");
-           const q = query(collection(db, "affiliateCodes"), where("code", "==", cleanRef), limit(1));
-           const qSnap = await getDocs(q);
-           if (!qSnap.empty) {
-              codeDocSnap = qSnap.docs[0] as any;
+        if (directSnap.exists()) {
+           codeDocSnap = directSnap;
+           console.log("[Affiliate Debug] Localizado por ID.");
+        } else {
+           // 2. Tentar por query no campo 'code' (String)
+           console.log("[Affiliate Debug] Não achou por ID. Tentando Query por campo 'code' (string)...");
+           const qString = query(collection(db, "affiliateCodes"), where("code", "==", cleanRef), limit(1));
+           const qStringSnap = await getDocs(qString);
+           
+           if (!qStringSnap.empty) {
+              codeDocSnap = qStringSnap.docs[0];
+              console.log("[Affiliate Debug] Localizado por query de string.");
+           } else if (/^\d+$/.test(cleanRef)) {
+              // 3. Fallback: Tentar por query no campo 'code' como Número
+              console.log("[Affiliate Debug] Tentando Query por campo 'code' (number)...");
+              const qNum = query(collection(db, "affiliateCodes"), where("code", "==", parseInt(cleanRef)), limit(1));
+              const qNumSnap = await getDocs(qNum);
+              if (!qNumSnap.empty) {
+                codeDocSnap = qNumSnap.docs[0];
+                console.log("[Affiliate Debug] Localizado por query numérica.");
+              }
            }
         }
 
-        // 3. Fallback: Tentar por query no campo 'code' como Número (Caso o código tenha sido salvo como número)
-        if (!codeDocSnap.exists() && /^\d+$/.test(cleanRef)) {
-          console.log("[Affiliate Debug] Trying query by 'code' as Number...");
-          const qNum = query(collection(db, "affiliateCodes"), where("code", "==", parseInt(cleanRef)), limit(1));
-          const qNumSnap = await getDocs(qNum);
-          if (!qNumSnap.empty) {
-            codeDocSnap = qNumSnap.docs[0] as any;
-          }
-        }
-
-        console.log("[Affiliate Debug] Document Found:", codeDocSnap.exists());
-
-        if (codeDocSnap.exists()) {
+        if (codeDocSnap && codeDocSnap.exists()) {
           const affiliateData = codeDocSnap.data() as any;
 
           if (affiliateData.active !== false) {
@@ -75,17 +80,25 @@ export default function CadastroPage() {
               userId: affiliateData.userId
             });
             setIsValidCode(true);
-            console.log("[Affiliate Debug] Link successfully established with UID:", affiliateData.userId);
+            console.log("[Affiliate Debug] Vínculo estabelecido com UID:", affiliateData.userId);
           } else {
-            console.warn("[Affiliate Debug] Code is inactive.");
+            console.warn("[Affiliate Debug] O código está inativo no sistema.");
             setIsValidCode(false);
           }
         } else {
-          console.warn("[Affiliate Debug] Code not found in database.");
+          console.warn("[Affiliate Debug] Documento não encontrado no Firestore em nenhuma das tentativas.");
           setIsValidCode(false);
         }
       } catch (error: any) {
-        console.error("[Affiliate Debug] Validation Error:", error.message);
+        console.error("[Affiliate Debug] Erro de rede ou permissão:", error.message);
+        
+        if (error.code === 'permission-denied') {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'affiliateCodes',
+            operation: 'list'
+          }));
+        }
+        
         setIsValidCode(false);
       } finally {
         setValidating(false);
