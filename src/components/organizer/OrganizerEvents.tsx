@@ -4,27 +4,29 @@
 import * as React from "react";
 import { EventCard } from "@/components/events/EventCard";
 import { Sparkles, History } from "lucide-react";
+import { type Coordinates } from "@/lib/location-utils";
 
 interface OrganizerEventsProps {
   events: any[];
   title: string;
   isPast?: boolean;
+  userLocation?: Coordinates | null;
 }
 
-export function OrganizerEvents({ events, title, isPast = false }: OrganizerEventsProps) {
+export function OrganizerEvents({ events, title, isPast = false, userLocation }: OrganizerEventsProps) {
   return (
     <section className="space-y-8">
       <div className="space-y-1 px-2">
         <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">{title}</h2>
         <p className="text-muted-foreground font-medium">
-          {isPast ? "Reveja o que já aconteceu." : "Garante seu lugar nos próximos eventos."}
+          {isPast ? "Reveja o que já aconteceu." : "Garanta seu lugar nas próximas experiências."}
         </p>
       </div>
 
       {events.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {events.map((event) => (
-            <EventCard key={event.id} event={event} />
+            <EventCard key={event.id} event={event} userLocation={userLocation} />
           ))}
         </div>
       ) : (

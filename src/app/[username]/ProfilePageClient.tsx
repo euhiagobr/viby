@@ -4,9 +4,10 @@
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
 import { doc, getDoc, collection, query, where, getDocs, collectionGroup, orderBy, limit } from "firebase/firestore";
-import { Loader2, Lock, ArrowLeft, Home, ShieldAlert, Share2 } from "lucide-react";
+import { Loader2, Lock, ArrowLeft, Home, ShieldAlert, Share2, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdsRenderer } from "@/components/ads/AdsRenderer";
+import { EventCard } from "@/components/events/EventCard";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import Image from "next/image";
@@ -15,6 +16,7 @@ import { ShareModal } from "@/components/sharing/ShareModal";
 import { recordQrScan } from "@/app/actions/qr";
 import { useSearchParams } from "next/navigation";
 import { useAdminPermissions } from "@/hooks/use-admin-permissions";
+import { getCurrentLocation, type Coordinates } from "@/lib/location-utils";
 
 // Components - Organization
 import { OrganizerHero } from "@/components/organizer/OrganizerHero";
@@ -44,6 +46,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const [isOwner, setIsOwner] = React.useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
   const [now, setNow] = React.useState<Date>(new Date());
+  const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null);
 
   const isAdmin = adminProfile !== null;
 
@@ -53,6 +56,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   React.useEffect(() => {
     setNow(new Date());
+    getCurrentLocation().then(loc => { if(loc) setUserLocation(loc); }).catch(() => {});
   }, []);
 
   // Rastreamento de Scan de QR Code
@@ -145,7 +149,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const { data: culturalStats } = useDoc<any>(statsRef);
 
   const activitiesQuery = useMemoFirebase(() => {
-    // REGRA DE OURO: Apenas o dono ou admins podem listar logs detalhados (Menor Privilégio)
     if (!db || profileType !== 'user' || !profileData?.id || (!isOwner && !isAdmin)) return null;
     return query(
       collection(db, "xp_logs"),
@@ -343,9 +346,17 @@ export default function ProfilePageClient({ username }: { username: string }) {
                   </div>
                   <TabsContent value="upcoming" className="animate-in fade-in duration-500">
                     <div className="space-y-8">
-                       {unifiedUpcomingFeed.length === 0 && <OrganizerEvents events={[]} title="Próximos Eventos" />}
-                       
-                       {unifiedUpcomingFeed.length > 0 && (
+                       <div className="space-y-1 px-2">
+                          <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Próximos Eventos</h2>
+                          <p className="text-muted-foreground font-medium">Garanta seu lugar nas próximas experiências.</p>
+                       </div>
+
+                       {unifiedUpcomingFeed.length === 0 ? (
+                         <div className="py-24 text-center bg-white rounded-[3rem] border-2 border-dashed border-border/60 flex flex-col items-center gap-4">
+                            <Inbox className="w-12 h-12 text-muted-foreground opacity-10" />
+                            <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Sem eventos agendados no momento.</p>
+                         </div>
+                       ) : (
                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {unifiedUpcomingFeed.map((item: any, idx: number) => (
                               item.type === 'ad' ? (
@@ -356,7 +367,11 @@ export default function ProfilePageClient({ username }: { username: string }) {
                                   googleSlotId="profile-feed-slot" 
                                 />
                               ) : (
-                                <OrganizerEvents key={`event-${item.data.id}-${idx}`} events={[item.data]} title="" />
+                                <EventCard 
+                                  key={`event-${item.data.id}-${idx}`} 
+                                  event={item.data} 
+                                  userLocation={userLocation}
+                                />
                               )
                             ))}
                          </div>
@@ -364,10 +379,10 @@ export default function ProfilePageClient({ username }: { username: string }) {
                     </div>
                   </TabsContent>
                   <TabsContent value="partnerships" className="animate-in fade-in duration-500">
-                    <OrganizerEvents events={partnershipEvents} title="Eventos em Co-realização" />
+                    <OrganizerEvents events={partnershipEvents} title="Eventos em Co-realização" userLocation={userLocation} />
                   </TabsContent>
                   <TabsContent value="past" className="animate-in fade-in duration-500">
-                    <OrganizerEvents events={pastEvents} title="Experiências Passadas" isPast />
+                    <OrganizerEvents events={pastEvents} title="Experiências Passadas" isPast userLocation={userLocation} />
                     <OrganizerGallery gallery={profileData.gallery || []} />
                   </TabsContent>
                   <TabsContent value="about" className="animate-in fade-in duration-500">
