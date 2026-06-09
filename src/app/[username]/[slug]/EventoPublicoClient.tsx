@@ -24,7 +24,9 @@ import {
   Navigation,
   Globe,
   ExternalLink,
-  Wallet
+  Copy,
+  Tag,
+  Users
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -38,6 +40,7 @@ import { UserNav } from "@/components/layout/UserNav"
 import { ShareModal } from "@/components/sharing/ShareModal"
 import { RichText } from "@/components/ui/rich-text"
 import { LocationMap } from "@/components/events/LocationMap"
+import { toast } from "@/hooks/use-toast"
 
 interface EventoPublicoClientProps {
   id: string
@@ -73,15 +76,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   const siteName = settings?.siteName || "Viby"
 
-  React.useEffect(() => {
-    if (id) {
-       fetch('/api/events/track-view', {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ eventId: id })
-       }).catch(() => {});
+  const handleCopyLink = () => {
+    if (typeof window !== 'undefined') {
+      navigator.clipboard.writeText(window.location.href);
+      toast({ title: "Link copiado!", description: "Compartilhe com sua rede." });
     }
-  }, [id])
+  }
 
   if (eventLoading) {
     return (
@@ -94,10 +94,10 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   if (!event) return null;
 
   const dateValue = event.date || event.startDate;
-  const d = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : new Date();
-  const endDateVal = event.endDate ? (event.endDate.toDate ? event.endDate.toDate() : new Date(event.endDate)) : new Date(d.getTime() + 4 * 60 * 60 * 1000);
+  const dStart = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : new Date();
+  const dEnd = event.endDate ? (event.endDate.toDate ? event.endDate.toDate() : new Date(event.endDate)) : null;
   
-  const isEnded = endDateVal < new Date();
+  const isEnded = dEnd ? (dEnd < new Date()) : false;
   const isVibyCurated = event.curationType === 'curadoria';
   const isExternalSale = event.type === 'externo' && event.externalUrl;
 
@@ -105,6 +105,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
       <EventSEO event={event} username={username} />
       
+      {/* HEADER GLOBAL */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -142,7 +143,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
         </div>
       </nav>
 
-      <section className="relative h-[450px] md:h-[650px] w-full overflow-hidden bg-primary shrink-0">
+      {/* HERO SECTION (100% LARGURA) */}
+      <section className="relative h-[500px] md:h-[700px] w-full overflow-hidden bg-primary shrink-0">
          <Image 
            src={event.image || "https://picsum.photos/seed/event/1920/1080"} 
            alt={event.title} 
@@ -151,7 +153,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
            priority
            unoptimized 
          />
-         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
          <div className="absolute bottom-0 left-0 w-full p-8 md:p-20">
             <div className="container mx-auto max-w-6xl">
               <div className="max-w-4xl space-y-6">
@@ -162,7 +164,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     {isEnded && <Badge className="bg-red-500 text-white border-none px-5 h-8 rounded-full font-black uppercase text-[10px] tracking-widest">Encerrado</Badge>}
                     <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-xl shadow-lg h-8" showLabel />
                  </div>
-                 <h1 className="text-4xl md:text-8xl font-black text-white uppercase italic tracking-tighter leading-[0.85]">{event.title}</h1>
+                 <h1 className="text-5xl md:text-8xl font-black text-white uppercase italic tracking-tighter leading-[0.85]">{event.title}</h1>
                  <div className="flex flex-wrap gap-4 text-white/90 text-sm font-bold uppercase tracking-tight">
                     <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-2xl border border-white/10">
                        <MapPin className="w-4 h-4 text-secondary" /> {event.address?.venueName || event.location}, {event.city}
@@ -173,6 +175,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
          </div>
       </section>
 
+      {/* BARRA DE AÇÕES RÁPIDAS */}
       <div className="bg-white border-b border-border/60 sticky top-16 z-40 shadow-sm">
          <div className="container mx-auto px-4 max-w-6xl py-4 flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-10">
@@ -184,11 +187,18 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto">
                <Button 
+                 onClick={handleCopyLink}
+                 variant="outline" 
+                 className="flex-1 sm:flex-none h-12 rounded-2xl border-2 gap-2 font-black uppercase italic text-xs px-6"
+               >
+                  <Copy className="w-4 h-4" /> Copiar Link
+               </Button>
+               <Button 
                  onClick={() => setIsShareModalOpen(true)}
                  variant="outline" 
                  className="flex-1 sm:flex-none h-12 rounded-2xl border-2 gap-2 font-black uppercase italic text-xs px-6"
                >
-                  <Share2 className="w-4 h-4" /> Compartilhar
+                  <Share2 className="w-4 h-4" /> Material
                </Button>
                {isExternalSale ? (
                  <Button asChild className="flex-1 sm:flex-none h-12 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-xs px-8 hover:scale-105 transition-transform">
@@ -208,31 +218,41 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
            
            <div className="lg:col-span-8 space-y-20">
               
+              {/* BLOCO DE DATA E HORA FUNDAMENTAL */}
               <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 flex items-center gap-6 group hover:shadow-md transition-all border border-border/50">
-                    <div className="p-5 bg-muted rounded-3xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
+                 <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-10 flex items-center gap-6 group hover:shadow-md transition-all border border-border/50">
+                    <div className="p-5 bg-secondary/5 rounded-3xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
                        <Calendar className="w-10 h-10" />
                     </div>
                     <div>
-                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-1">Data do Evento</p>
-                       <p className="text-xl font-black text-primary uppercase italic">
-                         {d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] mb-1.5">Início</p>
+                       <p className="text-xl font-black text-primary uppercase italic leading-none">
+                         {dStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
                        </p>
+                       <p className="text-sm font-bold text-secondary mt-1">{dStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
                     </div>
                  </Card>
-                 <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 flex items-center gap-6 group hover:shadow-md transition-all border border-border/50">
-                    <div className="p-5 bg-muted rounded-3xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
+                 <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-10 flex items-center gap-6 group hover:shadow-md transition-all border border-border/50">
+                    <div className="p-5 bg-primary/5 rounded-3xl text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                        <Clock className="w-10 h-10" />
                     </div>
                     <div>
-                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-1">Início da Experiência</p>
-                       <p className="text-xl font-black text-primary uppercase italic">
-                         {d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                       </p>
+                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] mb-1.5">Encerramento</p>
+                       {dEnd ? (
+                         <>
+                           <p className="text-xl font-black text-primary uppercase italic leading-none">
+                             {dEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                           </p>
+                           <p className="text-sm font-bold text-secondary mt-1">{dEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
+                         </>
+                       ) : (
+                         <p className="text-sm font-bold text-muted-foreground italic uppercase">Conforme programação</p>
+                       )}
                     </div>
                  </Card>
               </section>
 
+              {/* DESCRIÇÃO EDITORIAL */}
               <section className="space-y-8">
                  <div className="flex items-center gap-3 px-2">
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Info className="w-5 h-5" /></div>
@@ -249,6 +269,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </Card>
               </section>
 
+              {/* BILHETERIA */}
               {event.ticketMode !== 'none' && !isExternalSale && (
                 <div id="bilheteria" className="scroll-mt-32">
                    <BilheteriaPublic 
@@ -260,6 +281,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                 </div>
               )}
 
+              {/* LOCALIZAÇÃO E MAPA */}
               <section className="space-y-8">
                  <div className="flex items-center gap-3 px-2">
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><MapIcon className="w-5 h-5" /></div>
@@ -282,13 +304,15 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                           </p>
                        </div>
                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                          <Button asChild variant="outline" className="rounded-2xl h-14 px-8 font-black uppercase italic text-xs gap-3 border-secondary/20 text-secondary hover:bg-secondary/5">
+                          <Button asChild variant="outline" className="rounded-2xl h-14 px-8 font-black uppercase italic text-xs gap-3 border-secondary/20 text-secondary hover:bg-secondary/5 transition-all">
                              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address?.formattedAddress || event.location)}`} target="_blank">
-                                <Navigation className="w-4 h-4 fill-current" /> Google Maps
+                                <Navigation className="w-4 h-4" /> Google Maps
                              </a>
                           </Button>
-                          <Button asChild variant="ghost" className="rounded-2xl h-14 px-8 font-bold uppercase text-[10px] gap-2 hover:bg-muted">
-                             <a href={`https://www.waze.com/ul?q=${encodeURIComponent(event.address?.formattedAddress || event.location)}&navigate=yes`} target="_blank">Waze</a>
+                          <Button asChild variant="outline" className="rounded-2xl h-14 px-8 font-black uppercase italic text-xs gap-3 border-primary/10 text-primary hover:bg-muted transition-all">
+                             <a href={`https://www.waze.com/ul?q=${encodeURIComponent(event.address?.formattedAddress || event.location)}&navigate=yes`} target="_blank">
+                                <MapIcon className="w-4 h-4" /> Abrir no Waze
+                             </a>
                           </Button>
                        </div>
                     </CardContent>
@@ -298,11 +322,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
               <EventCoOrganizers isPublic eventId={id} currentOrgId={event.organizationId} className="pt-10 border-t border-dashed" />
            </div>
 
+           {/* SIDEBAR CLEAN (BRANCA) */}
            <aside className="lg:col-span-4 space-y-8">
               <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden sticky top-40 border border-border/50">
                  <div className="p-10 space-y-10 relative">
                     <div className="space-y-6">
-                       <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40 text-primary">Responsável</p>
+                       <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40 text-primary">Responsável</p>
                        <Link href={`/${org?.username || username}`} className="flex items-center gap-5 group">
                           <Avatar className="h-20 w-20 border-4 border-muted/30 p-0.5 group-hover:scale-105 transition-transform rounded-[1.8rem] overflow-hidden">
                              <AvatarImage src={org?.avatar} className="object-cover" />
@@ -339,7 +364,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     <div className="grid grid-cols-1 gap-4">
                        {isExternalSale ? (
                          <Button asChild className="w-full h-16 bg-primary text-white font-black rounded-3xl shadow-2xl uppercase italic text-base hover:scale-105 transition-transform">
-                            <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Garantir no Site Oficial <ArrowRight className="ml-2 w-5 h-5" /></a>
+                            <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ArrowRight className="ml-2 w-5 h-5" /></a>
                          </Button>
                        ) : (
                          <Button asChild className="w-full h-16 bg-secondary text-white font-black rounded-3xl shadow-2xl uppercase italic text-base hover:scale-105 transition-transform shadow-secondary/20">
@@ -350,23 +375,25 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </div>
               </Card>
 
+              {/* CONTEXTO SOCIAL RESUMIDO */}
               <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-10 space-y-8 border border-border/50">
                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-secondary/5 rounded-2xl text-secondary"><ShieldCheck className="w-6 h-6" /></div>
-                    <h3 className="text-sm font-black uppercase italic text-primary tracking-tighter leading-tight">Protocolo de Segurança Viby</h3>
+                    <div className="p-3 bg-secondary/5 rounded-2xl text-secondary"><Users className="w-6 h-6" /></div>
+                    <h3 className="text-sm font-black uppercase italic text-primary tracking-tighter leading-tight">Comunidade Vibrante</h3>
                  </div>
                  <p className="text-xs text-muted-foreground leading-relaxed font-medium uppercase">
-                    Ao confirmar sua presença, você recebe um voucher criptografado com QR Code dinâmico. O acesso é pessoal, intransferível e validado pela nossa rede neural de portaria.
+                    {(event.interestedCount || 0).toLocaleString()} pessoas marcaram interesse nesta experiência. Faça parte do momento.
                  </p>
                  <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl">
                     <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">Identidade Protegida</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">Transação Segura</span>
                  </div>
               </Card>
            </aside>
         </div>
       </main>
 
+      {/* SHARE MODAL INTEGRADO */}
       {org && (
         <ShareModal 
           isOpen={isShareModalOpen} 
