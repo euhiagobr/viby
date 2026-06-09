@@ -39,7 +39,6 @@ async function getEventData(username: string, eventParam: string) {
     }
 
     // 3. TENTATIVA 2: Buscar por Slug (SEO)
-    // Nota: Slugs são salvos em lowercase na criação, a busca deve refletir isso
     const slugLower = normalizedParam.toLowerCase();
     const q = query(
       collection(db, "events"),

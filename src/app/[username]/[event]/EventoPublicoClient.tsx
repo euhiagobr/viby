@@ -42,9 +42,6 @@ import {
 import { AgeRatingBadge } from '@/lib/age-rating';
 import { useCurrency } from '@/contexts/CurrencyContext';
 
-/**
- * @fileOverview Visualização pública do evento unificada.
- */
 export default function EventoPublicoClient({ id, username }: { id: string, username: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -115,14 +112,8 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
 
   const isEnded = React.useMemo(() => {
     if (!event) return false;
-    const parseDate = (val: any) => {
-      if (!val) return null;
-      if (val.toDate) return val.toDate();
-      const d = new Date(val);
-      return isNaN(d.getTime()) ? null : d;
-    };
-    const start = parseDate(event.date);
-    const end = parseDate(event.endDate) || (start ? new Date(start.getTime() + 4 * 60 * 60 * 1000) : new Date(0));
+    const start = event.date?.toDate ? event.date.toDate() : new Date(event.date);
+    const end = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
     return end < new Date();
   }, [event?.date, event?.endDate]);
 
@@ -142,7 +133,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full"><ArrowLeft className="w-5 h-5" /></Button>
             <Link href="/" className="flex items-center gap-2 group">
               {settings?.logoUrl ? (
-                <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-9 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
+                <img src={settings.logoUrl} alt={siteName} style={{ height: '36px', width: 'auto' }} />
               ) : (
                 <span className="font-black italic uppercase tracking-tighter text-2xl text-primary">{siteName}</span>
               )}
@@ -178,7 +169,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 <div className="flex flex-wrap gap-2">
                    <AgeRatingBadge code={event.ageRating?.code || 'free'} showLabel className="bg-white/80 backdrop-blur-md shadow-sm px-3 py-1 rounded-full border" />
                    <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase tracking-widest px-4 rounded-full shadow-lg h-8 flex items-center">{event.categoryName || 'Evento'}</Badge>
-                   <EventShare eventId={id} title={event.title} url={`/${username}/${event.slug || id}`} />
                 </div>
                 <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tighter uppercase italic leading-[0.8] drop-shadow-2xl">{event.title}</h1>
                 
@@ -202,10 +192,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                 </div>
              </Card>
 
-             <EventLocation 
-                address={event.address} 
-                isPublic 
-             />
+             <EventLocation address={event.address} isPublic />
           </div>
 
           <aside className="lg:col-span-4 space-y-8">
@@ -217,30 +204,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                         <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Ingressos</h2>
                      </div>
                      <div className="space-y-4">
-                        {(event.disclosurePrices || []).length > 0 && (
-                           <div className="grid grid-cols-1 gap-3">
-                             {event.disclosurePrices.map((p: any, idx: number) => {
-                               const isCurrent = activeDisclosurePrice?.untilTime === p.untilTime;
-                               return (
-                                 <div key={idx} className={cn(
-                                   "p-4 rounded-2xl border transition-all relative overflow-hidden",
-                                   isCurrent ? "bg-secondary/5 border-secondary shadow-md ring-2 ring-secondary/10" : "bg-muted/30 border-dashed border-border/60 opacity-60"
-                                 )}>
-                                    <div className="flex items-center justify-between gap-4">
-                                       <div className="space-y-1">
-                                          <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase">
-                                             <Clock className="w-3 h-3" /> Até {p.untilTime}
-                                          </div>
-                                          <p className="text-2xl font-black text-primary italic leading-none">
-                                            {p.price > 0 ? formatPriceWithOriginal(p.price, event.currency || 'BRL') : 'Grátis'}
-                                          </p>
-                                       </div>
-                                    </div>
-                                 </div>
-                               );
-                             })}
-                           </div>
-                        )}
                         <Button asChild className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-all">
                            <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">
                               Comprar Ingressos <ExternalLink className="ml-2 w-5 h-5" />
@@ -257,29 +220,11 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                         <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Preços de Entrada</h2>
                      </div>
                      <div className="space-y-4">
-                        {(event.disclosurePrices || []).length > 0 ? (
-                           <div className="grid grid-cols-1 gap-3">
-                             {event.disclosurePrices.map((p: any, idx: number) => {
-                               const isCurrent = activeDisclosurePrice?.untilTime === p.untilTime;
-                               return (
-                                 <div key={idx} className={cn(
-                                   "p-4 rounded-2xl border transition-all relative overflow-hidden",
-                                   isCurrent ? "bg-secondary/5 border-secondary shadow-md ring-2 ring-secondary/10" : "bg-muted/30 border-dashed border-border/60 opacity-60"
-                                 )}>
-                                    <div className="flex items-center justify-between gap-4">
-                                       <div className="space-y-1">
-                                          <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase">
-                                             <Clock className="w-3 h-3" /> Até {p.untilTime}
-                                          </div>
-                                          <p className="text-2xl font-black text-primary italic leading-none">
-                                            {p.price > 0 ? formatPriceWithOriginal(p.price, event.currency || 'BRL') : 'Grátis'}
-                                          </p>
-                                       </div>
-                                    </div>
-                                 </div>
-                               );
-                             })}
-                           </div>
+                        {activeDisclosurePrice ? (
+                          <div className="p-6 bg-secondary/5 rounded-2xl border-2 border-secondary shadow-md text-center space-y-2">
+                             <p className="text-[10px] font-black text-secondary uppercase italic">Válido até {activeDisclosurePrice.untilTime}</p>
+                             <p className="text-3xl font-black text-primary">{formatPriceWithOriginal(activeDisclosurePrice.price, event.currency || 'BRL')}</p>
+                          </div>
                         ) : (
                           <div className="p-6 bg-muted/30 rounded-2xl border border-dashed flex items-center justify-center">
                             <span className="font-black text-2xl text-primary uppercase italic">Grátis</span>
@@ -312,18 +257,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
                   </div>
                 </Card>
 
-                {isCuradoria && (
-                  <div className="p-5 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-3 animate-in zoom-in-95">
-                    <Star className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black uppercase text-secondary italic">Nota de Curadoria</p>
-                      <p className="text-[9px] text-muted-foreground font-medium leading-relaxed uppercase">
-                        A curadoria é uma forma de divulgar as melhores experiências da rede. Este evento foi selecionado pela nossa equipe para garantir maior visibilidade e alcance aos produtores locais.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
                 <EventCoOrganizers eventId={id} currentOrgId={event.organizationId} isPublic />
              </div>
           </aside>
@@ -331,23 +264,21 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
       </main>
       <Footer />
 
-      {event && (
-        <ShareModal 
-          isOpen={isShareModalOpen} 
-          onOpenChange={setIsShareModalOpen} 
-          data={{
-            title: event.title,
-            username: username,
-            url: `/${username}/${event.slug || id}`,
-            logoUrl: event.image,
-            bannerUrl: event.image,
-            type: 'event',
-            organizationId: event.organizationId,
-            eventId: id,
-            verified: organization?.verified || organization?.isVerified
-          }}
-        />
-      )}
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onOpenChange={setIsShareModalOpen} 
+        data={{
+          title: event.title,
+          username: username,
+          url: `/${username}/${event.slug || id}`,
+          logoUrl: event.image,
+          bannerUrl: event.image,
+          type: 'event',
+          organizationId: event.organizationId,
+          eventId: id,
+          verified: organization?.verified || organization?.isVerified
+        }}
+      />
     </div>
   );
 }
