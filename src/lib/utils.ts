@@ -1,3 +1,4 @@
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -94,8 +95,9 @@ export function validateCNPJ(cnpj: string): boolean {
 
 /**
  * Valida formato de Username (Apenas letras, números, ponto e underline)
+ * Mínimo 5 caracteres conforme regra de negócio oficial.
  */
 export function validateUsername(username: string): boolean {
-  const regex = /^[a-zA-Z0-9._]+$/;
-  return regex.test(username) && username.length >= 3 && username.length <= 30;
+  const regex = /^[a-z0-9._]+$/;
+  return regex.test(username) && username.length >= 5 && username.length <= 30;
 }

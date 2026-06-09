@@ -8,7 +8,7 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useAuth, useFirestore } from "@/firebase";
+import { useAuth, useUser, useFirestore } from "@/firebase";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Check, X, AtSign, Fingerprint, Lock, User, Mail } from "lucide-react";
 import { FirebaseError } from "firebase/app";
@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Informe seu nome completo." }),
-  username: z.string().min(3, "Mínimo 3 caracteres").regex(/^[a-z0-9._]+$/, "Somente minúsculas, números, ponto e underline"),
+  username: z.string().min(5, "Mínimo 5 caracteres").regex(/^[a-z0-9._]+$/, "Somente minúsculas, números, ponto e underline"),
   cpf: z.string().length(11, "CPF deve ter 11 dígitos"),
   email: z.string().email({ message: "E-mail inválido." }),
   gender: z.string().min(1, "Selecione seu gênero"),
@@ -66,7 +66,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
   const watchCPF = form.watch("cpf");
 
   React.useEffect(() => {
-    if (!db || !watchUsername || watchUsername.length < 3) {
+    if (!db || !watchUsername || watchUsername.length < 5) {
       setUsernameStatus('idle');
       return;
     }
@@ -117,7 +117,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Username ocupado", description: "Escolha outro @nick para seu perfil." });
+      toast({ variant: "destructive", title: "Username inválido ou ocupado", description: "Escolha outro @nick com pelo menos 5 caracteres." });
       return;
     }
     if (cpfStatus !== 'valid') {
@@ -133,11 +133,9 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
       const user = userCredential.user;
       const uid = user.uid;
 
-      // 1. Vincular CPF (Segurança Tripla)
       const cpfRes = await updateUserCPF(uid, values.cpf);
       if (!cpfRes.success) throw new Error(cpfRes.error);
 
-      // 2. Transação de Criação de Identidade
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", values.username.toLowerCase().trim());
         const userRef = doc(db, "users", uid);
@@ -227,7 +225,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
                 <div className="relative">
                   <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
                   <FormControl>
-                    <Input placeholder="seu.nick" className="h-14 rounded-2xl pl-12 pr-10 border-dashed border-primary/20" {...field} />
+                    <Input placeholder="seu.nick (min 5)" className="h-14 rounded-2xl pl-12 pr-10 border-dashed border-primary/20" {...field} />
                   </FormControl>
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
