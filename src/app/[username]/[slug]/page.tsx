@@ -1,6 +1,6 @@
 /**
- * @fileOverview ROTA DESATIVADA PERMANENTEMENTE.
- * Esta rota foi desativada para eliminar o conflito de roteamento no Next.js (slug name conflict).
- * Toda a lógica foi movida para src/app/[username]/[event]/page.tsx.
- * NÃO ADICIONAR EXPORT DEFAULT NESTE ARQUIVO.
+ * @fileOverview ROTA DESATIVADA.
+ * Esta rota foi consolidada em src/app/[username]/[event]/page.tsx
+ * para evitar conflitos de parâmetros dinâmicos no Next.js App Router.
  */
+export default function RemovedPage() { return null; }

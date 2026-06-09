@@ -12,6 +12,7 @@ import { redirect } from 'next/navigation';
 /**
  * @fileOverview Rota Unificada Master de Eventos.
  * Resolve o evento por ID ou Slug, eliminando conflitos de FileSystem Routing.
+ * Esta rota substitui [id] e [slug].
  */
 
 async function getEventData(username: string, eventParam: string) {
@@ -28,7 +29,7 @@ async function getEventData(username: string, eventParam: string) {
     const normalizedParam = eventParam.trim();
 
     // 2. TENTATIVA 1: Buscar por ID (Prioridade para links internos/legados)
-    const eventIdRef = doc(db, "events", eventParam);
+    const eventIdRef = doc(db, "events", normalizedParam);
     const eventIdSnap = await getDoc(eventIdRef);
     
     if (eventIdSnap.exists()) {
