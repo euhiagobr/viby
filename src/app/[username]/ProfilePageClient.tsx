@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -13,6 +14,7 @@ import { UserNav } from "@/components/layout/UserNav";
 import { ShareModal } from "@/components/sharing/ShareModal";
 import { recordQrScan } from "@/app/actions/qr";
 import { useSearchParams } from "next/navigation";
+import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 
 // Components - Organization
 import { OrganizerHero } from "@/components/organizer/OrganizerHero";
@@ -34,6 +36,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const auth = useAuth();
   const searchParams = useSearchParams();
   const { user: loggedUser } = useUser(auth);
+  const { adminProfile } = useAdminPermissions();
   
   const [loading, setLoading] = React.useState(true);
   const [profileData, setProfileData] = React.useState<any>(null);
@@ -41,6 +44,8 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const [isOwner, setIsOwner] = React.useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
   const [now, setNow] = React.useState<Date>(new Date());
+
+  const isAdmin = adminProfile !== null;
 
   // Estado para eventos em parceria
   const [partnershipEvents, setPartnershipEvents] = React.useState<any[]>([]);
@@ -140,14 +145,15 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const { data: culturalStats } = useDoc<any>(statsRef);
 
   const activitiesQuery = useMemoFirebase(() => {
-    if (!db || profileType !== 'user' || !profileData?.id || (!isOwner && profileData.privacy?.hideStats)) return null;
+    // REGRA DE OURO: Apenas o dono ou admins podem listar logs detalhados (Menor Privilégio)
+    if (!db || profileType !== 'user' || !profileData?.id || (!isOwner && !isAdmin)) return null;
     return query(
       collection(db, "xp_logs"),
       where("userId", "==", profileData.id),
       orderBy("timestamp", "desc"),
       limit(15)
     );
-  }, [db, profileType, profileData?.id, isOwner, profileData?.privacy?.hideStats]);
+  }, [db, profileType, profileData?.id, isOwner, isAdmin]);
   const { data: activities } = useCollection<any>(activitiesQuery);
 
   const userRegistrationsQuery = useMemoFirebase(() => {
@@ -267,7 +273,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
   if (isUnavailable) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4 text-center selection:bg-secondary selection:text-white">
-        <div className="relative w-full max-w-lg mb-12">
+        <div className="relative w-full max-lg mb-12">
           <div className="absolute inset-0 bg-secondary/10 blur-3xl rounded-full" />
           <div className="relative">
             <div className="w-24 h-24 bg-white rounded-[2rem] shadow-2xl flex items-center justify-center mx-auto mb-8">

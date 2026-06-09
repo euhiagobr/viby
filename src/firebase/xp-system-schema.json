@@ -1,0 +1,36 @@
+
+{
+  "collections": {
+    "xp_rules": {
+      "description": "Definição de regras e pontuações para ganhos de XP.",
+      "fields": {
+        "id": "string (ex: on_checkin)",
+        "name": "string (Nome Amigável)",
+        "event": "string (Gatilho técnico)",
+        "points": "number (XP atribuído)",
+        "description": "string"
+      }
+    },
+    "xp_logs": {
+      "description": "Trilha de auditoria privada de ganhos de XP.",
+      "fields": {
+        "userId": "string (UID do proprietário)",
+        "amount": "number (Pontos ganhos)",
+        "reason": "string (ID da regra)",
+        "timestamp": "timestamp",
+        "context": "object (metadados do evento)"
+      },
+      "security_rules": "Leitura restrita ao dono (Menor Privilégio) e Administradores."
+    },
+    "user_gamification": {
+      "description": "Consolidado público de nível e XP do usuário.",
+      "fields": {
+        "userId": "string (UID)",
+        "totalXp": "number",
+        "level": "number",
+        "levelName": "string",
+        "lastActivityAt": "timestamp"
+      }
+    }
+  }
+}
