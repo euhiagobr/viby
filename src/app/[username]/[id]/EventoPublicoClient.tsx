@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -21,7 +22,8 @@ import {
   Share2,
   Info,
   Coins,
-  Star
+  Star,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -78,9 +80,9 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
   const { data: promotions } = useDoc<any>(promosRef);
 
-  // Monitoramento de Horário para Preços de Divulgação (Suporte Madrugada)
+  // Monitoramento de Horário para Preços de Divulgação ou Externos
   React.useEffect(() => {
-    if (event?.type !== 'divulgacao' || !event.disclosurePrices?.length) return;
+    if ((event?.type !== 'divulgacao' && event?.type !== 'externo') || !event.disclosurePrices?.length) return;
 
     const updateActivePrice = () => {
       const now = new Date();
@@ -89,13 +91,11 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
       let currentActive = null;
       let lastLimit = new Date(eventStart.getTime());
 
-      // Seguimos a ordem cronológica informada pelo usuário, lidando com viradas de dia
       for (const p of event.disclosurePrices) {
         const [h, m] = p.untilTime.split(':').map(Number);
         let limitDate = new Date(lastLimit.getTime());
         limitDate.setHours(h, m, 0, 0);
 
-        // Se o limite é anterior ao ponto atual, é o dia seguinte
         if (limitDate <= lastLimit) {
           limitDate.setDate(limitDate.getDate() + 1);
         }
@@ -107,7 +107,6 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
         lastLimit = limitDate;
       }
 
-      // Se passou de todos, fica o último valor
       setActiveDisplayPrice(currentActive || event.disclosurePrices[event.disclosurePrices.length - 1]);
     };
 
@@ -220,6 +219,49 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
 
           <aside className="lg:col-span-4 space-y-8">
              <div className="sticky top-28 space-y-8">
+                {event.type === 'externo' && (
+                  <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 border-t-8 border-primary space-y-6">
+                     <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-lg text-primary"><Ticket className="w-5 h-5" /></div>
+                        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Ingressos</h2>
+                     </div>
+                     <div className="space-y-4">
+                        {(event.disclosurePrices || []).length > 0 && (
+                           <div className="grid grid-cols-1 gap-3">
+                             {event.disclosurePrices.map((p: any, idx: number) => {
+                               const isCurrent = activeDisclosurePrice?.untilTime === p.untilTime;
+                               return (
+                                 <div key={idx} className={cn(
+                                   "p-4 rounded-2xl border transition-all relative overflow-hidden",
+                                   isCurrent ? "bg-secondary/5 border-secondary shadow-md ring-2 ring-secondary/10" : "bg-muted/30 border-dashed border-border/60 opacity-60"
+                                 )}>
+                                    <div className="flex items-center justify-between gap-4">
+                                       <div className="space-y-1">
+                                          <div className="flex items-center gap-1.5 text-[10px] font-black text-secondary uppercase">
+                                             <Clock className="w-3 h-3" /> Até {p.untilTime}
+                                          </div>
+                                          <p className="text-2xl font-black text-primary italic leading-none">
+                                            {p.price > 0 ? formatPriceWithOriginal(p.price, event.currency || 'BRL') : 'Grátis'}
+                                          </p>
+                                       </div>
+                                    </div>
+                                 </div>
+                               );
+                             })}
+                           </div>
+                        )}
+                        <Button asChild className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-all">
+                           <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">
+                              Comprar Ingressos <ExternalLink className="ml-2 w-5 h-5" />
+                           </a>
+                        </Button>
+                        <p className="text-[9px] text-muted-foreground font-medium leading-relaxed uppercase bg-muted/20 p-3 rounded-xl">
+                          Você será redirecionado para uma plataforma externa. A Viby não se responsabiliza por transações fora de seu domínio oficial.
+                        </p>
+                     </div>
+                  </Card>
+                )}
+
                 {event.type === 'divulgacao' && (
                   <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 border-t-8 border-secondary space-y-6">
                      <div className="flex items-center gap-3">
@@ -290,7 +332,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
 
                   {isCuradoria && (
                     <div className="p-5 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-3 animate-in zoom-in-95">
-                      <Star className="w-5 h-5 text-secondary shrink-0 mt-0.5 fill-secondary" />
+                      <Star className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                       <div className="space-y-1">
                         <p className="text-[10px] font-black uppercase text-secondary italic">Nota de Curadoria</p>
                         <p className="text-[9px] text-muted-foreground font-medium leading-relaxed uppercase">

@@ -66,7 +66,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         setLiveStatus(null);
       }
 
-      if (event.type === 'divulgacao' && event.disclosurePrices?.length > 0) {
+      if ((event.type === 'divulgacao' || event.type === 'externo') && event.disclosurePrices?.length > 0) {
         let activePrice = null;
         let lastLimit = new Date(start.getTime());
 
@@ -104,7 +104,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [userLocation, event.latitude, event.longitude]);
 
   const pricingDisplay = React.useMemo(() => {
-    if (event.type === 'divulgacao') {
+    if (event.type === 'divulgacao' || event.type === 'externo') {
       if (!currentDisplayPrice) {
         return <span className="text-green-600 font-black italic uppercase text-[10px]">{t('event.no_tickets')}</span>;
       }
@@ -143,7 +143,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
 
-  // Rótulo de curadoria especial para a organização oficial
   const curationLabel = event.curationType === 'curadoria' ? 'Curadoria' : 'Realização';
 
   return (
@@ -224,7 +223,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         </div>
 
         <Button className="w-full h-10 bg-primary text-white font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
-           {event.type === 'divulgacao' ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
+           {event.type === 'divulgacao' || event.type === 'externo' ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
         </Button>
       </CardContent>
     </Card>

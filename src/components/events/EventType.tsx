@@ -51,7 +51,6 @@ export function EventType({
   const handleUpdatePrice = (index: number, field: keyof DisclosurePrice, val: any) => {
     const newPrices = [...disclosurePrices];
     newPrices[index] = { ...newPrices[index], [field]: val };
-    // Removido o sort alfabético para permitir que 03:00 siga 21:00 (lógica de madrugada)
     onDisclosurePricesChange?.(newPrices);
   };
 
@@ -96,7 +95,7 @@ export function EventType({
         </div>
       )}
 
-      {value === 'divulgacao' && onDisclosurePricesChange && (
+      {(value === 'divulgacao' || value === 'externo') && onDisclosurePricesChange && (
         <div className="space-y-4 animate-in slide-in-from-top-2">
           <div className="flex items-center justify-between">
             <Label className="text-[10px] font-black uppercase text-secondary flex items-center gap-1.5">
@@ -173,7 +172,6 @@ export function EventType({
             <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
             <p className="text-[8px] font-bold text-secondary uppercase leading-tight">
               Os preços mudarão automaticamente conforme o horário avançar. 
-              Mantenha os itens na ordem em que as viradas ocorrem (mesmo se passar da meia-noite).
             </p>
           </div>
         </div>
