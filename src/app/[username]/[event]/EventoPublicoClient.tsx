@@ -114,6 +114,19 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
     }
   }, [searchParams, event?.organizationId, id]);
 
+  const isEnded = React.useMemo(() => {
+    if (!event) return false;
+    const parseDate = (val: any) => {
+      if (!val) return null;
+      if (val.toDate) return val.toDate();
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const start = parseDate(event.date);
+    const end = parseDate(event.endDate) || (start ? new Date(start.getTime() + 4 * 60 * 60 * 1000) : new Date(0));
+    return end < new Date();
+  }, [event?.date, event?.endDate]);
+
   if (eventLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
   if (!event) return null;
 
@@ -156,7 +169,7 @@ export default function EventoPublicoClient({ id, username }: { id: string, user
 
       <main className="pt-20">
         <div className="relative h-[50vh] md:h-[60vh] w-full overflow-hidden bg-muted">
-           <Image src={event.image || 'https://picsum.photos/seed/event/1200/800'} alt={event.title} fill className="object-cover" unoptimized />
+           <Image src={event.image || 'https://picsum.photos/seed/event/1200/800'} alt={event.title} fill className={cn('object-cover', isEnded && 'grayscale brightness-50')} unoptimized />
            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
         </div>
 
