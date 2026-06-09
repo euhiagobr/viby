@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -65,7 +64,7 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from "@/lib/utils";
-import { sendTeamInvitationEmail, sendTeamInvitationNoticeEmail } from '@/app/actions/email';
+import { sendTeamInvitationEmail, sendTeamInvitationStatusEmail } from '@/app/actions/email';
 
 const ROLES = [
   { value: 'owner', label: 'Proprietário', desc: 'Acesso total e gestão financeira.' },
@@ -120,26 +119,38 @@ export default function OrganizationMembersPage() {
 
     setInviteLoading(true);
     const formData = new FormData(e.currentTarget);
-    const usernameInput = (formData.get('username') as string).toLowerCase().replace('@', '').trim();
+    const inputRaw = (formData.get('username') as string).toLowerCase().trim();
     const role = formData.get('role') as string;
 
     try {
-      if (!usernameInput) throw new Error("Informe o nome de usuário.");
+      if (!inputRaw) throw new Error("Informe o @username ou e-mail.");
 
-      // Busca otimizada via campo 'username'
-      const usernameQ = query(collection(db, "usernames"), where("username", "==", usernameInput), limit(1));
-      const usernameSnap = await getDocs(usernameQ);
+      let targetUid = null;
+      const cleanUsername = inputRaw.replace('@', '');
 
-      if (usernameSnap.empty) {
-        throw new Error("Usuário não encontrado.");
+      // 1. Tentar localizar via índice de usernames (Busca por ID de documento)
+      const usernameRef = doc(db, "usernames", cleanUsername);
+      const usernameSnap = await getDoc(usernameRef);
+
+      if (usernameSnap.exists()) {
+        const uData = usernameSnap.data();
+        if (uData.type === 'user') {
+          targetUid = uData.uid;
+        }
       }
 
-      const uData = usernameSnap.docs[0].data();
-      if (uData.type !== 'user') {
-        throw new Error("Apenas perfis pessoais podem ser convidados para a equipe.");
+      // 2. Fallback: Tentar localizar via e-mail se não achou por username
+      if (!targetUid) {
+        const emailQ = query(collection(db, "users"), where("email", "==", inputRaw), limit(1));
+        const emailSnap = await getDocs(emailQ);
+        if (!emailSnap.empty) {
+          targetUid = emailSnap.docs[0].id;
+        }
       }
 
-      const targetUid = uData.uid;
+      if (!targetUid) {
+        throw new Error("Usuário não encontrado na plataforma Viby.");
+      }
 
       const memberRef = doc(db, 'organizations', currentOrg.id, 'members', targetUid);
       const existingSnap = await getDoc(memberRef);
@@ -148,7 +159,7 @@ export default function OrganizationMembersPage() {
       }
 
       const targetUserSnap = await getDoc(doc(db, 'users', targetUid));
-      if (!targetUserSnap.exists()) throw new Error("Dados do usuário não localizados.");
+      if (!targetUserSnap.exists()) throw new Error("Dados do perfil não localizados.");
       const targetUser = targetUserSnap.data();
 
       const expiresAt = new Date();
@@ -179,7 +190,7 @@ export default function OrganizationMembersPage() {
         });
       }
 
-      toast({ title: "Convite enviado!", description: "O colaborador recebeu um e-mail e tem 24h para aceitar." });
+      toast({ title: "Convite enviado!", description: "O colaborador recebeu um e-mail com as instruções." });
       setIsInviteOpen(false);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao convidar", description: error.message });
@@ -254,18 +265,18 @@ export default function OrganizationMembersPage() {
               <form onSubmit={handleInviteMember} className="space-y-6">
                 <DialogHeader>
                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Adicionar Colaborador</DialogTitle>
-                  <DialogDescription>Digite o nome de usuário (@username) de quem deseja convidar.</DialogDescription>
+                  <DialogDescription>Digite o @username ou e-mail de quem deseja convidar.</DialogDescription>
                 </DialogHeader>
                 
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
                       <AtSign className="w-3.5 h-3.5 text-secondary" />
-                      Nome de Usuário
+                      Identificador
                     </Label>
                     <Input 
                       name="username" 
-                      placeholder="ex: joaosilva123" 
+                      placeholder="username ou e-mail" 
                       required 
                       className="rounded-xl h-11" 
                     />
@@ -307,31 +318,31 @@ export default function OrganizationMembersPage() {
         <Table>
            <TableHeader className="bg-muted/30">
               <TableRow>
-                 <TableHead className="font-black uppercase text-[10px] tracking-widest">Colaborador</TableHead>
+                 <TableHead className="font-black uppercase text-[10px] tracking-widest p-6">Colaborador</TableHead>
                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Cargo</TableHead>
                  <TableHead className="font-black uppercase text-[10px] tracking-widest">Status</TableHead>
-                 <TableHead className="text-right font-black uppercase text-[10px] tracking-widest">Ações</TableHead>
+                 <TableHead className="text-right font-black uppercase text-[10px] tracking-widest p-6">Ações</TableHead>
               </TableRow>
            </TableHeader>
            <TableBody>
               {loading ? (
                 <TableRow><TableCell colSpan={4} className="py-10 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-secondary" /></TableCell></TableRow>
               ) : membersWithProfiles.map((member) => (
-                <TableRow key={member.userId} className="hover:bg-muted/10 transition-colors">
-                   <TableCell>
+                <TableRow key={member.userId} className={cn("hover:bg-muted/10 transition-colors", member.status === 'pending' && "bg-orange-50/10")}>
+                   <TableCell className="p-6">
                       <div className="flex items-center gap-3">
                          <Avatar className="h-10 w-10 border border-muted">
                             <AvatarImage src={member.profile?.avatar} className="object-cover" />
                             <AvatarFallback className="font-bold bg-secondary text-white">{member.profile?.name?.charAt(0) || member.profile?.displayName?.charAt(0) || 'U'}</AvatarFallback>
                          </Avatar>
                          <div className="flex flex-col">
-                            <span className="font-bold text-sm">{member.profile?.name || member.profile?.displayName || 'Usuário'}</span>
-                            <span className="text-[10px] text-muted-foreground">@{member.profile?.username}</span>
+                            <span className="font-bold text-sm">{member.profile?.name || member.profile?.displayName || member.inviteeName || 'Usuário'}</span>
+                            <span className="text-[10px] text-muted-foreground">@{member.profile?.username || "convidado"}</span>
                          </div>
                       </div>
                    </TableCell>
                    <TableCell>
-                      {isOwnerOrAdmin && member.role !== 'owner' && member.userId !== currentUser?.uid ? (
+                      {isOwnerOrAdmin && member.role !== 'owner' && member.userId !== currentUser?.uid && member.status !== 'pending' ? (
                         <Select 
                           value={member.role} 
                           onValueChange={(val) => setPendingRoleChange({ 
@@ -366,9 +377,6 @@ export default function OrganizationMembersPage() {
                            <div className="flex items-center gap-1.5 text-orange-500 font-black text-[10px] uppercase">
                              <Clock className="w-3 h-3" /> Pendente
                            </div>
-                           {member.expiresAt && (
-                             <span className="text-[8px] text-muted-foreground uppercase font-bold">Expira em 24h</span>
-                           )}
                         </div>
                       ) : (member.status === 'accepted' || !member.status) ? (
                         <div className="flex items-center gap-1.5 text-green-600 font-black text-[10px] uppercase">
@@ -378,7 +386,7 @@ export default function OrganizationMembersPage() {
                         <span className="text-[10px] font-bold text-muted-foreground opacity-30 uppercase italic">Verificando...</span>
                       )}
                    </TableCell>
-                   <TableCell className="text-right">
+                   <TableCell className="p-6 text-right">
                       {isOwnerOrAdmin && member.role !== 'owner' && member.userId !== currentUser?.uid && (
                         <Button 
                           variant="ghost" 
@@ -386,7 +394,7 @@ export default function OrganizationMembersPage() {
                           className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full"
                           onClick={() => setMemberToDelete({ 
                             userId: member.userId, 
-                            userName: member.profile?.name || member.profile?.displayName || "Colaborador",
+                            userName: member.profile?.name || member.profile?.displayName || member.inviteeName || "Colaborador",
                             isInvite: member.status === 'pending'
                           })}
                         >
