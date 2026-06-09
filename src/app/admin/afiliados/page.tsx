@@ -19,7 +19,10 @@ import {
   ArrowUpRight,
   Inbox,
   Coins,
-  Globe
+  Globe,
+  Wand2,
+  RefreshCw,
+  Settings2
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -32,6 +35,8 @@ import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
 import { AffiliateCode, AffiliateCommission } from "@/types/affiliate"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+import { generatePendingAffiliateCodesAction, reprocessUserAffiliateAction } from "@/app/actions/affiliates"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function AdminAfiliadosPage() {
   const db = useFirestore()
@@ -40,6 +45,7 @@ export default function AdminAfiliadosPage() {
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [reportCurrency, setReportCurrency] = React.useState<CurrencyCode>("BRL")
+  const [isGenerating, setIsGenerating] = React.useState(false)
 
   const affiliatesQuery = useMemoFirebase(() => db ? query(collection(db, "affiliateCodes"), orderBy("createdAt", "desc")) : null, [db])
   const { data: affiliates, loading } = useCollection<AffiliateCode>(affiliatesQuery)
@@ -70,7 +76,7 @@ export default function AdminAfiliadosPage() {
       const cur = c.currency || 'BRL'
       if (newStats[cur]) {
         if (c.status === 'pending') newStats[cur].pending += c.amount
-        if (c.status === 'available') newStats[cur].paid += c.amount // available means earner can use it
+        if (c.status === 'available') newStats[cur].paid += c.amount 
         newStats[cur].total += c.amount
       }
       if (c.status !== 'cancelled' && c.status !== 'reversed') {
@@ -81,18 +87,43 @@ export default function AdminAfiliadosPage() {
     setStats(newStats)
   }, [affiliates, commissions])
 
+  const handleGenerateCodes = async () => {
+    setIsGenerating(true)
+    try {
+      const res = await generatePendingAffiliateCodesAction();
+      if (res.success) {
+        toast({ title: "Processamento concluído", description: `${res.count} códigos gerados.` });
+      } else throw new Error(res.error);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro na geração", description: e.message });
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  const handleReprocessUser = async (uid: string) => {
+    try {
+      const res = await reprocessUserAffiliateAction(uid);
+      if (res.success) {
+        toast({ title: "Usuário atualizado!" });
+      } else throw new Error(res.error);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message });
+    }
+  }
+
   const handleCreateAffiliate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db || isSubmitting) return
 
     setIsSubmitting(true)
     const formData = new FormData(e.currentTarget)
-    const code = (formData.get("code") as string).toUpperCase().replace(/\s+/g, "")
+    const code = (formData.get("code") as string).replace(/\s+/g, "")
     const usernameInput = (formData.get("username") as string).toLowerCase().replace("@", "")
 
     try {
-      const usernameRef = doc(db, "usernames", usernameInput)
-      const uSnap = await getDocs(query(collection(db, "usernames"), where("__name__", "==", usernameInput), limit(1)))
+      const q = query(collection(db, "usernames"), where("__name__", "==", usernameInput), limit(1))
+      const uSnap = await getDocs(q)
       
       if (uSnap.empty) throw new Error("Usuário não encontrado.")
       
@@ -109,7 +140,6 @@ export default function AdminAfiliadosPage() {
 
       await setDoc(doc(db, "affiliateCodes", code), affiliateData)
       
-      // Inicializa stats se não houver
       const statsRef = doc(db, "affiliate_stats", uData.uid)
       const sSnap = await getDocs(query(collection(db, "affiliate_stats"), where("userId", "==", uData.uid), limit(1)))
       if (sSnap.empty) {
@@ -156,9 +186,19 @@ export default function AdminAfiliadosPage() {
             <Users className="w-8 h-8 text-secondary" />
             Viby Affiliates Admin
           </h1>
-          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Gestão de performance e finanças multimoeda.</p>
+          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Gestão de performance e ferramentas automáticas.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+           <Button 
+            variant="outline" 
+            onClick={handleGenerateCodes} 
+            disabled={isGenerating}
+            className="rounded-full h-12 px-6 font-black uppercase text-[10px] gap-2 border-primary text-primary"
+           >
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+              Gerar Códigos Pendentes
+           </Button>
+           
            <Select value={reportCurrency} onValueChange={(v:any) => setReportCurrency(v)}>
               <SelectTrigger className="w-32 rounded-xl h-12 bg-white border-secondary/20 font-black"><SelectValue /></SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -167,6 +207,7 @@ export default function AdminAfiliadosPage() {
                  <SelectItem value="EUR">EUR (€)</SelectItem>
               </SelectContent>
            </Select>
+           
            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg uppercase italic gap-2">
@@ -181,7 +222,7 @@ export default function AdminAfiliadosPage() {
                 <div className="space-y-4">
                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label><Input name="name" required className="rounded-xl h-11" /></div>
                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Código Único</Label><Input name="code" required placeholder="EX: JU_VIBY" className="rounded-xl h-11 uppercase font-bold" /></div>
+                      <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Código Único</Label><Input name="code" required placeholder="10 DÍGITOS" className="rounded-xl h-11 uppercase font-bold" /></div>
                       <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Comissão (R$)</Label><Input name="value" type="number" step="0.01" defaultValue="0.50" required className="rounded-xl h-11 font-black" /></div>
                    </div>
                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Username na Viby (@)</Label><Input name="username" required placeholder="ex: jureal" className="rounded-xl h-11" /></div>
@@ -237,6 +278,7 @@ export default function AdminAfiliadosPage() {
                     </TableCell>
                     <TableCell className="p-6 text-right">
                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleReprocessUser(aff.userId)} title="Sincronizar Código"><RefreshCw className="w-4 h-4" /></Button>
                           <Button variant="ghost" size="sm" className="rounded-xl h-8 font-bold text-[9px] uppercase border" onClick={() => handleToggleStatus(aff)}>
                              {aff.active ? "Pausar" : "Ativar"}
                           </Button>

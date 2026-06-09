@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import Link from "next/link"
-import { Globe, Instagram } from "lucide-react"
+import { Globe, Instagram, Zap, Handshake } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { useTranslation } from "@/i18n/i18n-context"
@@ -37,6 +38,13 @@ export default function Footer() {
             <p className="text-muted-foreground text-sm max-w-sm font-medium leading-relaxed">
               {t('footer.description')}
             </p>
+            <div className="pt-4">
+               <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary hover:text-white transition-all shadow-sm">
+                  <Link href="/ganhe-dinheiro">
+                     <Handshake className="w-4 h-4" /> Ganhe Dinheiro com a Viby
+                  </Link>
+               </Button>
+            </div>
           </div>
           <div className="space-y-4">
             <h4 className="font-black uppercase tracking-widest text-xs">{t('footer.platform')}</h4>
@@ -90,3 +98,4 @@ export default function Footer() {
     </footer>
   )
 }
+import { Button } from "../ui/button"

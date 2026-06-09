@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
-import { doc, getDoc, runTransaction, serverTimestamp, increment } from "firebase/firestore"
+import { doc, getDoc, runTransaction, serverTimestamp, increment, collection, query, where, getDocs, limit } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -110,23 +110,36 @@ function CadastroContent() {
 
       await updateProfile(userInstance, { displayName: name })
 
-      // Capturar afiliado via query param ou cookie
       const refCode = searchParams.get('ref')?.toUpperCase();
       let referredBy = null;
       let expireAt = null;
 
       if (refCode) {
-        const refSnap = await getDoc(doc(db, "affiliate_codes", refCode));
-        if (refSnap.exists()) {
-           referredBy = refSnap.data().userId;
-           const now = new Date();
-           expireAt = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+        const refSnap = await getDocs(query(collection(db, "users"), where("affiliateCode", "==", refCode), limit(1)));
+        if (!refSnap.empty) {
+           const referrer = refSnap.docs[0];
+           if (referrer.id !== userInstance.uid) { // Proteção auto-indicação
+              referredBy = referrer.id;
+              const now = new Date();
+              expireAt = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+           }
         }
       }
 
       const cleanCPF = cpf.replace(/\D/g, "");
       const finalUsername = username.toLowerCase().trim();
-      const affiliateCode = generateAffiliateCode(name);
+      
+      // Gerar código único de 10 dígitos
+      let affiliateCode = "";
+      let uniqueFound = false;
+      let attempts = 0;
+      while (!uniqueFound && attempts < 5) {
+        affiliateCode = generateAffiliateCode();
+        const check = await getDoc(doc(db, "users", affiliateCode)); // Verificação rápida via ID se possível ou where
+        const qCheck = await getDocs(query(collection(db, "users"), where("affiliateCode", "==", affiliateCode), limit(1)));
+        if (qCheck.empty) uniqueFound = true;
+        attempts++;
+      }
       
       const userData = {
         uid: userInstance.uid,
@@ -156,7 +169,6 @@ function CadastroContent() {
           username: finalUsername 
         })
         transaction.set(doc(db, "users", userInstance.uid), userData)
-        transaction.set(doc(db, "affiliate_codes", affiliateCode), { userId: userInstance.uid, createdAt: serverTimestamp() })
         
         transaction.set(doc(db, "affiliate_stats", userInstance.uid), {
           userId: userInstance.uid,
@@ -164,10 +176,11 @@ function CadastroContent() {
           totalUsersReferred: 0,
           totalOrgsLinked: 0,
           currentLevel: 0,
-          balanceAvailable: 0,
-          balancePending: 0,
-          totalWithdrawn: 0,
-          totalEarned: 0,
+          balances: {
+            BRL: { available: 0, pending: 0, totalEarned: 0, totalWithdrawn: 0 },
+            USD: { available: 0, pending: 0, totalEarned: 0, totalWithdrawn: 0 },
+            EUR: { available: 0, pending: 0, totalEarned: 0, totalWithdrawn: 0 }
+          },
           updatedAt: serverTimestamp()
         });
 
@@ -210,9 +223,11 @@ function CadastroContent() {
             </div>
             <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
-          <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">
-            <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" /> Início</Link>
-          </Button>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">
+              <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" /> Início</Link>
+            </Button>
+          </div>
         </div>
       </nav>
 

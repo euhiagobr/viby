@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -18,7 +19,8 @@ import {
   UserCheck,
   CalendarDays,
   Map as MapIcon,
-  Bell
+  Bell,
+  Handshake
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -81,6 +83,7 @@ export function AppSidebar() {
     { title: t('nav.tickets'), url: "/dashboard/ingressos", icon: Ticket },
     { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
     { title: t('nav.organizations'), url: "/dashboard/organizacoes", icon: Building2 },
+    { title: "Afiliados", url: "/dashboard/afiliados", icon: Handshake },
     { 
       title: t('common.notifications'), 
       url: "/dashboard/notificacoes", 
@@ -228,6 +231,19 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        
+        {/* Banner Ganhe Dinheiro */}
+        <div className="px-6 py-4">
+           <Link href="/ganhe-dinheiro">
+              <div className="bg-secondary/10 rounded-2xl p-4 border border-secondary/20 hover:bg-secondary/20 transition-all group">
+                 <div className="flex items-center gap-2 mb-2">
+                    <Handshake className="w-4 h-4 text-secondary" />
+                    <span className="text-[10px] font-black uppercase text-secondary">Programa Afiliados</span>
+                 </div>
+                 <p className="text-[10px] font-bold text-primary uppercase leading-tight group-hover:text-secondary">Ganhe dinheiro indicando marcas</p>
+              </div>
+           </Link>
+        </div>
       </SidebarContent>
       <SidebarFooter className="p-4">
         <button 

@@ -25,10 +25,14 @@ export function getNextLevel(totalSales: number): AffiliateLevel | null {
   return AFFILIATE_LEVELS.find(l => l.minSales > totalSales) || null;
 }
 
-export function generateAffiliateCode(name: string): string {
-  const clean = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z]/g, "").substring(0, 5);
-  const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-  return `${clean}${random}`;
+/**
+ * Gera um código de afiliado numérico de exatamente 10 caracteres.
+ */
+export function generateAffiliateCode(): string {
+  // Gera um número entre 1.000.000.000 e 9.999.999.999
+  const min = 1000000000;
+  const max = 9999999999;
+  return Math.floor(Math.random() * (max - min + 1) + min).toString();
 }
 
 export const AFFILIATE_SAFETY_DAYS = 7;

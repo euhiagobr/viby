@@ -23,7 +23,11 @@ import {
   Coins,
   Layout,
   Info,
-  ArrowLeft
+  ArrowLeft,
+  Search,
+  MessageCircle,
+  Clock,
+  Check
 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
@@ -31,13 +35,18 @@ import { AFFILIATE_LEVELS } from "@/lib/affiliate-utils"
 import { formatCurrency } from "@/lib/financial-utils"
 import Footer from "@/components/layout/Footer"
 import { getAffiliatePublicRanking } from "@/app/actions/affiliates"
+import { useTranslation } from "@/i18n/i18n-context"
+import { Badge } from "@/components/ui/badge"
 
 export default function EarnMoneyPage() {
+  const { t } = useTranslation()
   const db = useFirestore()
   const auth = useAuth()
   const { user, profile } = useUser(auth)
   const [ranking, setRanking] = React.useState<any[]>([])
   const [loadingRank, setLoadingRank] = React.useState(true)
+  const [copiedLink, setCopiedLink] = React.useState(false)
+  const [copiedCode, setCopiedCode] = React.useState(false)
 
   React.useEffect(() => {
     getAffiliatePublicRanking().then(res => {
@@ -46,14 +55,28 @@ export default function EarnMoneyPage() {
     })
   }, [])
 
+  const affiliateLink = React.useMemo(() => {
+    if (typeof window === 'undefined' || !profile?.affiliateCode) return ""
+    return `${window.location.origin}/cadastro?ref=${profile.affiliateCode}`
+  }, [profile?.affiliateCode])
+
   const handleCopyLink = () => {
     if (!user) {
       toast({ title: "Ação necessária", description: "Faça login para pegar seu link." })
       return
     }
-    const link = `${window.location.origin}/cadastro?ref=${profile?.affiliateCode}`
-    navigator.clipboard.writeText(link)
+    navigator.clipboard.writeText(affiliateLink)
+    setCopiedLink(true)
     toast({ title: "Link copiado!", description: "Comece a indicar agora!" })
+    setTimeout(() => setCopiedLink(false), 2000)
+  }
+
+  const handleCopyCode = () => {
+    if (!profile?.affiliateCode) return
+    navigator.clipboard.writeText(profile.affiliateCode)
+    setCopiedCode(true)
+    toast({ title: "Código copiado!" })
+    setTimeout(() => setCopiedCode(false), 2000)
   }
 
   return (
@@ -83,6 +106,7 @@ export default function EarnMoneyPage() {
         </div>
       </nav>
 
+      {/* Hero Section */}
       <section className="relative py-20 md:py-32 overflow-hidden bg-primary text-white text-center">
          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-secondary/20 via-transparent to-transparent opacity-50" />
          <div className="container mx-auto px-4 relative z-10">
@@ -93,119 +117,146 @@ export default function EarnMoneyPage() {
                <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.8]">GANHE DINHEIRO COM A <span className="text-secondary">VIBY</span></h1>
                <p className="text-lg md:text-2xl font-medium opacity-80 max-w-2xl mx-auto leading-relaxed">Indique organizadores, promotores e marcas. Receba comissões automáticas por cada ingresso vendido durante 1 ano.</p>
                
-               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
+               <div className="flex flex-col items-center justify-center gap-4 pt-6">
                   {user ? (
-                    <Button onClick={handleCopyLink} className="h-16 px-10 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic text-lg gap-3">
-                       <Copy className="w-5 h-5" /> Copiar Meu Link
-                    </Button>
+                    <div className="w-full max-w-lg space-y-4">
+                       <Card className="bg-white/10 backdrop-blur-md border-white/20 p-6 rounded-[2rem] text-left">
+                          <CardContent className="p-0 space-y-6">
+                             <div className="flex justify-between items-end">
+                                <div className="space-y-1">
+                                   <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Seu Código Único</p>
+                                   <p className="text-3xl font-black italic tracking-tighter text-secondary">{profile?.affiliateCode || "..........."}</p>
+                                </div>
+                                <Button onClick={handleCopyCode} variant="secondary" size="sm" className="rounded-xl h-10 px-4 font-bold gap-2">
+                                   {copiedCode ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} {copiedCode ? "Copiado" : "Código"}
+                                </Button>
+                             </div>
+                             <Separator className="bg-white/10" />
+                             <div className="space-y-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Seu Link de Indicação</p>
+                                <div className="flex gap-2">
+                                   <Input value={affiliateLink} readOnly className="bg-white/5 border-white/10 h-12 text-xs font-medium rounded-xl focus-visible:ring-0" />
+                                   <Button onClick={handleCopyLink} className="bg-secondary text-white h-12 px-6 rounded-xl font-bold uppercase italic shadow-lg">
+                                      {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                   </Button>
+                                </div>
+                             </div>
+                          </CardContent>
+                       </Card>
+                       <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">Compartilhe e acompanhe seus ganhos em tempo real.</p>
+                    </div>
                   ) : (
-                    <Button asChild className="h-16 px-10 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic text-lg gap-3">
-                       <Link href="/cadastro">Começar Agora <ArrowRight className="w-5 h-5" /></Link>
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                       <Button asChild className="h-20 px-12 bg-secondary text-white font-black rounded-[2rem] shadow-2xl shadow-secondary/30 uppercase italic text-xl hover:scale-105 transition-all">
+                          <Link href="/cadastro">Começar Agora <ArrowRight className="w-6 h-6 ml-2" /></Link>
+                       </Button>
+                       <Button asChild variant="outline" className="h-20 px-12 border-white/20 text-white font-black rounded-[2rem] uppercase italic text-xl hover:bg-white/10">
+                          <Link href="/login">Já tenho conta</Link>
+                       </Button>
+                    </div>
                   )}
                </div>
             </div>
          </div>
       </section>
 
+      {/* Features */}
       <section className="py-20 container mx-auto px-4">
          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            <FeatureStep icon={Target} title="Indique com seu Link" desc="Cada usuário cadastrado pelo seu link exclusivo fica permanentemente vinculado ao seu perfil." />
-            <FeatureStep icon={Building2} title="Acompanhe o Crescimento" desc="Receba comissão sobre todas as organizações e eventos criados pelo seu indicado." />
-            <FeatureStep icon={Wallet} title="Saque via PIX" desc="Suas comissões são creditadas automaticamente e podem ser sacadas direto para sua conta bancária." />
+            <FeatureStep icon={Target} title="Indique com seu Link" desc="Cada usuário cadastrado pelo seu link de 10 dígitos fica permanentemente vinculado ao seu perfil." />
+            <FeatureStep icon={Building2} title="Acompanhe o Crescimento" desc="Receba comissão sobre todas as organizações e eventos criados pelo seu indicado nos primeiros 365 dias." />
+            <FeatureStep icon={Wallet} title="Saque Multimoeda" desc="Suas comissões são creditadas na moeda da venda (BRL, USD ou EUR) e sacadas para sua conta preferencial." />
          </div>
       </section>
 
+      {/* FAQ */}
       <section className="py-20 bg-muted/30">
          <div className="container mx-auto px-4">
-            <div className="text-center mb-16 space-y-2">
-               <h2 className="text-4xl font-black uppercase italic tracking-tighter text-primary">Níveis de Progressão</h2>
-               <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Quanto mais seus indicados vendem, maior sua comissão.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-               {AFFILIATE_LEVELS.map((level) => (
-                  <Card key={level.level} className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden group hover:shadow-xl transition-all">
-                     <CardHeader className="bg-muted/50 p-8 border-b border-dashed">
-                        <div className="flex justify-between items-center">
-                           <div className="p-3 bg-secondary/10 rounded-2xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
-                              <Star className="w-6 h-6" />
-                           </div>
-                           <Badge variant="outline" className="font-black text-[9px] uppercase tracking-widest">Lv. {level.level}</Badge>
-                        </div>
-                        <CardTitle className="text-2xl font-black italic uppercase tracking-tighter mt-6 text-primary">{level.label}</CardTitle>
-                     </CardHeader>
-                     <CardContent className="p-8 space-y-6">
-                        <div className="space-y-1">
-                           <p className="text-[10px] font-black uppercase text-muted-foreground opacity-60">Comissão por Ingresso</p>
-                           <p className="text-3xl font-black text-primary">{formatCurrency(level.commission)}</p>
-                        </div>
-                        <div className="p-4 bg-muted/20 rounded-xl text-[9px] font-bold uppercase text-muted-foreground italic">Meta: {level.minSales}+ vendas acumuladas</div>
-                     </CardContent>
-                  </Card>
-               ))}
-            </div>
-         </div>
-      </section>
-
-      <section className="py-20 container mx-auto px-4">
-         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
-            <div className="lg:col-span-7 space-y-10">
-               <div className="space-y-2">
-                  <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-3">
-                     <Info className="w-8 h-8 text-secondary" /> Como Funciona?
-                  </h2>
-                  <p className="text-muted-foreground font-medium">Regras claras para você faturar com segurança.</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
+               <div className="space-y-10">
+                  <div className="space-y-2">
+                     <h2 className="text-4xl font-black uppercase italic tracking-tighter text-primary">Como Funciona?</h2>
+                     <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest text-secondary">Tire suas dúvidas sobre o programa da Viby.</p>
+                  </div>
+                  
+                  <div className="space-y-8">
+                     <FaqItem q="Onde encontro meu link?" a="Basta criar uma conta e acessar esta página ou seu painel de afiliado. Seu código de 10 dígitos é gerado automaticamente." />
+                     <FaqItem q="Qual o prazo de comissão?" a="Você recebe comissão sobre todas as vendas das organizações do seu indicado durante os primeiros 365 dias de vida da conta dele." />
+                     <FaqItem q="Posso indicar a mim mesmo?" a="Não. O sistema possui travas automáticas para impedir a auto-indicação e o uso do próprio código no cadastro." />
+                     <FaqItem q="Quando posso sacar?" a="Os valores ficam pendentes por 7 dias para segurança. Após este período, você pode solicitar o saque via PIX (BRL) ou conta internacional (USD/EUR)." />
+                  </div>
                </div>
 
-               <div className="space-y-6">
-                  <RuleItem title="Vínculo de Longo Prazo" desc="Você recebe comissão sobre todas as vendas do seu indicado durante os primeiros 365 dias de cadastro dele." />
-                  <RuleItem title="Múltiplas Marcas" desc="Não importa se ele criar 1 ou 10 produtoras. Todas as organizações dele geram ganhos para você." />
-                  <RuleItem title="Progressão Vitalícia" desc="Uma vez que você atinge um nível, ele é permanente. Você nunca perde sua porcentagem de comissão conquistada." />
-                  <RuleItem title="Segurança Financeira" desc="Os valores ficam pendentes por 7 dias para garantir a integridade contra chargebacks, e então ficam livres para saque." />
-               </div>
-            </div>
+               <div className="space-y-10">
+                  <div className="text-center md:text-left space-y-2">
+                     <h2 className="text-4xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-3">
+                        <Trophy className="w-8 h-8 text-secondary" /> Hall da Fama
+                     </h2>
+                     <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Os maiores embaixadores da rede Viby.</p>
+                  </div>
 
-            <div className="lg:col-span-5">
-               <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
-                  <CardHeader className="bg-primary text-white p-10">
-                     <CardTitle className="text-2xl font-black italic uppercase tracking-tighter flex items-center gap-3">
-                        <Trophy className="w-6 h-6 text-secondary" /> Hall da Fama
-                     </CardTitle>
-                     <CardDescription className="text-white/60 font-medium uppercase text-[9px] tracking-widest mt-1">Os maiores afiliados da rede Viby</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                     {loadingRank ? (
-                       <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
-                     ) : (
-                       <div className="divide-y">
-                          {ranking.map((rank, i) => (
-                            <div key={i} className="p-6 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                               <div className="flex items-center gap-4">
-                                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-black text-xs text-muted-foreground">#{i+1}</div>
-                                  <div>
-                                     <p className="font-bold text-sm text-primary uppercase italic">{rank.name}</p>
-                                     <p className="text-[9px] font-black text-secondary uppercase">Level {rank.level}</p>
+                  <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+                     <CardContent className="p-0">
+                        {loadingRank ? (
+                          <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
+                        ) : (
+                          <div className="divide-y">
+                             {ranking.map((rank, i) => (
+                               <div key={i} className="p-6 flex items-center justify-between hover:bg-muted/10 transition-colors">
+                                  <div className="flex items-center gap-4">
+                                     <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-black text-xs text-muted-foreground">#{i+1}</div>
+                                     <div>
+                                        <p className="font-bold text-sm text-primary uppercase italic">{rank.name}</p>
+                                        <Badge variant="outline" className="text-[7px] font-black text-secondary uppercase border-secondary/20">Level {rank.level}</Badge>
+                                     </div>
+                                  </div>
+                                  <div className="text-right">
+                                     <p className="text-sm font-black text-primary">{rank.sales.toLocaleString()}</p>
+                                     <p className="text-[8px] font-bold text-muted-foreground uppercase">Ingressos</p>
                                   </div>
                                </div>
-                               <div className="text-right">
-                                  <p className="text-xs font-black">{rank.sales.toLocaleString()}</p>
-                                  <p className="text-[8px] font-bold text-muted-foreground uppercase">Ingressos</p>
-                               </div>
-                            </div>
-                          ))}
-                          {ranking.length === 0 && (
-                             <div className="p-20 text-center text-muted-foreground font-bold italic text-xs uppercase opacity-30">Aguardando as primeiras lendas...</div>
-                          )}
-                       </div>
-                     )}
-                  </CardContent>
-               </Card>
+                             ))}
+                          </div>
+                        )}
+                     </CardContent>
+                  </Card>
+               </div>
             </div>
          </div>
       </section>
 
-      <section className="py-20 bg-secondary text-white relative overflow-hidden">
+      {/* Levels */}
+      <section className="py-32 container mx-auto px-4">
+         <div className="text-center mb-16 space-y-2">
+            <h2 className="text-5xl font-black uppercase italic tracking-tighter text-primary">Níveis de Progressão</h2>
+            <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest text-secondary">Quanto mais seus indicados vendem, maior sua comissão vitalícia.</p>
+         </div>
+
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {AFFILIATE_LEVELS.map((level) => (
+               <Card key={level.level} className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden group hover:shadow-xl transition-all border-b-8 border-transparent hover:border-secondary">
+                  <CardHeader className="bg-muted/30 p-8 border-b border-dashed">
+                     <div className="flex justify-between items-center">
+                        <div className="p-3 bg-secondary/10 rounded-2xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
+                           <Star className="w-6 h-6" />
+                        </div>
+                        <Badge variant="outline" className="font-black text-[9px] uppercase tracking-widest">LV. {level.level}</Badge>
+                     </div>
+                     <CardTitle className="text-2xl font-black italic uppercase tracking-tighter mt-6 text-primary">{level.label}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-8 space-y-6">
+                     <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase text-muted-foreground opacity-60">Comissão p/ Ingresso</p>
+                        <p className="text-3xl font-black text-primary">{formatCurrency(level.commission)}</p>
+                     </div>
+                     <div className="p-4 bg-muted/20 rounded-xl text-[9px] font-bold uppercase text-muted-foreground italic">Meta: {level.minSales}+ vendas</div>
+                  </CardContent>
+               </Card>
+            ))}
+         </div>
+      </section>
+
+      <section className="py-24 bg-secondary text-white relative overflow-hidden">
          <div className="container mx-auto px-4 text-center space-y-10 relative z-10">
             <div className="space-y-4">
                <h2 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter">PRONTO PARA FATURAR?</h2>
@@ -238,14 +289,13 @@ function FeatureStep({ icon: Icon, title, desc }: any) {
    )
 }
 
-function RuleItem({ title, desc }: any) {
+function FaqItem({ q, a }: { q: string, a: string }) {
    return (
-      <div className="flex gap-4 items-start">
-         <div className="mt-1.5 p-1 bg-green-500 rounded-full text-white"><CheckCircle2 className="w-4 h-4" /></div>
-         <div className="space-y-1">
-            <h4 className="font-black uppercase italic text-primary">{title}</h4>
-            <p className="text-sm text-muted-foreground font-medium leading-relaxed">{desc}</p>
-         </div>
+      <div className="space-y-2">
+         <h4 className="font-black text-lg text-primary uppercase italic flex items-center gap-3">
+            <div className="w-1.5 h-6 bg-secondary rounded-full" /> {q}
+         </h4>
+         <p className="text-muted-foreground font-medium pl-4 border-l-2 border-muted leading-relaxed">{a}</p>
       </div>
    )
 }
