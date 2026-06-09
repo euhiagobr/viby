@@ -1,0 +1,11 @@
+
+{
+  "collection": "interests",
+  "path": "/events/{eventId}/interests/{userId}",
+  "description": "Subcoleção para registro de interesse de usuários em eventos específicos. Documento utiliza o UID do usuário como ID.",
+  "fields": {
+    "userId": "string (UID do interessado)",
+    "timestamp": "serverTimestamp"
+  },
+  "usage": "Utilizado para exibir contagem de interessados e gerir o estado do botão de interesse no frontend."
+}

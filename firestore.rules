@@ -98,7 +98,7 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId)
-                    || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'followingCount', 'totalXp', 'level', 'preferredCurrency', 'language']));
+                    || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'updatedAt', 'followingCount', 'totalXp', 'level', 'preferredCurrency', 'language', 'city', 'state', 'country', 'bio', 'avatar', 'banner', 'gender', 'birthDate', 'instagram', 'whatsapp', 'website', 'showEmail']));
       
       match /private/sensitive {
         allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
@@ -131,7 +131,9 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if true;
       allow create: if isAdmin() || isOrgEditor(request.resource.data.organizationId);
-      allow update, delete: if isAdmin() || isOrgEditor(resource.data.organizationId);
+      allow update: if isAdmin() || isOrgEditor(resource.data.organizationId)
+                    || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['interestedCount', 'viewsCount', 'sharesCount', 'goingCount', 'updatedAt']));
+      allow delete: if isAdmin() || isOrgEditor(resource.data.organizationId);
 
       match /partners/{partnerId} {
         allow read: if true;
@@ -140,7 +142,7 @@ service cloud.firestore {
 
       match /interests/{userId} {
         allow read: if true;
-        allow write: if isSignedIn() && request.auth.uid == userId;
+        allow create, delete: if isSignedIn() && request.auth.uid == userId;
       }
 
       match /comments/{commentId} {
@@ -167,7 +169,10 @@ service cloud.firestore {
     match /follows/{followId} {
       allow read, list: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && (
+        (resource.data.followerId == request.auth.uid) || 
+        (exists(/databases/$(database)/documents/follows/$(followId)) && get(/databases/$(database)/documents/follows/$(followId)).data.followerId == request.auth.uid)
+      );
       allow update: if false;
     }
 
