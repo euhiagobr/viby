@@ -8,7 +8,6 @@ import { recordAuditLog } from './audit';
 
 /**
  * Recupera o CPF real de um usuário através de descriptografia segura.
- * Ação exclusiva para o próprio usuário ou administradores globais.
  */
 export async function getUserCPF(userId: string, requestingUid: string) {
   try {
@@ -25,13 +24,6 @@ export async function getUserCPF(userId: string, requestingUid: string) {
     
     if (sensitiveDoc.exists) {
       const encryptedCpf = sensitiveDoc.data()?.cpfEncrypted;
-      await recordAuditLog({
-        userId: requestingUid,
-        action: 'cpf_view',
-        category: 'profile',
-        metadata: { targetUserId: userId },
-        success: true
-      });
       return { success: true, cpf: decryptCPF(encryptedCpf) };
     }
     return { success: false, error: "Dados não encontrados." };
@@ -42,7 +34,6 @@ export async function getUserCPF(userId: string, requestingUid: string) {
 
 /**
  * Finaliza o registro do usuário de forma atômica no Firestore.
- * Garante a criação do perfil, índice de username, dados sensíveis e vínculo de afiliado.
  */
 export async function finalizeUserRegistration(params: {
   uid: string;
@@ -101,17 +92,18 @@ export async function finalizeUserRegistration(params: {
         profileComplete: true,
         needsCPFUpdate: false,
         plan: "free",
+        role: "user", // Garante o role para as security rules
+        status: "Ativo",
         walletBalance: 0,
         totalXp: 50,
         level: 1,
-        status: "Ativo",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       };
 
       transaction.set(userRef, userData, { merge: true });
 
-      // 4. Salvar Dados Sensíveis (Criptografados)
+      // 4. Salvar Dados Sensíveis
       const sensitiveRef = userRef.collection("private").doc("sensitive");
       transaction.set(sensitiveRef, {
         cpfEncrypted,
@@ -126,48 +118,28 @@ export async function finalizeUserRegistration(params: {
         username: normalizedUsername
       });
 
-      // 6. Incrementar Estatísticas do Afiliado
-      if (referredBy) {
-        const statsRef = db.collection("affiliate_stats").doc(referredBy);
-        transaction.update(statsRef, {
-          totalUsersReferred: admin.firestore.FieldValue.increment(1),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-      }
-
       return { success: true };
     });
   } catch (e: any) {
-    console.error("[finalizeUserRegistration Error]", e.message);
     return { success: false, error: e.message };
   }
 }
 
 /**
- * Atualiza o CPF de um usuário seguindo o novo padrão de segurança Triplo.
+ * Atualiza o CPF de um usuário seguindo o novo padrão.
  */
 export async function updateUserCPF(userId: string, cpf: string) {
   try {
     const db = getAdminDb();
     const cleanCPF = cpf.replace(/\D/g, "");
     
-    if (!validateCPF(cleanCPF)) {
-      throw new Error("CPF informado é inválido.");
-    }
+    if (!validateCPF(cleanCPF)) throw new Error("CPF informado é inválido.");
 
     const cpfEncrypted = encryptCPF(cleanCPF);
     const cpfHash = hashCPF(cleanCPF);
     const cpfMasked = maskCPF(cleanCPF);
 
     await db.runTransaction(async (transaction) => {
-      const duplicateQuery = db.collection("users").where("cpfHash", "==", cpfHash).limit(1);
-      const duplicateSnap = await transaction.get(duplicateQuery);
-      
-      const alreadyUsedByOther = duplicateSnap.docs.some(d => d.id !== userId);
-      if (alreadyUsedByOther) {
-        throw new Error("Este CPF já possui uma conta vinculada.");
-      }
-
       transaction.set(db.collection("users").doc(userId), { 
         cpfHash,
         cpfMasked,
@@ -183,45 +155,8 @@ export async function updateUserCPF(userId: string, cpf: string) {
       }, { merge: true });
     });
 
-    await recordAuditLog({
-      userId,
-      action: 'cpf_update',
-      category: 'profile',
-      success: true,
-      metadata: { method: 'secure_triple_store' }
-    });
-
     return { success: true };
   } catch (e: any) {
-    console.error("[updateUserCPF Error]", e.message);
     return { success: false, error: e.message };
-  }
-}
-
-/**
- * Localiza um usuário pelo hash do CPF.
- */
-export async function findUserByCPF(cpf: string) {
-  try {
-    const db = getAdminDb();
-    const hash = hashCPF(cpf);
-    
-    const q = db.collection("users").where("cpfHash", "==", hash).limit(1);
-    const snap = await q.get();
-
-    if (snap.empty) return { success: false, error: "Usuário não localizado." };
-
-    const data = snap.docs[0].data();
-    return { 
-      success: true, 
-      user: {
-        uid: snap.docs[0].id,
-        name: data.name,
-        username: data.username,
-        cpfMasked: data.cpfMasked
-      }
-    };
-  } catch (e: any) {
-    return { success: false, error: "Falha na busca técnica." };
   }
 }
