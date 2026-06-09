@@ -29,13 +29,13 @@ service cloud.firestore {
 
     // Public indices for discovery and mentions
     match /usernames/{username} {
-      allow read: if true;
+      allow read, list: if true;
       allow write: if request.auth != null;
     }
 
-    // Affiliate System - Public read for validation during signup
+    // Affiliate System - Public read and list for validation during signup
     match /affiliateCodes/{code} {
-        allow read: if true;
+        allow read, list: if true;
         allow write: if isAdmin();
     }
 

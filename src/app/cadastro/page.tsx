@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { useFirestore, useDoc } from "@/firebase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Handshake, Info, ArrowLeft, Loader2, Sparkles } from "lucide-react";
@@ -38,15 +38,25 @@ export default function CadastroPage() {
       
       try {
         const cleanRef = refCode.trim();
-        const codeDocRef = doc(db, "affiliateCodes", cleanRef);
-        console.log("[Affiliate Debug] Accessing Firestore Path:", codeDocRef.path);
         
-        const codeDocSnap = await getDoc(codeDocRef);
-        console.log("[Affiliate Debug] Document Exists:", codeDocSnap.exists());
+        // 1. Tentar localizar por ID de documento (Mais eficiente)
+        const codeDocRef = doc(db, "affiliateCodes", cleanRef);
+        let codeDocSnap = await getDoc(codeDocRef);
+        
+        // 2. Se não encontrou por ID, tentar por query no campo 'code'
+        if (!codeDocSnap.exists()) {
+           console.log("[Affiliate Debug] Not found by ID. Trying query by 'code' field...");
+           const q = query(collection(db, "affiliateCodes"), where("code", "==", cleanRef), limit(1));
+           const qSnap = await getDocs(q);
+           if (!qSnap.empty) {
+              codeDocSnap = qSnap.docs[0] as any;
+           }
+        }
+
+        console.log("[Affiliate Debug] Document Found:", codeDocSnap.exists());
 
         if (codeDocSnap.exists()) {
-          const affiliateData = codeDocSnap.data();
-          console.log("[Affiliate Debug] Document Data:", affiliateData);
+          const affiliateData = codeDocSnap.data() as any;
 
           if (affiliateData.active !== false) {
             setAffiliateInfo({ 
@@ -61,11 +71,11 @@ export default function CadastroPage() {
             setIsValidCode(false);
           }
         } else {
-          console.warn("[Affiliate Debug] Code not found in collection 'affiliateCodes'.");
+          console.warn("[Affiliate Debug] Code not found in database.");
           setIsValidCode(false);
         }
       } catch (error: any) {
-        console.error("[Affiliate Debug] Validation Error:", error.message, error);
+        console.error("[Affiliate Debug] Validation Error:", error.message);
         setIsValidCode(false);
       } finally {
         setValidating(false);
