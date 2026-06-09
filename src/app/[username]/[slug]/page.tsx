@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Metadata } from 'next';
 import { collection, query, where, getDocs, getFirestore, doc, getDoc, limit } from 'firebase/firestore';
@@ -11,9 +10,8 @@ import { Home, CalendarX, ArrowLeft } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
 /**
- * @fileOverview Rota Unificada de Eventos.
- * Resolve tanto IDs (legado/admin) quanto Slugs sob o parâmetro [slug].
- * Esta é a única rota dinâmica permitida neste nível para evitar conflitos.
+ * @fileOverview Rota Unificada de Eventos no parâmetro [slug].
+ * Resolve tanto IDs quanto Slugs.
  */
 
 async function getEventData(username: string, param: string) {
@@ -29,7 +27,7 @@ async function getEventData(username: string, param: string) {
     const orgId = usernameSnap.data().uid;
     const normalizedParam = param.trim();
 
-    // 2. Tentar resolver o parâmetro como ID (Prioridade para links diretos)
+    // 2. Tentar resolver o parâmetro como ID
     const eventIdRef = doc(db, "events", normalizedParam);
     const eventIdSnap = await getDoc(eventIdRef);
     
