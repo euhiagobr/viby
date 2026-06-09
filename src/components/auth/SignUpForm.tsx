@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react";
@@ -121,6 +122,8 @@ export function SignUpForm({ referredByCode }: SignUpFormProps) {
 
     setIsLoading(true);
     try {
+      if (!auth) throw new Error("Serviço de autenticação indisponível.");
+      
       const userCredential = await auth.createUserWithEmailAndPassword(values.email, values.password);
       const user = userCredential.user;
       const uid = user.uid;
@@ -128,9 +131,9 @@ export function SignUpForm({ referredByCode }: SignUpFormProps) {
       const cpfRes = await updateUserCPF(uid, values.cpf);
       if (!cpfRes.success) throw new Error(cpfRes.error);
 
-      await runTransaction(db, async (transaction) => {
-        const usernameRef = doc(db, "usernames", values.username.toLowerCase().trim());
-        const userRef = doc(db, "users", uid);
+      await runTransaction(db!, async (transaction) => {
+        const usernameRef = doc(db!, "usernames", values.username.toLowerCase().trim());
+        const userRef = doc(db!, "users", uid);
 
         transaction.set(usernameRef, { 
           uid, 
@@ -204,7 +207,7 @@ export function SignUpForm({ referredByCode }: SignUpFormProps) {
                   <Input placeholder="seu.nick" className="h-12 rounded-xl pl-10 pr-10" {...field} />
                 </FormControl>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                  {checkingUsername ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
                   usernameStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
                   (usernameStatus === 'taken' || usernameStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
                 </div>
@@ -231,7 +234,7 @@ export function SignUpForm({ referredByCode }: SignUpFormProps) {
                   />
                 </FormControl>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  {checkingCPF ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                  {checkingCPF ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
                   cpfStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
                   (cpfStatus === 'taken' || cpfStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
                 </div>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -70,10 +71,10 @@ export default function CadastroPage() {
                 <span className="text-white font-bold text-lg">{siteName.charAt(0)}</span>
               </div>
             )}
-            <span className="text-xl font-bold tracking-tight">{siteName}</span>
+            <span className="text-xl font-bold tracking-tight italic uppercase">{siteName}</span>
           </Link>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">
+            <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest">
               <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" /> Voltar</Link>
             </Button>
           </div>
@@ -106,7 +107,7 @@ export default function CadastroPage() {
         <Card className="border-none shadow-2xl rounded-[2.5rem] overflow-hidden bg-white">
           <CardHeader className="text-center pt-10 pb-6 space-y-2">
             <CardTitle className="text-3xl font-black uppercase italic tracking-tighter text-primary">Criar Conta</CardTitle>
-            <CardDescription className="font-medium text-sm">Entre para o clube e viva o agora.</CardDescription>
+            <CardDescription className="font-medium text-sm">O seu passaporte para o agora.</CardDescription>
           </CardHeader>
           <CardContent className="px-8 md:px-12">
             <SignUpForm referredByCode={isValidCode ? refCode : undefined} />

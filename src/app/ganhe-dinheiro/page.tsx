@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
-import { doc, query, collection, orderBy, limit, getDocs } from "firebase/firestore"
+import { doc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { 
@@ -17,18 +18,9 @@ import {
   Copy,
   Star,
   Building2,
-  Calendar,
-  Globe,
-  Coins,
-  Layout,
-  Info,
-  ArrowLeft,
-  Search,
-  MessageCircle,
-  Clock,
-  Check,
   Wallet,
-  Loader2
+  Loader2,
+  Check
 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
@@ -172,58 +164,42 @@ export default function EarnMoneyPage() {
          </div>
       </section>
 
-      {/* FAQ */}
+      {/* Hall da Fama */}
       <section className="py-20 bg-muted/30">
          <div className="container mx-auto px-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
-               <div className="space-y-10">
-                  <div className="space-y-2">
-                     <h2 className="text-4xl font-black uppercase italic tracking-tighter text-primary">Como Funciona?</h2>
-                     <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest text-secondary">Tire suas dúvidas sobre o programa da Viby.</p>
-                  </div>
-                  
-                  <div className="space-y-8">
-                     <FaqItem q="Onde encontro meu link?" a="Basta criar uma conta e acessar esta página ou seu painel de afiliado. Seu código de 10 dígitos é gerado automaticamente." />
-                     <FaqItem q="Qual o prazo de comissão?" a="Você recebe comissão sobre todas as vendas das organizações do seu indicado durante os primeiros 365 dias de vida da conta dele." />
-                     <FaqItem q="Posso indicar a mim mesmo?" a="Não. O sistema possui travas automáticas para impedir a auto-indicação e o uso do próprio código no cadastro." />
-                     <FaqItem q="Quando posso sacar?" a="Os valores ficam pendentes por 7 dias para segurança. Após este período, você pode solicitar o saque via PIX (BRL) ou conta internacional (USD/EUR)." />
-                  </div>
+            <div className="max-w-xl mx-auto space-y-10">
+               <div className="text-center space-y-2">
+                  <h2 className="text-4xl font-black uppercase italic tracking-tighter text-primary flex items-center justify-center gap-3">
+                     <Trophy className="w-8 h-8 text-secondary" /> Hall da Fama
+                  </h2>
+                  <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Os maiores embaixadores da rede Viby.</p>
                </div>
 
-               <div className="space-y-10">
-                  <div className="text-center md:text-left space-y-2">
-                     <h2 className="text-4xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-3">
-                        <Trophy className="w-8 h-8 text-secondary" /> Hall da Fama
-                     </h2>
-                     <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Os maiores embaixadores da rede Viby.</p>
-                  </div>
-
-                  <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
-                     <CardContent className="p-0">
-                        {loadingRank ? (
-                          <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
-                        ) : (
-                          <div className="divide-y">
-                             {ranking.map((rank, i) => (
-                               <div key={i} className="p-6 flex items-center justify-between hover:bg-muted/10 transition-colors">
-                                  <div className="flex items-center gap-4">
-                                     <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-black text-xs text-muted-foreground">#{i+1}</div>
-                                     <div>
-                                        <p className="font-bold text-sm text-primary uppercase italic">{rank.name}</p>
-                                        <Badge variant="outline" className="text-[7px] font-black text-secondary uppercase border-secondary/20">Level {rank.level}</Badge>
-                                     </div>
-                                  </div>
-                                  <div className="text-right">
-                                     <p className="text-sm font-black text-primary">{rank.sales.toLocaleString()}</p>
-                                     <p className="text-[8px] font-bold text-muted-foreground uppercase">Ingressos</p>
+               <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+                  <CardContent className="p-0">
+                     {loadingRank ? (
+                       <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
+                     ) : (
+                       <div className="divide-y">
+                          {ranking.map((rank, i) => (
+                            <div key={i} className="p-6 flex items-center justify-between hover:bg-muted/10 transition-colors">
+                               <div className="flex items-center gap-4">
+                                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-black text-xs text-muted-foreground">#{i+1}</div>
+                                  <div>
+                                     <p className="font-bold text-sm text-primary uppercase italic">{rank.name}</p>
+                                     <Badge variant="outline" className="text-[7px] font-black text-secondary uppercase border-secondary/20">Level {rank.level}</Badge>
                                   </div>
                                </div>
-                             ))}
-                          </div>
-                        )}
-                     </CardContent>
-                  </Card>
-               </div>
+                               <div className="text-right">
+                                  <p className="text-sm font-black text-primary">{rank.sales.toLocaleString()}</p>
+                                  <p className="text-[8px] font-bold text-muted-foreground uppercase">Ingressos</p>
+                               </div>
+                            </div>
+                          ))}
+                       </div>
+                     )}
+                  </CardContent>
+               </Card>
             </div>
          </div>
       </section>
@@ -258,20 +234,6 @@ export default function EarnMoneyPage() {
             ))}
          </div>
       </section>
-
-      <section className="py-24 bg-secondary text-white relative overflow-hidden">
-         <div className="container mx-auto px-4 text-center space-y-10 relative z-10">
-            <div className="space-y-4">
-               <h2 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter">PRONTO PARA FATURAR?</h2>
-               <p className="text-lg md:text-xl font-medium opacity-90 max-w-xl mx-auto uppercase tracking-wide">Crie sua conta agora e comece a construir sua rede cultural na Viby.</p>
-            </div>
-            <Button asChild className="h-20 px-16 bg-white text-secondary font-black rounded-[2rem] shadow-2xl uppercase italic text-xl hover:scale-105 transition-all">
-               <Link href="/cadastro">Participar do Programa</Link>
-            </Button>
-         </div>
-         <Globe className="absolute -bottom-20 -right-20 w-80 h-80 opacity-5 rotate-12" />
-         <Zap className="absolute -top-10 -left-10 w-40 h-40 opacity-10 -rotate-12" />
-      </section>
       
       <Footer />
     </div>
@@ -288,17 +250,6 @@ function FeatureStep({ icon: Icon, title, desc }: any) {
             <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">{title}</h3>
             <p className="text-sm text-muted-foreground font-medium leading-relaxed">{desc}</p>
          </div>
-      </div>
-   )
-}
-
-function FaqItem({ q, a }: { q: string, a: string }) {
-   return (
-      <div className="space-y-2">
-         <h4 className="font-black text-lg text-primary uppercase italic flex items-center gap-3">
-            <div className="w-1.5 h-6 bg-secondary rounded-full" /> {q}
-         </h4>
-         <p className="text-muted-foreground font-medium pl-4 border-l-2 border-muted leading-relaxed">{a}</p>
       </div>
    )
 }

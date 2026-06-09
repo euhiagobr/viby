@@ -1,3 +1,4 @@
+
 "use server"
 
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -146,35 +147,6 @@ export async function generatePendingAffiliateCodesAction() {
         const skippedCount = allUsersSnapshot.size - processedCount;
 
         return { success: true, count: processedCount, skipped: skippedCount, errors: errorCount };
-
-    } catch (e: any) {
-        return { success: false, error: e.message };
-    }
-}
-
-export async function reprocessUserAffiliateAction(uid: string) {
-    if (!uid) return { success: false, error: "UID do usuário é obrigatório."};
-    
-    try {
-        const userDoc = await firestore.collection('users').doc(uid).get();
-        if (!userDoc.exists) return { success: false, error: "Usuário não encontrado."};
-
-        const userData = userDoc.data();
-        const affiliateCode = userData?.affiliateCode;
-
-        if (!affiliateCode) return { success: false, error: "Usuário não possui código de afiliado."};
-        
-        const affiliateRef = firestore.collection('affiliateCodes').doc(affiliateCode);
-        const affiliateDoc = await affiliateRef.get();
-
-        if (affiliateDoc.exists) {
-            await affiliateRef.update({
-                userName: userData?.name || "N/A"
-            });
-            return { success: true };
-        } else {
-            return { success: false, error: "Código de afiliado não encontrado no índice."};
-        }
 
     } catch (e: any) {
         return { success: false, error: e.message };
