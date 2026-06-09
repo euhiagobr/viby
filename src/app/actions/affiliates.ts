@@ -75,7 +75,7 @@ export async function getAffiliatePublicRanking() {
       const userData = userSnap.data();
       
       return {
-        name: userData?.name || "Membro Viby",
+        name: userData?.name || userData?.displayName || "Membro Viby",
         level: data.currentLevel || 0,
         sales: data.totalTicketsSold || 0,
         orgs: data.totalOrgsLinked || 0
@@ -94,11 +94,10 @@ export async function getAffiliatePublicRanking() {
 export async function generatePendingAffiliateCodesAction() {
   const db = getAdminDb();
   try {
-    const usersSnap = await db.collection('users').where('affiliateCode', '==', null).get();
-    const usersSnapLegacy = await db.collection('users').get();
+    const usersSnap = await db.collection('users').get();
     
-    // Filtragem manual para maior precisão (caso where null falhe em campos undefined)
-    const targets = usersSnapLegacy.docs.filter(d => !d.data().affiliateCode);
+    // Filtragem manual para maior precisão (caso campos estejam undefined)
+    const targets = usersSnap.docs.filter(d => !d.data().affiliateCode);
     
     if (targets.length === 0) return { success: true, count: 0 };
 
@@ -111,10 +110,19 @@ export async function generatePendingAffiliateCodesAction() {
         affiliateCode: newCode,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
+      
+      // Criar índice de usernames
+      const usernameRef = db.collection('usernames').doc(newCode);
+      batch.set(usernameRef, {
+        uid: userDoc.id,
+        type: 'user',
+        username: newCode
+      });
+
       count++;
       
       // Batch limit
-      if (count >= 450) break;
+      if (count >= 400) break;
     }
 
     await batch.commit();
@@ -139,11 +147,21 @@ export async function reprocessUserAffiliateAction(uid: string) {
     }
 
     const newCode = await getUniqueAffiliateCode(db);
-    await userRef.update({ 
+    const batch = db.batch();
+    
+    batch.update(userRef, { 
       affiliateCode: newCode,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
+    const usernameRef = db.collection('usernames').doc(newCode);
+    batch.set(usernameRef, {
+      uid: uid,
+      type: 'user',
+      username: newCode
+    });
+
+    await batch.commit();
     return { success: true, code: newCode };
   } catch (e: any) {
     return { success: false, error: e.message };
