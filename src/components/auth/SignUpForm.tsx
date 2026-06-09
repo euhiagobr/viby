@@ -139,6 +139,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
       const user = userCredential.user;
       const uid = user.uid;
 
+      // Salva o CPF usando o padrão de segurança tripla
       const cpfRes = await updateUserCPF(uid, values.cpf);
       if (!cpfRes.success) throw new Error(cpfRes.error);
 

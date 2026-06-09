@@ -23,7 +23,7 @@ const generateUniqueCode = async (): Promise<string> => {
 };
 
 /**
- * Cria a estrutura inicial de estatísticas para um novo afiliado.
+ * Inicializa ou atualiza as estatísticas do afiliado.
  */
 async function initializeAffiliateStats(db: any, userId: string, userName: string) {
   const statsRef = db.collection("affiliate_stats").doc(userId);
@@ -47,6 +47,9 @@ async function initializeAffiliateStats(db: any, userId: string, userName: strin
   }
 }
 
+/**
+ * Gera um código para um usuário específico.
+ */
 export async function generateAffiliateCodeAction(params: { userId: string }) {
   const { userId } = params;
   if (!userId) return { success: false, error: "Usuário não autenticado." };
@@ -54,10 +57,10 @@ export async function generateAffiliateCodeAction(params: { userId: string }) {
   try {
     const userRef = firestore.collection("users").doc(userId);
     const userDoc = await userRef.get();
-    const userData = userDoc.data();
-
-    if (!userDoc.exists || !userData) throw new Error("Usuário não encontrado.");
-    if (userData.affiliateCode) throw new Error("Usuário já possui um código de afiliado.");
+    if (!userDoc.exists) throw new Error("Usuário não encontrado.");
+    
+    const userData = userDoc.data()!;
+    if (userData.affiliateCode) return { success: true, code: userData.affiliateCode };
 
     const newCode = await generateUniqueCode();
     const userName = userData.name || userData.displayName || "Membro Viby";
@@ -82,6 +85,9 @@ export async function generateAffiliateCodeAction(params: { userId: string }) {
   }
 }
 
+/**
+ * Rotina de manutenção: garante que todos os usuários tenham código e que affiliateCodes esteja sincronizada.
+ */
 export async function generatePendingAffiliateCodesAction() {
   try {
     const usersSnapshot = await firestore.collection('users').get();
@@ -89,21 +95,31 @@ export async function generatePendingAffiliateCodesAction() {
 
     for (const userDoc of usersSnapshot.docs) {
       const userData = userDoc.data();
-      if (!userData.affiliateCode) {
-        const newCode = await generateUniqueCode();
-        const userName = userData.name || userData.displayName || "Membro Viby";
-        
-        await userDoc.ref.update({ affiliateCode: newCode });
+      const userId = userDoc.id;
+      let currentCode = userData.affiliateCode;
 
-        await firestore.collection("affiliateCodes").doc(newCode).set({
-          code: newCode,
-          userId: userDoc.id,
+      // Se não tem código no perfil, gera um novo
+      if (!currentCode) {
+        currentCode = await generateUniqueCode();
+        await userDoc.ref.update({ affiliateCode: currentCode });
+      }
+
+      // Garante que o documento na coleção mestra affiliateCodes exista
+      const codeRef = firestore.collection("affiliateCodes").doc(currentCode);
+      const codeSnap = await codeRef.get();
+
+      if (!codeSnap.exists) {
+        const userName = userData.name || userData.displayName || "Membro Viby";
+        await codeRef.set({
+          code: currentCode,
+          userId: userId,
           userName: userName,
           active: true,
+          commissionType: "default",
+          commissionValue: 0.50,
           createdAt: FieldValue.serverTimestamp(),
         });
-
-        await initializeAffiliateStats(firestore, userDoc.id, userName);
+        await initializeAffiliateStats(firestore, userId, userName);
         processedCount++;
       }
     }
