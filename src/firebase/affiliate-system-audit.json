@@ -1,0 +1,20 @@
+
+{
+  "collection_oficial": "affiliateCodes",
+  "document_id": "code (string, 10 dígitos)",
+  "campos_obrigatorios": {
+    "code": "string",
+    "userId": "string (UID)",
+    "userName": "string",
+    "active": "boolean",
+    "commissionType": "string (default: 'fixed')",
+    "commissionValue": "number (default: 0.50)",
+    "createdAt": "timestamp"
+  },
+  "integracao_user": {
+    "collection": "users",
+    "field": "affiliateCode"
+  },
+  "auto_generation": "Habilitado via finalizeUserRegistration",
+  "unificacao": "Concluída. Todas as consultas agora utilizam affiliateCodes como fonte de verdade."
+}

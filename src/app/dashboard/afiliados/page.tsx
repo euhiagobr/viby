@@ -86,6 +86,7 @@ export default function AffiliateDashboard() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [isGeneratingCode, setIsGeneratingCode] = React.useState(false);
 
+  // O código agora vem diretamente do perfil do usuário, garantindo sincronia total
   const affiliateCode = profile?.affiliateCode
   const affiliateLink = typeof window !== 'undefined' ? `${window.location.origin}/cadastro?ref=${affiliateCode}` : ""
 
@@ -100,8 +101,8 @@ export default function AffiliateDashboard() {
     try {
       const res = await generateAffiliateCodeAction({ userId: user.uid });
       if (res.success) {
-        toast({ title: "Seu código foi gerado!", description: "Atualizamos seu perfil com o código: " + res.code });
-        forceRefresh(); // This will re-fetch the user profile data
+        toast({ title: "Seu código foi gerado!", description: "Sua conta agora está ativa para indicações." });
+        forceRefresh();
       } else {
         throw new Error(res.error);
       }
@@ -126,7 +127,7 @@ export default function AffiliateDashboard() {
         bankDetails
       })
       if (res.success) {
-        toast({ title: "Saque solicitado!", description: "Nossa equipe analisará o pedido em até 48h." })
+        toast({ title: "Saque solicitado!", description: "Analisaremos seu pedido em breve." })
         setIsPayoutDialogOpen(false)
         setPayoutAmount("")
       } else throw new Error(res.error)
@@ -153,36 +154,38 @@ export default function AffiliateDashboard() {
             <Handshake className="w-8 h-8 text-secondary" />
             Programa de Afiliados
           </h1>
-          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Sua central de ganhos multimoeda Viby.</p>
+          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Sua rede de indicações multimoeda.</p>
         </div>
       </div>
 
-       {/* Affiliate Code Section */}
-      <Card className="border-dashed shadow-sm rounded-2xl bg-white">
-        <CardContent className="p-6">
+      <Card className="border-dashed shadow-sm rounded-[2rem] bg-white overflow-hidden">
+        <CardContent className="p-8">
             {affiliateCode ? (
-                <div className="space-y-4">
-                    <div className="space-y-1">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Seu Código de Afiliado</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Seu Código de Embaixador</Label>
                         <div className="flex items-center gap-2">
-                            <Input readOnly value={affiliateCode} className="h-12 text-lg font-black tracking-widest bg-muted/50" />
-                            <Button variant="outline" size="icon" className="h-12 w-12" onClick={() => handleCopy(affiliateCode, 'Código')}><Copy className="w-5 h-5" /></Button>
+                            <Input readOnly value={affiliateCode} className="h-14 text-2xl font-black tracking-[0.2em] bg-muted/30 border-dashed border-secondary/20 text-primary text-center rounded-2xl" />
+                            <Button variant="outline" size="icon" className="h-14 w-14 rounded-2xl border-2" onClick={() => handleCopy(affiliateCode, 'Código')}><Copy className="w-5 h-5" /></Button>
                         </div>
                     </div>
-                     <div className="space-y-1">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Seu Link de Divulgação</Label>
+                     <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Seu Link de Convite</Label>
                         <div className="flex items-center gap-2">
-                            <Input readOnly value={affiliateLink} className="h-12 text-sm font-bold text-muted-foreground bg-muted/50" />
-                            <Button variant="outline" size="icon" className="h-12 w-12" onClick={() => handleCopy(affiliateLink, 'Link')}><Copy className="w-5 h-5" /></Button>
+                            <Input readOnly value={affiliateLink} className="h-14 text-xs font-bold text-muted-foreground bg-muted/30 border-dashed border-secondary/20 rounded-2xl" />
+                            <Button variant="outline" size="icon" className="h-14 w-14 rounded-2xl border-2" onClick={() => handleCopy(affiliateLink, 'Link')}><Copy className="w-5 h-5" /></Button>
                         </div>
                     </div>
                 </div>
             ) : (
-                <div className="text-center space-y-4 py-8">
-                    <h3 className="text-primary font-black uppercase italic">Você ainda não tem um código de afiliado.</h3>
-                    <p className="text-muted-foreground text-sm max-w-md mx-auto">Gere seu código para começar a convidar e ganhar comissões por cada venda.</p>
-                    <Button onClick={handleGenerateCode} disabled={isGeneratingCode} className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg hover:scale-105 transition-transform gap-2 uppercase italic">
-                        {isGeneratingCode ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />} Gerar meu código
+                <div className="text-center space-y-6 py-10">
+                    <div className="w-20 h-20 bg-muted rounded-3xl flex items-center justify-center mx-auto opacity-20"><Handshake className="w-10 h-10" /></div>
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-black uppercase italic text-primary">Ative sua conta de Afiliado</h3>
+                      <p className="text-muted-foreground text-sm max-w-sm mx-auto font-medium">Gere seu código único agora e comece a lucrar indicando novos organizadores para a Viby.</p>
+                    </div>
+                    <Button onClick={handleGenerateCode} disabled={isGeneratingCode} className="bg-secondary text-white font-black rounded-2xl h-14 px-10 shadow-xl hover:scale-105 transition-all gap-2 uppercase italic text-lg">
+                        {isGeneratingCode ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />} Ativar Agora
                     </Button>
                 </div>
             )}
@@ -190,7 +193,6 @@ export default function AffiliateDashboard() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* LADO ESQUERDO: PROGRESSO E HISTÓRICO */}
         <div className="lg:col-span-8 space-y-8">
            <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden p-1">
               <div className="grid grid-cols-1 md:grid-cols-12">
@@ -200,73 +202,69 @@ export default function AffiliateDashboard() {
                        <div className="text-8xl font-black italic tracking-tighter">{currentLevel.level}</div>
                        <Badge className="bg-secondary text-white font-black uppercase italic px-4 py-1 text-[10px] tracking-widest border-none shadow-lg">{currentLevel.label}</Badge>
                     </div>
-                    <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-secondary/10 rounded-full blur-3xl" />
                  </div>
                  <div className="md:col-span-8 p-10 flex flex-col justify-center gap-8">
                     <div className="space-y-4">
                        <div className="flex justify-between items-end">
                           <div className="space-y-1">
-                             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sua Comissão</p>
+                             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sua Comissão Atual</p>
                              <p className="text-2xl font-black text-primary italic uppercase tracking-tighter">
                                 {formatCurrency(currentLevel.commission)} / ingresso
-                             </p>
-                             <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight italic">
-                                * Valor base aplicado na moeda de venda do evento.
                              </p>
                           </div>
                           {nextLevel && (
                              <div className="text-right">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Próximo Nível</p>
-                                <p className="text-xs font-bold text-secondary">{nextLevel.minSales - (stats?.totalTicketsSold || 0)} vendas para {formatCurrency(nextLevel.commission)}</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Próximo Objetivo</p>
+                                <p className="text-xs font-bold text-secondary">Faltam {nextLevel.minSales - (stats?.totalTicketsSold || 0)} vendas</p>
                              </div>
                           )}
                        </div>
-                       <Progress value={progress} className="h-3" />
+                       <Progress value={progress} className="h-4 rounded-full" />
                     </div>
                  </div>
               </div>
            </Card>
 
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <MetricCard label="Indicados" value={stats?.totalUsersReferred || 0} icon={Users} color="blue" />
-              <MetricCard label="Marcas Ativas" value={stats?.totalOrgsLinked || 0} icon={Building2} color="secondary" />
-              <MetricCard label="Vendas Totais" value={stats?.totalTicketsSold || 0} icon={Ticket} color="orange" />
+              <MetricCard label="Membros Indicados" value={stats?.totalUsersReferred || 0} icon={Users} color="blue" />
+              <MetricCard label="Marcas em 1 Ano" value={stats?.totalOrgsLinked || 0} icon={Building2} color="secondary" />
+              <MetricCard label="Ingressos Vendidos" value={stats?.totalTicketsSold || 0} icon={Ticket} color="orange" />
            </div>
 
            <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-              <CardHeader className="p-8 border-b flex flex-row items-center justify-between">
+              <CardHeader className="p-8 border-b">
                  <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-                    <History className="w-5 h-5 text-secondary" /> Histórico de Comissões
+                    <History className="w-5 h-5 text-secondary" /> Comissões Recentes
                  </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                  <ScrollArea className="h-[400px]">
                     {commissions && commissions.length > 0 ? (
-                      <div className="divide-y">
+                      <div className="divide-y divide-border/40">
                          {commissions.map((c: any) => (
                            <div key={c.id} className="p-6 flex items-center justify-between hover:bg-muted/5 transition-colors">
                               <div className="flex items-center gap-4">
-                                 <div className={cn("p-2 rounded-xl", c.status === 'available' ? "bg-green-50 text-green-600" : "bg-orange-50 text-orange-600")}>
+                                 <div className={cn("p-3 rounded-2xl", c.status === 'available' ? "bg-green-50 text-green-600" : "bg-orange-50 text-orange-600")}>
                                     {c.status === 'available' ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
                                  </div>
-                                 <div>
-                                    <p className="text-xs font-bold text-primary uppercase">Comissão ({c.currency})</p>
+                                 <div className="space-y-0.5">
+                                    <p className="text-xs font-bold text-primary uppercase">Comissão Gerada ({c.currency})</p>
                                     <p className="text-[9px] font-black text-muted-foreground uppercase opacity-60">
-                                       Ref: {c.organizationId?.slice(0, 8)} • {new Date(c.createdAt?.seconds * 1000).toLocaleDateString('pt-BR')}
+                                       Org: {c.organizationId?.slice(-6)} • {new Date(c.createdAt?.seconds * 1000).toLocaleDateString('pt-BR')}
                                     </p>
                                  </div>
                               </div>
-                              <div className="text-right">
-                                 <p className="text-sm font-black text-primary">{formatPrice(c.amount, c.currency)}</p>
-                                 <Badge variant="outline" className="text-[7px] font-black uppercase h-4 px-1.5">{c.status}</Badge>
+                              <div className="text-right space-y-1">
+                                 <p className="text-base font-black text-primary">{formatPrice(c.amount, c.currency)}</p>
+                                 <Badge variant="outline" className="text-[7px] font-black uppercase h-4 px-1.5 border-dashed">{c.status}</Badge>
                               </div>
                            </div>
                          ))}
                       </div>
                     ) : (
-                      <div className="p-20 text-center space-y-4">
-                         <Inbox className="w-12 h-12 mx-auto opacity-10" />
-                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Nenhuma comissão registrada.</p>
+                      <div className="p-20 text-center">
+                         <Inbox className="w-12 h-12 mx-auto opacity-10 mb-4" />
+                         <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Aguardando sua primeira indicação.</p>
                       </div>
                     )}
                  </ScrollArea>
@@ -274,7 +272,6 @@ export default function AffiliateDashboard() {
            </Card>
         </div>
 
-        {/* LADO DIREITO: CARTEIRA MULTIMOEDA */}
         <div className="lg:col-span-4 space-y-8">
            <Tabs defaultValue="BRL" className="w-full">
               <div className="flex justify-between items-center px-2 mb-4">
@@ -312,20 +309,17 @@ export default function AffiliateDashboard() {
                                 onClick={() => setPayoutCurrency(curr)}
                                 className="w-full bg-white text-primary font-black h-14 rounded-2xl shadow-xl uppercase italic text-sm hover:bg-secondary hover:text-white transition-all"
                                >
-                                  Sacar {curr}
+                                  Resgatar {curr}
                                </Button>
                             </DialogTrigger>
                             <DialogContent className="rounded-[2.5rem] max-w-sm">
                                <form onSubmit={handlePayoutRequest} className="space-y-6">
                                   <DialogHeader>
-                                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Resgatar Saldo ({payoutCurrency})</DialogTitle>
-                                     <DialogDescription>
-                                        {payoutCurrency === 'BRL' ? 'O valor será enviado via PIX.' : 'O valor será enviado via conta bancária internacional.'}
-                                     </DialogDescription>
+                                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Solicitar Saque ({payoutCurrency})</DialogTitle>
                                   </DialogHeader>
                                   <div className="space-y-4">
                                      <div className="space-y-2">
-                                        <Label className="text-[10px] font-black uppercase opacity-60">Valor do Saque</Label>
+                                        <Label className="text-[10px] font-black uppercase opacity-60">Valor</Label>
                                         <Input type="number" step="0.01" value={payoutAmount} onChange={e => setPayoutAmount(e.target.value)} required className="h-12 rounded-xl text-lg font-black" placeholder="0,00" />
                                      </div>
                                      
@@ -343,21 +337,21 @@ export default function AffiliateDashboard() {
                                                   <SelectItem value="cpf">CPF</SelectItem>
                                                   <SelectItem value="email">E-mail</SelectItem>
                                                   <SelectItem value="phone">Celular</SelectItem>
-                                                  <SelectItem value="random">Chave Aleatória</SelectItem>
+                                                  <SelectItem value="random">Aleatória</SelectItem>
                                                </SelectContent>
                                             </Select>
                                          </div>
                                        </>
                                      ) : (
                                        <div className="space-y-2">
-                                          <Label className="text-[10px] font-black uppercase opacity-60">Dados Bancários / IBAN / SWIFT</Label>
-                                          <Textarea value={bankDetails} onChange={e => setBankDetails(e.target.value)} required className="rounded-xl min-h-[100px]" placeholder="Informe os dados para transferência internacional..." />
+                                          <Label className="text-[10px] font-black uppercase opacity-60">Dados Bancários Internacionais</Label>
+                                          <Textarea value={bankDetails} onChange={e => setBankDetails(e.target.value)} required className="rounded-xl min-h-[100px]" placeholder="SWIFT / IBAN / Nome do Banco..." />
                                        </div>
                                      )}
                                   </div>
                                   <DialogFooter>
                                      <Button type="submit" disabled={isSubmitting || !payoutAmount} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                                        {isSubmitting ? <Loader2 className="animate-spin" /> : "Confirmar Saque"}
+                                        {isSubmitting ? <Loader2 className="animate-spin" /> : "Confirmar Solicitação"}
                                      </Button>
                                   </DialogFooter>
                                </form>
@@ -370,30 +364,10 @@ export default function AffiliateDashboard() {
               ))}
            </Tabs>
 
-           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-6">Saques Recentes</h3>
-              <div className="space-y-4">
-                 {payouts && payouts.length > 0 ? payouts.map((p: any) => (
-                    <div key={p.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-xl border border-dashed">
-                       <div className="space-y-1">
-                          <p className="text-sm font-black text-primary">{formatPrice(p.amount, p.currency)}</p>
-                          <p className="text-[8px] font-bold text-muted-foreground uppercase">{new Date(p.createdAt?.seconds * 1000).toLocaleDateString('pt-BR')}</p>
-                       </div>
-                       <Badge className={cn(
-                         "text-[7px] font-black uppercase h-5",
-                         p.status === 'Pago' ? "bg-green-500" : p.status === 'Pendente' ? "bg-orange-500" : "bg-muted"
-                       )}>{p.status}</Badge>
-                    </div>
-                 )) : (
-                   <p className="text-[10px] font-bold text-muted-foreground uppercase italic text-center opacity-40">Nenhum saque solicitado.</p>
-                 )}
-              </div>
-           </Card>
-
-           <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/10 space-y-3">
-              <div className="flex items-center gap-2 text-secondary font-black text-[10px] uppercase"><Info className="w-4 h-4" /> Regras</div>
+           <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/10 space-y-4">
+              <div className="flex items-center gap-2 text-secondary font-black text-[10px] uppercase"><Info className="w-4 h-4" /> Regras de Afiliado</div>
               <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-                 As comissões ficam pendentes por 7 dias. Saques mínimos: R$ 50,00 ou $ 20,00. As moedas não são convertidas e permanecem isoladas.
+                 As comissões são processadas em D+7 após a confirmação do ingresso. Pagamentos são efetuados em até 48h úteis após a solicitação. Saque mínimo: R$ 50,00 ou correspondente.
               </p>
            </div>
         </div>
@@ -405,13 +379,13 @@ export default function AffiliateDashboard() {
 function MetricCard({ label, value, icon: Icon, color }: any) {
    const colors: any = { blue: "bg-blue-50 text-blue-600", secondary: "bg-secondary/5 text-secondary", orange: "bg-orange-50 text-orange-600" };
    return (
-      <Card className="border-none shadow-sm bg-white">
+      <Card className="border-none shadow-sm bg-white hover:shadow-md transition-all">
          <CardContent className="p-6">
             <div className="flex items-center justify-between mb-2">
                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">{label}</p>
                <div className={cn("p-2 rounded-xl", colors[color])}><Icon className="w-3.5 h-3.5" /></div>
             </div>
-            <div className="text-xl font-black text-primary">{value.toLocaleString()}</div>
+            <div className="text-2xl font-black text-primary">{value.toLocaleString()}</div>
          </CardContent>
       </Card>
    )

@@ -12,12 +12,14 @@ const firestore = getAdminDb();
 const generateUniqueCode = async (): Promise<string> => {
   let code = "";
   let isUnique = false;
-  while (!isUnique) {
+  let attempts = 0;
+  while (!isUnique && attempts < 10) {
     code = Math.floor(1000000000 + Math.random() * 9000000000).toString();
     const doc = await firestore.collection("affiliateCodes").doc(code).get();
     if (!doc.exists) {
       isUnique = true;
     }
+    attempts++;
   }
   return code;
 };
@@ -48,7 +50,7 @@ async function initializeAffiliateStats(db: any, userId: string, userName: strin
 }
 
 /**
- * Gera um código para um usuário específico.
+ * Gera um código para um usuário específico (Manual Admin / Fallback).
  */
 export async function generateAffiliateCodeAction(params: { userId: string }) {
   const { userId } = params;
@@ -60,7 +62,23 @@ export async function generateAffiliateCodeAction(params: { userId: string }) {
     if (!userDoc.exists) throw new Error("Usuário não encontrado.");
     
     const userData = userDoc.data()!;
-    if (userData.affiliateCode) return { success: true, code: userData.affiliateCode };
+    if (userData.affiliateCode) {
+      // Garante que o registro na coleção oficial exista
+      const codeRef = firestore.collection("affiliateCodes").doc(userData.affiliateCode);
+      const codeSnap = await codeRef.get();
+      if (!codeSnap.exists) {
+        await codeRef.set({
+          code: userData.affiliateCode,
+          userId: userId,
+          userName: userData.name || userData.displayName || "Membro Viby",
+          active: true,
+          commissionType: "fixed",
+          commissionValue: 0.50,
+          createdAt: FieldValue.serverTimestamp()
+        });
+      }
+      return { success: true, code: userData.affiliateCode };
+    }
 
     const newCode = await generateUniqueCode();
     const userName = userData.name || userData.displayName || "Membro Viby";
@@ -73,7 +91,7 @@ export async function generateAffiliateCodeAction(params: { userId: string }) {
       userName: userName,
       active: true,
       createdAt: FieldValue.serverTimestamp(),
-      commissionType: "default",
+      commissionType: "fixed",
       commissionValue: 0.50 
     });
     
@@ -98,13 +116,13 @@ export async function generatePendingAffiliateCodesAction() {
       const userId = userDoc.id;
       let currentCode = userData.affiliateCode;
 
-      // Se não tem código no perfil, gera um novo
+      // 1. Se não tem código no perfil, gera um novo
       if (!currentCode) {
         currentCode = await generateUniqueCode();
         await userDoc.ref.update({ affiliateCode: currentCode });
       }
 
-      // Garante que o documento na coleção mestra affiliateCodes exista
+      // 2. Garante que o documento na coleção oficial exista
       const codeRef = firestore.collection("affiliateCodes").doc(currentCode);
       const codeSnap = await codeRef.get();
 
@@ -115,7 +133,7 @@ export async function generatePendingAffiliateCodesAction() {
           userId: userId,
           userName: userName,
           active: true,
-          commissionType: "default",
+          commissionType: "fixed",
           commissionValue: 0.50,
           createdAt: FieldValue.serverTimestamp(),
         });
