@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { collection, query, where, getDocs, getFirestore, doc, getDoc, limit } from 'firebase/firestore';
@@ -12,6 +13,7 @@ import { redirect } from 'next/navigation';
 /**
  * @fileOverview Rota Unificada Mestre de Eventos.
  * Resolve tanto IDs quanto Slugs sob o parâmetro dinâmico [slug].
+ * ESTA É A ÚNICA ROTA DINÂMICA PERMITIDA NESTE NÍVEL.
  */
 
 async function getEventData(username: string, param: string) {
@@ -33,7 +35,6 @@ async function getEventData(username: string, param: string) {
     
     if (eventIdSnap.exists()) {
       const data = eventIdSnap.data();
-      // Verifica se o evento realmente pertence a este username/organização
       if (data.organizationId === orgId) {
         return { id: eventIdSnap.id, ...data } as any;
       }
