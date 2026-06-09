@@ -1,3 +1,4 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -68,21 +69,32 @@ async function logSentEmail(data: {
 
 function getEmailTemplate(branding: any, content: string) {
   return `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333; background-color: #f8fafc;">
-      <div style="text-align: center; margin-bottom: 30px; padding: 20px;">
-        ${branding.logoUrl ? 
-          `<img src="${branding.logoUrl}" alt="${branding.siteName}" style="max-height: 45px; width: auto; display: block; margin: 0 auto;">` : 
-          `<h1 style="color: #2C52EE; font-style: italic; margin: 0; font-weight: 900;">${branding.siteName.toUpperCase()}</h1>`
-        }
-      </div>
-      <div style="background: #ffffff; padding: 40px; border-radius: 30px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
-        ${content}
-      </div>
-      <div style="text-align: center; margin-top: 30px; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">
-        © 2026 ${branding.siteName} • Porto Alegre, RS
-      </div>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>${branding.siteName}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: sans-serif; background-color: #f8fafc; color: #333;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="text-align: center; margin-bottom: 30px; padding: 20px;">
+      ${branding.logoUrl ? 
+        `<img src="${branding.logoUrl}" alt="${branding.siteName}" style="max-height: 45px; width: auto; display: block; margin: 0 auto;">` : 
+        `<h1 style="color: #2C52EE; font-style: italic; margin: 0; font-weight: 900;">${branding.siteName.toUpperCase()}</h1>`
+      }
     </div>
-  `;
+    <div style="background: #ffffff; padding: 40px; border-radius: 30px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+      ${content}
+    </div>
+    <div style="text-align: center; margin-top: 30px; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;">
+      © 2026 ${branding.siteName} • Porto Alegre, RS
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
 }
 
 export async function sendManualMarketingEmail(data: { to: string; subject: string; content: string }) {
@@ -96,7 +108,6 @@ export async function sendManualMarketingEmail(data: { to: string; subject: stri
     const formattedBody = data.content.replace(/\n/g, '<br>');
     const htmlContent = getEmailTemplate(branding, `<div style="font-size: 16px; line-height: 1.6; color: #334155;">${formattedBody}</div>`);
 
-    // Sincroniza o 'from' exatamente como os e-mails de sistema para evitar detecção de spam
     await transporter.sendMail({
       from: `"${branding.siteName}" <${smtpUser}>`,
       to: data.to,
@@ -262,7 +273,7 @@ export async function sendAdminNewUserAlert(data: { userName: string; username: 
 
     await transporter.sendMail({
       from: `"Viby System" <${smtpUser}>`,
-      to: smtpUser, // Envia para o próprio administrador
+      to: smtpUser, 
       subject: `👤 Novo Usuário: ${data.userName}`,
       html: getEmailTemplate(branding, content)
     });
@@ -352,6 +363,7 @@ export async function sendSupportTicketReceivedEmail(data: { to: string; userNam
       </div>
     `;
 
+    const htmlContent = getEmailTemplate(branding, content);
     await transporter.sendMail({
       from: `"${branding.siteName} Suporte" <${smtpUser}>`,
       to: data.to,
