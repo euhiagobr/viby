@@ -62,6 +62,7 @@ export default function AdminConfiguracoesPage() {
   const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
   const contactRef = React.useMemo(() => (db ? doc(db, 'settings', 'contact') : null), [db]);
+  const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
   const googleAdsRef = React.useMemo(() => (db ? doc(db, 'system_settings', 'google_ads') : null), [db]);
 
   const { data: siteSettings, loading: loadingSite } = useDoc<any>(siteRef);
@@ -69,6 +70,7 @@ export default function AdminConfiguracoesPage() {
   const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
   const { data: globalFees, loading: loadingFees } = useDoc<any>(feesRef);
   const { data: contactSettings, loading: loadingContact } = useDoc<any>(contactRef);
+  const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsRef);
   const { data: googleAdsSettings, loading: loadingGoogleAds } = useDoc<any>(googleAdsRef);
 
   const [saving, setSaving] = React.useState(false);
@@ -83,6 +85,7 @@ export default function AdminConfiguracoesPage() {
   const [stripeForm, setStripeForm] = React.useState({ publishableKey: '', secretKey: '', feePercent: '3.99', feeFixed: '0.39', mode: 'test' });
   const [emailForm, setEmailForm] = React.useState({ smtpHost: 'smtp.gmail.com', smtpPort: '465', smtpUser: '', smtpPass: '' });
   const [feesForm, setFeesForm] = React.useState({ buyerMarkupPercent: '15', organizerBasePercent: '10', organizerMinFee: '3.99' });
+  const [adsForm, setAdsForm] = React.useState({ cpcValue: '0.50', cpmValue: '10.00', minRechargeValue: '30.00' });
   
   const [contactForm, setContactForm] = React.useState({
     whatsapp: '',
@@ -159,6 +162,14 @@ export default function AdminConfiguracoesPage() {
       website: contactSettings.website || ''
     });
   }, [contactSettings]);
+
+  React.useEffect(() => {
+    if (adsSettings) setAdsForm({
+      cpcValue: adsSettings.cpcValue?.toString() || '0.50',
+      cpmValue: adsSettings.cpmValue?.toString() || '10.00',
+      minRechargeValue: adsSettings.minRechargeValue?.toString() || '30.00'
+    });
+  }, [adsSettings]);
 
   React.useEffect(() => {
     if (googleAdsSettings) setGoogleAdsForm({
@@ -272,7 +283,7 @@ export default function AdminConfiguracoesPage() {
       updatedBy: user.uid
     };
 
-    if (docId === 'fees' || docId === 'stripe') {
+    if (docId === 'fees' || docId === 'stripe' || docId === 'ads') {
       Object.keys(data).forEach(key => {
         if (typeof data[key] === 'string' && !isNaN(parseFloat(data[key]))) {
           updatePayload[key] = parseFloat(data[key]);
@@ -295,7 +306,7 @@ export default function AdminConfiguracoesPage() {
     }
   };
 
-  const isLoading = loadingSite || loadingStripe || loadingEmail || loadingFees || loadingContact || loadingGoogleAds;
+  const isLoading = loadingSite || loadingStripe || loadingEmail || loadingFees || loadingContact || loadingGoogleAds || loadingAds;
 
   if (isLoading) {
     return (
@@ -568,11 +579,36 @@ export default function AdminConfiguracoesPage() {
 		<TabsContent value="anuncios">
 			<Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
 				<CardHeader className="bg-muted/30 p-8 border-b">
-					<CardTitle className="text-xl font-black italic uppercase tracking-tighter">Anúncios</CardTitle>
-					<CardDescription>Configurações de anúncios da plataforma.</CardDescription>
+					<CardTitle className="text-xl font-black italic uppercase tracking-tighter">Anúncios Viby</CardTitle>
+					<CardDescription>Custo de tráfego e limites de recarga para parceiros.</CardDescription>
 				</CardHeader>
 				<CardContent className="p-8 space-y-8">
-					<p>Aqui você pode configurar as opções de anúncios.</p>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase opacity-60">Valor por Clique (CPC)</Label>
+                 <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs opacity-40">R$</span>
+                    <Input value={adsForm.cpcValue} onChange={e => setAdsForm({...adsForm, cpcValue: e.target.value})} className="rounded-xl h-11 pl-9" />
+                 </div>
+              </div>
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase opacity-60">Mil Impressões (CPM)</Label>
+                 <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs opacity-40">R$</span>
+                    <Input value={adsForm.cpmValue} onChange={e => setAdsForm({...adsForm, cpmValue: e.target.value})} className="rounded-xl h-11 pl-9" />
+                 </div>
+              </div>
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase opacity-60">Recarga Mínima</Label>
+                 <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs opacity-40">R$</span>
+                    <Input value={adsForm.minRechargeValue} onChange={e => setAdsForm({...adsForm, minRechargeValue: e.target.value})} className="rounded-xl h-11 pl-9" />
+                 </div>
+              </div>
+           </div>
+           <Button onClick={() => handleSave('settings', 'ads', adsForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
+              Atualizar Parâmetros Ads
+           </Button>
 				</CardContent>
 			</Card>
 		</TabsContent>

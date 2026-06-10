@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase"
 import { collection, query, orderBy, doc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -18,7 +18,8 @@ import {
   DollarSign,
   TrendingUp,
   ExternalLink,
-  Clock
+  Clock,
+  Settings
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -35,6 +36,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
 import { moderateAdAction } from "@/app/actions/ads"
+import Link from "next/link"
 
 export default function AdminAnunciosPage() {
   const db = useFirestore()
@@ -47,6 +49,9 @@ export default function AdminAnunciosPage() {
     if (!db) return null
     return query(collection(db, "ads"))
   }, [db])
+
+  const adsSettingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
+  const { data: adsSettings } = useDoc<any>(adsSettingsRef);
 
   const { data: ads, loading } = useCollection<any>(adsQuery)
 
@@ -88,7 +93,7 @@ export default function AdminAnunciosPage() {
         <p className="text-muted-foreground font-medium">Controle central de faturamento e aprovação de Viby Ads.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
          <Card className="border-none shadow-sm bg-white border-l-4 border-blue-500">
             <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Aguardando Revisão</CardTitle></CardHeader>
             <CardContent><div className="text-3xl font-black">{pendingAds.length}</div></CardContent>
@@ -96,6 +101,30 @@ export default function AdminAnunciosPage() {
          <Card className="border-none shadow-sm bg-white border-l-4 border-green-500">
             <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Campanhas Ativas</CardTitle></CardHeader>
             <CardContent><div className="text-3xl font-black text-green-600">{activeAds.length}</div></CardContent>
+         </Card>
+         <Card className="border-none shadow-sm bg-white md:col-span-2">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+               <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Parâmetros de Custo (Ref)</CardTitle>
+               <Button variant="ghost" size="icon" className="h-5 w-5" asChild>
+                  <Link href="/admin/configuracoes?tab=anuncios">
+                     <Settings className="w-3.5 h-3.5" />
+                  </Link>
+               </Button>
+            </CardHeader>
+            <CardContent className="grid grid-cols-3 gap-4">
+               <div className="space-y-0.5">
+                  <p className="text-[8px] font-black uppercase opacity-40">CPC</p>
+                  <p className="text-sm font-black text-primary">{formatCurrency(adsSettings?.cpcValue || 0.50)}</p>
+               </div>
+               <div className="space-y-0.5">
+                  <p className="text-[8px] font-black uppercase opacity-40">CPM (1k)</p>
+                  <p className="text-sm font-black text-primary">{formatCurrency(adsSettings?.cpmValue || 10.00)}</p>
+               </div>
+               <div className="space-y-0.5">
+                  <p className="text-[8px] font-black uppercase opacity-40">Mín. Recarga</p>
+                  <p className="text-sm font-black text-primary">{formatCurrency(adsSettings?.minRechargeValue || 30.00)}</p>
+               </div>
+            </CardContent>
          </Card>
       </div>
 
