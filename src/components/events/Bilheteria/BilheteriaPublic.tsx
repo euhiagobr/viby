@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -26,7 +25,8 @@ import {
   Layers,
   ExternalLink,
   Coins,
-  Heart
+  Heart,
+  Info
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { calculateFinancialBreakdown } from "@/lib/financial-utils"
@@ -76,7 +76,6 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     setIsRegisteringInterest(true)
 
     try {
-      // Usamos a mesma ação de ingressos gratuitos para garantir reserva de cota na ocorrência
       const result = await generateFreeTickets({
         userId: user.uid,
         userName: user.displayName || "Membro Viby",
@@ -157,7 +156,6 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     }
   }
 
-  // Renderização para Eventos de Divulgação ou Externos (Informações de Acesso)
   if (isDivulgacao || isExterno) {
     return (
       <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
@@ -206,7 +204,6 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                     </Button>
                   )}
                   
-                  {/* Botão de Interesse focado na sessão se for recorrente */}
                   <Button 
                     onClick={handleRegisterInterest}
                     disabled={hasRegistered || isRegisteringInterest}
