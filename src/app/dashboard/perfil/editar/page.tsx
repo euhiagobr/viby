@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -38,7 +39,8 @@ import {
   Mail,
   Upload,
   BadgeCheck,
-  Info
+  Info,
+  AtSign
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn, validateCPF } from "@/lib/utils"
@@ -302,33 +304,32 @@ export default function EditarPerfilPage() {
                     {cpfIsReadOnly ? <Lock className="w-4 h-4 text-muted-foreground opacity-30" /> : <ShieldCheck className="w-4 h-4 text-secondary" />}
                   </div>
                 </div>
-                {!hasValidCPF && (
-                   <div className={cn(
-                     "p-4 rounded-[1.5rem] border-2 border-dashed flex items-start gap-4 mt-4 transition-all duration-300",
-                     skipCPF ? "bg-orange-50 border-orange-200" : "bg-muted/50 border-border"
-                   )}>
-                      <div className={cn(
-                        "p-2 rounded-xl shrink-0",
-                        skipCPF ? "bg-orange-100 text-orange-600" : "bg-muted text-muted-foreground"
-                      )}>
-                        {skipCPF ? <AlertTriangle className="w-5 h-5" /> : <Info className="w-5 h-5" />}
-                      </div>
-                      <div className="space-y-1">
-                        <h4 className={cn("text-xs font-black uppercase italic", skipCPF ? "text-orange-800" : "text-muted-foreground")}>
-                           {skipCPF ? "Atenção: Recebimentos Bloqueados" : "Segurança Cadastral"}
-                        </h4>
-                        <p className={cn(
-                          "text-[10px] font-medium uppercase leading-relaxed",
-                          skipCPF ? "text-orange-700" : "text-muted-foreground"
-                        )}>
-                          {skipCPF 
-                            ? "Você pode atualizar seu perfil agora, mas não poderá realizar compras pagas ou receber transferências da carteira até que o CPF seja vinculado e validado." 
-                            : "O CPF informado será vinculado permanentemente para habilitar compras e transferências seguras na plataforma."}
-                        </p>
-                      </div>
-                   </div>
-                )}
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Username (@)</Label>
+                  <div className="relative">
+                    <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground opacity-40" />
+                    <Input 
+                      value={formData.username} 
+                      readOnly 
+                      className="rounded-xl h-12 pl-10 bg-muted/50 cursor-not-allowed font-bold" 
+                    />
+                  </div>
+               </div>
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60 ml-1">E-mail de Acesso</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground opacity-40" />
+                    <Input 
+                      value={formData.email} 
+                      readOnly 
+                      className="rounded-xl h-12 pl-10 bg-muted/50 cursor-not-allowed" 
+                    />
+                  </div>
+               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -461,7 +462,7 @@ export default function EditarPerfilPage() {
 
         <div className="flex justify-end gap-3 pt-6">
           <Button type="button" variant="ghost" onClick={() => router.back()} className="rounded-xl px-8 font-bold uppercase text-xs">Cancelar</Button>
-          <Button type="submit" className="bg-secondary text-white font-black px-12 h-16 rounded-[1.5rem] shadow-xl shadow-secondary/20 uppercase italic text-lg hover:scale-[1.02] transition-transform" disabled={saving || avatarProgress !== null || bannerProgress !== null}>
+          <Button type="submit" className="bg-secondary text-white font-black px-12 h-16 rounded-[1.5rem] shadow-xl shadow-secondary/20 uppercase italic text-lg hover:scale-[1.02] transition-all" disabled={saving || avatarProgress !== null || bannerProgress !== null}>
             {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
             Salvar Perfil
           </Button>
