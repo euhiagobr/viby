@@ -5,6 +5,16 @@ import * as admin from 'firebase-admin';
  * Resolve o erro de credenciais: Failed to parse private key: Too few bytes to read ASN.1 value.
  */
 
+// Log de diagnóstico solicitado (Passo 6)
+if (typeof window === 'undefined') {
+  console.log('[ADMIN SDK DIAGNOSTIC]', {
+    projectId: !!process.env.FIREBASE_PROJECT_ID,
+    clientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: !!process.env.FIREBASE_PRIVATE_KEY,
+    privateKeyLength: process.env.FIREBASE_PRIVATE_KEY?.length || 0
+  });
+}
+
 const getPrivateKey = () => {
   // Prioridade 1: Variável de ambiente (Mais segura para produção)
   let key = process.env.FIREBASE_PRIVATE_KEY;
@@ -52,8 +62,9 @@ LXyeUurlZvKsRVIwXDdHEr32hZyDR
 };
 
 export const getAdminApp = () => {
-  // Garantir singleton para evitar conflitos de instância
-  if (admin.apps.length > 0) return admin.apps[0]!;
+  // Garantir singleton para evitar conflitos de instância (Passo 7)
+  const apps = admin.apps;
+  if (apps.length > 0) return apps[0]!;
 
   try {
     const privateKey = getPrivateKey();
