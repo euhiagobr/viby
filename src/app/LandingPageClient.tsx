@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -8,7 +7,7 @@ import { EventCard } from "@/components/events/EventCard"
 import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, MapPin, FilterX, Navigation, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox, Tag, ChevronRight } from "lucide-react"
+import { Search, MapPin, FilterX, Navigation, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox, Tag, ChevronRight, AlertTriangle } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -21,8 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getCurrentLocation, calculateDistance, type Coordinates } from "@/lib/location-utils"
-import { calculateEventScore, isEventVisible } from "@/lib/event-scoring-utils"
+import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
+import { isEventVisible, calculateDistanceMeters } from "@/lib/event-scoring-utils"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
@@ -58,7 +57,8 @@ export default function LandingPageClient() {
   const [searchCity, setSearchCity] = React.useState("")
   const [selectedCategory, setSelectedCategory] = React.useState("all")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
-  const [radiusKm, setRadiusKm] = React.useState("unlimited")
+  const [radiusKm, setRadiusKm] = React.useState("30")
+  const [isFallbackActive, setIsFallbackActive] = React.useState(false)
   
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
@@ -79,24 +79,10 @@ export default function LandingPageClient() {
 
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
 
-  const [currentHeaderIdx, setCurrentHeaderIdx] = React.useState(0)
-  const headerImages = React.useMemo(() => {
-    if (settings?.headerImages?.length > 0) return settings.headerImages;
-    return [PlaceHolderImages.find(img => img.id === 'hero-bg')?.imageUrl || "https://picsum.photos/seed/vibyhero-event/1920/1080"];
-  }, [settings?.headerImages]);
+  const processedEvents = React.useMemo(() => {
+    if (!events) return { events: [], isFallback: false }
 
-  React.useEffect(() => {
-    if (headerImages.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentHeaderIdx(prev => (prev + 1) % headerImages.length);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [headerImages.length]);
-
-  const filteredAndSortedEvents = React.useMemo(() => {
-    if (!events) return []
-
-    let result = events.filter(e => {
+    const baseFiltered = events.filter(e => {
       if (!isEventVisible(e)) return false;
 
       const nameNorm = normalizeText(searchName);
@@ -128,45 +114,57 @@ export default function LandingPageClient() {
         else if (dateFilter === 'week') matchesDate = eventDate >= today && eventDate <= endOfWeek(today);
         else if (dateFilter === 'custom' && customDate) matchesDate = isSameDay(eventDate, customDate);
       }
-      if (!matchesDate) return false;
-
-      if (userLocation && radiusKm !== 'unlimited' && e.latitude && e.longitude) {
-        const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
-        if (dist > parseInt(radiusKm)) return false;
+      return matchesDate;
+    }).map(e => {
+      let distMeters = Infinity;
+      if (userLocation && e.latitude && e.longitude) {
+        distMeters = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
       }
-
-      return true;
-    });
-
-    return result.map(e => {
-      const cat = categories?.find((c: any) => c.id === e.categoryId);
       return {
         ...e,
-        categoryName: e.categoryName || cat?.name || e.category || e.categoria,
-        _score: calculateEventScore(e, {
-          userLocation,
-          maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm)
-        })
+        _distanceMeters: distMeters,
+        _startDateTime: e.date?.toDate ? e.date.toDate() : new Date(e.date)
       };
-    }).sort((a, b) => b._score - a._score);
-  }, [events, categories, searchName, searchCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
+    });
+
+    let finalEvents = baseFiltered;
+    let fallback = false;
+
+    if (radiusKm !== 'unlimited' && userLocation) {
+      const radiusMeters = parseInt(radiusKm) * 1000;
+      finalEvents = baseFiltered.filter(e => e._distanceMeters <= radiusMeters);
+
+      if (finalEvents.length === 0) {
+        finalEvents = baseFiltered.filter(e => e._distanceMeters <= 100000);
+        if (finalEvents.length > 0) fallback = true;
+      }
+
+      if (finalEvents.length === 0) {
+        finalEvents = baseFiltered;
+        if (finalEvents.length > 0) fallback = true;
+      }
+    }
+
+    finalEvents.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
+
+    return { events: finalEvents, isFallback: fallback };
+  }, [events, searchName, searchCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];
     let eventCounter = 0;
     let adIndex = 0;
 
-    if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) {
+    if (processedEvents.events.length === 0) {
       if (!eventsLoading) {
-        result.push({ type: "ad", adIndex: adIndex++ });
         result.push({ type: "ad", adIndex: adIndex++ });
         result.push({ type: "ad", adIndex: adIndex++ });
       }
       return result;
     }
 
-    for (let i = 0; i < filteredAndSortedEvents.length; i++) {
-      result.push({ type: "event", data: filteredAndSortedEvents[i] });
+    for (let i = 0; i < processedEvents.events.length; i++) {
+      result.push({ type: "event", data: processedEvents.events[i] });
       eventCounter++;
 
       if (eventCounter === 6) {
@@ -176,7 +174,7 @@ export default function LandingPageClient() {
     }
 
     return result;
-  }, [filteredAndSortedEvents, eventsLoading])
+  }, [processedEvents.events, eventsLoading])
 
   React.useEffect(() => {
     setHasMounted(true);
@@ -184,11 +182,6 @@ export default function LandingPageClient() {
       .then(loc => { if (loc) setUserLocation(loc); })
       .catch(() => {})
   }, [])
-
-  const selectedCategoryName = React.useMemo(() => {
-    if (selectedCategory === 'all') return "Todas as Categorias";
-    return categories?.find((c: any) => c.id === selectedCategory)?.name || "Todas as Categorias";
-  }, [selectedCategory, categories]);
 
   const siteName = settings?.siteName || "Viby"
 
@@ -220,18 +213,6 @@ export default function LandingPageClient() {
 
       <section className="relative min-h-[85vh] flex items-center justify-center overflow-hidden bg-primary text-white text-center">
         <div className="absolute inset-0 pointer-events-none">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={headerImages[currentHeaderIdx]}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.4 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1.5 }}
-              className="absolute inset-0"
-            >
-              <Image src={headerImages[currentHeaderIdx]} alt="Hero Background" fill className="object-cover" priority unoptimized data-ai-hint="concert event" />
-            </motion.div>
-          </AnimatePresence>
           <div className="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/40 to-primary" />
         </div>
         <div className="container mx-auto px-4 relative z-10 py-20">
@@ -295,7 +276,7 @@ export default function LandingPageClient() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="10">10km</SelectItem>
-                          <SelectItem value="50">50km</SelectItem>
+                          <SelectItem value="30">30km</SelectItem>
                           <SelectItem value="100">100km</SelectItem>
                           <SelectItem value="unlimited">{t('home.unlimited')}</SelectItem>
                         </SelectContent>
@@ -304,69 +285,19 @@ export default function LandingPageClient() {
                   </>
                 )}
               </div>
-
-              <div className="mt-8 flex flex-wrap items-center gap-4">
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="outline"
-                      className={cn(
-                        "rounded-2xl h-14 px-8 bg-white/5 border-white/20 text-white hover:bg-white/10 flex items-center gap-3 transition-all",
-                        selectedCategory !== 'all' && "border-secondary bg-secondary/10"
-                      )}
-                    >
-                      <Tag className="h-4 w-4" />
-                      <span className="font-black uppercase text-[10px] tracking-[0.2em]">{selectedCategoryName}</span>
-                      <ChevronRight className="h-4 w-4 opacity-30" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="rounded-[2.5rem] w-[95vw] md:max-w-2xl bg-white border-none shadow-2xl p-0 overflow-hidden">
-                    <DialogHeader className="p-8 pb-0">
-                      <DialogTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Categorias</DialogTitle>
-                      <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">O que você está procurando hoje?</DialogDescription>
-                    </DialogHeader>
-                    
-                    <ScrollArea className="max-h-[60vh] p-8 pt-6">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                         <Button 
-                          variant={selectedCategory === 'all' ? 'default' : 'outline'}
-                          className={cn("h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all", selectedCategory === 'all' ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "border-muted hover:border-secondary/30")}
-                          onClick={() => setSelectedCategory('all')}
-                         >
-                           Tudo
-                         </Button>
-                         {categories?.map((cat: any) => (
-                           <Button 
-                            key={cat.id}
-                            variant={selectedCategory === cat.id ? 'default' : 'outline'}
-                            className={cn("h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all", selectedCategory === cat.id ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "border-muted hover:border-secondary/30")}
-                            onClick={() => setSelectedCategory(cat.id)}
-                           >
-                             {cat.name}
-                           </Button>
-                         ))}
-                      </div>
-                    </ScrollArea>
-                  </DialogContent>
-                </Dialog>
-
-                {selectedCategory !== 'all' && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest h-14"
-                    onClick={() => setSelectedCategory('all')}
-                  >
-                    <FilterX className="w-4 h-4 mr-2" /> Limpar Categoria
-                  </Button>
-                )}
-              </div>
             </Card>
           </div>
         </div>
       </section>
 
       <section className="py-20 container mx-auto px-4 flex-1">
+        {processedEvents.isFallback && (
+          <div className="mb-10 p-4 bg-orange-50 rounded-2xl border border-orange-100 flex items-center gap-3 text-orange-800 animate-in slide-in-from-top-2">
+             <AlertTriangle className="w-5 h-5 shrink-0" />
+             <p className="text-xs font-black uppercase tracking-tight">Não encontramos eventos próximos. Mostrando opções em outras regiões.</p>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
           <div className="space-y-2">
             <h2 className="text-5xl font-black uppercase italic tracking-tighter text-primary">{t('home.upcoming_title')}</h2>
@@ -387,7 +318,7 @@ export default function LandingPageClient() {
                     <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
                 </div>
                 <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">{t('home.no_events')}</h3>
-                <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSearchCity(""); setSelectedCategory("all"); setRadiusKm("unlimited"); setDateFilter("all"); }}>{t('home.clear_filters')}</Button>
+                <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSearchCity(""); setSelectedCategory("all"); setRadiusKm("30"); setDateFilter("all"); }}>{t('home.clear_filters')}</Button>
               </div>
             )}
 

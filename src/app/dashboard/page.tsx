@@ -19,7 +19,8 @@ import {
   Calendar as CalendarIcon,
   Tag,
   MapPin,
-  Inbox
+  Inbox,
+  AlertTriangle
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -28,7 +29,7 @@ import { Card } from "@/components/ui/card"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
-import { calculateEventScore, isEventVisible } from "@/lib/event-scoring-utils"
+import { calculateDistanceMeters, isEventVisible } from "@/lib/event-scoring-utils"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { cn, normalizeText } from "@/lib/utils"
 import {
@@ -56,16 +57,16 @@ import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useTranslation } from "@/i18n/i18n-context"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { calculateDistance } from "@/lib/location-utils"
 
 export default function ExplorarPage() {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
   const [searchCity, setSearchCity] = useState('')
-  const [radiusKm, setRadiusKm] = useState('50')
+  const [radiusKm, setRadiusKm] = useState('30')
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
+  const [isFallbackActive, setIsFallbackActive] = useState(false)
   
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
@@ -99,16 +100,16 @@ export default function ExplorarPage() {
       .catch(() => console.warn("GPS negado. Fallback ativado."));
   }, []);
 
-  const filteredAndSortedEvents = React.useMemo(() => {
-    if (!allEvents) return []
+  const processedEvents = React.useMemo(() => {
+    if (!allEvents) return { events: [], isFallback: false }
     
-    let result = allEvents.filter(e => {
+    // 1. Normalização e Filtragem Inicial (Tempo, Busca, Categoria)
+    const baseFiltered = allEvents.filter(e => {
       if (!isEventVisible(e)) return false
       
       const searchNorm = normalizeText(search);
       const matchesSearch = !search || 
         normalizeText(e.title || "").includes(searchNorm) ||
-        normalizeText(e.description || "").includes(searchNorm) ||
         (e.searchKeywords && e.searchKeywords.some((k: string) => k.includes(searchNorm)));
 
       const cityNorm = normalizeText(searchCity);
@@ -137,55 +138,63 @@ export default function ExplorarPage() {
         else if (dateFilter === 'week') matchesDate = eventDate >= today && eventDate <= endOfWeek(today);
         else if (dateFilter === 'custom' && customDate) matchesDate = isSameDay(eventDate, customDate);
       }
-      if (!matchesDate) return false;
-
-      if (userLocation && radiusKm !== 'unlimited' && e.latitude && e.longitude) {
-        const dist = calculateDistance(userLocation, { latitude: e.latitude, longitude: e.longitude });
-        if (dist > parseInt(radiusKm)) return false;
+      return matchesSearch && matchesCategory && matchesDate;
+    }).map(e => {
+      // Normalização de distância em metros para processamento interno
+      let distMeters = Infinity;
+      if (userLocation && e.latitude && e.longitude) {
+        distMeters = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
       }
       
-      return matchesSearch && matchesCategory;
-    });
-
-    return result.map(e => {
-      const cat = categories?.find((c: any) => c.id === e.categoryId);
       return {
         ...e,
-        categoryName: e.categoryName || cat?.name || e.category || e.categoria,
-        _score: calculateEventScore(e, { 
-          userLocation, 
-          maxRadiusKm: radiusKm === 'unlimited' ? 500 : parseInt(radiusKm) 
-        })
+        _distanceMeters: distMeters,
+        _startDateTime: e.date?.toDate ? e.date.toDate() : new Date(e.date)
       };
-    }).sort((a, b) => {
-      if (activeTab === 'recent') {
-        return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
-      }
-      if (activeTab === 'trending') {
-        const scoreA = (a.viewsCount || 0) + (a.interestedCount || 0) * 2;
-        const scoreB = (b.viewsCount || 0) + (b.interestedCount || 0) * 2;
-        return scoreB - scoreA;
-      }
-      return b._score - a._score;
     });
-  }, [allEvents, search, searchCity, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate, categories])
+
+    // 2. Filtro por Raio com Fallback Automático
+    let finalEvents = baseFiltered;
+    let fallback = false;
+
+    if (radiusKm !== 'unlimited' && userLocation) {
+      const radiusMeters = parseInt(radiusKm) * 1000;
+      finalEvents = baseFiltered.filter(e => e._distanceMeters <= radiusMeters);
+
+      // Fallback 1: Expandir para 100km se não houver nada no raio original
+      if (finalEvents.length === 0) {
+        finalEvents = baseFiltered.filter(e => e._distanceMeters <= 100000);
+        if (finalEvents.length > 0) fallback = true;
+      }
+
+      // Fallback 2: Ilimitado se ainda estiver vazio
+      if (finalEvents.length === 0) {
+        finalEvents = baseFiltered;
+        if (finalEvents.length > 0) fallback = true;
+      }
+    }
+
+    // 3. Ordenação Exclusiva por Data/Hora (ASC)
+    finalEvents.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
+
+    return { events: finalEvents, isFallback: fallback };
+  }, [allEvents, search, searchCity, userLocation, radiusKm, selectedCategory, dateFilter, customDate, categories])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];
     let eventCounter = 0;
     let adIndex = 0;
 
-    if (!filteredAndSortedEvents || filteredAndSortedEvents.length === 0) {
+    if (processedEvents.events.length === 0) {
       if (!eventsLoading) {
-        result.push({ type: "ad", adIndex: adIndex++ });
         result.push({ type: "ad", adIndex: adIndex++ });
         result.push({ type: "ad", adIndex: adIndex++ });
       }
       return result;
     }
 
-    for (let i = 0; i < filteredAndSortedEvents.length; i++) {
-      result.push({ type: "event", data: filteredAndSortedEvents[i] });
+    for (let i = 0; i < processedEvents.events.length; i++) {
+      result.push({ type: "event", data: processedEvents.events[i] });
       eventCounter++;
 
       if (eventCounter === 6) {
@@ -195,7 +204,7 @@ export default function ExplorarPage() {
     }
 
     return result;
-  }, [filteredAndSortedEvents, eventsLoading])
+  }, [processedEvents.events, eventsLoading])
 
   const selectedCategoryName = React.useMemo(() => {
     if (selectedCategory === 'all') return t('dashboard.all');
@@ -206,7 +215,7 @@ export default function ExplorarPage() {
     setSearch("");
     setSearchCity("");
     setSelectedCategory("all");
-    setRadiusKm("50");
+    setRadiusKm("30");
     setDateFilter("all");
     setCustomDate(undefined);
   };
@@ -310,7 +319,7 @@ export default function ExplorarPage() {
             </SelectTrigger>
             <SelectContent className="rounded-xl">
                <SelectItem value="10">10km</SelectItem>
-               <SelectItem value="50">50km</SelectItem>
+               <SelectItem value="30">30km</SelectItem>
                <SelectItem value="100">100km</SelectItem>
                <SelectItem value="unlimited">Ilimitado</SelectItem>
             </SelectContent>
@@ -324,18 +333,25 @@ export default function ExplorarPage() {
         </div>
       </div>
 
+      {processedEvents.isFallback && (
+        <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex items-center gap-3 text-orange-800 animate-in slide-in-from-top-2">
+           <AlertTriangle className="w-5 h-5 shrink-0" />
+           <p className="text-xs font-bold uppercase tracking-tight">Não encontramos eventos no seu raio preferido. Mostrando opções mais distantes.</p>
+        </div>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted/30 p-1 rounded-2xl h-14 w-full md:w-fit">
           <TabsTrigger value="all" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
-            {t('dashboard.all')}
+            Geral
           </TabsTrigger>
           <TabsTrigger value="trending" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
             <TrendingUp className="w-4 h-4" /> 
-            {t('dashboard.trending')}
+            Em Alta
           </TabsTrigger>
           <TabsTrigger value="recent" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
             <History className="w-4 h-4" /> 
-            {t('dashboard.recent')}
+            Mais Próximos
           </TabsTrigger>
         </TabsList>
 

@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { calculateDistance, type Coordinates } from "@/lib/location-utils"
-import { useFirestore, useAuth, useUser } from "@/firebase"
+import { type Coordinates } from "@/lib/location-utils"
+import { calculateDistanceMeters } from "@/lib/event-scoring-utils"
+import { useAuth, useUser } from "@/firebase"
 import { AgeRatingBadge } from "@/lib/age-rating"
 import { EventInterest } from "./EventInterest"
 import { getVersionedImageUrl } from "@/lib/image-utils"
@@ -29,7 +30,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const { user } = useUser(useAuth())
   const { formatPriceWithOriginal } = useCurrency()
   const { t } = useTranslation()
-  const cardRef = React.useRef<HTMLDivElement>(null)
 
   const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string; icon?: any } | null>(null);
   const [currentDisplayPrice, setCurrentDisplayPrice] = React.useState<any>(null);
@@ -48,7 +48,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const isEnded = React.useMemo(() => eventDates.end < new Date(), [eventDates.end]);
   
-  // Identificação centralizada de Curadoria
   const isCuradoria = event.curationType === 'curadoria' || 
                       event.curatorProfile === 'viby' || 
                       (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
@@ -101,10 +100,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     return () => clearInterval(interval);
   }, [eventDates, t, event.disclosurePrices, event.type]);
 
-  const distance = React.useMemo(() => {
+  const distanceMeters = React.useMemo(() => {
     if (userLocation && typeof event.latitude === 'number' && typeof event.longitude === 'number') {
-      const distanceKm = calculateDistance(userLocation, { latitude: event.latitude, longitude: event.longitude });
-      return distanceKm;
+      return calculateDistanceMeters(userLocation, { latitude: event.latitude, longitude: event.longitude });
     }
     return null;
   }, [userLocation, event.latitude, event.longitude]);
@@ -209,9 +207,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
                 <Tag className="w-2.5 h-2.5" /> {displayCategory}
               </Badge>
             )}
-            {distance !== null && (
+            {distanceMeters !== null && (
               <Badge className="bg-white/95 text-secondary border-none shadow-md px-3 py-1.5 text-[10px] font-black uppercase flex items-center gap-1">
-                <Navigation className="w-3 h-3 fill-secondary" /> {distance < 1 ? `${(distance * 1000).toFixed(0)}m` : `${distance.toFixed(1)}km`}
+                <Navigation className="w-3 h-3 fill-secondary" /> {distanceMeters < 1000 ? `${distanceMeters} m de você` : `${(distanceMeters/1000).toFixed(1)} km de você`}
               </Badge>
             )}
           </div>
@@ -246,9 +244,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
            </div>
         </div>
 
-        <Button className="w-full h-10 bg-primary text-white font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
+        <button className="w-full h-10 bg-primary text-white font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
            {isCuradoria ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
-        </Button>
+        </button>
       </CardContent>
     </Card>
   )
