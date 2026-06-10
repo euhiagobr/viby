@@ -8,18 +8,13 @@ import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
 import { 
   Search, 
-  Filter, 
   Loader2, 
   ShieldCheck, 
   Navigation, 
-  Building2, 
-  BadgeCheck, 
   ChevronRight,
   Clock,
-  Zap,
   FilterX,
   TrendingUp,
-  Sparkles,
   History,
   Calendar as CalendarIcon,
   Tag,
@@ -29,8 +24,7 @@ import {
 import { useState, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Card } from "@/components/ui/card"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
@@ -172,7 +166,6 @@ export default function ExplorarPage() {
         const scoreB = (b.viewsCount || 0) + (b.interestedCount || 0) * 2;
         return scoreB - scoreA;
       }
-      // Padrão: Discovery (Baseado em Score: Proximidade 5km + Cronologia)
       return b._score - a._score;
     });
   }, [allEvents, search, searchCity, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate, categories])
@@ -333,14 +326,25 @@ export default function ExplorarPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted/30 p-1 rounded-2xl h-14 w-full md:w-fit">
-          <TabsTrigger value="all" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">{t('dashboard.all')}</TabsTrigger>
-          <TabsTrigger value="trending" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2"><TrendingUp className="w-4 h-4" /> {t('dashboard.trending')}</TrendingUp>
-          <TabsTrigger value="recent" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2"><History className="w-4 h-4" /> {t('dashboard.recent')}</TabsTrigger>
+          <TabsTrigger value="all" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+            {t('dashboard.all')}
+          </TabsTrigger>
+          <TabsTrigger value="trending" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+            <TrendingUp className="w-4 h-4" /> 
+            {t('dashboard.trending')}
+          </TabsTrigger>
+          <TabsTrigger value="recent" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">
+            <History className="w-4 h-4" /> 
+            {t('dashboard.recent')}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-8">
            {eventsLoading ? (
-             <div className="py-32 flex flex-col items-center justify-center gap-4"><Loader2 className="w-12 h-12 animate-spin text-secondary" /><p className="text-[10px] font-black uppercase tracking-widest animate-pulse">{t('dashboard.syncing_data')}</p></div>
+             <div className="py-32 flex flex-col items-center justify-center gap-4">
+               <Loader2 className="w-12 h-12 animate-spin text-secondary" />
+               <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">{t('dashboard.syncing_data')}</p>
+             </div>
            ) : (
              <>
                {unifiedFeed.length === 0 && !eventsLoading && (
