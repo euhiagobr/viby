@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -43,6 +42,7 @@ import {
   BadgeCheck,
   Globe,
   ShieldBan,
+  ShieldCheck,
   AtSign,
   ArrowRightLeft,
   X,
