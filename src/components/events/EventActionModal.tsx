@@ -12,6 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   ShieldAlert, 
   UserCheck, 
@@ -23,7 +30,8 @@ import {
   Info,
   X,
   FileText,
-  ShieldCheck
+  ShieldCheck,
+  Building2
 } from 'lucide-react';
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from '@/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
@@ -58,10 +66,11 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
   const [loading, setLoading] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
   const [proofUrls, setProofUrls] = React.useState<string[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = React.useState<string>("");
 
-  // Queries para validação de organização
+  // Queries para buscar todas as organizações do usuário
   const orgsQuery = useMemoFirebase(() => 
-    (db && user) ? query(collection(db, "organizations"), where("ownerId", "==", user.uid), limit(1)) : null, 
+    (db && user) ? query(collection(db, "organizations"), where("ownerId", "==", user.uid)) : null, 
     [db, user?.uid]
   );
   const { data: orgs } = useCollection<any>(orgsQuery);
@@ -71,6 +80,7 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
     setLoading(false);
     setProofUrls([]);
     setUploadProgress(null);
+    setSelectedOrgId("");
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,7 +112,7 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
       onOpenChange(false);
       return;
     }
-    if (orgs?.length === 0) {
+    if (!orgs || orgs.length === 0) {
       toast({ 
         variant: "destructive", 
         title: "Acesso Negado", 
@@ -110,12 +120,18 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
       });
       return;
     }
+    
+    // Se tiver apenas uma, pré-seleciona
+    if (orgs.length === 1) {
+      setSelectedOrgId(orgs[0].id);
+    }
+    
     setStep('ownership');
   };
 
   const handleOwnershipSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || !orgs || orgs.length === 0) return;
+    if (!user || !selectedOrgId) return;
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     
@@ -123,7 +139,7 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
       eventId: event.id,
       eventTitle: event.title,
       requesterUid: user.uid,
-      orgId: orgs[0].id,
+      orgId: selectedOrgId,
       justification: formData.get('justification') as string
     });
 
@@ -210,17 +226,40 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
 
         {step === 'ownership' && (
           <form onSubmit={handleOwnershipSubmit} className="p-8 space-y-6">
-            <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
-               <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-               <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed italic">
-                 Sua solicitação vincula o evento à organização: <strong>{orgs?.[0]?.name}</strong>
-               </p>
+            <div className="space-y-4">
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Vincular a qual organização?</Label>
+                  <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
+                     <SelectTrigger className="h-12 rounded-xl border-dashed border-secondary/30">
+                        <SelectValue placeholder="Selecione sua marca" />
+                     </SelectTrigger>
+                     <SelectContent className="rounded-xl">
+                        {orgs?.map((org) => (
+                           <SelectItem key={org.id} value={org.id} className="cursor-pointer">
+                              <div className="flex items-center gap-2">
+                                 <Building2 className="w-3 h-3 text-secondary" />
+                                 <span className="font-bold">{org.name}</span>
+                              </div>
+                           </SelectItem>
+                        ))}
+                     </SelectContent>
+                  </Select>
+               </div>
+
+               <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
+                  <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed italic">
+                    Sua solicitação enviará um pedido de transferência para a moderação da Viby.
+                  </p>
+               </div>
+               
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Justificativa (Opcional)</Label>
+                  <Textarea name="justification" className="rounded-xl h-24 resize-none border-dashed" placeholder="Conte-nos por que este evento deve pertencer à sua marca." />
+               </div>
             </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60">Justificativa (Opcional)</Label>
-              <Textarea name="justification" className="rounded-xl h-24 resize-none" placeholder="Conte-nos por que este evento deve pertencer à sua marca." />
-            </div>
-            <Button type="submit" disabled={loading} className="w-full h-14 bg-secondary text-white font-black rounded-2xl uppercase italic">
+
+            <Button type="submit" disabled={loading || !selectedOrgId} className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic">
               {loading ? <Loader2 className="animate-spin" /> : "Enviar Solicitação"}
             </Button>
           </form>
