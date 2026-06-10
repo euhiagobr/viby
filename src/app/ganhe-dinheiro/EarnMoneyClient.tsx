@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useAuth, useUser } from "@/firebase"
+import { useFirestore, useAuth, useUser, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -41,9 +41,9 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import {
   Accordion,
-  AccordionContent,
   AccordionItem,
   AccordionTrigger,
+  AccordionContent,
 } from "@/components/ui/accordion"
 
 export default function EarnMoneyClient() {
@@ -120,20 +120,8 @@ export default function EarnMoneyClient() {
   const nextAffLevel = getNextLevel(stats?.totalTicketsSold || 0)
   const affProgress = nextAffLevel ? ((stats?.totalTicketsSold || 0) / nextAffLevel.minSales) * 100 : 100
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    "name": "Programa de Afiliados Viby",
-    "description": "Ganhe dinheiro indicando produtores de eventos para a plataforma Viby.",
-    "publisher": {
-      "@type": "Organization",
-      "name": "Viby"
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
