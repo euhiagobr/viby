@@ -1,11 +1,9 @@
 import { MetadataRoute } from 'next';
 
 /**
- * @fileOverview Configuração oficial de rastreamento para robôs de busca.
- * Permite indexação total da área pública e bloqueia áreas administrativas/privadas.
- * A geração via robots.ts elimina a necessidade de um arquivo estático robots.txt.
+ * Geração dinâmica do arquivo robots.txt seguindo as regras da plataforma.
+ * Bloqueia indexação de áreas administrativas e privadas.
  */
-
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {

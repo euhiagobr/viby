@@ -2,44 +2,42 @@ import { MetadataRoute } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
- * @fileOverview Gerador dinâmico de sitemap para a plataforma Viby.
- * Consolida rotas estáticas e dinâmicas (eventos, perfis e marcas) para indexação.
+ * Gerador dinâmico de sitemap.xml.
+ * Consulta o Firestore via Admin SDK para listar todos os conteúdos públicos ativos.
  */
-
-const BASE_URL = 'https://viby.club';
-
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const db = getAdminDb();
   const now = new Date();
+  const baseUrl = 'https://viby.club';
 
   // 1. Rotas Estáticas e Institucionais
   const staticRoutes: MetadataRoute.Sitemap = [
     {
-      url: `${BASE_URL}/`,
+      url: `${baseUrl}/`,
       lastModified: now,
       changeFrequency: 'daily',
       priority: 1.0,
     },
     {
-      url: `${BASE_URL}/ganhe-dinheiro`,
+      url: `${baseUrl}/ganhe-dinheiro`,
       lastModified: now,
       changeFrequency: 'weekly',
       priority: 0.8,
     },
     {
-      url: `${BASE_URL}/termos`,
+      url: `${baseUrl}/termos`,
       lastModified: now,
       changeFrequency: 'monthly',
       priority: 0.6,
     },
     {
-      url: `${BASE_URL}/privacidade`,
+      url: `${baseUrl}/privacidade`,
       lastModified: now,
       changeFrequency: 'monthly',
       priority: 0.6,
     },
     {
-      url: `${BASE_URL}/suporte/faq`,
+      url: `${baseUrl}/suporte/faq`,
       lastModified: now,
       changeFrequency: 'weekly',
       priority: 0.6,
@@ -47,25 +45,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    // 2. Buscar Perfis Públicos (Usuários e Organizações)
+    // 2. Buscar Todos os Usernames/Slugs ativos (Índice Global)
     const usernamesSnap = await db.collection('usernames').get();
-    const profileRoutes: MetadataRoute.Sitemap = usernamesSnap.docs.map((doc) => ({
-      url: `${BASE_URL}/${doc.id}`,
-      lastModified: now,
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    }));
+    const uidToUsername: Record<string, string> = {};
+    
+    const profileRoutes: MetadataRoute.Sitemap = usernamesSnap.docs.map((doc) => {
+      const data = doc.data();
+      uidToUsername[data.uid] = doc.id;
+      return {
+        url: `${baseUrl}/${doc.id}`,
+        lastModified: now,
+        changeFrequency: 'weekly',
+        priority: data.type === 'organization' ? 0.8 : 0.7,
+      };
+    });
 
     // 3. Buscar Eventos Ativos
     const eventsSnap = await db.collection('events').where('status', '==', 'Ativo').get();
-    
-    // Mapeamento de UID para Username para otimizar a geração
-    const uidToUsername: Record<string, string> = {};
-    usernamesSnap.docs.forEach(d => {
-      const data = d.data();
-      uidToUsername[data.uid] = d.id;
-    });
-
     const eventRoutes: MetadataRoute.Sitemap = eventsSnap.docs.map((doc) => {
       const event = doc.data();
       const ownerId = event.organizationId || event.organizerId || event.organizer?.id;
@@ -73,7 +69,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const slug = event.slug || doc.id;
 
       return {
-        url: `${BASE_URL}/${ownerUsername}/${slug}`,
+        url: `${baseUrl}/${ownerUsername}/${slug}`,
         lastModified: event.updatedAt?.toDate?.() || now,
         changeFrequency: 'daily',
         priority: 0.9,
@@ -81,8 +77,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
 
     return [...staticRoutes, ...profileRoutes, ...eventRoutes];
-  } catch (e) {
-    console.error('[Sitemap Generation Error]', e);
+  } catch (error) {
+    console.error('[Sitemap Error]', error);
     return staticRoutes;
   }
 }
