@@ -16,7 +16,6 @@ const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.f
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
 
-  // Timestamps do Firestore Admin
   if (typeof data.toDate === 'function') {
     return data.toDate().toISOString();
   }
@@ -30,7 +29,6 @@ function serializeData(data: any): any {
   }
 
   if (typeof data === 'object') {
-    // Evita circularidade e foca em objetos planos
     const proto = Object.getPrototypeOf(data);
     if (proto !== null && proto !== Object.prototype) {
       return String(data);
@@ -56,43 +54,51 @@ function stripHtml(text: string): string {
     .trim();
 }
 
-async function getEventData(username: string, param: string) {
+async function getEventData(usernameParam: string, slugParam: string) {
   try {
     const db = getAdminDb();
-    const normalizedUsername = username.toLowerCase().trim();
-    const normalizedParam = param.trim();
+    // Decodifica parâmetros para lidar com caracteres especiais e espaços da URL
+    const username = decodeURIComponent(usernameParam).toLowerCase().trim();
+    const slug = decodeURIComponent(slugParam).trim();
 
     // 1. Resolver UID do proprietário pelo username no índice global
-    const usernameSnap = await db.collection("usernames").doc(normalizedUsername).get();
-    if (!usernameSnap.exists) return null;
+    const usernameSnap = await db.collection("usernames").doc(username).get();
+    if (!usernameSnap.exists) {
+      console.log(`[getEventData] Username index not found: ${username}`);
+      return null;
+    }
     const targetUid = usernameSnap.data()!.uid;
 
-    // 2. Tentar localizar diretamente pelo ID do documento
-    const eventByIdSnap = await db.collection("events").doc(normalizedParam).get();
+    // 2. Tentar localizar diretamente pelo ID do documento (Caso o slug seja o próprio ID)
+    const eventByIdSnap = await db.collection("events").doc(slug).get();
     if (eventByIdSnap.exists) {
       const data = eventByIdSnap.data()!;
-      const ownerId = data.organizationId || data.organizerId || data.organizer?.id || data.organizer?.uid;
-      
-      // Validação de posse: garante que o evento pertence ao username da URL
+      const ownerId = data.organizationId || data.organizerId || data.organizer?.id;
       if (ownerId === targetUid) {
         return serializeData({ id: eventByIdSnap.id, ...data });
       }
     }
 
-    // 3. Tentar localizar pelo campo 'slug'
-    const queryBySlug = await db.collection("events")
-      .where("slug", "==", normalizedParam.toLowerCase())
+    // 3. Tentar localizar pelo campo 'slug' escopado ao proprietário (Recomendado)
+    const queryByOrgSlug = await db.collection("events")
+      .where("organizationId", "==", targetUid)
+      .where("slug", "==", slug.toLowerCase())
       .limit(1)
       .get();
     
-    if (!queryBySlug.empty) {
-      const found = queryBySlug.docs[0];
-      const d = found.data();
-      const ownerId = d.organizationId || d.organizerId || d.organizer?.id || d.organizer?.uid;
-      
-      if (ownerId === targetUid) {
-        return serializeData({ id: found.id, ...d });
-      }
+    if (!queryByOrgSlug.empty) {
+      return serializeData({ id: queryByOrgSlug.docs[0].id, ...queryByOrgSlug.docs[0].data() });
+    }
+
+    // 4. Fallback: Tentar por organizerId (Legado)
+    const queryByOrganizerSlug = await db.collection("events")
+      .where("organizerId", "==", targetUid)
+      .where("slug", "==", slug.toLowerCase())
+      .limit(1)
+      .get();
+    
+    if (!queryByOrganizerSlug.empty) {
+      return serializeData({ id: queryByOrganizerSlug.docs[0].id, ...queryByOrganizerSlug.docs[0].data() });
     }
 
     return null;

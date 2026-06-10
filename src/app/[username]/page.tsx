@@ -33,10 +33,12 @@ function serializeData(data: any): any {
   return data;
 }
 
-async function getProfileData(username: string) {
+async function getProfileData(usernameParam: string) {
   try {
     const db = getAdminDb();
-    const usernameSnap = await db.collection("usernames").doc(username.toLowerCase().trim()).get();
+    const username = decodeURIComponent(usernameParam).toLowerCase().trim();
+    const usernameSnap = await db.collection("usernames").doc(username).get();
+    
     if (!usernameSnap.exists) return null;
     
     const { uid, type } = usernameSnap.data()!;

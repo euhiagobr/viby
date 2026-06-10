@@ -6,7 +6,7 @@ import * as admin from 'firebase-admin';
  */
 
 const getPrivateKey = () => {
-  const rawKey = `-----BEGIN PRIVATE KEY-----
+  const rawKey = process.env.FIREBASE_PRIVATE_KEY || `-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCrUnnL+bjctODk
 J96Srd5A2UaADZIfz+zG7jhjKpXP4SNymOUL+puDs3MQkQwjDeQ9UNasIZmXnWg7
 iQE/FEUvgfJ9OvbaInh9Ec50UTz201wfaB2yiw9rQ0FZV+WWqiWRTHRM5l48h07W
