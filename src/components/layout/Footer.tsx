@@ -1,20 +1,24 @@
-
 "use client"
 
 import * as React from "react"
 import Link from "next/link"
-import { Globe, Instagram, Zap, Handshake } from "lucide-react"
+import { Globe, Instagram, Facebook, Linkedin, Youtube, Video, Twitter, Mail, Phone, Handshake } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { useTranslation } from "@/i18n/i18n-context"
 import { LanguageSelector } from "./LanguageSelector"
 import { CurrencySelector } from "./CurrencySelector"
+import { Button } from "../ui/button"
 
 export default function Footer() {
   const { t } = useTranslation()
   const db = useFirestore()
+  
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
+  
+  const contactRef = React.useMemo(() => db ? doc(db, "settings", "contact") : null, [db])
+  const { data: contact } = useDoc<any>(contactRef)
   
   const siteName = settings?.siteName || "Viby"
 
@@ -65,16 +69,56 @@ export default function Footer() {
           <div className="space-y-4">
             <h4 className="font-black uppercase tracking-widest text-xs">{t('footer.social')}</h4>
             <nav className="flex flex-col gap-3">
-              <a 
-                href="https://instagram.com/vibyclub" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2"
-              >
-                <span className="sr-only">Instagram</span>
-                <Instagram className="w-4 h-4" />
-                Instagram
-              </a>
+              {contact?.instagram && (
+                <a href={contact.instagram} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2">
+                  <Instagram className="w-4 h-4" /> Instagram
+                </a>
+              )}
+              {contact?.facebook && (
+                <a href={contact.facebook} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2">
+                  <Facebook className="w-4 h-4" /> Facebook
+                </a>
+              )}
+              {contact?.linkedin && (
+                <a href={contact.linkedin} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2">
+                  <Linkedin className="w-4 h-4" /> LinkedIn
+                </a>
+              )}
+              {contact?.youtube && (
+                <a href={contact.youtube} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2">
+                  <Youtube className="w-4 h-4" /> YouTube
+                </a>
+              )}
+              {contact?.tiktok && (
+                <a href={contact.tiktok} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2">
+                  <Video className="w-4 h-4" /> TikTok
+                </a>
+              )}
+              {contact?.twitter && (
+                <a href={contact.twitter} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2">
+                  <Twitter className="w-4 h-4" /> X (Twitter)
+                </a>
+              )}
+              {contact?.whatsapp && (
+                <a href={`https://wa.me/${contact.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2">
+                  <Phone className="w-4 h-4" /> WhatsApp
+                </a>
+              )}
+              {contact?.email && (
+                <a href={`mailto:${contact.email}`} className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2">
+                  <Mail className="w-4 h-4" /> E-mail
+                </a>
+              )}
+              {contact?.website && (
+                <a href={contact.website} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2">
+                  <Globe className="w-4 h-4" /> Website
+                </a>
+              )}
+              {(!contact || Object.values(contact).every(v => !v)) && !contact?.instagram && (
+                <a href="https://instagram.com/vibyclub" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors flex items-center gap-2">
+                  <Instagram className="w-4 h-4" /> Instagram
+                </a>
+              )}
             </nav>
           </div>
         </div>
@@ -98,4 +142,3 @@ export default function Footer() {
     </footer>
   )
 }
-import { Button } from "../ui/button"

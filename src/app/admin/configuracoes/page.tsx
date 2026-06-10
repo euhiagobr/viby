@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -10,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { 
   Loader2, 
   Save, 
@@ -29,7 +29,15 @@ import {
   Trash2,
   Plus,
   Megaphone,
-  Settings
+  Settings,
+  Phone,
+  Instagram,
+  Facebook,
+  Linkedin,
+  Youtube,
+  Video,
+  Twitter,
+  MessageCircle
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -53,11 +61,15 @@ export default function AdminConfiguracoesPage() {
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
   const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
+  const contactRef = React.useMemo(() => (db ? doc(db, 'settings', 'contact') : null), [db]);
+  const googleAdsRef = React.useMemo(() => (db ? doc(db, 'system_settings', 'google_ads') : null), [db]);
 
   const { data: siteSettings, loading: loadingSite } = useDoc<any>(siteRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
   const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
   const { data: globalFees, loading: loadingFees } = useDoc<any>(feesRef);
+  const { data: contactSettings, loading: loadingContact } = useDoc<any>(contactRef);
+  const { data: googleAdsSettings, loading: loadingGoogleAds } = useDoc<any>(googleAdsRef);
 
   const [saving, setSaving] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<{ [key: string]: number | null }>({});
@@ -71,6 +83,26 @@ export default function AdminConfiguracoesPage() {
   const [stripeForm, setStripeForm] = React.useState({ publishableKey: '', secretKey: '', feePercent: '3.99', feeFixed: '0.39', mode: 'test' });
   const [emailForm, setEmailForm] = React.useState({ smtpHost: 'smtp.gmail.com', smtpPort: '465', smtpUser: '', smtpPass: '' });
   const [feesForm, setFeesForm] = React.useState({ buyerMarkupPercent: '15', organizerBasePercent: '10', organizerMinFee: '3.99' });
+  
+  const [contactForm, setContactForm] = React.useState({
+    whatsapp: '',
+    instagram: '',
+    facebook: '',
+    linkedin: '',
+    youtube: '',
+    tiktok: '',
+    twitter: '',
+    email: '',
+    website: ''
+  });
+
+  const [googleAdsForm, setGoogleAdsForm] = React.useState({
+    enabled: false,
+    publisherId: '',
+    adsenseCode: '',
+    autoAds: false,
+    testMode: false
+  });
 
   React.useEffect(() => {
     if (siteSettings) {
@@ -114,6 +146,30 @@ export default function AdminConfiguracoesPage() {
     });
   }, [globalFees]);
 
+  React.useEffect(() => {
+    if (contactSettings) setContactForm({
+      whatsapp: contactSettings.whatsapp || '',
+      instagram: contactSettings.instagram || '',
+      facebook: contactSettings.facebook || '',
+      linkedin: contactSettings.linkedin || '',
+      youtube: contactSettings.youtube || '',
+      tiktok: contactSettings.tiktok || '',
+      twitter: contactSettings.twitter || '',
+      email: contactSettings.email || '',
+      website: contactSettings.website || ''
+    });
+  }, [contactSettings]);
+
+  React.useEffect(() => {
+    if (googleAdsSettings) setGoogleAdsForm({
+      enabled: googleAdsSettings.enabled || false,
+      publisherId: googleAdsSettings.publisherId || '',
+      adsenseCode: googleAdsSettings.adsenseCode || '',
+      autoAds: googleAdsSettings.autoAds || false,
+      testMode: googleAdsSettings.testMode || false
+    });
+  }, [googleAdsSettings]);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logoUrl' | 'siteIconUrl') => {
     const file = e.target.files?.[0];
     if (!file || !storage || !user) return;
@@ -153,7 +209,6 @@ export default function AdminConfiguracoesPage() {
 
   const handleHeaderUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
-    // Validação robusta de sessão e instância
     if (!file || !storage || !user || !auth.currentUser) {
       toast({ variant: "destructive", title: "Sessão inválida", description: "Aguarde a sincronização da sua identidade de administrador." });
       return;
@@ -166,7 +221,6 @@ export default function AdminConfiguracoesPage() {
       const fileName = `admin/site/headers/banner_${index}_${Date.now()}`;
       const storageRef = ref(storage, fileName);
       
-      // Metadata é importante para auditoria no Storage
       const metadata = {
         cacheControl: 'public,max-age=31536000,immutable',
         customMetadata: {
@@ -241,7 +295,7 @@ export default function AdminConfiguracoesPage() {
     }
   };
 
-  const isLoading = loadingSite || loadingStripe || loadingEmail || loadingFees;
+  const isLoading = loadingSite || loadingStripe || loadingEmail || loadingFees || loadingContact || loadingGoogleAds;
 
   if (isLoading) {
     return (
@@ -263,6 +317,7 @@ export default function AdminConfiguracoesPage() {
       <Tabs defaultValue="geral" className="space-y-6">
         <TabsList className="bg-muted/50 p-1 rounded-xl h-auto flex-wrap justify-start">
           <TabsTrigger value="geral" className="rounded-lg px-6 font-bold gap-2"><Layout className="w-4 h-4" /> Geral</TabsTrigger>
+          <TabsTrigger value="contato" className="rounded-lg px-6 font-bold gap-2"><MessageCircle className="w-4 h-4" /> Contato</TabsTrigger>
           <TabsTrigger value="pagamentos" className="rounded-lg px-6 font-bold gap-2"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
           <TabsTrigger value="taxas" className="rounded-lg px-6 font-bold gap-2"><Coins className="w-4 h-4" /> Taxas</TabsTrigger>
           <TabsTrigger value="email" className="rounded-lg px-6 font-bold gap-2"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
@@ -366,6 +421,58 @@ export default function AdminConfiguracoesPage() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="contato" className="space-y-8">
+           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
+              <CardHeader className="bg-muted/30 p-8 border-b">
+                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Canais de Atendimento e Redes</CardTitle>
+                 <CardDescription>Informações de contato exibidas no rodapé do site.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-8">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp (Somente números)</Label>
+                       <Input value={contactForm.whatsapp} onChange={e => setContactForm({...contactForm, whatsapp: e.target.value})} placeholder="Ex: 5551999999999" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail de Contato</Label>
+                       <Input value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} placeholder="contato@viby.club" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Institucional</Label>
+                       <Input value={contactForm.website} onChange={e => setContactForm({...contactForm, website: e.target.value})} placeholder="https://viby.club" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram</Label>
+                       <Input value={contactForm.instagram} onChange={e => setContactForm({...contactForm, instagram: e.target.value})} placeholder="https://instagram.com/perfil" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Facebook className="w-3 h-3" /> Facebook</Label>
+                       <Input value={contactForm.facebook} onChange={e => setContactForm({...contactForm, facebook: e.target.value})} placeholder="https://facebook.com/perfil" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Linkedin className="w-3 h-3" /> LinkedIn</Label>
+                       <Input value={contactForm.linkedin} onChange={e => setContactForm({...contactForm, linkedin: e.target.value})} placeholder="https://linkedin.com/company/perfil" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Youtube className="w-3 h-3" /> YouTube</Label>
+                       <Input value={contactForm.youtube} onChange={e => setContactForm({...contactForm, youtube: e.target.value})} placeholder="https://youtube.com/@perfil" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Video className="w-3 h-3" /> TikTok</Label>
+                       <Input value={contactForm.tiktok} onChange={e => setContactForm({...contactForm, tiktok: e.target.value})} placeholder="https://tiktok.com/@perfil" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Twitter className="w-3 h-3" /> X (Twitter)</Label>
+                       <Input value={contactForm.twitter} onChange={e => setContactForm({...contactForm, twitter: e.target.value})} placeholder="https://x.com/perfil" className="rounded-xl h-11" />
+                    </div>
+                 </div>
+                 <Button onClick={() => handleSave('settings', 'contact', contactForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
+                    Salvar Informações de Contato
+                 </Button>
+              </CardContent>
+           </Card>
         </TabsContent>
 
         <TabsContent value="pagamentos">
@@ -477,7 +584,61 @@ export default function AdminConfiguracoesPage() {
 					<CardDescription>Configurações de integração com o Google Ads.</CardDescription>
 				</CardHeader>
 				<CardContent className="p-8 space-y-8">
-					<p>Aqui você pode configurar a integração com o Google Ads.</p>
+               <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border-2 border-dashed border-border/50">
+                  <div className="space-y-0.5">
+                     <p className="font-bold text-sm">Status da Integração</p>
+                     <p className="text-[10px] font-black uppercase opacity-40">Ativa ou desativa anúncios Google em toda a rede.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <span className={cn("text-[9px] font-black uppercase", googleAdsForm.enabled ? "text-green-600" : "text-muted-foreground")}>{googleAdsForm.enabled ? "Ativado" : "Desativado"}</span>
+                     <Switch 
+                        checked={googleAdsForm.enabled} 
+                        onCheckedChange={v => setGoogleAdsForm({...googleAdsForm, enabled: v})} 
+                     />
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                     <Label className="text-[10px] font-black uppercase opacity-60">Publisher ID (AdSense)</Label>
+                     <Input 
+                        value={googleAdsForm.publisherId} 
+                        onChange={e => setGoogleAdsForm({...googleAdsForm, publisherId: e.target.value})} 
+                        placeholder="pub-XXXXXXXXXXXXXXXX" 
+                        className="rounded-xl h-11" 
+                     />
+                  </div>
+                  <div className="flex flex-col justify-end space-y-4">
+                     <div className="flex items-center justify-between">
+                        <Label className="text-[10px] font-black uppercase opacity-60">Modo de Teste</Label>
+                        <Switch 
+                           checked={googleAdsForm.testMode} 
+                           onCheckedChange={v => setGoogleAdsForm({...googleAdsForm, testMode: v})} 
+                        />
+                     </div>
+                     <div className="flex items-center justify-between">
+                        <Label className="text-[10px] font-black uppercase opacity-60">Auto Ads (Nativo)</Label>
+                        <Switch 
+                           checked={googleAdsForm.autoAds} 
+                           onCheckedChange={v => setGoogleAdsForm({...googleAdsForm, autoAds: v})} 
+                        />
+                     </div>
+                  </div>
+               </div>
+
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Código do Script</Label>
+                  <Input 
+                     value={googleAdsForm.adsenseCode} 
+                     onChange={e => setGoogleAdsForm({...googleAdsForm, adsenseCode: e.target.value})} 
+                     placeholder="<script async src=...></script>" 
+                     className="rounded-xl h-11 font-mono text-[10px]" 
+                  />
+               </div>
+
+               <Button onClick={() => handleSave('system_settings', 'google_ads', googleAdsForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
+                  Salvar Configuração de Anúncios
+               </Button>
 				</CardContent>
 			</Card>
 		</TabsContent>
