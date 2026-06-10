@@ -48,7 +48,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   try {
     // 2. Buscar Perfis Públicos (Usuários e Organizações)
-    // Utilizamos o índice de usernames como fonte de verdade para as URLs
     const usernamesSnap = await db.collection('usernames').get();
     const profileRoutes: MetadataRoute.Sitemap = usernamesSnap.docs.map((doc) => ({
       url: `${BASE_URL}/${doc.id}`,
@@ -58,7 +57,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }));
 
     // 3. Buscar Eventos Ativos
-    // Precisamos cruzar o evento com o username do proprietário para montar a URL /[username]/[slug]
     const eventsSnap = await db.collection('events').where('status', '==', 'Ativo').get();
     
     // Mapeamento de UID para Username para otimizar a geração
