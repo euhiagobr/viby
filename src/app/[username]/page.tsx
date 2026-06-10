@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 import ProfilePageClient from './ProfilePageClient';
+import { notFound } from 'next/navigation';
 
 const RESERVED_ROUTES = [
   'dashboard', 'admin', 'login', 'cadastro', 'redefinir-senha', 
@@ -51,40 +52,48 @@ async function getProfileData(username: string) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
-  const { username } = await params;
-  if (RESERVED_ROUTES.includes(username.toLowerCase())) return { title: 'Viby' };
+  try {
+    const { username } = await params;
+    if (RESERVED_ROUTES.includes(username.toLowerCase())) return { title: 'Viby' };
 
-  const profile = await getProfileData(username);
-  if (!profile) return { title: 'Perfil não encontrado | Viby' };
+    const profile = await getProfileData(username);
+    if (!profile) return { title: 'Perfil não encontrado | Viby' };
 
-  const name = profile.type === 'organization' ? profile.name : (profile.name || profile.displayName || username);
-  const title = `${name} • Viby`;
-  const description = profile.bio || `Confira o perfil oficial de ${name} na Viby.`;
-  const image = profile.avatar || profile.banner || VIBY_DEFAULT_IMAGE;
+    const name = profile.type === 'organization' ? profile.name : (profile.name || profile.displayName || username);
+    const title = `${name} • Viby`;
+    const description = profile.bio || `Confira o perfil oficial de ${name} na Viby.`;
+    const image = profile.avatar || profile.banner || VIBY_DEFAULT_IMAGE;
 
-  return {
-    title,
-    description,
-    alternates: { canonical: `/${username}` },
-    openGraph: {
+    return {
       title,
       description,
-      url: `https://viby.club/${username}`,
-      siteName: 'Viby',
-      images: [{ url: image, width: 1200, height: 630 }],
-      type: 'profile',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: [image],
-    },
-  };
+      alternates: { canonical: `/${username}` },
+      openGraph: {
+        title,
+        description,
+        url: `https://viby.club/${username}`,
+        siteName: 'Viby',
+        images: [{ url: image, width: 1200, height: 630 }],
+        type: 'profile',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+        images: [image],
+      },
+    };
+  } catch (e) {
+    return { title: 'Viby | Perfil' };
+  }
 }
 
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
-  if (RESERVED_ROUTES.includes(username.toLowerCase())) return null;
+  if (RESERVED_ROUTES.includes(username.toLowerCase())) return <></>;
+  
+  const profile = await getProfileData(username);
+  if (!profile) notFound();
+
   return <ProfilePageClient username={username} />;
 }

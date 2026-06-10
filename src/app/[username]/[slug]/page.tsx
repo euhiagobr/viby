@@ -10,13 +10,13 @@ import { redirect } from 'next/navigation';
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 /**
- * Função de serialização profunda para garantir compatibilidade com Next.js 15 RSC.
- * Converte recursivamente qualquer dado não-POJO (como Timestamps) em strings.
+ * Função de serialização profunda e recursiva.
+ * Converte qualquer objeto não-POJO (Timestamp, Date, instâncias) em strings ou tipos primitivos.
  */
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
 
-  // Handle Firestore Timestamps and custom objects with toDate
+  // Timestamps do Firestore Admin
   if (typeof data.toDate === 'function') {
     return data.toDate().toISOString();
   }
@@ -30,10 +30,9 @@ function serializeData(data: any): any {
   }
 
   if (typeof data === 'object') {
-    // Check if it's a plain object
+    // Evita circularidade e foca em objetos planos
     const proto = Object.getPrototypeOf(data);
     if (proto !== null && proto !== Object.prototype) {
-      // If it's a class instance but not a standard object, convert to string
       return String(data);
     }
     
@@ -63,23 +62,24 @@ async function getEventData(username: string, param: string) {
     const normalizedUsername = username.toLowerCase().trim();
     const normalizedParam = param.trim();
 
-    // 1. Resolver UID do proprietário pelo username
+    // 1. Resolver UID do proprietário pelo username no índice global
     const usernameSnap = await db.collection("usernames").doc(normalizedUsername).get();
     if (!usernameSnap.exists) return null;
     const targetUid = usernameSnap.data()!.uid;
 
-    // 2. Busca Direta por ID
+    // 2. Tentar localizar diretamente pelo ID do documento
     const eventByIdSnap = await db.collection("events").doc(normalizedParam).get();
     if (eventByIdSnap.exists) {
       const data = eventByIdSnap.data()!;
       const ownerId = data.organizationId || data.organizerId || data.organizer?.id || data.organizer?.uid;
       
+      // Validação de posse: garante que o evento pertence ao username da URL
       if (ownerId === targetUid) {
         return serializeData({ id: eventByIdSnap.id, ...data });
       }
     }
 
-    // 3. Busca por Campo Slug
+    // 3. Tentar localizar pelo campo 'slug'
     const queryBySlug = await db.collection("events")
       .where("slug", "==", normalizedParam.toLowerCase())
       .limit(1)
@@ -97,20 +97,20 @@ async function getEventData(username: string, param: string) {
 
     return null;
   } catch (e) {
-    console.error("[getEventData] Error:", e);
+    console.error("[getEventData] Critical Error:", e);
     return null;
   }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<Metadata> {
-  const { username, slug } = await params;
-  const event = await getEventData(username, slug);
-  if (!event) return { title: 'Evento não encontrado | Viby' };
-
-  const db = getAdminDb();
-  let orgData = null;
-  
   try {
+    const { username, slug } = await params;
+    const event = await getEventData(username, slug);
+    if (!event) return { title: 'Evento não encontrado | Viby' };
+
+    const db = getAdminDb();
+    let orgData = null;
+    
     const orgId = event.organizationId || event.organizerId || event.organizer?.id;
     if (orgId) {
       const orgSnap = await db.collection('organizations').doc(orgId).get();
@@ -120,31 +120,33 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
         orgData = userSnap.exists ? userSnap.data() : null;
       }
     }
-  } catch (e) {}
 
-  const title = event.title || "Evento";
-  const description = stripHtml(event.description || event.shortDescription || "").substring(0, 200);
-  const image = event.image || orgData?.avatar || VIBY_OG_IMAGE;
+    const title = event.title || "Evento";
+    const description = stripHtml(event.description || event.shortDescription || "").substring(0, 200);
+    const image = event.image || orgData?.avatar || VIBY_OG_IMAGE;
 
-  return {
-    title,
-    description,
-    alternates: { canonical: `/${username}/${slug}` },
-    openGraph: {
+    return {
       title,
       description,
-      url: `https://viby.club/${username}/${slug}`,
-      siteName: 'Viby',
-      images: [{ url: image, width: 1200, height: 630, alt: title }],
-      type: 'article',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: [image],
-    },
-  };
+      alternates: { canonical: `/${username}/${slug}` },
+      openGraph: {
+        title,
+        description,
+        url: `https://viby.club/${username}/${slug}`,
+        siteName: 'Viby',
+        images: [{ url: image, width: 1200, height: 630, alt: title }],
+        type: 'article',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+        images: [image],
+      },
+    };
+  } catch (e) {
+    return { title: 'Viby | Experiências' };
+  }
 }
 
 export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }) {
@@ -161,7 +163,7 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
           </div>
           <h1 className="text-5xl md:text-7xl font-black text-primary uppercase italic tracking-tighter mb-4">OPS!</h1>
           <h2 className="text-2xl md:text-3xl font-black uppercase italic text-primary">Evento <span className="text-secondary">Indisponível</span></h2>
-          <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto">Verifique o endereço ou procure na página inicial.</p>
+          <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto">Não encontramos este evento. Verifique o endereço ou procure na página inicial.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
           <Button variant="outline" asChild className="flex-1 h-14 rounded-2xl font-black uppercase italic border-2 gap-2 border-primary/10">
@@ -175,6 +177,7 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
+  // Redirecionamento canônico: se acessou pelo ID mas o evento tem slug, manda para o slug amigável
   if (event.slug && event.slug !== slug && event.id === slug) {
     redirect(`/${username}/${event.slug}`);
   }
