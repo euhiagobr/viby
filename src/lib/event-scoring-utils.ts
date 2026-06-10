@@ -1,7 +1,7 @@
 /**
  * @fileOverview Algoritmo de Pontuação (Scoring) para ordenação inteligente de eventos.
  * Combina proximidade física, relevância temporal e popularidade.
- * ATUALIZAÇÃO: Prioridade máxima para eventos "LIVE" (Acontecendo agora).
+ * ATUALIZAÇÃO: Prioridade para eventos próximos (< 5km) ordenados por dia e hora.
  */
 
 import { calculateDistance, type Coordinates } from "./location-utils";
@@ -33,42 +33,51 @@ export function calculateEventScore(event: any, metrics: ScoringMetrics): number
   const timeUntilStart = startDate.getTime() - now.getTime();
 
   // 1. Lógica de Tempo (Pesos agressivos para visibilidade)
+  // Quanto mais perto do "agora", maior o score
   if (isLive) {
-    // Evento acontecendo agora: Prioridade absoluta
+    // Evento acontecendo agora: Prioridade máxima na cronologia
     timeScore = 8.0; 
   } else if (isUpcomingToday) {
-    // Evento hoje mas ainda não começou: Alta prioridade
-    timeScore = 5.0;
+    // Evento hoje mas ainda não começou
+    timeScore = 6.0;
   } else if (timeUntilStart > 0) {
-    // Eventos futuros: Decaimento linear sobre 30 dias
+    // Eventos futuros: Decaimento linear sobre 30 dias (mais cedo = mais pontos)
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-    timeScore = Math.max(0.1, 2 - (timeUntilStart / thirtyDaysMs));
+    timeScore = Math.max(0.1, 4 - (timeUntilStart / thirtyDaysMs));
   } else {
-    // Evento já encerrado: Ranking mínimo
+    // Evento já encerrado
     timeScore = 0.01;
   }
 
-  // 2. Score de Distância (0 a 1)
+  // 2. Score de Distância e Bônus de Proximidade Imediata
   let distanceScore = 0.5;
+  let proximityBonus = 0;
+  let distance = null;
+
   if (metrics.userLocation && event.latitude && event.longitude) {
-    const distanceKm = calculateDistance(metrics.userLocation, {
+    distance = calculateDistance(metrics.userLocation, {
       latitude: event.latitude,
       longitude: event.longitude
     });
-    // Se estiver a menos de 5km, ganha bônus de proximidade
-    distanceScore = Math.max(0.1, 1 - (distanceKm / metrics.maxRadiusKm));
-    if (distanceKm < 5) distanceScore += 0.5;
+
+    // Se estiver a menos de 5km, ganha bônus massivo para ser o "primeiro da fila"
+    if (distance <= 5) {
+      proximityBonus = 25; // Garante que fique acima de qualquer evento longe
+    }
+
+    distanceScore = Math.max(0.1, 1 - (distance / metrics.maxRadiusKm));
   }
 
   // Pesos Finais
-  const WEIGHT_TIME = 0.75; // Tempo é o fator principal para o "Agora"
-  const WEIGHT_DISTANCE = 0.15;
+  // Aumentamos o peso do tempo para que dentro do raio de 5km a ordem seja cronológica
+  const WEIGHT_TIME = 0.80; 
+  const WEIGHT_DISTANCE = 0.10;
   const WEIGHT_POPULARITY = 0.10;
 
   // Bônus de Patrocínio (Viby Ads)
-  const sponsorBonus = event.isSponsored ? 1.5 : 0;
+  const sponsorBonus = event.isSponsored ? 2.0 : 0;
 
-  return (timeScore * WEIGHT_TIME) + (distanceScore * WEIGHT_DISTANCE) + (0.5 * WEIGHT_POPULARITY) + sponsorBonus;
+  return proximityBonus + (timeScore * WEIGHT_TIME) + (distanceScore * WEIGHT_DISTANCE) + (0.5 * WEIGHT_POPULARITY) + sponsorBonus;
 }
 
 /**
