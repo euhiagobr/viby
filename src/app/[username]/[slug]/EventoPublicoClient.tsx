@@ -2,8 +2,8 @@
 "use client"
 
 import * as React from "react"
-import { useDoc, useFirestore, useAuth, useUser } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
+import { doc, collection, query, where, orderBy } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -29,7 +29,9 @@ import {
   Tag,
   Users,
   ShieldAlert,
-  InfoIcon
+  InfoIcon,
+  RefreshCw,
+  ChevronRight
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -45,6 +47,8 @@ import { ShareModal } from "@/components/sharing/ShareModal"
 import { RichText } from "@/components/ui/rich-text"
 import { toast } from "@/hooks/use-toast"
 import dynamic from "next/dynamic"
+import { format, startOfToday } from "date-fns"
+import { ptBR } from "date-fns/locale"
 
 // Carregamento Client-Only para o Mapa para evitar ReferenceError: document is not defined
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
@@ -83,6 +87,25 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
   const { data: promotions } = useDoc<any>( promosRef)
 
+  // Consulta de Ocorrências (Sessões)
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db || !id || !event?.isRecurring) return null;
+    return query(
+      collection(db, "recurring_occurrences"),
+      where("parentId", "==", id),
+      where("status", "==", "active"),
+      orderBy("date", "asc")
+    )
+  }, [db, id, event?.isRecurring]);
+
+  const { data: rawOccurrences, loading: loadingOccurrences } = useCollection<any>(occurrencesQuery);
+
+  const upcomingOccurrences = React.useMemo(() => {
+    if (!rawOccurrences) return [];
+    const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+    return rawOccurrences.filter((occ: any) => occ.date >= todayStr);
+  }, [rawOccurrences]);
+
   const siteName = settings?.siteName || "Viby"
 
   const handleCopyLink = () => {
@@ -113,6 +136,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const isExternalSale = event.type === 'externo' && event.externalUrl;
   const isVibySale = event.type === 'interno' && event.ticketMode !== 'none';
   const isDivulgacao = event.type === 'divulgacao' || (!isExternalSale && !isVibySale);
+
+  const isRecurringHub = event.isRecurring === true;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
@@ -174,6 +199,11 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     <Badge className="bg-secondary text-white border-none px-4 sm:px-5 h-7 sm:h-8 rounded-full font-black uppercase italic text-[9px] sm:text-[10px] tracking-widest shadow-lg">
                        {event.categoryName || "Experiência"}
                     </Badge>
+                    {isRecurringHub && (
+                      <Badge className="bg-primary text-white border-none px-4 sm:px-5 h-7 sm:h-8 rounded-full font-black uppercase text-[9px] sm:text-[10px] tracking-widest flex items-center gap-2">
+                        <RefreshCw className="w-3 h-3 animate-spin-slow" /> Evento Recorrente
+                      </Badge>
+                    )}
                     {isEnded && <Badge className="bg-red-500 text-white border-none px-4 sm:px-5 h-7 sm:h-8 rounded-full font-black uppercase text-[9px] sm:text-[10px] tracking-widest">Encerrado</Badge>}
                     <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-xl shadow-lg h-7 sm:h-8" showLabel />
                  </div>
@@ -220,7 +250,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </Button>
                )}
 
-               {isVibySale && (
+               {isVibySale && !isRecurringHub && (
                  <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-[10px] sm:text-xs px-6 sm:px-8 hover:scale-105 transition-transform shadow-secondary/20">
                    <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-3.5 h-3.5 sm:w-4 sm:h-4" /></Link>
                  </Button>
@@ -234,39 +264,98 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
            
            <div className="lg:col-span-8 space-y-12 sm:space-y-20">
               
-              {/* BLOCO DE DATA E HORA */}
-              <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                 <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 flex items-center gap-4 sm:gap-6 group hover:shadow-md transition-all border border-border/50">
-                    <div className="p-4 sm:p-5 bg-secondary/5 rounded-2xl sm:rounded-3xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors shrink-0">
-                       <Calendar className="w-8 h-8 sm:w-10 sm:h-10" />
+              {/* BLOCO DE DATA E HORA (Apenas se não for hub de recorrente) */}
+              {!isRecurringHub && (
+                <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 flex items-center gap-4 sm:gap-6 group hover:shadow-md transition-all border border-border/50">
+                      <div className="p-4 sm:p-5 bg-secondary/5 rounded-2xl sm:rounded-3xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors shrink-0">
+                        <Calendar className="w-8 h-8 sm:w-10 sm:h-10" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] sm:tracking-[0.3em] mb-1">Início</p>
+                        <p className="text-lg sm:text-xl font-black text-primary uppercase italic leading-none truncate">
+                          {dStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                        </p>
+                        <p className="text-xs sm:text-sm font-bold text-secondary mt-1">{dStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
+                      </div>
+                  </Card>
+                  <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 flex items-center gap-4 sm:gap-6 group hover:shadow-md transition-all border border-border/50">
+                      <div className="p-4 sm:p-5 bg-primary/5 rounded-2xl sm:rounded-3xl text-primary group-hover:bg-primary group-hover:text-white transition-colors shrink-0">
+                        <Clock className="w-8 h-8 sm:w-10 sm:h-10" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] sm:tracking-[0.3em] mb-1">Encerramento</p>
+                        {dEnd ? (
+                          <>
+                            <p className="text-lg sm:text-xl font-black text-primary uppercase italic leading-none truncate">
+                              {dEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                            </p>
+                            <p className="text-xs sm:text-sm font-bold text-secondary mt-1">{dEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
+                          </>
+                        ) : (
+                          <p className="text-xs sm:text-sm font-bold text-muted-foreground italic uppercase">Conforme agenda</p>
+                        )}
+                      </div>
+                  </Card>
+                </section>
+              )}
+
+              {/* PRÓXIMAS SESSÕES (EVENTOS RECORRENTES) */}
+              {isRecurringHub && (
+                <section className="space-y-6 sm:space-y-8 animate-in fade-in duration-700">
+                  <div className="flex items-center justify-between px-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
+                        <Calendar className="w-5 h-5" />
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-black uppercase italic tracking-tighter text-primary">Próximas Sessões</h2>
                     </div>
-                    <div className="min-w-0">
-                       <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] sm:tracking-[0.3em] mb-1">Início</p>
-                       <p className="text-lg sm:text-xl font-black text-primary uppercase italic leading-none truncate">
-                         {dStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
-                       </p>
-                       <p className="text-xs sm:text-sm font-bold text-secondary mt-1">{dStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
+                    {loadingOccurrences && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                  </div>
+
+                  {upcomingOccurrences.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-4">
+                      {upcomingOccurrences.slice(0, 10).map((occ: any) => (
+                        <Link key={occ.id} href={`/recorrente/${occ.id}`}>
+                          <Card className="border-none shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all rounded-[2rem] bg-white group cursor-pointer overflow-hidden border border-border/50">
+                            <CardContent className="p-6 sm:p-8 flex items-center justify-between">
+                               <div className="flex items-center gap-6">
+                                  <div className="flex flex-col items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-muted rounded-3xl group-hover:bg-secondary/10 transition-colors">
+                                     <span className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                                     <span className="text-2xl sm:text-3xl font-black text-primary">{occ.date.split('-')[2]}</span>
+                                  </div>
+                                  <div className="space-y-1">
+                                     <p className="font-black text-lg sm:text-xl uppercase italic text-primary leading-tight">
+                                       {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}
+                                     </p>
+                                     <div className="flex items-center gap-3 text-[10px] sm:text-xs font-bold text-muted-foreground uppercase">
+                                        <span className="flex items-center gap-1.5">
+                                          <Clock className="w-3 h-3 text-secondary" /> {occ.startTime} às {occ.endTime}
+                                        </span>
+                                     </div>
+                                  </div>
+                               </div>
+                               <div className="flex items-center gap-4">
+                                  <Badge variant="outline" className="hidden sm:flex text-[8px] font-black uppercase border-dashed">Disponível</Badge>
+                                  <div className="p-2 bg-primary text-white rounded-full opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1">
+                                     <ChevronRight className="w-4 h-4" />
+                                  </div>
+                               </div>
+                            </CardContent>
+                          </Card>
+                        </Link>
+                      ))}
                     </div>
-                 </Card>
-                 <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 flex items-center gap-4 sm:gap-6 group hover:shadow-md transition-all border border-border/50">
-                    <div className="p-4 sm:p-5 bg-primary/5 rounded-2xl sm:rounded-3xl text-primary group-hover:bg-primary group-hover:text-white transition-colors shrink-0">
-                       <Clock className="w-8 h-8 sm:w-10 sm:h-10" />
-                    </div>
-                    <div className="min-w-0">
-                       <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] sm:tracking-[0.3em] mb-1">Encerramento</p>
-                       {dEnd ? (
-                         <>
-                           <p className="text-lg sm:text-xl font-black text-primary uppercase italic leading-none truncate">
-                             {dEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
-                           </p>
-                           <p className="text-xs sm:text-sm font-bold text-secondary mt-1">{dEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
-                         </>
-                       ) : (
-                         <p className="text-xs sm:text-sm font-bold text-muted-foreground italic uppercase">Conforme agenda</p>
-                       )}
-                    </div>
-                 </Card>
-              </section>
+                  ) : (
+                    !loadingOccurrences && (
+                      <Card className="border-none shadow-sm rounded-[2rem] bg-white p-12 text-center border border-dashed border-border/60">
+                        <Calendar className="w-10 h-10 text-muted-foreground opacity-10 mx-auto mb-4" />
+                        <p className="text-sm font-bold text-muted-foreground uppercase">Nenhuma sessão agendada no momento.</p>
+                      </Card>
+                    )
+                  )}
+                </section>
+              )}
 
               {/* DESCRIÇÃO EDITORIAL */}
               <section className="space-y-6 sm:space-y-8">
@@ -285,8 +374,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </Card>
               </section>
 
-              {/* BILHETERIA */}
-              {isVibySale && (
+              {/* BILHETERIA (Apenas se não for hub de recorrente) */}
+              {isVibySale && !isRecurringHub && (
                 <div id="bilheteria" className="scroll-mt-32 w-full overflow-hidden">
                    <BilheteriaPublic 
                     event={event} 
@@ -380,14 +469,19 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
-                       {isExternalSale && (
+                       {isExternalSale && !isRecurringHub && (
                          <Button asChild className="w-full h-14 sm:h-16 bg-primary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform">
                             <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ArrowRight className="ml-2 w-4 h-4 sm:w-5 sm:h-5" /></a>
                          </Button>
                        )}
-                       {isVibySale && (
+                       {isVibySale && !isRecurringHub && (
                          <Button asChild className="w-full h-14 sm:h-16 bg-secondary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
                             <Link href="#bilheteria">Garantir Meu Lugar <ArrowRight className="ml-2 w-4 h-4 sm:w-5 sm:h-5" /></Link>
+                         </Button>
+                       )}
+                       {isRecurringHub && (
+                         <Button asChild className="w-full h-14 sm:h-16 bg-secondary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
+                            <Link href="#sessões">Escolher Sessão <ArrowRight className="ml-2 w-4 h-4 sm:w-5 sm:h-5" /></Link>
                          </Button>
                        )}
                     </div>
