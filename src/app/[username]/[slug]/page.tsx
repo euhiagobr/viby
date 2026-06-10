@@ -9,10 +9,6 @@ import { redirect } from 'next/navigation';
 
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
-/**
- * Função de serialização profunda e recursiva.
- * Converte qualquer objeto não-POJO (Timestamp, Date, instâncias) em strings ou tipos primitivos.
- */
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
 
@@ -57,19 +53,13 @@ function stripHtml(text: string): string {
 async function getEventData(usernameParam: string, slugParam: string) {
   try {
     const db = getAdminDb();
-    // Decodifica parâmetros para lidar com caracteres especiais e espaços da URL
     const username = decodeURIComponent(usernameParam).toLowerCase().trim();
     const slug = decodeURIComponent(slugParam).trim();
 
-    // 1. Resolver UID do proprietário pelo username no índice global
     const usernameSnap = await db.collection("usernames").doc(username).get();
-    if (!usernameSnap.exists) {
-      console.log(`[getEventData] Username index not found: ${username}`);
-      return null;
-    }
+    if (!usernameSnap.exists) return null;
     const targetUid = usernameSnap.data()!.uid;
 
-    // 2. Tentar localizar diretamente pelo ID do documento (Caso o slug seja o próprio ID)
     const eventByIdSnap = await db.collection("events").doc(slug).get();
     if (eventByIdSnap.exists) {
       const data = eventByIdSnap.data()!;
@@ -79,7 +69,6 @@ async function getEventData(usernameParam: string, slugParam: string) {
       }
     }
 
-    // 3. Tentar localizar pelo campo 'slug' (Busca agnóstica para evitar dependência de índices compostos urgentes)
     const queryBySlug = await db.collection("events")
       .where("slug", "==", slug.toLowerCase())
       .limit(10)
@@ -98,7 +87,6 @@ async function getEventData(usernameParam: string, slugParam: string) {
 
     return null;
   } catch (e) {
-    console.error("[getEventData] Critical Error:", e);
     return null;
   }
 }
@@ -129,6 +117,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
     return {
       title,
       description,
+      keywords: ['evento', 'ingressos', 'viby', title, event.city, username],
       alternates: { canonical: `/${username}/${slug}` },
       openGraph: {
         title,
@@ -136,7 +125,8 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
         url: `https://viby.club/${username}/${slug}`,
         siteName: 'Viby',
         images: [{ url: image, width: 1200, height: 630, alt: title }],
-        type: 'article',
+        type: 'video.other',
+        locale: 'pt_BR',
       },
       twitter: {
         card: 'summary_large_image',
@@ -144,6 +134,10 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
         description,
         images: [image],
       },
+      robots: {
+        index: true,
+        follow: true,
+      }
     };
   } catch (e) {
     return { title: 'Viby | Experiências' };
@@ -152,13 +146,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 
 export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }) {
   const { username, slug } = await params;
-  let event = null;
-  
-  try {
-    event = await getEventData(username, slug);
-  } catch (e) {
-    console.error("[Route Error] Page crash avoided:", e);
-  }
+  const event = await getEventData(username, slug);
 
   if (!event) {
     return (
@@ -184,7 +172,6 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  // Redirecionamento canônico: se acessou pelo ID mas o evento tem slug, manda para o slug amigável
   if (event.slug && event.slug !== slug && event.id === slug) {
     redirect(`/${username}/${event.slug}`);
   }

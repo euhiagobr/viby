@@ -12,9 +12,6 @@ const RESERVED_ROUTES = [
 
 const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
-/**
- * Função de serialização profunda e recursiva.
- */
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
   
@@ -63,7 +60,6 @@ async function getProfileData(usernameParam: string) {
     if (!dataSnap.exists) return null;
     return serializeData({ id: dataSnap.id, type, ...dataSnap.data() });
   } catch (e) {
-    console.error("[getProfileData] Error:", e);
     return null;
   }
 }
@@ -84,14 +80,16 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
     return {
       title,
       description,
+      keywords: ['perfil', 'viby', name, profile.username],
       alternates: { canonical: `/${username}` },
       openGraph: {
         title,
         description,
         url: `https://viby.club/${username}`,
         siteName: 'Viby',
-        images: [{ url: image, width: 1200, height: 630 }],
+        images: [{ url: image, width: 1200, height: 630, alt: name }],
         type: 'profile',
+        locale: 'pt_BR',
       },
       twitter: {
         card: 'summary_large_image',
@@ -99,6 +97,10 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
         description,
         images: [image],
       },
+      robots: {
+        index: true,
+        follow: true,
+      }
     };
   } catch (e) {
     return { title: 'Viby | Perfil' };
