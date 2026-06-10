@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -87,7 +86,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
   const { data: promotions } = useDoc<any>( promosRef)
 
-  // Consulta de Ocorrências (Sessões) - REMOVIDO orderBy para evitar erro de índice
+  // Consulta de Ocorrências (Sessões)
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !id || !event?.isRecurring) return null;
     return query(
@@ -216,7 +215,10 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  <h1 className="text-3xl sm:text-5xl md:text-8xl font-black text-white uppercase italic tracking-tighter leading-[0.9] break-words">{event.title}</h1>
                  <div className="flex flex-wrap gap-3 sm:gap-4 text-white/90 text-[11px] sm:text-sm font-bold uppercase tracking-tight">
                     <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl border border-white/10 max-w-full">
-                       <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-secondary shrink-0" /> <span className="truncate">{event.address?.venueName || event.location}, {event.city}</span>
+                       <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-secondary shrink-0" /> 
+                       <span className="truncate">
+                         {event.address?.venueName || event.location}, {event.city}
+                       </span>
                     </div>
                  </div>
               </div>
@@ -270,45 +272,9 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
            
            <div className="lg:col-span-8 space-y-12 sm:space-y-20">
               
-              {/* BLOCO DE DATA E HORA (Apenas se não for hub de recorrente) */}
-              {!isRecurringHub && (
-                <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                  <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 flex items-center gap-4 sm:gap-6 group hover:shadow-md transition-all border border-border/50">
-                      <div className="p-4 sm:p-5 bg-secondary/5 rounded-2xl sm:rounded-3xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors shrink-0">
-                        <Calendar className="w-8 h-8 sm:w-10 sm:h-10" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] sm:tracking-[0.3em] mb-1">Início</p>
-                        <p className="text-lg sm:text-xl font-black text-primary uppercase italic leading-none truncate">
-                          {dStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
-                        </p>
-                        <p className="text-xs sm:text-sm font-bold text-secondary mt-1">{dStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
-                      </div>
-                  </Card>
-                  <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 flex items-center gap-4 sm:gap-6 group hover:shadow-md transition-all border border-border/50">
-                      <div className="p-4 sm:p-5 bg-primary/5 rounded-2xl sm:rounded-3xl text-primary group-hover:bg-primary group-hover:text-white transition-colors shrink-0">
-                        <Clock className="w-8 h-8 sm:w-10 sm:h-10" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] sm:tracking-[0.3em] mb-1">Encerramento</p>
-                        {dEnd ? (
-                          <>
-                            <p className="text-lg sm:text-xl font-black text-primary uppercase italic leading-none truncate">
-                              {dEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
-                            </p>
-                            <p className="text-xs sm:text-sm font-bold text-secondary mt-1">{dEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
-                          </>
-                        ) : (
-                          <p className="text-xs sm:text-sm font-bold text-muted-foreground italic uppercase">Conforme agenda</p>
-                        )}
-                      </div>
-                  </Card>
-                </section>
-              )}
-
-              {/* PRÓXIMAS SESSÕES (EVENTOS RECORRENTES) */}
-              {isRecurringHub && (
-                <section className="space-y-6 sm:space-y-8 animate-in fade-in duration-700">
+              {/* BLOCO DE DATA E HORA (Sempre visível para conferência, ou lista se recorrente) */}
+              {isRecurringHub ? (
+                <section className="space-y-6 sm:space-y-8 animate-in fade-in duration-700" id="sessões">
                   <div className="flex items-center justify-between px-2">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
@@ -321,7 +287,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
                   {upcomingOccurrences.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4">
-                      {upcomingOccurrences.slice(0, 10).map((occ: any) => (
+                      {upcomingOccurrences.slice(0, 15).map((occ: any) => (
                         <Link key={occ.id} href={`/recorrente/${occ.id}`}>
                           <Card className="border-none shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all rounded-[2rem] bg-white group cursor-pointer overflow-hidden border border-border/50">
                             <CardContent className="p-6 sm:p-8 flex items-center justify-between">
@@ -360,6 +326,39 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                       </Card>
                     )
                   )}
+                </section>
+              ) : (
+                <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 flex items-center gap-4 sm:gap-6 group hover:shadow-md transition-all border border-border/50">
+                      <div className="p-4 sm:p-5 bg-secondary/5 rounded-2xl sm:rounded-3xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors shrink-0">
+                        <Calendar className="w-8 h-8 sm:w-10 sm:h-10" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] sm:tracking-[0.3em] mb-1">Início</p>
+                        <p className="text-lg sm:text-xl font-black text-primary uppercase italic leading-none truncate">
+                          {dStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                        </p>
+                        <p className="text-xs sm:text-sm font-bold text-secondary mt-1">{dStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
+                      </div>
+                  </Card>
+                  <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 flex items-center gap-4 sm:gap-6 group hover:shadow-md transition-all border border-border/50">
+                      <div className="p-4 sm:p-5 bg-primary/5 rounded-2xl sm:rounded-3xl text-primary group-hover:bg-primary group-hover:text-white transition-colors shrink-0">
+                        <Clock className="w-8 h-8 sm:w-10 sm:h-10" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] sm:tracking-[0.3em] mb-1">Encerramento</p>
+                        {dEnd ? (
+                          <>
+                            <p className="text-lg sm:text-xl font-black text-primary uppercase italic leading-none truncate">
+                              {dEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+                            </p>
+                            <p className="text-xs sm:text-sm font-bold text-secondary mt-1">{dEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
+                          </>
+                        ) : (
+                          <p className="text-xs sm:text-sm font-bold text-muted-foreground italic uppercase">Conforme agenda</p>
+                        )}
+                      </div>
+                  </Card>
                 </section>
               )}
 
@@ -438,7 +437,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
               <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white overflow-hidden sticky top-24 sm:top-40 border border-border/50">
                  <div className="p-6 sm:p-8 md:p-10 space-y-8 sm:space-y-10 relative">
                     <div className="space-y-6">
-                       <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.3em] sm:tracking-[0.4em] opacity-40 text-primary">Responsável</p>
+                       <p className="text-[9px] font-black uppercase tracking-[0.3em] sm:tracking-[0.4em] opacity-40 text-primary">Responsável</p>
                        <Link href={`/${org?.username || username}`} className="flex items-center gap-4 sm:gap-5 group">
                           <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-4 border-muted/30 p-0.5 group-hover:scale-105 transition-transform rounded-[1.5rem] sm:rounded-[1.8rem] overflow-hidden shrink-0">
                              <AvatarImage src={org?.avatar} className="object-cover" />
@@ -482,7 +481,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                        )}
                        {isVibySale && !isRecurringHub && (
                          <Button asChild className="w-full h-14 sm:h-16 bg-secondary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
-                            <Link href="#bilheteria">Garantir Meu Lugar <ArrowRight className="ml-2 w-4 h-4" /></Link>
+                            <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-4 h-4" /></Link>
                          </Button>
                        )}
                        {isRecurringHub && (

@@ -61,7 +61,23 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
 
   // MODO 1: RECORRÊNCIA PERSONALIZADA (DATAS MANUAIS)
   if (input.frequency === 'custom' && input.customOccurrences) {
-    for (const occ of input.customOccurrences) {
+    // Garantir que a data de início principal também seja uma ocorrência se não estiver na lista customizada
+    const mainDate = input.startDate;
+    const hasMainDate = mainDate && input.customOccurrences.some(o => o.date === mainDate);
+    
+    const finalOccs = [...input.customOccurrences];
+    if (mainDate && !hasMainDate) {
+      finalOccs.unshift({
+        date: mainDate,
+        startTime: input.startTime || "19:00",
+        endTime: input.endTime || "22:00"
+      });
+    }
+
+    // Ordenar por data antes de salvar
+    finalOccs.sort((a, b) => a.date.localeCompare(b.date));
+
+    for (const occ of finalOccs) {
       const occRef = occurrencesRef.doc();
       batch.set(occRef, {
         parentId,
