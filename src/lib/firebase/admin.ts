@@ -7,7 +7,7 @@ import * as admin from 'firebase-admin';
 
 const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-// Auditoria Forense solicitada (Apenas em ambiente Server)
+// Auditoria de segurança e diagnóstico (Apenas no Servidor)
 if (typeof window === 'undefined') {
   console.log('[FIREBASE ADMIN AUDIT]', {
     length: privateKey?.length || 0,
@@ -27,12 +27,11 @@ export const getAdminApp = () => {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   
-  // O único tratamento permitido pela auditoria
-  // Converte \n literal em caracteres de quebra de linha reais
+  // Tratamento obrigatório para quebras de linha em variáveis de ambiente RSA
   const formattedKey = privateKey?.replace(/\\n/g, '\n');
 
   if (!projectId || !clientEmail || !formattedKey) {
-    throw new Error("Credenciais do Firebase Admin ausentes no ambiente.");
+    throw new Error("Credenciais do Firebase Admin ausentes ou incompletas no ambiente.");
   }
 
   try {
