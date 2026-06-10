@@ -3,7 +3,21 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Share2, MapPin, BadgeCheck, UserPlus, Heart, MessageCircle, Settings, Edit, Lock, EyeOff } from "lucide-react";
+import { 
+  Share2, 
+  MapPin, 
+  BadgeCheck, 
+  Heart, 
+  MessageCircle, 
+  Edit, 
+  Lock, 
+  EyeOff,
+  Instagram,
+  Facebook,
+  Mail,
+  Phone,
+  Globe
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +53,37 @@ export function UserHero({
   const showStats = isOwner || !profile.privacy?.hideStats;
   const showGamification = isOwner || !profile.privacy?.hideGamification;
   const showFollowers = isOwner || !profile.privacy?.hideFollowers;
+
+  const renderLocation = () => {
+    const visibility = profile.addressVisibility || (profile.privacy?.hideLocation ? 'hidden' : 'city');
+    if (visibility === 'hidden') return null;
+
+    const loc = profile.location || {};
+    const city = loc.city || profile.city;
+    const state = loc.state || profile.state;
+    const country = loc.country || profile.country;
+    const neighborhood = loc.neighborhood || profile.neighborhood;
+
+    if (visibility === 'city') {
+      const parts = [city, country].filter(Boolean);
+      if (parts.length === 0) return null;
+      return (
+        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg">
+          <MapPin className="w-3 h-3" /> {parts.join(", ")}
+        </div>
+      );
+    }
+
+    // Full visibility (Neighborhood, City, State, Country)
+    const parts = [neighborhood, city, state, country].filter(Boolean);
+    if (parts.length === 0) return null;
+
+    return (
+      <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg">
+        <MapPin className="w-3 h-3" /> {parts.join(" • ")}
+      </div>
+    );
+  };
 
   return (
     <section className="relative w-full">
@@ -85,12 +130,8 @@ export function UserHero({
                 </div>
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
                   <span className="text-sm font-bold text-secondary uppercase tracking-widest">@{profile.username}</span>
-                  {!profile.privacy?.hideLocation && (profile.city || profile.state) && (
-                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg">
-                      <MapPin className="w-3 h-3" /> {profile.city}{profile.state ? `, ${profile.state}` : ""}
-                    </div>
-                  )}
-                  {isOwner && profile.privacy?.hideLocation && (
+                  {renderLocation()}
+                  {isOwner && profile.addressVisibility === 'hidden' && (
                     <div className="flex items-center gap-1.5 text-[9px] font-black uppercase text-orange-600 bg-orange-50 px-2 py-1 rounded-lg">
                       <EyeOff className="w-3 h-3" /> Localização Privada
                     </div>
@@ -108,6 +149,38 @@ export function UserHero({
                 {showFollowers && <StatItem label="Seguidores" value={followersCount} />}
                 {isOwner && <StatItem label="Seguindo" value={followingCount} />}
                 {showStats && <StatItem label="Experiências" value={eventsCount} />}
+              </div>
+
+              {/* Social Quick Links */}
+              <div className="flex flex-wrap justify-center md:justify-start items-center gap-2 pt-3">
+                 {profile.instagramPublico && profile.instagram && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-pink-50 hover:text-pink-500 transition-colors" asChild>
+                       <a href={`https://instagram.com/${profile.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer">
+                          <Instagram className="w-4 h-4" />
+                       </a>
+                    </Button>
+                 )}
+                 {profile.facebookPublico && profile.facebook && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors" asChild>
+                       <a href={`https://facebook.com/${profile.facebook}`} target="_blank" rel="noopener noreferrer">
+                          <Facebook className="w-4 h-4" />
+                       </a>
+                    </Button>
+                 )}
+                 {profile.whatsappPublico && profile.whatsapp && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-green-50 hover:text-green-600 transition-colors" asChild>
+                       <a href={`https://wa.me/${profile.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
+                          <Phone className="w-4 h-4" />
+                       </a>
+                    </Button>
+                 )}
+                 {profile.emailPublico && profile.email && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5 hover:text-primary transition-colors" asChild>
+                       <a href={`mailto:${profile.email}`}>
+                          <Mail className="w-4 h-4" />
+                       </a>
+                    </Button>
+                 )}
               </div>
             </div>
           </div>

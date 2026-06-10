@@ -4,7 +4,23 @@
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { History, Zap, Clock, MapPin, Building2, Ticket, CheckCircle2, Lock, EyeOff } from "lucide-react";
+import { 
+  History, 
+  Zap, 
+  Clock, 
+  MapPin, 
+  Building2, 
+  Ticket, 
+  CheckCircle2, 
+  Lock, 
+  EyeOff,
+  Globe,
+  Instagram,
+  Facebook,
+  Phone,
+  Mail,
+  ArrowUpRight
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -18,9 +34,50 @@ interface UserSocialContentProps {
 export function UserSocialContent({ profile, stats, activities, isOwner = false }: UserSocialContentProps) {
   const showStats = isOwner || !profile.privacy?.hideStats;
 
+  const publicContacts = React.useMemo(() => {
+    const list = [];
+    if (profile.instagramPublico && profile.instagram) list.push({ icon: Instagram, label: "Instagram", value: `@${profile.instagram.replace('@', '')}`, link: `https://instagram.com/${profile.instagram.replace('@', '')}`, color: "text-pink-500", bg: "bg-pink-50" });
+    if (profile.facebookPublico && profile.facebook) list.push({ icon: Facebook, label: "Facebook", value: profile.facebook, link: `https://facebook.com/${profile.facebook}`, color: "text-blue-600", bg: "bg-blue-50" });
+    if (profile.whatsappPublico && profile.whatsapp) list.push({ icon: Phone, label: "WhatsApp", value: profile.whatsapp, link: `https://wa.me/${profile.whatsapp.replace(/\D/g, "")}`, color: "text-green-600", bg: "bg-green-50" });
+    if (profile.emailPublico && profile.email) list.push({ icon: Mail, label: "E-mail", value: profile.email, link: `mailto:${profile.email}`, color: "text-primary", bg: "bg-primary/5" });
+    if (profile.website) list.push({ icon: Globe, label: "Website", value: profile.website.replace(/^https?:\/\//, ''), link: profile.website, color: "text-secondary", bg: "bg-secondary/5" });
+    return list;
+  }, [profile]);
+
   return (
     <div className="space-y-20">
-      {/* 1. Interests & Stats Summary */}
+      {/* 1. Canais de Contato (Se houver algum público) */}
+      {publicContacts.length > 0 && (
+        <section className="space-y-6">
+           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Conexões Digitais</h3>
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {publicContacts.map((contact, i) => (
+                <a 
+                  key={i} 
+                  href={contact.link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="group"
+                >
+                  <Card className="border-none shadow-sm rounded-2xl bg-white hover:shadow-md transition-all">
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className={cn("p-2.5 rounded-xl transition-transform group-hover:scale-110", contact.bg, contact.color)}>
+                        <contact.icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[8px] font-black uppercase opacity-40">{contact.label}</p>
+                        <p className="text-xs font-bold truncate text-primary">{contact.value}</p>
+                      </div>
+                      <ArrowUpRight className="w-3.5 h-3.5 text-muted-foreground opacity-20 group-hover:opacity-100 transition-opacity" />
+                    </CardContent>
+                  </Card>
+                </a>
+              ))}
+           </div>
+        </section>
+      )}
+
+      {/* 2. Interests & Stats Summary */}
       {showStats ? (
         <section className="grid grid-cols-1 md:grid-cols-2 gap-12">
            <div className="space-y-6">
@@ -39,11 +96,15 @@ export function UserSocialContent({ profile, stats, activities, isOwner = false 
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Estatísticas</h3>
               <div className="grid grid-cols-2 gap-4">
                  <SummaryCard label="Gênero Favorito" value={stats?.topCategory || "---"} icon={Zap} />
-                 {isOwner || !profile.privacy?.hideLocation ? (
-                   <SummaryCard label="Top Local" value={stats?.topNeighborhood || "---"} icon={MapPin} />
+                 {(isOwner || profile.addressVisibility !== 'hidden') ? (
+                   <SummaryCard 
+                    label="Local de Atividade" 
+                    value={(profile.location?.city || profile.city) || "---"} 
+                    icon={MapPin} 
+                   />
                  ) : (
                    <div className="bg-muted/30 p-6 rounded-[1.5rem] border border-dashed flex items-center justify-center text-center">
-                      <p className="text-[8px] font-black uppercase text-muted-foreground/40">Localização Privada</p>
+                      <p className="text-[8px] font-black uppercase text-muted-foreground/40">Privado</p>
                    </div>
                  )}
               </div>
@@ -56,7 +117,7 @@ export function UserSocialContent({ profile, stats, activities, isOwner = false 
         </Card>
       )}
 
-      {/* 2. Timeline of Activities - STRICTLY PRIVATE */}
+      {/* 3. Timeline of Activities - STRICTLY PRIVATE */}
       {(isOwner || !profile.privacy?.hideStats) ? (
         <section className="space-y-8 animate-in fade-in duration-500">
           <div className="flex items-center justify-between px-2">
