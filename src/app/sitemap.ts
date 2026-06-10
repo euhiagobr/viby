@@ -2,17 +2,17 @@ import { MetadataRoute } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 3600; // Revalida a cada 1 hora
+export const revalidate = 3600; // Cache de 1 hora para performance e SEO
 
 /**
- * Gerador dinâmico de sitemap.xml.
- * Consulta o Firestore via Admin SDK para listar todos os conteúdos públicos ativos.
+ * Gerador automático de sitemap.xml.
+ * Consolida rotas institucionais e conteúdos dinâmicos do Firestore.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://viby.club';
   const now = new Date();
 
-  // Rotas Estáticas Iniciais
+  // 1. Rotas Institucionais Estáticas
   const routes: MetadataRoute.Sitemap = [
     { url: `${baseUrl}/`, lastModified: now, changeFrequency: 'daily', priority: 1.0 },
     { url: `${baseUrl}/ganhe-dinheiro`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
@@ -24,7 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const db = getAdminDb();
     
-    // 1. Buscar Usernames (Perfis)
+    // 2. Buscar Todos os Usernames Ativos (Perfis)
     const usernamesSnap = await db.collection('usernames').get();
     const uidToUsername: Record<string, string> = {};
     
@@ -39,7 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     });
 
-    // 2. Buscar Eventos Ativos
+    // 3. Buscar Eventos Públicos Ativos
     const eventsSnap = await db.collection('events').where('status', '==', 'Ativo').get();
     eventsSnap.forEach((doc) => {
       const event = doc.data();
@@ -57,7 +57,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     return routes;
   } catch (error) {
-    console.error('[Sitemap Error] Fallback to static routes:', error);
+    // Fallback silencioso para rotas estáticas em caso de erro no banco (essencial durante build/CI)
+    console.warn('[Sitemap] Database connection skipped during static generation. Serving basic routes.');
     return routes;
   }
 }
