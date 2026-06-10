@@ -73,17 +73,40 @@ export function EventLocation({ address, onChange, isPublic, className, status }
   const [globalSearch, setGlobalSearch] = React.useState("");
   const [suggestions, setSuggestions] = React.useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = React.useState(false);
+  const [hasSearched, setHasSearched] = React.useState(false);
 
   const postalLabel = React.useMemo(() => {
     const country = COUNTRIES.find(c => c.code === address?.countryCode);
     return country?.postalLabel || "Postal Code";
   }, [address?.countryCode]);
 
-  const handleGlobalSearch = async () => {
+  // Busca debounced automática
+  React.useEffect(() => {
+    if (!globalSearch || globalSearch.length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setHasSearched(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      const results = await searchGlobalAddresses(globalSearch);
+      setSuggestions(results);
+      setHasSearched(true);
+      setShowSuggestions(true);
+      setIsSearching(false);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [globalSearch]);
+
+  const handleGlobalSearchManual = async () => {
     if (!globalSearch || globalSearch.length < 3) return;
     setIsSearching(true);
     const results = await searchGlobalAddresses(globalSearch);
     setSuggestions(results);
+    setHasSearched(true);
     setShowSuggestions(true);
     setIsSearching(false);
   };
@@ -93,6 +116,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
     onChange?.({ ...address, ...mapped, isCustomized: false });
     setShowSuggestions(false);
     setGlobalSearch("");
+    setHasSearched(false);
   };
 
   const handleMapChange = async (lat: number, lng: number) => {
@@ -210,7 +234,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
     <div className={cn("space-y-8", className)}>
       <Card className="border-none shadow-sm rounded-[2.5rem] bg-muted/30">
         <CardContent className="p-8 space-y-8">
-           <div className="space-y-4 relative">
+           <div className="space-y-4 relative z-[110]">
               <div className="flex items-center justify-between">
                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
                   <Globe className="w-3.5 h-3.5" /> Busca Global de Endereços
@@ -226,41 +250,53 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                   )}
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 relative">
                  <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input 
                       placeholder="Nome do local, estádio ou endereço completo..." 
                       value={globalSearch}
                       onChange={e => setGlobalSearch(e.target.value)}
-                      className="pl-10 h-12 rounded-xl border-dashed border-secondary/30"
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleGlobalSearch())}
+                      className="pl-10 h-12 rounded-xl border-dashed border-secondary/30 bg-white"
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleGlobalSearchManual())}
                     />
                  </div>
-                 <Button type="button" onClick={handleGlobalSearch} disabled={isSearching} className="h-12 rounded-xl px-6 bg-secondary text-white font-bold">
+                 <Button type="button" onClick={handleGlobalSearchManual} disabled={isSearching} className="h-12 rounded-xl px-6 bg-secondary text-white font-bold">
                     {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buscar"}
                  </Button>
               </div>
 
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white/95 backdrop-blur-md rounded-2xl border shadow-2xl animate-in slide-in-from-top-2 z-[100]">
-                   <div className="flex justify-end p-1">
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowSuggestions(false)}><X className="w-3 h-3" /></Button>
+              {showSuggestions && (
+                <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white/95 backdrop-blur-md rounded-2xl border shadow-2xl animate-in slide-in-from-top-2 overflow-hidden">
+                   <div className="flex justify-between items-center p-2 border-b bg-muted/20">
+                      <span className="text-[9px] font-black uppercase opacity-40 tracking-widest">Sugestões Localizadas</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full" onClick={() => { setShowSuggestions(false); setHasSearched(false); }}><X className="w-3 h-3" /></Button>
                    </div>
-                   {suggestions.map((s, i) => (
-                     <button
-                       key={i}
-                       type="button"
-                       onClick={() => selectSuggestion(s)}
-                       className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 rounded-xl text-left transition-colors group border-b last:border-0"
-                     >
-                        <MapPin className="w-4 h-4 text-secondary opacity-40 group-hover:opacity-100" />
-                        <div className="flex-1 min-w-0">
-                           <p className="text-xs font-bold truncate">{s.display_name}</p>
-                           <p className="text-[9px] font-medium uppercase font-black">{s.type || 'local'}</p>
+                   <ScrollArea className="max-h-60">
+                      {suggestions.length > 0 ? (
+                        suggestions.map((s, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => selectSuggestion(s)}
+                            className="w-full flex items-center gap-3 p-4 hover:bg-secondary/5 text-left transition-colors group border-b last:border-0"
+                          >
+                             <div className="p-2 bg-muted rounded-lg group-hover:bg-secondary group-hover:text-white transition-colors">
+                                <MapPin className="w-4 h-4" />
+                             </div>
+                             <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold truncate text-primary uppercase">{s.display_name.split(',')[0]}</p>
+                                <p className="text-[10px] text-muted-foreground truncate leading-relaxed">{s.display_name}</p>
+                             </div>
+                          </button>
+                        ))
+                      ) : hasSearched ? (
+                        <div className="p-8 text-center space-y-2">
+                           <AlertTriangle className="w-8 h-8 text-orange-400 mx-auto" />
+                           <p className="text-xs font-bold text-muted-foreground uppercase italic">Nenhum local encontrado para esta busca.</p>
                         </div>
-                     </button>
-                   ))}
+                      ) : null}
+                   </ScrollArea>
                 </div>
               )}
            </div>
@@ -276,7 +312,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                         value={address?.countryCode || ""} 
                         onValueChange={val => handleFieldChange('countryCode', val)}
                        >
-                          <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                          <SelectTrigger className="rounded-xl h-11 bg-white"><SelectValue placeholder="Selecione" /></SelectTrigger>
                           <SelectContent className="rounded-xl">
                              {COUNTRIES.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
                           </SelectContent>
@@ -288,7 +324,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                          value={address?.postalCode || ""} 
                          onChange={e => handleFieldChange('postalCode', e.target.value)} 
                          onBlur={handleCepBlur}
-                         className="rounded-xl h-11" 
+                         className="rounded-xl h-11 bg-white" 
                        />
                     </div>
                  </div>
@@ -297,40 +333,40 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                     <Label className="text-[10px] font-black uppercase opacity-60">Nome do Local (Venue)</Label>
                     <div className="relative">
                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
-                       <Input value={address?.venueName || ""} onChange={e => handleFieldChange('venueName', e.target.value)} placeholder="Ex: Madison Square Garden" className="pl-10 rounded-xl h-11" />
+                       <Input value={address?.venueName || ""} onChange={e => handleFieldChange('venueName', e.target.value)} placeholder="Ex: Madison Square Garden" className="pl-10 rounded-xl h-11 bg-white" />
                     </div>
                  </div>
 
                  <div className="grid grid-cols-4 gap-4">
                     <div className="col-span-3 space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Logradouro / Address Line 1</Label>
-                       <Input value={address?.addressLine1 || ""} onChange={e => handleFieldChange('addressLine1', e.target.value)} className="rounded-xl h-11" />
+                       <Label className="text-[10px] font-black uppercase opacity-60">Logradouro / Rua</Label>
+                       <Input value={address?.addressLine1 || ""} onChange={e => handleFieldChange('addressLine1', e.target.value)} className="rounded-xl h-11 bg-white" />
                     </div>
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase opacity-60">Nº</Label>
-                       <Input value={address?.streetNumber || ""} onChange={e => handleFieldChange('streetNumber', e.target.value)} className="rounded-xl h-11" />
+                       <Input value={address?.streetNumber || ""} onChange={e => handleFieldChange('streetNumber', e.target.value)} className="rounded-xl h-11 bg-white" />
                     </div>
                  </div>
 
                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address?.neighborhood || ""} onChange={e => handleFieldChange('neighborhood', e.target.value)} className="rounded-xl h-11" /></div>
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address?.city || ""} onChange={e => handleFieldChange('city', e.target.value)} className="rounded-xl h-11" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label><Input value={address?.neighborhood || ""} onChange={e => handleFieldChange('neighborhood', e.target.value)} className="rounded-xl h-11 bg-white" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Cidade</Label><Input value={address?.city || ""} onChange={e => handleFieldChange('city', e.target.value)} className="rounded-xl h-11 bg-white" /></div>
                  </div>
                  
                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Estado ou Região</Label><Input value={address?.stateRegion || ""} onChange={e => handleFieldChange('stateRegion', e.target.value)} className="rounded-xl h-11" /></div>
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento / Line 2</Label><Input value={address?.addressLine2 || ""} onChange={e => handleFieldChange('addressLine2', e.target.value)} className="rounded-xl h-11" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Estado ou Região</Label><Input value={address?.stateRegion || ""} onChange={e => handleFieldChange('stateRegion', e.target.value)} className="rounded-xl h-11 bg-white" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento / Line 2</Label><Input value={address?.addressLine2 || ""} onChange={e => handleFieldChange('addressLine2', e.target.value)} className="rounded-xl h-11 bg-white" /></div>
                  </div>
               </div>
 
               <div className="space-y-4">
                  <Label className="text-[10px] font-black uppercase opacity-60 flex justify-between items-center">
-                    Fonte Primária: Mapa (PIN)
+                    Localização Exata (Arraste o PIN)
                     {address.latitude && (
-                      <Badge className="bg-green-500 text-white border-none shadow-sm text-[8px] font-black uppercase">PIN Sincronizado</Badge>
+                      <Badge className="bg-green-500 text-white border-none shadow-sm text-[8px] font-black uppercase h-5 px-2">Mapa Sincronizado</Badge>
                     )}
                  </Label>
-                 <div className="h-[400px] w-full rounded-[2.5rem] overflow-hidden border-2 border-muted shadow-inner relative group/map">
+                 <div className="h-[400px] w-full rounded-[2.5rem] overflow-hidden border-2 border-muted shadow-inner relative group/map bg-white">
                     <LocationMap 
                       latitude={address?.latitude || -23.55052} 
                       longitude={address?.longitude || -46.633308} 
@@ -341,7 +377,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                       <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-20 flex items-center justify-center">
                          <div className="p-4 bg-white rounded-2xl shadow-xl flex items-center gap-3">
                             <Loader2 className="w-5 h-5 animate-spin text-secondary" />
-                            <span className="text-[10px] font-black uppercase text-primary">Sincronizando endereço...</span>
+                            <span className="text-[10px] font-black uppercase text-primary">Sincronizando...</span>
                          </div>
                       </div>
                     )}
@@ -349,7 +385,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                  <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
                     <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                     <p className="text-[9px] text-secondary font-bold uppercase leading-tight italic">
-                       Mover o PIN no mapa atualiza automaticamente todos os campos de endereço acima através de geocodificação reversa.
+                       Dica: Você pode digitar o nome de um estabelecimento famoso na busca para localizá-lo instantaneamente.
                     </p>
                  </div>
               </div>
