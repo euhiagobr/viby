@@ -1,25 +1,7 @@
-import { MetadataRoute } from 'next';
-
 /**
- * Geração dinâmica do arquivo robots.txt seguindo as regras da plataforma.
- * Bloqueia indexação de áreas administrativas e privadas.
+ * Geração de robots.txt movida para /public/robots.txt para evitar conflitos de build no Next.js.
+ * Este arquivo foi mantido como um stub para garantir que nenhuma dependência de metadados quebre.
  */
-export default function robots(): MetadataRoute.Robots {
-  return {
-    rules: {
-      userAgent: '*',
-      allow: '/',
-      disallow: [
-        '/admin/',
-        '/dashboard/',
-        '/configuracoes/',
-        '/settings/',
-        '/api/',
-        '/redefinir-senha',
-        '/checkout/',
-        '/onboarding',
-      ],
-    },
-    sitemap: 'https://viby.club/sitemap.xml',
-  };
+export default function robots() {
+  return null;
 }

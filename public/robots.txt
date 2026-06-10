@@ -1,5 +1,12 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /configuracoes/
+Disallow: /settings/
+Disallow: /api/
+Disallow: /redefinir-senha
+Disallow: /checkout/
+Disallow: /onboarding
 
-User-agent: Mediapartners-Google
-Allow: /
+Sitemap: https://viby.club/sitemap.xml
