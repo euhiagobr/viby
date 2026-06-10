@@ -1,0 +1,43 @@
+
+{
+  "report_id": "VIBY-AUDIT-2024-06-10",
+  "status": "RAIZ_IDENTIFICADA",
+  "findings": {
+    "firestore": {
+      "permission_denied": [
+        {
+          "context": "Collection Group Query",
+          "path": "members",
+          "component": "OrganizationContext.tsx",
+          "reason": "Missing recursive wildcard {path=**} in firestore.rules"
+        },
+        {
+          "context": "Collection Group Query",
+          "path": "partners",
+          "component": "OrganizationContext.tsx",
+          "reason": "Missing recursive wildcard {path=**} in firestore.rules"
+        }
+      ]
+    },
+    "routing": {
+      "404_errors": [
+        {
+          "target": "/dashboard/projetos/novo",
+          "reason": "Naming mismatch: Code uses plural /projetos/ while file system is singular /projeto/",
+          "files": ["src/app/dashboard/organizacoes/[username]/events/page.tsx", "src/app/dashboard/projetos/page.tsx"]
+        },
+        {
+          "target": "/novo",
+          "reason": "Dynamic route interception: 'novo' is missing from RESERVED_ROUTES in [username] layouts",
+          "files": ["src/app/[username]/page.tsx"]
+        }
+      ]
+    },
+    "external_apis": {
+      "google_ads_400": {
+        "reason": "Invalid or unauthorized slot names in AdsRenderer.tsx",
+        "slots": ["home-feed-slot", "discovery-feed-slot"]
+      }
+    }
+  }
+}
