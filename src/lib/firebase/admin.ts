@@ -37,7 +37,7 @@ LXyeUurlZvKsRVIwXDdHEr32hZyDR
 -----END PRIVATE KEY-----`.replace(/\\n/g, '\n'),
 };
 
-function getAdminApp() {
+export const getAdminApp = () => {
   if (admin.apps.length > 0) return admin.apps[0]!;
 
   try {
@@ -49,7 +49,7 @@ function getAdminApp() {
     console.error("[Admin SDK] Erro fatal de inicialização:", e);
     throw e;
   }
-}
+};
 
 export const getAdminAuth = () => {
   return getAdminApp().auth();

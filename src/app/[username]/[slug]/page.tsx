@@ -9,30 +9,43 @@ import { redirect } from 'next/navigation';
 
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
+/**
+ * Função de serialização profunda para garantir que objetos do Firestore 
+ * sejam convertidos em tipos puros aceitos pelo Next.js Server Components.
+ */
+function serializeData(data: any): any {
+  if (data === null || data === undefined) return data;
+
+  // Lidar com Timestamps do Firestore
+  if (typeof data.toDate === 'function') {
+    return data.toDate().toISOString();
+  }
+
+  // Lidar com Arrays
+  if (Array.isArray(data)) {
+    return data.map(item => serializeData(item));
+  }
+
+  // Lidar com Objetos (POJOs)
+  if (typeof data === 'object') {
+    const serialized: any = {};
+    for (const key in data) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        serialized[key] = serializeData(data[key]);
+      }
+    }
+    return serialized;
+  }
+
+  return data;
+}
+
 function stripHtml(text: string): string {
   if (!text) return "";
-  // Remove tags HTML, quebras de linha e normaliza espaços
   return text
     .replace(/<[^>]*>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function serializeData(data: any) {
-  if (!data) return data;
-  const serialized = { ...data };
-  for (const key in serialized) {
-    if (serialized[key]?.toDate && typeof serialized[key].toDate === 'function') {
-      serialized[key] = serialized[key].toDate().toISOString();
-    } else if (Array.isArray(serialized[key])) {
-      serialized[key] = serialized[key].map((item: any) => 
-        (typeof item === 'object' && item !== null) ? serializeData(item) : item
-      );
-    } else if (typeof serialized[key] === 'object' && serialized[key] !== null) {
-      serialized[key] = serializeData(serialized[key]);
-    }
-  }
-  return serialized;
 }
 
 async function getEventData(username: string, param: string) {
@@ -79,14 +92,17 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   if (!event) return { title: 'Evento não encontrado' };
 
   const db = getAdminDb();
-  const orgSnap = await db.collection('organizations').doc(event.organizationId).get();
-  const orgData = orgSnap.exists ? orgSnap.data() : null;
+  let orgData = null;
+  
+  if (event.organizationId) {
+    const orgSnap = await db.collection('organizations').doc(event.organizationId).get();
+    orgData = orgSnap.exists ? orgSnap.data() : null;
+  }
 
   const title = event.title;
   const rawDesc = event.description || event.shortDescription || "";
   const description = stripHtml(rawDesc).substring(0, 200);
   
-  // Regra de Imagem: 1. Evento, 2. Marca, 3. Logo Viby
   const image = event.image || orgData?.avatar || VIBY_OG_IMAGE;
   const url = `https://viby.club/${username}/${event.slug || event.id}`;
 
@@ -99,16 +115,9 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       description,
       url,
       siteName: 'Viby',
-      images: [
-        {
-          url: image,
-          width: 1200,
-          height: 630,
-          alt: title,
-        }
-      ],
+      images: [{ url: image, width: 1200, height: 630, alt: title }],
       locale: 'pt_BR',
-      type: 'event' as any,
+      type: 'article',
     },
     twitter: {
       card: 'summary_large_image',
@@ -116,10 +125,6 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       description,
       images: [image],
     },
-    robots: {
-      index: true,
-      follow: true,
-    }
   };
 }
 
@@ -151,7 +156,6 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  // Redirecionamento canônico se acessado por ID mas possuir slug
   if (event.slug && event.slug !== slug) {
     redirect(`/${username}/${event.slug}`);
   }
