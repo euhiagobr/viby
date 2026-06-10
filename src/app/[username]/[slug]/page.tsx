@@ -79,26 +79,21 @@ async function getEventData(usernameParam: string, slugParam: string) {
       }
     }
 
-    // 3. Tentar localizar pelo campo 'slug' escopado ao proprietário (Recomendado)
-    const queryByOrgSlug = await db.collection("events")
-      .where("organizationId", "==", targetUid)
+    // 3. Tentar localizar pelo campo 'slug' (Busca agnóstica para evitar dependência de índices compostos urgentes)
+    const queryBySlug = await db.collection("events")
       .where("slug", "==", slug.toLowerCase())
-      .limit(1)
+      .limit(10)
       .get();
     
-    if (!queryByOrgSlug.empty) {
-      return serializeData({ id: queryByOrgSlug.docs[0].id, ...queryByOrgSlug.docs[0].data() });
-    }
-
-    // 4. Fallback: Tentar por organizerId (Legado)
-    const queryByOrganizerSlug = await db.collection("events")
-      .where("organizerId", "==", targetUid)
-      .where("slug", "==", slug.toLowerCase())
-      .limit(1)
-      .get();
-    
-    if (!queryByOrganizerSlug.empty) {
-      return serializeData({ id: queryByOrganizerSlug.docs[0].id, ...queryByOrganizerSlug.docs[0].data() });
+    if (!queryBySlug.empty) {
+      const found = queryBySlug.docs.find(doc => {
+        const data = doc.data();
+        const ownerId = data.organizationId || data.organizerId || data.organizer?.id;
+        return ownerId === targetUid;
+      });
+      if (found) {
+        return serializeData({ id: found.id, ...found.data() });
+      }
     }
 
     return null;
@@ -157,7 +152,13 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 
 export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }) {
   const { username, slug } = await params;
-  const event = await getEventData(username, slug);
+  let event = null;
+  
+  try {
+    event = await getEventData(username, slug);
+  } catch (e) {
+    console.error("[Route Error] Page crash avoided:", e);
+  }
 
   if (!event) {
     return (
