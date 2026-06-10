@@ -13,7 +13,7 @@ const RESERVED_ROUTES = [
 const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 function serializeData(data: any): any {
-  if (data === null || data === undefined) return data;
+  if (data === null || data === undefined) return null;
   
   if (typeof data.toDate === 'function') return data.toDate().toISOString();
   
@@ -21,7 +21,10 @@ function serializeData(data: any): any {
 
   if (Array.isArray(data)) return data.map(item => serializeData(item));
   
-  if (typeof data === 'object' && data.constructor.name === 'Object') {
+  if (typeof data === 'object') {
+    if (Object.prototype.toString.call(data) !== '[object Object]') {
+      return String(data);
+    }
     const serialized: any = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
