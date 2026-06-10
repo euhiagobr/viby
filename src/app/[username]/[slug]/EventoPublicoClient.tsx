@@ -142,10 +142,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const isVibySale = event.type === 'interno' && event.ticketMode !== 'none';
   const isDivulgacao = event.type === 'divulgacao' || (!isExternalSale && !isVibySale);
 
-  const isRecurringHub = event.isRecurring === true;
+  // O "Recurrence Hub" (escolha de datas) só deve aparecer para eventos que possuam algum tipo de venda/vínculo de ingresso.
+  // Se for apenas divulgação, mostramos a data padrão para evitar confusão no fluxo de "escolha".
+  const isRecurringHub = event.isRecurring === true && (event.type === 'interno' || event.type === 'externo');
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
+    <div className="min-h-screen bg-[#f8fafc] h-full flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
       <EventSEO event={event} username={username} />
       
       {/* HEADER GLOBAL */}
@@ -204,7 +206,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     <Badge className="bg-secondary text-white border-none px-4 sm:px-5 h-7 sm:h-8 rounded-full font-black uppercase italic text-[9px] sm:text-[10px] tracking-widest shadow-lg">
                        {event.categoryName || "Experiência"}
                     </Badge>
-                    {isRecurringHub && (
+                    {event.isRecurring && (
                       <Badge className="bg-primary text-white border-none px-4 sm:px-5 h-7 sm:h-8 rounded-full font-black uppercase text-[9px] sm:text-[10px] tracking-widest flex items-center gap-2">
                         <RefreshCw className="w-3 h-3 animate-spin-slow" /> Evento Recorrente
                       </Badge>
@@ -261,6 +263,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                {isVibySale && !isRecurringHub && (
                  <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-[10px] sm:text-xs px-6 sm:px-8 hover:scale-105 transition-transform shadow-secondary/20">
                    <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-3.5 h-3.5" /></Link>
+                 </Button>
+               )}
+
+               {isRecurringHub && (
+                 <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
+                    <Link href="#sessões">Escolher Sessão <ArrowRight className="ml-2 w-4 h-4" /></Link>
                  </Button>
                )}
             </div>
