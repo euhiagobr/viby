@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -59,7 +58,8 @@ export default function NovoEventoPage() {
     image: DEFAULT_EVENT_IMAGE,
     type: "interno",
     externalUrl: "",
-    disclosurePrices: [] as { price: number; label: string }[],
+    startingPrice: 0,
+    disclosurePrices: [] as { price: number; untilTime: string }[],
     categoryId: "",
     ageRatingCode: "free",
     startDate: "",
@@ -238,9 +238,12 @@ export default function NovoEventoPage() {
                    onChange={v => setFormData({...formData, type: v})}
                    externalUrl={formData.externalUrl}
                    onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
+                   startingPrice={formData.startingPrice}
+                   onStartingPriceChange={v => setFormData({...formData, startingPrice: v})}
                    disclosurePrices={formData.disclosurePrices}
                    onDisclosurePricesChange={v => setFormData({...formData, disclosurePrices: v})}
                    config={eventTypesSettings}
+                   forceShowStartingPrice={formData.curationType === 'curadoria'}
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
               </div>

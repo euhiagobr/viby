@@ -242,6 +242,7 @@ export default function EditarEventoPage() {
                       disclosurePrices={formData.disclosurePrices}
                       onDisclosurePricesChange={v => setFormData({...formData, disclosurePrices: v})}
                       config={eventTypesSettings}
+                      forceShowStartingPrice={formData.curationType === 'curadoria'}
                     />
                     <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
                   </div>

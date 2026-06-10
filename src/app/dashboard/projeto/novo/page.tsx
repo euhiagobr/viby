@@ -83,7 +83,8 @@ export default function NovoEventoPage() {
     locations: [] as any[],
     isRecurring: false,
     frequency: "weekly",
-    recurringEndDate: ""
+    recurringEndDate: "",
+    curationType: "realização"
   })
 
   const [ticketMode, setTicketMode] = useState<any>('free')
@@ -195,9 +196,9 @@ export default function NovoEventoPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
+        <div>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Novo Evento</h1>
         </div>
       </div>
@@ -224,6 +225,7 @@ export default function NovoEventoPage() {
                    disclosurePrices={formData.disclosurePrices}
                    onDisclosurePricesChange={v => setFormData({...formData, disclosurePrices: v})}
                    config={eventTypesSettings}
+                   forceShowStartingPrice={formData.curationType === 'curadoria'}
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
               </div>

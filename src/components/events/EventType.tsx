@@ -25,6 +25,7 @@ interface EventTypeProps {
   onDisclosurePricesChange?: (prices: DisclosurePrice[]) => void
   disabled?: boolean
   isPublic?: boolean
+  forceShowStartingPrice?: boolean
   config?: Record<string, { enabled: boolean; message: string }>
 }
 
@@ -39,11 +40,13 @@ export function EventType({
   onDisclosurePricesChange,
   disabled, 
   isPublic,
+  forceShowStartingPrice,
   config 
 }: EventTypeProps) {
   if (isPublic) return null;
 
   const activeConfig = config?.[value];
+  const showStartingPriceField = value === 'divulgacao' || value === 'externo' || forceShowStartingPrice;
 
   const handleAddPrice = () => {
     if (disclosurePrices.length >= 5) return;
@@ -85,7 +88,7 @@ export function EventType({
         )}
       </div>
 
-      {(value === 'divulgacao' || value === 'externo') && (
+      {showStartingPriceField && (
         <div className="space-y-4 animate-in slide-in-from-top-2">
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5">
