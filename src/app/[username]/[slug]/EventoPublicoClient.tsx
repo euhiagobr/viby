@@ -409,7 +409,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     </div>
                     <CardContent className="p-6 sm:p-10 flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-8">
                        <div className="space-y-2 text-center md:text-left min-w-0 flex-1">
-                          <h3 className="text-lg sm:text-xl font-black uppercase italic tracking-tighter text-primary break-words">{address?.venueName || event.location}</h3>
+                          <h3 className="text-lg sm:text-xl font-black uppercase italic tracking-tighter text-primary break-words">{event.address?.venueName || event.location}</h3>
                           <p className="text-xs sm:text-sm font-medium text-muted-foreground leading-relaxed max-w-md break-words">
                             {event.address?.formattedAddress || `${event.address?.addressLine1}, ${event.address?.city} - ${event.address?.stateRegion}`}
                           </p>
