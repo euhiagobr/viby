@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -13,9 +14,14 @@ const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeven
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return data;
+  
   if (typeof data.toDate === 'function') return data.toDate().toISOString();
+  
+  if (data instanceof Date) return data.toISOString();
+
   if (Array.isArray(data)) return data.map(item => serializeData(item));
-  if (typeof data === 'object') {
+  
+  if (typeof data === 'object' && data.constructor.name === 'Object') {
     const serialized: any = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -46,14 +52,15 @@ async function getProfileData(username: string) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
-  const { username } = await params;
+  const resolvedParams = await params;
+  const username = resolvedParams.username;
   
   if (RESERVED_ROUTES.includes(username.toLowerCase())) {
     return { title: 'Viby' };
   }
 
   const profile = await getProfileData(username);
-  if (!profile) return { title: 'Perfil não encontrado' };
+  if (!profile) return { title: 'Perfil não encontrado | Viby' };
 
   const name = profile.type === 'organization' ? profile.name : (profile.name || profile.displayName || username);
   const title = `${name} • Viby`;
@@ -84,7 +91,9 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 }
 
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
-  const { username } = await params;
+  const resolvedParams = await params;
+  const username = resolvedParams.username;
+
   if (RESERVED_ROUTES.includes(username.toLowerCase())) return null;
   return <ProfilePageClient username={username} />;
 }

@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -16,9 +17,13 @@ const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.f
 function serializeData(data: any): any {
   if (data === null || data === undefined) return data;
 
-  // Lidar com Timestamps do Firestore
+  // Lidar com Timestamps do Firestore ou Datas nativas
   if (typeof data.toDate === 'function') {
     return data.toDate().toISOString();
+  }
+  
+  if (data instanceof Date) {
+    return data.toISOString();
   }
 
   // Lidar com Arrays
@@ -27,7 +32,7 @@ function serializeData(data: any): any {
   }
 
   // Lidar com Objetos (POJOs)
-  if (typeof data === 'object') {
+  if (typeof data === 'object' && data.constructor.name === 'Object') {
     const serialized: any = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -57,16 +62,18 @@ async function getEventData(username: string, param: string) {
     const orgId = usernameSnap.data()!.uid;
     const normalizedParam = param.trim();
 
-    // 1. Busca por ID
+    // 1. Prioridade: Busca por ID do Documento
     const eventIdSnap = await db.collection("events").doc(normalizedParam).get();
     if (eventIdSnap.exists) {
       const data = eventIdSnap.data()!;
-      if (data.organizationId === orgId) {
+      // Validação de segurança: o evento pertence a esta organização?
+      // Checamos organizationId (padrão novo) ou organizerId (legado)
+      if (data.organizationId === orgId || data.organizerId === orgId) {
         return serializeData({ id: eventIdSnap.id, ...data });
       }
     }
 
-    // 2. Busca por Slug
+    // 2. Fallback: Busca pelo campo 'slug'
     const slugLower = normalizedParam.toLowerCase();
     const slugSnap = await db.collection("events")
       .where("organizationId", "==", orgId)
@@ -79,6 +86,18 @@ async function getEventData(username: string, param: string) {
       return serializeData({ id: d.id, ...d.data() });
     }
 
+    // 3. Fallback Extra: Busca por slug usando campo legado organizerId
+    const legacySlugSnap = await db.collection("events")
+      .where("organizerId", "==", orgId)
+      .where("slug", "==", slugLower)
+      .limit(1)
+      .get();
+
+    if (!legacySlugSnap.empty) {
+      const d = legacySlugSnap.docs[0];
+      return serializeData({ id: d.id, ...d.data() });
+    }
+
     return null;
   } catch (e) {
     console.error("[Event Route Resolver] Error:", e);
@@ -87,19 +106,24 @@ async function getEventData(username: string, param: string) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<Metadata> {
-  const { username, slug } = await params;
+  const resolvedParams = await params;
+  const username = resolvedParams.username;
+  const slug = resolvedParams.slug;
+  
   const event = await getEventData(username, slug);
-  if (!event) return { title: 'Evento não encontrado' };
+  if (!event) return { title: 'Evento não encontrado | Viby' };
 
   const db = getAdminDb();
   let orgData = null;
   
-  if (event.organizationId) {
-    const orgSnap = await db.collection('organizations').doc(event.organizationId).get();
-    orgData = orgSnap.exists ? orgSnap.data() : null;
-  }
+  try {
+    if (event.organizationId) {
+      const orgSnap = await db.collection('organizations').doc(event.organizationId).get();
+      orgData = orgSnap.exists ? orgSnap.data() : null;
+    }
+  } catch (e) {}
 
-  const title = event.title;
+  const title = event.title || "Evento";
   const rawDesc = event.description || event.shortDescription || "";
   const description = stripHtml(rawDesc).substring(0, 200);
   
@@ -129,7 +153,10 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 }
 
 export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }) {
-  const { username, slug } = await params;
+  const resolvedParams = await params;
+  const username = resolvedParams.username;
+  const slug = resolvedParams.slug;
+
   const event = await getEventData(username, slug);
 
   if (!event) {
@@ -156,7 +183,8 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
-  if (event.slug && event.slug !== slug) {
+  // Redirecionamento canônico se o acesso for via ID mas o evento possuir um slug amigável
+  if (event.slug && event.slug !== slug && event.id === slug) {
     redirect(`/${username}/${event.slug}`);
   }
 
