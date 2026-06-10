@@ -1,45 +1,58 @@
-'use server';
-
 import * as React from 'react';
-import { doc, getDoc, getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
+import { Metadata } from 'next';
+import { getAdminDb } from '@/lib/firebase/admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, ArrowRight, RefreshCw, MapPin } from 'lucide-react';
+import { Calendar, Clock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import Footer from '@/components/layout/Footer';
 
-async function getSeriesData(id: string) {
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app);
-  
-  // Busca na coleção principal 'events'
-  const seriesRef = doc(db, 'events', id);
-  let snap = await getDoc(seriesRef);
-  
-  // Fallback para 'recurring_events' se for um registro antigo/admin
-  if (!snap.exists()) {
-    snap = await getDoc(doc(db, 'recurring_events', id));
+function serializeData(data: any): any {
+  if (data === null || data === undefined) return null;
+  if (typeof data.toDate === 'function') return data.toDate().toISOString();
+  if (data instanceof Date) return data.toISOString();
+  if (Array.isArray(data)) return data.map(item => serializeData(item));
+  if (typeof data === 'object') {
+    const proto = Object.getPrototypeOf(data);
+    if (proto !== null && proto !== Object.prototype) return String(data);
+    const serialized: any = {};
+    for (const key in data) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        serialized[key] = serializeData(data[key]);
+      }
+    }
+    return serialized;
   }
-  
-  if (!snap.exists()) return null;
+  return data;
+}
 
-  // Consulta sem orderBy para evitar necessidade de índice composto
-  const occQ = query(
-    collection(db, 'recurring_occurrences'), 
-    where('parentId', '==', id),
-    where('status', '==', 'active')
-  );
-  const occSnap = await getDocs(occQ);
-  
-  // Ordenação manual em memória para evitar erros de índice
-  const occurrences = occSnap.docs
-    .map(d => ({ id: d.id, ...d.data() }))
-    .sort((a: any, b: any) => a.date.localeCompare(b.date));
+async function getSeriesData(id: string) {
+  try {
+    const db = getAdminDb();
+    const seriesRef = db.collection('events').doc(id);
+    let snap = await seriesRef.get();
+    
+    if (!snap.exists) {
+      snap = await db.collection('recurring_events').doc(id).get();
+    }
+    
+    if (!snap.exists) return null;
 
-  return { id: snap.id, ...snap.data(), occurrences } as any;
+    const occSnap = await db.collection('recurring_occurrences')
+      .where('parentId', '==', id)
+      .where('status', '==', 'active')
+      .get();
+    
+    const occurrences = occSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+    return serializeData({ id: snap.id, ...snap.data(), occurrences });
+  } catch (e) {
+    console.error("[getSeriesData] Error:", e);
+    return null;
+  }
 }
 
 export default async function SeriesPublicPage({ params }: { params: Promise<{ id: string }> }) {
@@ -84,24 +97,18 @@ export default async function SeriesPublicPage({ params }: { params: Promise<{ i
                             <div className="space-y-1">
                                <p className="font-black text-xl uppercase italic text-primary">{new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
                                <div className="flex items-center gap-3 text-xs font-bold text-muted-foreground uppercase">
-                                  <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-secondary" /> {occ.startTime}</span>
-                                  <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-secondary" /> Local Confirmado</span>
+                                  <span>{occ.startTime} às {occ.endTime}</span>
                                </div>
                             </div>
                          </div>
-                         <div className="flex items-center gap-4">
-                            <span className="text-[10px] font-black uppercase text-secondary tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Ver Ingressos</span>
-                            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-all shadow-inner">
-                               <ArrowRight className="w-5 h-5" />
-                            </div>
-                         </div>
+                         <ArrowRight className="w-6 h-6 text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
                       </CardContent>
                     </Card>
                   </Link>
                 ))
               ) : (
                 <div className="py-20 text-center bg-white rounded-[2rem] border-2 border-dashed">
-                   <p className="text-sm font-bold text-muted-foreground uppercase">Nenhuma data disponível no momento</p>
+                   <p className="text-sm font-bold text-muted-foreground uppercase">Nenhuma data disponível</p>
                 </div>
               )}
            </div>

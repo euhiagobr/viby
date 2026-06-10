@@ -2,12 +2,11 @@ import * as admin from 'firebase-admin';
 
 /**
  * @fileOverview Inicialização robusta do Firebase Admin SDK.
+ * Otimizado para ambientes de produção (Hosting/Cloud Run).
  */
 
-const serviceAccount = {
-  projectId: "vibyeventos",
-  clientEmail: "firebase-adminsdk-fbsvc@vibyeventos.iam.gserviceaccount.com",
-  privateKey: `-----BEGIN PRIVATE KEY-----
+const getPrivateKey = () => {
+  const rawKey = `-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCrUnnL+bjctODk
 J96Srd5A2UaADZIfz+zG7jhjKpXP4SNymOUL+puDs3MQkQwjDeQ9UNasIZmXnWg7
 iQE/FEUvgfJ9OvbaInh9Ec50UTz201wfaB2yiw9rQ0FZV+WWqiWRTHRM5l48h07W
@@ -34,7 +33,14 @@ s+uolPGlUO35kk2dWtjGrCkwZmVM3JCS0kOD7q5+eQKBgExGGVtgipTHrHpgNMUq
 zFltkagZ08iVgtIoFFnidwgi4+C4zzh6RtJKqeRYpHIG6taxTUXpq2CR6ICFX2qN
 6Z9lnrIRojeg7YsMDNoc8c9i+kaPF7h1cPFh1cPDhtJi3woX0gDxjBe+VAXS2tlw
 LXyeUurlZvKsRVIwXDdHEr32hZyDR
------END PRIVATE KEY-----`.replace(/\\n/g, '\n'),
+-----END PRIVATE KEY-----`;
+  return rawKey.replace(/\\n/g, '\n');
+};
+
+const serviceAccount = {
+  projectId: "vibyeventos",
+  clientEmail: "firebase-adminsdk-fbsvc@vibyeventos.iam.gserviceaccount.com",
+  privateKey: getPrivateKey(),
 };
 
 export const getAdminApp = () => {
