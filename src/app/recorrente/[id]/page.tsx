@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from 'react';
@@ -40,7 +41,7 @@ export default function PublicOccurrencePage() {
   );
 
   const isCuradoria = series?.curationType === 'curadoria';
-  const isSoldOut = occ.capacidadeMaxima > 0 && (occ.ingressosVendidos || 0) >= occ.capacidadeMaxima;
+  const isSoldOut = !isCuradoria && occ.capacidadeMaxima > 0 && (occ.ingressosVendidos || 0) >= occ.capacidadeMaxima;
 
   // Injetar dados da ocorrência nos dados do evento para os componentes de bilheteria e interesse
   const eventProxy = {
@@ -77,13 +78,16 @@ export default function PublicOccurrencePage() {
               <RefreshCw className="w-32 h-32 opacity-10 absolute animate-spin-slow" />
               <div className="text-center space-y-2 px-8 relative z-10">
                 <Badge className={cn("text-white font-black uppercase text-[9px] px-4 h-6 border-none", isSoldOut ? "bg-orange-500" : "bg-secondary")}>
-                  {isSoldOut ? "Lotação Máxima Atingida" : "Sessão Disponível"}
+                  {isSoldOut ? "Lotação Máxima Atingida" : isCuradoria ? "Sessão de Curadoria" : "Sessão Disponível"}
                 </Badge>
                 <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-none">{series?.name || occ.name}</h1>
               </div>
             </div>
             <CardContent className="p-10">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className={cn(
+                "grid grid-cols-1 gap-8",
+                isCuradoria ? "md:grid-cols-2" : "md:grid-cols-3"
+              )}>
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-muted rounded-2xl text-secondary"><Calendar className="w-6 h-6" /></div>
                   <div>
@@ -98,15 +102,17 @@ export default function PublicOccurrencePage() {
                     <p className="font-bold text-sm leading-none mt-1">{occ.startTime} às {occ.endTime}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-muted rounded-2xl text-secondary"><Users className="w-6 h-6" /></div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase opacity-40">Disponibilidade</p>
-                    <p className={cn("font-bold text-sm leading-none mt-1", isSoldOut ? "text-orange-500" : "text-green-600")}>
-                      {isSoldOut ? "Esgotado" : `${occ.capacidadeMaxima - (occ.ingressosVendidos || 0)} vagas`}
-                    </p>
+                {!isCuradoria && (
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-muted rounded-2xl text-secondary"><Users className="w-6 h-6" /></div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase opacity-40">Disponibilidade</p>
+                      <p className={cn("font-bold text-sm leading-none mt-1", isSoldOut ? "text-orange-500" : "text-green-600")}>
+                        {isSoldOut ? "Esgotado" : `${occ.capacidadeMaxima - (occ.ingressosVendidos || 0)} vagas`}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </CardContent>
           </Card>
