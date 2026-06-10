@@ -51,6 +51,8 @@ import dynamic from "next/dynamic"
 import { format, startOfToday } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
+const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
+
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
   ssr: false,
   loading: () => <div className="w-full h-full bg-muted animate-pulse flex items-center justify-center text-[10px] font-black uppercase opacity-20">Carregando Mapa...</div>
@@ -129,7 +131,11 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   if (!event) return null;
 
-  const isCuradoria = event.curationType === 'curadoria';
+  // Lógica de Identificação de Curadoria
+  const isCuradoria = event.curationType === 'curadoria' || 
+                      event.curatorProfile === 'viby' || 
+                      (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
+
   const dateValue = event.date || event.startDate;
   const dStart = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : new Date();
   const dEnd = event.endDate ? (event.endDate.toDate ? event.endDate.toDate() : new Date(event.endDate)) : null;
@@ -230,10 +236,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
          <div className="container mx-auto px-4 max-w-6xl py-4 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
             <div className="flex items-center gap-6 sm:gap-10 w-full sm:w-auto overflow-x-auto scrollbar-hide pb-1 sm:pb-0">
                <EventInterest event={event} showButton={true} className="gap-4 sm:gap-6 shrink-0" />
-               <div className="hidden md:flex flex-col shrink-0">
-                  <span className="text-xl font-black text-primary leading-none">{(event.sharesCount || 0).toLocaleString()}</span>
-                  <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Compartilhados</span>
-               </div>
+               {!isCuradoria && (
+                 <div className="hidden md:flex flex-col shrink-0">
+                    <span className="text-xl font-black text-primary leading-none">{(event.sharesCount || 0).toLocaleString()}</span>
+                    <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Compartilhados</span>
+                 </div>
+               )}
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
                <Button 
@@ -251,22 +259,26 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                   <Share2 className="w-3.5 h-3.5" /> Material
                </Button>
                
-               {isExternalSale && !isRecurringHub && (
-                 <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-[10px] sm:text-xs px-6 sm:px-8 hover:scale-105 transition-transform">
-                   <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ExternalLink className="ml-2 w-3.5 h-3.5" /></a>
-                 </Button>
-               )}
+               {!isCuradoria && (
+                 <>
+                   {isExternalSale && !isRecurringHub && (
+                     <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-[10px] sm:text-xs px-6 sm:px-8 hover:scale-105 transition-transform">
+                       <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ExternalLink className="ml-2 w-3.5 h-3.5" /></a>
+                     </Button>
+                   )}
 
-               {isVibySale && !isRecurringHub && !isCuradoria && (
-                 <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-[10px] sm:text-xs px-6 sm:px-8 hover:scale-105 transition-transform shadow-secondary/20">
-                   <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-3.5 h-3.5" /></Link>
-                 </Button>
-               )}
+                   {isVibySale && !isRecurringHub && (
+                     <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-[10px] sm:text-xs px-6 sm:px-8 hover:scale-105 transition-transform shadow-secondary/20">
+                       <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-3.5 h-3.5" /></Link>
+                     </Button>
+                   )}
 
-               {isRecurringHub && (
-                 <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-[1.5rem] shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
-                    <Link href="#sessões">Ver Agenda de Datas <ArrowRight className="ml-2 w-4 h-4" /></Link>
-                 </Button>
+                   {isRecurringHub && (
+                     <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-[1.5rem] shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
+                        <Link href="#sessões">Ver Agenda de Datas <ArrowRight className="ml-2 w-4 h-4" /></Link>
+                     </Button>
+                   )}
+                 </>
                )}
             </div>
          </div>
@@ -384,17 +396,29 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </Card>
               </section>
 
-              {/* BILHETERIA */}
-              {!isRecurringHub && (
-                <div id="bilheteria" className="scroll-mt-32 w-full overflow-hidden">
-                   <BilheteriaPublic 
-                    event={event} 
-                    globalFees={globalFees} 
-                    promotions={promotions} 
-                    orgSettings={org} 
-                   />
-                </div>
-              )}
+              {/* BILHETERIA E AVISO DE CURADORIA */}
+              <div id="bilheteria" className="scroll-mt-32 w-full overflow-hidden space-y-12">
+                 <BilheteriaPublic 
+                  event={event} 
+                  globalFees={globalFees} 
+                  promotions={promotions} 
+                  orgSettings={org} 
+                 />
+
+                 {isCuradoria && (
+                    <Card className="border-none shadow-sm rounded-[2.5rem] bg-secondary/5 border-2 border-dashed border-secondary/20 p-8 sm:p-10 space-y-4 animate-in fade-in zoom-in-95 duration-700">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
+                          <InfoIcon className="w-5 h-5" />
+                        </div>
+                        <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary">Curadoria Viby</h3>
+                      </div>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed font-medium uppercase">
+                        Este evento foi divulgado pela Viby como parte de sua curadoria. A organização, realização, venda de ingressos, alterações de programação, cancelamentos e demais informações são de responsabilidade exclusiva dos organizadores identificados nesta página.
+                      </p>
+                    </Card>
+                 )}
+              </div>
 
               {/* LOCALIZAÇÃO E MAPA */}
               <section className="space-y-6 sm:space-y-8">
@@ -441,40 +465,52 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
            <aside className="lg:col-span-4 space-y-6 sm:space-y-8">
               <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden sticky top-24 sm:top-40 border border-border/50">
                  <div className="p-6 sm:p-8 md:p-10 space-y-8 relative">
-                    <div className="space-y-6">
-                       <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-40 text-primary">Informações do Autor</p>
-                       <Link href={`/${org?.username || username}`} className="flex items-center gap-4 sm:gap-5 group">
-                          <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-4 border-muted/30 p-0.5 group-hover:scale-105 transition-transform rounded-[1.5rem] overflow-hidden shrink-0">
-                             <AvatarImage src={org?.avatar} className="object-cover" />
-                             <AvatarFallback className="font-black bg-muted text-xl sm:text-2xl">{org?.name?.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="space-y-0.5 min-w-0">
-                             <div className="flex items-center gap-1.5 flex-wrap">
-                                <h4 className="font-black text-lg sm:text-xl uppercase italic leading-tight tracking-tighter text-primary truncate">{org?.name || "Organizador"}</h4>
-                                {(org?.verified || org?.isVerified) && <BadgeCheck className="w-4 h-4 sm:w-5 sm:h-5 fill-blue-500 text-white shrink-0" />}
-                             </div>
-                             <div className="flex flex-col">
-                                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-secondary truncate">@{org?.username || username}</span>
-                                {isCuradoria && <Badge variant="secondary" className="w-fit h-4 px-1.5 text-[7px] font-black uppercase mt-1">Curadoria Viby</Badge>}
-                             </div>
+                    {isCuradoria ? (
+                       <div className="space-y-6">
+                          <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40 text-primary">CURADORIA VIBY</p>
+                          <div className="p-6 bg-muted/20 rounded-2xl border border-dashed">
+                             <p className="text-xs font-medium text-muted-foreground leading-relaxed uppercase">
+                                Evento selecionado pela equipe da Viby por sua relevância cultural, artística ou de entretenimento.
+                             </p>
                           </div>
-                       </Link>
-                    </div>
+                       </div>
+                    ) : (
+                       <div className="space-y-6">
+                          <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-40 text-primary">Informações do Autor</p>
+                          <Link href={`/${org?.username || username}`} className="flex items-center gap-4 sm:gap-5 group">
+                             <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-4 border-muted/30 p-0.5 group-hover:scale-105 transition-transform rounded-[1.5rem] overflow-hidden shrink-0">
+                                <AvatarImage src={org?.avatar} className="object-cover" />
+                                <AvatarFallback className="font-black bg-muted text-xl sm:text-2xl">{org?.name?.charAt(0)}</AvatarFallback>
+                             </Avatar>
+                             <div className="space-y-0.5 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                   <h4 className="font-black text-lg sm:text-xl uppercase italic leading-tight tracking-tighter text-primary truncate">{org?.name || "Organizador"}</h4>
+                                   {(org?.verified || org?.isVerified) && <BadgeCheck className="w-4 h-4 sm:w-5 sm:h-5 fill-blue-500 text-white shrink-0" />}
+                                </div>
+                                <div className="flex flex-col">
+                                   <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-secondary truncate">@{org?.username || username}</span>
+                                </div>
+                             </div>
+                          </Link>
+                       </div>
+                    )}
 
                     <Separator className="bg-muted" />
 
                     <div className="space-y-6">
-                       <div className="flex items-center justify-between gap-4">
-                          <div className="space-y-0.5 shrink-0">
-                             <p className="text-[8px] font-black uppercase opacity-40 tracking-widest text-primary">Seguidores</p>
-                             <p className="text-lg sm:text-xl font-black italic tracking-tighter text-primary">{(org?.followersCount || 0).toLocaleString()}</p>
+                       {!isCuradoria && (
+                          <div className="flex items-center justify-between gap-4">
+                             <div className="space-y-0.5 shrink-0">
+                                <p className="text-[8px] font-black uppercase opacity-40 tracking-widest text-primary">Seguidores</p>
+                                <p className="text-lg sm:text-xl font-black italic tracking-tighter text-primary">{(org?.followersCount || 0).toLocaleString()}</p>
+                             </div>
+                             <FollowButton 
+                               organizationId={event.organizationId} 
+                               username={org?.username || username} 
+                               className="flex-1 h-9 sm:h-10 px-4 text-[8px] sm:text-[9px]"
+                             />
                           </div>
-                          <FollowButton 
-                            organizationId={event.organizationId} 
-                            username={org?.username || username} 
-                            className="flex-1 h-9 sm:h-10 px-4 text-[8px] sm:text-[9px]"
-                          />
-                       </div>
+                       )}
                        <AgeRatingWarning code={event.ageRating?.code || "free"} />
                     </div>
 
@@ -500,16 +536,16 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </div>
               </Card>
 
-              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 sm:p-8 space-y-6 border border-border/50">
-                 <div className="flex items-center gap-4">
-                    <div className="p-3 bg-secondary/5 rounded-2xl text-secondary shrink-0"><Users className="w-5 h-5 sm:w-6 sm:h-6" /></div>
-                    <h3 className="text-xs sm:text-sm font-black uppercase italic text-primary tracking-tighter leading-tight">Comunidade Vibrante</h3>
-                 </div>
-                 <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed font-medium uppercase">
-                    {(event.interestedCount || 0).toLocaleString()} pessoas marcaram interesse nesta experiência. Faça parte do momento.
-                 </p>
-                 
-                 {!isCuradoria && (
+              {!isCuradoria && (
+                <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 sm:p-8 space-y-6 border border-border/50">
+                   <div className="flex items-center gap-4">
+                      <div className="p-3 bg-secondary/5 rounded-2xl text-secondary shrink-0"><Users className="w-5 h-5 sm:w-6 sm:h-6" /></div>
+                      <h3 className="text-xs sm:text-sm font-black uppercase italic text-primary tracking-tighter leading-tight">Comunidade Vibrante</h3>
+                   </div>
+                   <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed font-medium uppercase">
+                      {(event.interestedCount || 0).toLocaleString()} pessoas marcaram interesse nesta experiência. Faça parte do momento.
+                   </p>
+                   
                    <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl">
                     {isExternalSale ? (
                        <>
@@ -523,14 +559,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                        </>
                     )}
                    </div>
-                 )}
-                 {isCuradoria && (
-                   <div className="flex items-center gap-3 p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
-                      <InfoIcon className="w-4 h-4 sm:w-5 sm:h-5 text-secondary shrink-0" />
-                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-primary truncate">Informações de Curadoria</span>
-                   </div>
-                 )}
-              </Card>
+                </Card>
+              )}
            </aside>
         </div>
       </main>

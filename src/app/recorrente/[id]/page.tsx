@@ -7,11 +7,13 @@ import { doc } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Calendar, Clock, Share2, ArrowLeft, RefreshCw, AlertTriangle, XCircle, Users } from 'lucide-react';
+import { Loader2, Calendar, Clock, Share2, ArrowLeft, RefreshCw, AlertTriangle, XCircle, Users, Info } from 'lucide-react';
 import Link from 'next/link';
 import Footer from '@/components/layout/Footer';
 import { BilheteriaPublic } from '@/components/events/Bilheteria/BilheteriaPublic';
 import { cn } from '@/lib/utils';
+
+const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 export default function PublicOccurrencePage() {
   const params = useParams();
@@ -22,7 +24,6 @@ export default function PublicOccurrencePage() {
   const occRef = React.useMemo(() => (db ? doc(db, 'recurring_occurrences', id) : null), [db, id]);
   const { data: occ, loading: occLoading } = useDoc<any>(occRef);
 
-  // Busca o pai na coleção 'events' para herdar as configurações de venda e divulgação
   const seriesRef = React.useMemo(() => (db && occ?.parentId) ? doc(db, 'events', occ.parentId) : null, [db, occ?.parentId]);
   const { data: series } = useDoc<any>(seriesRef);
 
@@ -39,10 +40,13 @@ export default function PublicOccurrencePage() {
     </div>
   );
 
-  const isCuradoria = series?.curationType === 'curadoria';
+  // Lógica de Identificação de Curadoria
+  const isCuradoria = series?.curationType === 'curadoria' || 
+                      series?.curatorProfile === 'viby' || 
+                      (series?.organizationId === VIBY_OFFICIAL_UID && (series?.type === 'divulgacao' || series?.type === 'externo'));
+
   const isSoldOut = !isCuradoria && occ.capacidadeMaxima > 0 && (occ.ingressosVendidos || 0) >= occ.capacidadeMaxima;
 
-  // Injetar dados da ocorrência nos dados do evento para os componentes de bilheteria e interesse
   const eventProxy = {
     ...series,
     id: occ.parentId,
@@ -145,12 +149,28 @@ export default function PublicOccurrencePage() {
                 </Button>
              </Card>
            ) : (
-             <BilheteriaPublic 
-               event={eventProxy} 
-               globalFees={globalFees} 
-               promotions={null} 
-               orgSettings={null} 
-             />
+             <div className="space-y-8">
+                <BilheteriaPublic 
+                  event={eventProxy} 
+                  globalFees={globalFees} 
+                  promotions={null} 
+                  orgSettings={null} 
+                />
+
+                {isCuradoria && (
+                   <Card className="border-none shadow-sm rounded-[2.5rem] bg-secondary/5 border-2 border-dashed border-secondary/20 p-8 sm:p-10 space-y-4 animate-in fade-in zoom-in-95 duration-700">
+                     <div className="flex items-center gap-3">
+                       <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
+                         <Info className="w-5 h-5" />
+                       </div>
+                       <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary">Curadoria Viby</h3>
+                     </div>
+                     <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed font-medium uppercase">
+                       Este evento foi divulgado pela Viby como parte de sua curadoria. A organização, realização, venda de ingressos, alterações de programação, cancelamentos e demais informações são de responsabilidade exclusiva dos organizadores identificados nesta página.
+                     </p>
+                   </Card>
+                )}
+             </div>
            )}
         </section>
       </main>

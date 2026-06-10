@@ -16,6 +16,8 @@ import { getVersionedImageUrl } from "@/lib/image-utils"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useTranslation } from "@/i18n/i18n-context"
 
+const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
+
 interface EventCardProps {
   event: any 
   userLocation?: Coordinates | null
@@ -45,7 +47,11 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [event.date, event.endDate]);
 
   const isEnded = React.useMemo(() => eventDates.end < new Date(), [eventDates.end]);
-  const isCuradoria = event.curationType === 'curadoria';
+  
+  // Identificação centralizada de Curadoria
+  const isCuradoria = event.curationType === 'curadoria' || 
+                      event.curatorProfile === 'viby' || 
+                      (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
 
   React.useEffect(() => {
     const update = () => {
@@ -111,7 +117,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     }
 
     if (event.type === 'divulgacao' || event.type === 'externo' || isCuradoria) {
-      // Prioridade 1: Preço inicial fixo (startingPrice)
       if (typeof event.startingPrice === 'number' && event.startingPrice > 0) {
         return (
           <div className="flex flex-col items-end">
@@ -123,7 +128,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         return <span className="text-green-600 font-black italic uppercase text-[10px]">{t('event.free')}</span>;
       }
 
-      // Prioridade 2: Preço por horário (currentDisplayPrice)
       if (currentDisplayPrice) {
         return (
           <div className="flex flex-col items-end">
@@ -162,7 +166,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
 
-  const curationLabel = event.curationType === 'curadoria' ? 'Curadoria' : 'Realização';
+  const curationLabel = isCuradoria ? 'Curadoria' : 'Realização';
   const username = event.organizer?.username || "evento";
   const slugOrId = event.slug || event.id;
 
@@ -243,7 +247,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         </div>
 
         <Button className="w-full h-10 bg-primary text-white font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
-           {event.type === 'divulgacao' || event.type === 'externo' || isCuradoria ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
+           {isCuradoria ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
         </Button>
       </CardContent>
     </Card>

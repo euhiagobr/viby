@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -32,6 +31,8 @@ import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { doc, updateDoc, increment, serverTimestamp, setDoc } from "firebase/firestore"
 import { generateFreeTickets } from "@/app/actions/tickets"
 
+const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
+
 interface BilheteriaPublicProps {
   event: any
   globalFees: any
@@ -55,14 +56,16 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
   const eventCurrency = (event.currency || 'BRL') as CurrencyCode;
   const isDivulgacao = event.type === 'divulgacao';
   const isExterno = event.type === 'externo';
-  const isCuradoria = event.curationType === 'curadoria';
+  const isCuradoria = event.curationType === 'curadoria' || 
+                      event.curatorProfile === 'viby' || 
+                      (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
 
   const handleUpdateQty = (typeId: string, val: number) => {
     setQuantities(prev => ({ ...prev, [typeId]: Math.max(0, val) }))
   }
 
   const handleRegisterInterest = async () => {
-    if (isCuradoria) return; // Curadoria não registra interesse como 'presença'
+    if (isCuradoria) return;
 
     if (!user) {
       router.push(`/login?redirect=${encodeURIComponent(pathname || '/')}`)
@@ -162,7 +165,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
         <div className="flex flex-col gap-2">
           <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Informações do Evento</h2>
           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">
-            {isExterno ? "Links oficiais e canais externos." : "Conteúdo curado pela plataforma."}
+            Conteúdo curado pela plataforma.
           </p>
         </div>
 
