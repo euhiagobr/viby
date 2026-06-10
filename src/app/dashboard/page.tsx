@@ -109,7 +109,6 @@ export default function ExplorarPage() {
     if (!allEvents) return []
     
     let result = allEvents.filter(e => {
-      // REGRA DE OURO: Eventos encerrados saem da descoberta
       if (!isEventVisible(e)) return false
       
       const searchNorm = normalizeText(search);
@@ -173,6 +172,7 @@ export default function ExplorarPage() {
         const scoreB = (b.viewsCount || 0) + (b.interestedCount || 0) * 2;
         return scoreB - scoreA;
       }
+      // Padrão: Discovery (Baseado em Score: Proximidade 5km + Cronologia)
       return b._score - a._score;
     });
   }, [allEvents, search, searchCity, activeTab, userLocation, radiusKm, selectedCategory, dateFilter, customDate, categories])
@@ -334,7 +334,7 @@ export default function ExplorarPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted/30 p-1 rounded-2xl h-14 w-full md:w-fit">
           <TabsTrigger value="all" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">{t('dashboard.all')}</TabsTrigger>
-          <TabsTrigger value="trending" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2"><TrendingUp className="w-4 h-4" /> {t('dashboard.trending')}</TabsTrigger>
+          <TabsTrigger value="trending" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2"><TrendingUp className="w-4 h-4" /> {t('dashboard.trending')}</TrendingUp>
           <TabsTrigger value="recent" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2"><History className="w-4 h-4" /> {t('dashboard.recent')}</TabsTrigger>
         </TabsList>
 

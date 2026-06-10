@@ -1,7 +1,6 @@
 /**
  * @fileOverview Algoritmo de Pontuação (Scoring) para ordenação inteligente de eventos.
  * Combina proximidade física, relevância temporal e popularidade.
- * ATUALIZAÇÃO: Prioridade para eventos próximos (< 5km) ordenados por dia e hora.
  */
 
 import { calculateDistance, type Coordinates } from "./location-utils";
@@ -11,6 +10,13 @@ export interface ScoringMetrics {
   maxRadiusKm: number;
 }
 
+/**
+ * Calcula o score de um evento para fins de ordenação.
+ * Regras:
+ * 1. Prioridade Máxima: Eventos em um raio de até 5km (Bônus de 10.000 pontos).
+ * 2. Ordenação Secundária: Cronológica (Eventos mais próximos no tempo ganham mais pontos).
+ * 3. Bônus de Patrocínio: Viby Ads (Bônus de 500 pontos).
+ */
 export function calculateEventScore(event: any, metrics: ScoringMetrics): number {
   const now = new Date();
   
@@ -27,57 +33,51 @@ export function calculateEventScore(event: any, metrics: ScoringMetrics): number
   // Se não tem endDate, assume 4 horas de duração para fins de ranking
   const endDate = parseDate(event.endDate) || new Date(startDate.getTime() + 4 * 60 * 60 * 1000);
   
-  let timeScore = 0;
-  const isLive = now >= startDate && now < endDate;
-  const isUpcomingToday = now < startDate && startDate.toDateString() === now.toDateString();
-  const timeUntilStart = startDate.getTime() - now.getTime();
-
-  // 1. Lógica de Tempo (Pesos agressivos para visibilidade)
-  // Quanto mais perto do "agora", maior o score
-  if (isLive) {
-    // Evento acontecendo agora: Prioridade máxima na cronologia
-    timeScore = 8.0; 
-  } else if (isUpcomingToday) {
-    // Evento hoje mas ainda não começou
-    timeScore = 6.0;
-  } else if (timeUntilStart > 0) {
-    // Eventos futuros: Decaimento linear sobre 30 dias (mais cedo = mais pontos)
-    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-    timeScore = Math.max(0.1, 4 - (timeUntilStart / thirtyDaysMs));
-  } else {
-    // Evento já encerrado
-    timeScore = 0.01;
-  }
-
-  // 2. Score de Distância e Bônus de Proximidade Imediata
-  let distanceScore = 0.5;
-  let proximityBonus = 0;
-  let distance = null;
-
+  // 1. LÓGICA DE PROXIMIDADE (PESO PRINCIPAL)
+  let proximityScore = 0;
   if (metrics.userLocation && event.latitude && event.longitude) {
-    distance = calculateDistance(metrics.userLocation, {
+    const distance = calculateDistance(metrics.userLocation, {
       latitude: event.latitude,
       longitude: event.longitude
     });
 
-    // Se estiver a menos de 5km, ganha bônus massivo para ser o "primeiro da fila"
+    // Se estiver a menos de 5km, ganha um bônus massivo para ir ao topo absoluto
     if (distance <= 5) {
-      proximityBonus = 25; // Garante que fique acima de qualquer evento longe
+      proximityScore = 10000; 
+    } else {
+      // Fora dos 5km, ganha um score proporcional à proximidade dentro do raio escolhido
+      proximityScore = Math.max(0, (1 - (distance / metrics.maxRadiusKm)) * 100);
     }
-
-    distanceScore = Math.max(0.1, 1 - (distance / metrics.maxRadiusKm));
   }
 
-  // Pesos Finais
-  // Aumentamos o peso do tempo para que dentro do raio de 5km a ordem seja cronológica
-  const WEIGHT_TIME = 0.80; 
-  const WEIGHT_DISTANCE = 0.10;
-  const WEIGHT_POPULARITY = 0.10;
+  // 2. LÓGICA DE TEMPO (GRANULARIDADE CRONOLÓGICA)
+  // Usamos uma data de referência no futuro para garantir que eventos mais cedo tenham score maior.
+  // Um evento hoje deve valer mais que um amanhã.
+  const farFuture = new Date(now.getFullYear() + 2, 0, 1).getTime();
+  const eventTime = startDate.getTime();
+  
+  let timeScore = 0;
+  if (endDate < now) {
+    timeScore = -100000; // Evento encerrado (penalidade máxima)
+  } else {
+    // Diferença em horas como base para o score de tempo
+    // Quanto menor a distância para o agora, maior o valor.
+    timeScore = (farFuture - eventTime) / (1000 * 60 * 60);
 
-  // Bônus de Patrocínio (Viby Ads)
-  const sponsorBonus = event.isSponsored ? 2.0 : 0;
+    // Bônus adicional para eventos acontecendo AGORA ou HOJE
+    if (now >= startDate && now < endDate) {
+      timeScore += 1000; // Live now
+    } else if (startDate.toDateString() === now.toDateString()) {
+      timeScore += 500; // Today
+    }
+  }
 
-  return proximityBonus + (timeScore * WEIGHT_TIME) + (distanceScore * WEIGHT_DISTANCE) + (0.5 * WEIGHT_POPULARITY) + sponsorBonus;
+  // 3. BÔNUS DE POPULARIDADE E PATROCÍNIO
+  const popularityBonus = (event.viewsCount || 0) * 0.1 + (event.interestedCount || 0) * 0.5;
+  const sponsorBonus = event.isSponsored ? 500 : 0;
+
+  // Resultado final: Proximidade (5km) > Cronologia > Patrocínio > Popularidade
+  return proximityScore + timeScore + sponsorBonus + popularityBonus;
 }
 
 /**
@@ -98,10 +98,8 @@ export function isEventVisible(event: any): boolean {
   const start = parseDate(event.date);
   if (!start) return false;
 
-  // Se não tem data de término definida, o Viby assume 6 horas após o início 
-  // para remover o evento da vitrine automaticamente.
+  // O Viby assume 6 horas após o início para remover o evento da vitrine automaticamente se não houver data de fim.
   const end = parseDate(event.endDate) || new Date(start.getTime() + 6 * 60 * 60 * 1000);
   
-  // O evento só é visível se ainda não terminou
   return now < end;
 }
