@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -186,6 +187,7 @@ export default function NovoEventoPage() {
 
       if (!result.success) throw new Error(result.error);
 
+      // CORREÇÃO: Geração de recorrência dispara se isRecurring for true, independentemente de recurringEndDate
       if (formData.isRecurring) {
         await generateOccurrences(result.id!, {
           name: formData.title,
@@ -364,7 +366,7 @@ export default function NovoEventoPage() {
           </div>
         )}
 
-        <Button type="submit" disabled={loading} className="w-full h-20 bg-secondary text-white font-black text-xl rounded-[2.5rem] shadow-xl uppercase italic">
+        <Button type="submit" disabled={loading} className="w-full h-20 bg-secondary text-white font-black h-20 rounded-[2.5rem] shadow-xl uppercase italic text-xl transition-all active:scale-95">
           {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Experiência"}
         </Button>
       </form>

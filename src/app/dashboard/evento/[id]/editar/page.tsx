@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -116,7 +117,7 @@ export default function EditarEventoPage() {
     const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', 
-      (s) => setUploadProgress((s.bytesTransferred / snapshot.totalBytes) * 100), 
+      (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
       () => setUploadProgress(null), 
       async () => {
         const url = await getDownloadURL(uploadTask.snapshot.ref)
@@ -163,6 +164,7 @@ export default function EditarEventoPage() {
 
       if (!result.success) throw new Error(result.error);
 
+      // CORREÇÃO: Geração de recorrência dispara se isRecurring for true, sem exigir data final se for custom
       if (formData.isRecurring) {
         await generateOccurrences(eventId, {
           name: formData.title,
@@ -203,7 +205,7 @@ export default function EditarEventoPage() {
            <Button variant="outline" asChild className="rounded-xl h-11 border-secondary text-secondary font-bold uppercase text-[10px]">
               <Link href={`/${currentOrg?.username}/${event?.slug || eventId}`} target="_blank"><Eye className="w-4 h-4 mr-2" /> Ver Público</Link>
            </Button>
-           <Button onClick={handleSubmit} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic">
+           <Button onClick={handleSubmit} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic transition-all active:scale-95">
              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
              Salvar Tudo
            </Button>

@@ -87,14 +87,13 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
   const { data: promotions } = useDoc<any>( promosRef)
 
-  // Consulta de Ocorrências (Sessões)
+  // Consulta de Ocorrências (Sessões) - REMOVIDO orderBy para evitar erro de índice
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !id || !event?.isRecurring) return null;
     return query(
       collection(db, "recurring_occurrences"),
       where("parentId", "==", id),
-      where("status", "==", "active"),
-      orderBy("date", "asc")
+      where("status", "==", "active")
     )
   }, [db, id, event?.isRecurring]);
 
@@ -103,7 +102,14 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const upcomingOccurrences = React.useMemo(() => {
     if (!rawOccurrences) return [];
     const todayStr = format(startOfToday(), 'yyyy-MM-dd');
-    return rawOccurrences.filter((occ: any) => occ.date >= todayStr);
+    
+    // Filtragem e Ordenação em memória para resiliência total
+    return rawOccurrences
+      .filter((occ: any) => occ.date >= todayStr)
+      .sort((a: any, b: any) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        return (a.startTime || "").localeCompare(b.startTime || "");
+      });
   }, [rawOccurrences]);
 
   const siteName = settings?.siteName || "Viby"
@@ -234,25 +240,25 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  variant="outline" 
                  className="flex-1 sm:flex-none h-11 sm:h-12 rounded-2xl border-2 gap-2 font-black uppercase italic text-[10px] sm:text-xs px-4 sm:px-6"
                >
-                  <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Copiar
+                  <Copy className="w-3.5 h-3.5" /> Copiar
                </Button>
                <Button 
                  onClick={() => setIsShareModalOpen(true)}
                  variant="outline" 
                  className="flex-1 sm:flex-none h-11 sm:h-12 rounded-2xl border-2 gap-2 font-black uppercase italic text-[10px] sm:text-xs px-4 sm:px-6"
                >
-                  <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Material
+                  <Share2 className="w-3.5 h-3.5" /> Material
                </Button>
                
                {isExternalSale && (
                  <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-[10px] sm:text-xs px-6 sm:px-8 hover:scale-105 transition-transform">
-                   <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ExternalLink className="ml-2 w-3.5 h-3.5 sm:w-4 sm:h-4" /></a>
+                   <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ExternalLink className="ml-2 w-3.5 h-3.5" /></a>
                  </Button>
                )}
 
                {isVibySale && !isRecurringHub && (
                  <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-[10px] sm:text-xs px-6 sm:px-8 hover:scale-105 transition-transform shadow-secondary/20">
-                   <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-3.5 h-3.5 sm:w-4 sm:h-4" /></Link>
+                   <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-3.5 h-3.5" /></Link>
                  </Button>
                )}
             </div>
@@ -403,7 +409,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     </div>
                     <CardContent className="p-6 sm:p-10 flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-8">
                        <div className="space-y-2 text-center md:text-left min-w-0 flex-1">
-                          <h3 className="text-lg sm:text-xl font-black uppercase italic tracking-tighter text-primary break-words">{event.address?.venueName || event.location}</h3>
+                          <h3 className="text-lg sm:text-xl font-black uppercase italic tracking-tighter text-primary break-words">{address?.venueName || event.location}</h3>
                           <p className="text-xs sm:text-sm font-medium text-muted-foreground leading-relaxed max-w-md break-words">
                             {event.address?.formattedAddress || `${event.address?.addressLine1}, ${event.address?.city} - ${event.address?.stateRegion}`}
                           </p>
@@ -411,12 +417,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto shrink-0">
                           <Button asChild variant="outline" className="flex-1 sm:flex-none rounded-2xl h-12 px-6 sm:px-8 font-black uppercase italic text-[10px] sm:text-xs gap-2 sm:gap-3 border-secondary/20 text-secondary hover:bg-secondary/5 transition-all">
                              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.address?.formattedAddress || event.location)}`} target="_blank" rel="noopener noreferrer">
-                                <Navigation className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Google Maps
+                                <Navigation className="w-3.5 h-3.5" /> Google Maps
                              </a>
                           </Button>
                           <Button asChild variant="outline" className="flex-1 sm:flex-none rounded-2xl h-12 px-6 sm:px-8 font-black uppercase italic text-[10px] sm:text-xs gap-2 sm:gap-3 border-primary/10 text-primary hover:bg-muted transition-all">
                              <a href={`https://www.waze.com/ul?q=${encodeURIComponent(event.address?.formattedAddress || event.location)}&navigate=yes`} target="_blank" rel="noopener noreferrer">
-                                <MapIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Waze
+                                <MapIcon className="w-3.5 h-3.5" /> Waze
                              </a>
                           </Button>
                        </div>
@@ -471,17 +477,17 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     <div className="grid grid-cols-1 gap-4">
                        {isExternalSale && !isRecurringHub && (
                          <Button asChild className="w-full h-14 sm:h-16 bg-primary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform">
-                            <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ArrowRight className="ml-2 w-4 h-4 sm:w-5 sm:h-5" /></a>
+                            <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ArrowRight className="ml-2 w-4 h-4" /></a>
                          </Button>
                        )}
                        {isVibySale && !isRecurringHub && (
                          <Button asChild className="w-full h-14 sm:h-16 bg-secondary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
-                            <Link href="#bilheteria">Garantir Meu Lugar <ArrowRight className="ml-2 w-4 h-4 sm:w-5 sm:h-5" /></Link>
+                            <Link href="#bilheteria">Garantir Meu Lugar <ArrowRight className="ml-2 w-4 h-4" /></Link>
                          </Button>
                        )}
                        {isRecurringHub && (
                          <Button asChild className="w-full h-14 sm:h-16 bg-secondary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
-                            <Link href="#sessões">Escolher Sessão <ArrowRight className="ml-2 w-4 h-4 sm:w-5 sm:h-5" /></Link>
+                            <Link href="#sessões">Escolher Sessão <ArrowRight className="ml-2 w-4 h-4" /></Link>
                          </Button>
                        )}
                     </div>
