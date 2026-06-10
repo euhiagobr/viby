@@ -104,25 +104,40 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [userLocation, event.latitude, event.longitude]);
 
   const pricingDisplay = React.useMemo(() => {
-    if (event.type === 'externo') {
+    const currency = event.currency || 'BRL';
+
+    if (event.type === 'externo' && !event.startingPrice) {
       return <span className="text-secondary font-black italic uppercase text-[10px]">{t('event.under_consultation')}</span>;
     }
 
-    if (event.type === 'divulgacao' || isCuradoria) {
-      if (!currentDisplayPrice) {
-        return <span className="text-green-600 font-black italic uppercase text-[10px]">{t('event.no_tickets')}</span>;
+    if (event.type === 'divulgacao' || event.type === 'externo' || isCuradoria) {
+      // Prioridade 1: Preço inicial fixo (startingPrice)
+      if (typeof event.startingPrice === 'number' && event.startingPrice > 0) {
+        return (
+          <div className="flex flex-col items-end">
+            <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">{t('event.from')}</p>
+            {formatPriceWithOriginal(event.startingPrice, currency)}
+          </div>
+        );
+      } else if (event.startingPrice === 0) {
+        return <span className="text-green-600 font-black italic uppercase text-[10px]">{t('event.free')}</span>;
       }
 
-      return (
-        <div className="flex flex-col items-end">
-          <div className="flex items-center gap-1">
-             {formatPriceWithOriginal(currentDisplayPrice.price, event.currency || 'BRL')}
+      // Prioridade 2: Preço por horário (currentDisplayPrice)
+      if (currentDisplayPrice) {
+        return (
+          <div className="flex flex-col items-end">
+            <div className="flex items-center gap-1">
+               {formatPriceWithOriginal(currentDisplayPrice.price, currency)}
+            </div>
+            <div className="flex items-center gap-1 text-[8px] font-black uppercase text-muted-foreground opacity-60">
+               <Clock className="w-2.5 h-2.5" /> Até {currentDisplayPrice.untilTime}
+            </div>
           </div>
-          <div className="flex items-center gap-1 text-[8px] font-black uppercase text-muted-foreground opacity-60">
-             <Clock className="w-2.5 h-2.5" /> Até {currentDisplayPrice.untilTime}
-          </div>
-        </div>
-      );
+        );
+      }
+
+      return <span className="text-green-600 font-black italic uppercase text-[10px]">{t('event.free')}</span>;
     }
 
     if (!event.batches || event.batches.length === 0) return <span className="text-green-600 italic uppercase text-xs">{t('event.no_tickets')}</span>;
@@ -139,7 +154,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     return (
       <div className="flex flex-col items-end">
         <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">{t('event.from')}</p>
-        {formatPriceWithOriginal(min, event.currency || 'BRL')}
+        {formatPriceWithOriginal(min, currency)}
       </div>
     );
   }, [event, t, formatPriceWithOriginal, currentDisplayPrice, isCuradoria]);

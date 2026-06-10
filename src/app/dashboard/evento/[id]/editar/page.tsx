@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -89,6 +88,7 @@ export default function EditarEventoPage() {
         image: event.image || "",
         type: event.type || "interno",
         externalUrl: event.externalUrl || "",
+        startingPrice: event.startingPrice || 0,
         disclosurePrices: event.disclosurePrices || [],
         categoryId: event.categoryId || "",
         startDate: event.date || "",
@@ -202,7 +202,7 @@ export default function EditarEventoPage() {
         </div>
         <div className="flex gap-3">
            <Button variant="outline" asChild className="rounded-xl h-11 border-secondary text-secondary font-bold uppercase text-[10px]">
-              <Link href={`/${currentOrg?.username}/${event?.slug || eventId}`} target="_blank"><Eye className="w-4 h-4 mr-2" /> Ver Público</Link>
+              <Link href={`/${currentOrg?.username}/${event?.slug || eventId}`} target="_blank"><Eye className="w-4 h-4 mr-2" /> Ver Perfil</Link>
            </Button>
            <Button onClick={handleSubmit} disabled={loading} className="bg-primary text-white font-black rounded-full h-11 px-8 shadow-lg gap-2 uppercase italic transition-all active:scale-95">
              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -237,6 +237,8 @@ export default function EditarEventoPage() {
                       onChange={v => setFormData({...formData, type: v})} 
                       externalUrl={formData.externalUrl} 
                       onExternalUrlChange={v => setFormData({...formData, externalUrl: v})} 
+                      startingPrice={formData.startingPrice}
+                      onStartingPriceChange={v => setFormData({...formData, startingPrice: v})}
                       disclosurePrices={formData.disclosurePrices}
                       onDisclosurePricesChange={v => setFormData({...formData, disclosurePrices: v})}
                       config={eventTypesSettings}

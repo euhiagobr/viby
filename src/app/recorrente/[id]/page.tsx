@@ -1,9 +1,8 @@
-
 "use client"
 
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useFirestore, useDoc } from '@/firebase';
+import { useDoc, useFirestore } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +54,7 @@ export default function PublicOccurrencePage() {
     isRecurring: true,
     isSoldOut: isSoldOut,
     type: series?.type || 'divulgacao',
+    startingPrice: series?.startingPrice,
     disclosurePrices: series?.disclosurePrices || [],
     externalUrl: series?.externalUrl || "",
     curationType: series?.curationType
@@ -77,7 +77,7 @@ export default function PublicOccurrencePage() {
             <div className="h-48 bg-primary relative flex items-center justify-center text-white">
               <RefreshCw className="w-32 h-32 opacity-10 absolute animate-spin-slow" />
               <div className="text-center space-y-2 px-8 relative z-10">
-                <Badge className={cn("text-white font-black uppercase text-[9px] px-4 h-6 border-none", isSoldOut ? "bg-orange-500" : "bg-secondary")}>
+                <Badge className={cn("text-white font-black uppercase text-[9px] px-4 h-6 border-none", isSoldOut ? "bg-orange-50" : "bg-secondary")}>
                   {isSoldOut ? "Lotação Máxima Atingida" : isCuradoria ? "Sessão de Curadoria" : "Sessão Disponível"}
                 </Badge>
                 <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-none">{series?.name || occ.name}</h1>

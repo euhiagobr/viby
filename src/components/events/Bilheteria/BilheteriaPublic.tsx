@@ -17,7 +17,8 @@ import {
   Globe,
   Instagram,
   Phone,
-  Mail
+  Mail,
+  Tag
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { calculateVibyOfficialSplit } from "@/lib/financial-utils"
@@ -165,22 +166,45 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
 
         <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
           <CardContent className="p-10 space-y-10">
-            {event.disclosurePrices?.length > 0 ? (
-              <div className="space-y-6">
-                <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                  <Coins className="w-4 h-4 text-secondary" /> Valores Informativos
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {event.disclosurePrices.map((p: any, i: number) => (
-                    <div key={i} className="p-5 bg-muted/20 rounded-2xl border border-dashed flex justify-between items-center">
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Até {p.untilTime}</p>
-                        <p className="text-lg font-black text-primary">{formatPriceWithOriginal(p.price, eventCurrency)}</p>
+            {event.startingPrice !== undefined || event.disclosurePrices?.length > 0 ? (
+              <div className="space-y-8">
+                {event.startingPrice !== undefined && (
+                   <div className="space-y-3">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-secondary" /> Valor de Referência
+                      </h3>
+                      <div className="p-6 bg-muted/20 rounded-3xl border-2 border-dashed border-border flex items-center justify-between">
+                         <div>
+                            <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Valores a partir de</p>
+                            <p className="text-3xl font-black text-primary italic tracking-tighter">
+                               {event.startingPrice === 0 ? "Evento gratuito" : formatPriceWithOriginal(event.startingPrice, eventCurrency)}
+                            </p>
+                         </div>
+                         <div className="p-4 bg-white rounded-2xl shadow-sm text-secondary">
+                            <Coins className="w-8 h-8" />
+                         </div>
                       </div>
-                      <Clock className="w-5 h-5 text-secondary opacity-20" />
+                   </div>
+                )}
+
+                {event.disclosurePrices?.length > 0 && (
+                  <div className="space-y-6">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-secondary" /> Agenda de Preços
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {event.disclosurePrices.map((p: any, i: number) => (
+                        <div key={i} className="p-5 bg-muted/20 rounded-2xl border border-dashed flex justify-between items-center">
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Até {p.untilTime}</p>
+                            <p className="text-lg font-black text-primary">{formatPriceWithOriginal(p.price, eventCurrency)}</p>
+                          </div>
+                          <Clock className="w-5 h-5 text-secondary opacity-20" />
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="p-8 bg-muted/20 rounded-3xl border-2 border-dashed border-border/50 flex flex-col items-center text-center gap-2">
@@ -239,22 +263,45 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
 
          <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
             <CardContent className="p-10 space-y-10">
-               {event.disclosurePrices?.length > 0 ? (
-                 <div className="space-y-6">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                       <Coins className="w-4 h-4 text-secondary" /> Cronograma de Valores
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       {event.disclosurePrices.map((p: any, i: number) => (
-                         <div key={i} className="p-5 bg-muted/20 rounded-2xl border border-dashed flex justify-between items-center group hover:bg-muted/40 transition-all">
-                            <div className="space-y-1">
-                               <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Até {p.untilTime}</p>
-                               <p className="text-lg font-black text-primary">{formatPriceWithOriginal(p.price, eventCurrency)}</p>
-                            </div>
-                            <Clock className="w-5 h-5 text-secondary opacity-20 group-hover:opacity-100 transition-opacity" />
-                         </div>
-                       ))}
-                    </div>
+               {event.startingPrice !== undefined || event.disclosurePrices?.length > 0 ? (
+                 <div className="space-y-10">
+                    {event.startingPrice !== undefined && (
+                       <div className="space-y-3">
+                          <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-secondary" /> Valor de Referência
+                          </h3>
+                          <div className="p-6 bg-muted/20 rounded-3xl border-2 border-dashed border-border flex items-center justify-between">
+                             <div>
+                                <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Valores a partir de</p>
+                                <p className="text-3xl font-black text-primary italic tracking-tighter">
+                                   {event.startingPrice === 0 ? "Evento gratuito" : formatPriceWithOriginal(event.startingPrice, eventCurrency)}
+                                </p>
+                             </div>
+                             <div className="p-4 bg-white rounded-2xl shadow-sm text-secondary">
+                                <Coins className="w-8 h-8" />
+                             </div>
+                          </div>
+                       </div>
+                    )}
+
+                    {event.disclosurePrices?.length > 0 && (
+                      <div className="space-y-6">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                           <Clock className="w-4 h-4 text-secondary" /> Cronograma por Horário
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           {event.disclosurePrices.map((p: any, i: number) => (
+                             <div key={i} className="p-5 bg-muted/20 rounded-2xl border border-dashed flex justify-between items-center group hover:bg-muted/40 transition-all">
+                                <div className="space-y-1">
+                                   <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Até {p.untilTime}</p>
+                                   <p className="text-lg font-black text-primary">{formatPriceWithOriginal(p.price, eventCurrency)}</p>
+                                </div>
+                                <Clock className="w-5 h-5 text-secondary opacity-20 group-hover:opacity-100 transition-opacity" />
+                             </div>
+                           ))}
+                        </div>
+                      </div>
+                    )}
                  </div>
                ) : (
                  <div className="p-8 bg-green-50 rounded-3xl border-2 border-dashed border-green-100 flex flex-col items-center text-center gap-3">
@@ -267,7 +314,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                )}
 
                <div className="flex flex-col sm:flex-row gap-4">
-                  {isExterno && (
+                  {isExterno && event.externalUrl && (
                     <Button asChild className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-base hover:scale-102 transition-transform">
                        <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">
                           Acessar Site de Vendas <ExternalLink className="ml-2 w-5 h-5" />

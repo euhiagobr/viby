@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -29,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
 
@@ -55,10 +55,8 @@ export default function NovoEventoPage() {
     image: DEFAULT_EVENT_IMAGE,
     type: "interno",
     externalUrl: "",
-    disclosurePrice: 0,
-    disclosurePriceSecondary: 0,
-    disclosureRule: "",
-    disclosureSwitchTime: "",
+    startingPrice: 0,
+    disclosurePrices: [] as { price: number; untilTime: string }[],
     categoryId: "",
     ageRatingCode: "free",
     startDate: "",
@@ -167,11 +165,6 @@ export default function NovoEventoPage() {
         createdAt: serverTimestamp()
       }
 
-      // Convert disclosureSwitchTime to Date object for proper storage
-      if (formData.disclosureSwitchTime) {
-        eventData.disclosureSwitchTime = new Date(formData.disclosureSwitchTime);
-      }
-
       const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => value === undefined ? null : value));
 
       const docRef = await addDoc(collection(db, "events"), cleanData)
@@ -226,14 +219,10 @@ export default function NovoEventoPage() {
                    onChange={v => setFormData({...formData, type: v})}
                    externalUrl={formData.externalUrl}
                    onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
-                   disclosurePrice={formData.disclosurePrice}
-                   onDisclosurePriceChange={v => setFormData({...formData, disclosurePrice: v})}
-                   disclosurePriceSecondary={formData.disclosurePriceSecondary}
-                   onDisclosurePriceSecondaryChange={v => setFormData({...formData, disclosurePriceSecondary: v})}
-                   disclosureRule={formData.disclosureRule}
-                   onDisclosureRuleChange={v => setFormData({...formData, disclosureRule: v})}
-                   disclosureSwitchTime={formData.disclosureSwitchTime}
-                   onDisclosureSwitchTimeChange={v => setFormData({...formData, disclosureSwitchTime: v})}
+                   startingPrice={formData.startingPrice}
+                   onStartingPriceChange={v => setFormData({...formData, startingPrice: v})}
+                   disclosurePrices={formData.disclosurePrices}
+                   onDisclosurePricesChange={v => setFormData({...formData, disclosurePrices: v})}
                    config={eventTypesSettings}
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
