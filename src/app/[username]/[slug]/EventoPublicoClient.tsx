@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -32,7 +33,8 @@ import {
   RefreshCw,
   ChevronRight,
   EyeOff,
-  Lock
+  Lock,
+  MoreVertical
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -50,6 +52,7 @@ import { toast } from "@/hooks/use-toast"
 import dynamic from "next/dynamic"
 import { format, startOfToday } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { EventActionModal } from "@/components/events/EventActionModal"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
@@ -70,6 +73,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const { user } = useUser(auth)
   
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false)
+  const [isActionModalOpen, setIsActionModalOpen] = React.useState(false)
 
   const eventRef = React.useMemo(() => (db && id) ? doc(db, "events", id) : null, [db, id])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
@@ -142,10 +146,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   
   const isEnded = dEnd ? (dEnd < new Date()) : false;
   
-  // Lógica de Venda
   const isExternalSale = event.type === 'externo' && event.externalUrl;
   const isVibySale = event.type === 'interno' && event.ticketMode !== 'none';
-  const isDivulgacao = event.type === 'divulgacao' || (!isExternalSale && !isVibySale);
 
   const isRecurringHub = event.isRecurring === true && upcomingOccurrences.length > 0;
 
@@ -259,6 +261,14 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                   <Share2 className="w-3.5 h-3.5" /> Material
                </Button>
                
+               <Button 
+                 onClick={() => setIsActionModalOpen(true)}
+                 variant="outline" 
+                 className="flex-1 sm:flex-none h-11 sm:h-12 rounded-2xl border-2 gap-2 font-black uppercase italic text-[10px] sm:text-xs px-4 sm:px-6 bg-muted/20"
+               >
+                  <MoreVertical className="w-3.5 h-3.5" /> Ações do evento
+               </Button>
+
                {!isCuradoria && (
                  <>
                    {isExternalSale && !isRecurringHub && (
@@ -580,6 +590,14 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
             eventId: id,
             verified: org.verified || org.isVerified
           }}
+        />
+      )}
+
+      {event && (
+        <EventActionModal 
+          isOpen={isActionModalOpen} 
+          onOpenChange={setIsActionModalOpen} 
+          event={event} 
         />
       )}
 

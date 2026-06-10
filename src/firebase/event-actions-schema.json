@@ -1,0 +1,51 @@
+
+{
+  "collections": {
+    "solicitacoes_propriedade": {
+      "description": "Pedidos de transferência de propriedade de eventos curados para organizadores reais.",
+      "fields": {
+        "eventId": "string",
+        "eventTitle": "string",
+        "requesterUid": "string",
+        "requesterOrgId": "string",
+        "justification": "string",
+        "status": "pendente | aprovado | recusado",
+        "ip": "string",
+        "createdAt": "timestamp"
+      }
+    },
+    "denuncias": {
+      "description": "Denúncias de irregularidades em eventos.",
+      "fields": {
+        "eventId": "string",
+        "eventTitle": "string",
+        "reporterUid": "string (opcional)",
+        "reporterName": "string",
+        "reporterEmail": "string",
+        "reporterPhone": "string",
+        "reason": "string",
+        "status": "pendente | analisada | arquivada",
+        "ip": "string",
+        "createdAt": "timestamp"
+      }
+    },
+    "solicitacoes_remocao": {
+      "description": "Solicitações formais/jurídicas de remoção de conteúdo.",
+      "fields": {
+        "eventId": "string",
+        "eventTitle": "string",
+        "requesterUid": "string",
+        "fullName": "string",
+        "taxId": "string (CPF/CNPJ)",
+        "legalName": "string (opcional)",
+        "email": "string",
+        "phone": "string",
+        "justification": "string",
+        "proofUrls": "array (URLs de documentos no Storage)",
+        "status": "pendente | em_analise | concluido",
+        "ip": "string",
+        "createdAt": "timestamp"
+      }
+    }
+  }
+}
