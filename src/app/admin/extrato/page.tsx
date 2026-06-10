@@ -23,7 +23,8 @@ import {
   Clock,
   BarChart3,
   PieChart as PieChartIcon,
-  Globe
+  Globe,
+  ShieldCheck
 } from 'lucide-react';
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { 
@@ -252,6 +253,12 @@ export default function AdminERPDashboard() {
                <p className="text-[10px] font-bold text-muted-foreground uppercase">Valor Registrado Devolvido</p>
             </div>
          </Card>
+      </div>
+
+      <div className="flex justify-center mt-8">
+         <div className="p-10 bg-secondary rounded-3xl flex items-center justify-center rotate-12 shadow-2xl">
+            <PieChartIcon className="w-16 h-16 text-white" />
+         </div>
       </div>
     </div>
   );

@@ -61,7 +61,8 @@ import {
   Info,
   Percent,
   Handshake,
-  ChevronRight
+  ChevronRight,
+  UserX
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -941,4 +942,3 @@ function OrgMembersList({ orgId }: { orgId: string }) {
     </div>
   )
 }
-import { UserX } from "lucide-react"
