@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -254,6 +255,18 @@ export default function EditarEventoPage() {
                     </div>
                   </div>
                   <EventDateTime startDate={formData.startDate} endDate={formData.endDate} onStartDateChange={v => setFormData({...formData, startDate: v})} onEndDateChange={v => setFormData({...formData, endDate: v})} />
+
+                  {formData.isRecurring && (
+                    <EventRecurrence 
+                      isRecurring={formData.isRecurring}
+                      onIsRecurringChange={v => setFormData({...formData, isRecurring: v})}
+                      frequency={formData.frequency}
+                      onFrequencyChange={v => setFormData({...formData, frequency: v})}
+                      recurringEndDate={formData.recurringEndDate}
+                      onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})}
+                    />
+                  )}
+
                   <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
                   <EventTags tags={formData.tags} onChange={v => setFormData({...formData, tags: v})} />
               </CardContent>
