@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -142,9 +143,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const isVibySale = event.type === 'interno' && event.ticketMode !== 'none';
   const isDivulgacao = event.type === 'divulgacao' || (!isExternalSale && !isVibySale);
 
-  // O "Recurrence Hub" (escolha de datas) só deve aparecer para eventos que possuam algum tipo de venda/vínculo de ingresso.
-  // Se for apenas divulgação, mostramos a data padrão para evitar confusão no fluxo de "escolha".
-  const isRecurringHub = event.isRecurring === true && (event.type === 'interno' || event.type === 'externo');
+  // O "Recurrence Hub" (escolha de datas) agora aparece para QUALQUER tipo de evento que seja recorrente.
+  const isRecurringHub = event.isRecurring === true;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] h-full flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
@@ -408,8 +408,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  <Card className="border-none shadow-sm rounded-[2.5rem] sm:rounded-[3rem] bg-white overflow-hidden p-0 relative group border border-border/50">
                     <div className="h-[300px] sm:h-[400px] w-full">
                        <LocationMap 
-                         latitude={event.latitude || -23.55052} 
-                         longitude={event.longitude || -46.633308} 
+                         latitude={event.address?.latitude || event.latitude || -23.55052} 
+                         longitude={event.address?.longitude || event.longitude || -46.633308} 
                          interactive={false} 
                          onChange={() => {}} 
                        />
