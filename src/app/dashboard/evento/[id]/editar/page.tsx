@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { updateEventAction } from "@/app/actions/events"
+import { generateOccurrences } from "@/services/recurring-event-service"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
@@ -162,6 +163,22 @@ export default function EditarEventoPage() {
 
       if (!result.success) throw new Error(result.error);
 
+      // Se a recorrência estiver ativa, regenera as ocorrências (cuidado: isso limpa a agenda antiga da série)
+      if (formData.isRecurring && formData.recurringEndDate) {
+        await generateOccurrences(eventId, {
+          name: formData.title,
+          description: formData.description,
+          organizationId: currentOrg.id,
+          organizerName: currentOrg.name,
+          frequency: formData.frequency as any,
+          startDate: formData.startDate.split('T')[0],
+          endDate: formData.recurringEndDate,
+          startTime: formData.startDate.split('T')[1] || "19:00",
+          endTime: formData.endDate.split('T')[1] || "22:00",
+          capacidadeMaxima: totalCapacity
+        });
+      }
+
       toast({ title: "Evento Atualizado!" })
       router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
     } catch (error: any) {
@@ -256,16 +273,14 @@ export default function EditarEventoPage() {
                   </div>
                   <EventDateTime startDate={formData.startDate} endDate={formData.endDate} onStartDateChange={v => setFormData({...formData, startDate: v})} onEndDateChange={v => setFormData({...formData, endDate: v})} />
 
-                  {formData.isRecurring && (
-                    <EventRecurrence 
-                      isRecurring={formData.isRecurring}
-                      onIsRecurringChange={v => setFormData({...formData, isRecurring: v})}
-                      frequency={formData.frequency}
-                      onFrequencyChange={v => setFormData({...formData, frequency: v})}
-                      recurringEndDate={formData.recurringEndDate}
-                      onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})}
-                    />
-                  )}
+                  <EventRecurrence 
+                    isRecurring={formData.isRecurring}
+                    onIsRecurringChange={v => setFormData({...formData, isRecurring: v})}
+                    frequency={formData.frequency}
+                    onFrequencyChange={v => setFormData({...formData, frequency: v})}
+                    recurringEndDate={formData.recurringEndDate}
+                    onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})}
+                  />
 
                   <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
                   <EventTags tags={formData.tags} onChange={v => setFormData({...formData, tags: v})} />
