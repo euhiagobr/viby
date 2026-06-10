@@ -86,6 +86,7 @@ export default function NovoEventoPage() {
     isRecurring: false,
     frequency: "weekly",
     recurringEndDate: "",
+    customOccurrences: [] as any[],
     currency: dashboardCurrency || "BRL",
     curationType: "realização"
   })
@@ -185,7 +186,7 @@ export default function NovoEventoPage() {
 
       if (!result.success) throw new Error(result.error);
 
-      if (formData.isRecurring && formData.recurringEndDate) {
+      if (formData.isRecurring) {
         await generateOccurrences(result.id!, {
           name: formData.title,
           description: formData.description,
@@ -196,7 +197,8 @@ export default function NovoEventoPage() {
           endDate: formData.recurringEndDate,
           startTime: formData.startDate.split('T')[1] || "19:00",
           endTime: formData.endDate.split('T')[1] || "22:00",
-          capacidadeMaxima: totalCapacity
+          capacidadeMaxima: totalCapacity,
+          customOccurrences: formData.customOccurrences
         });
       }
 
@@ -301,6 +303,8 @@ export default function NovoEventoPage() {
                 onFrequencyChange={v => setFormData({...formData, frequency: v})}
                 recurringEndDate={formData.recurringEndDate}
                 onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})}
+                customOccurrences={formData.customOccurrences}
+                onCustomOccurrencesChange={v => setFormData({...formData, customOccurrences: v})}
               />
 
               <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -101,6 +100,7 @@ export default function EditarEventoPage() {
         isRecurring: event.isRecurring || false,
         frequency: event.frequency || "weekly",
         recurringEndDate: event.recurringEndDate || "",
+        customOccurrences: event.customOccurrences || [],
         currency: event.currency || dashboardCurrency || "BRL",
         curationType: event.curationType || "realização"
       })
@@ -116,7 +116,7 @@ export default function EditarEventoPage() {
     const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', 
-      (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
+      (s) => setUploadProgress((s.bytesTransferred / snapshot.totalBytes) * 100), 
       () => setUploadProgress(null), 
       async () => {
         const url = await getDownloadURL(uploadTask.snapshot.ref)
@@ -163,8 +163,7 @@ export default function EditarEventoPage() {
 
       if (!result.success) throw new Error(result.error);
 
-      // Se a recorrência estiver ativa, regenera as ocorrências (cuidado: isso limpa a agenda antiga da série)
-      if (formData.isRecurring && formData.recurringEndDate) {
+      if (formData.isRecurring) {
         await generateOccurrences(eventId, {
           name: formData.title,
           description: formData.description,
@@ -175,7 +174,8 @@ export default function EditarEventoPage() {
           endDate: formData.recurringEndDate,
           startTime: formData.startDate.split('T')[1] || "19:00",
           endTime: formData.endDate.split('T')[1] || "22:00",
-          capacidadeMaxima: totalCapacity
+          capacidadeMaxima: totalCapacity,
+          customOccurrences: formData.customOccurrences
         });
       }
 
@@ -280,6 +280,8 @@ export default function EditarEventoPage() {
                     onFrequencyChange={v => setFormData({...formData, frequency: v})}
                     recurringEndDate={formData.recurringEndDate}
                     onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})}
+                    customOccurrences={formData.customOccurrences}
+                    onCustomOccurrencesChange={v => setFormData({...formData, customOccurrences: v})}
                   />
 
                   <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
