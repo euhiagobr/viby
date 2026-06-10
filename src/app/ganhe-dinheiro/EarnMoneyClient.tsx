@@ -27,7 +27,8 @@ import {
   Megaphone,
   HelpCircle,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Info
 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
