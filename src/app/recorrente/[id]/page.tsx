@@ -1,5 +1,4 @@
-
-'use client';
+"use client"
 
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -40,6 +39,7 @@ export default function PublicOccurrencePage() {
     </div>
   );
 
+  const isCuradoria = series?.curationType === 'curadoria';
   const isSoldOut = occ.capacidadeMaxima > 0 && (occ.ingressosVendidos || 0) >= occ.capacidadeMaxima;
 
   // Injetar dados da ocorrência nos dados do evento para os componentes de bilheteria e interesse
@@ -53,10 +53,10 @@ export default function PublicOccurrencePage() {
     date: occ.date,
     isRecurring: true,
     isSoldOut: isSoldOut,
-    // Garante que o tipo e configurações de divulgação sejam passados
     type: series?.type || 'divulgacao',
     disclosurePrices: series?.disclosurePrices || [],
-    externalUrl: series?.externalUrl || ""
+    externalUrl: series?.externalUrl || "",
+    curationType: series?.curationType
   };
 
   return (
@@ -113,15 +113,17 @@ export default function PublicOccurrencePage() {
         </section>
 
         <section className="space-y-8">
-           <div className="p-6 bg-orange-50 rounded-[2rem] border-2 border-dashed border-orange-200 flex items-start gap-4 animate-in zoom-in-95">
-              <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                 <h3 className="text-xs font-black uppercase italic text-orange-800">Atenção: Validade Restrita</h3>
-                 <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
-                    Este ingresso ou confirmação é válido <strong>exclusivamente para a ocorrência selecionada</strong>. Não poderá ser utilizado em outras datas deste evento recorrente.
-                 </p>
-              </div>
-           </div>
+           {!isCuradoria && (
+             <div className="p-6 bg-orange-50 rounded-[2rem] border-2 border-dashed border-orange-200 flex items-start gap-4 animate-in zoom-in-95">
+                <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                   <h3 className="text-xs font-black uppercase italic text-orange-800">Atenção: Validade Restrita</h3>
+                   <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
+                      Este ingresso ou confirmação é válido <strong>exclusivamente para a ocorrência selecionada</strong>. Não poderá ser utilizado em outras datas deste evento recorrente.
+                   </p>
+                </div>
+             </div>
+           )}
 
            {isSoldOut ? (
              <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-16 text-center space-y-6">

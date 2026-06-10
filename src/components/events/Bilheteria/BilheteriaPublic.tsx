@@ -5,34 +5,25 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { 
-  Ticket, 
   ShoppingCart, 
   Clock, 
   Plus, 
   Minus, 
-  ShieldCheck,
-  Calendar,
-  AlertCircle,
-  Zap,
-  ArrowRight,
-  ChevronDown,
-  Lock,
-  MapPin,
-  CheckCircle2,
-  XCircle,
-  Armchair,
-  Users,
-  Layers,
-  ExternalLink,
-  Coins,
-  Heart,
-  Info
+  Zap, 
+  ExternalLink, 
+  Coins, 
+  Heart, 
+  Info,
+  Globe,
+  Instagram,
+  Phone,
+  Mail
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { calculateFinancialBreakdown } from "@/lib/financial-utils"
+import { calculateVibyOfficialSplit } from "@/lib/financial-utils"
 import { useCart, CartItem } from "@/contexts/CartContext"
 import { toast } from "@/hooks/use-toast"
-import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
+import { useAuth, useUser, useFirestore } from "@/firebase"
 import { useRouter, usePathname } from "next/navigation"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { doc, updateDoc, increment, serverTimestamp, setDoc } from "firebase/firestore"
@@ -61,12 +52,15 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
   const eventCurrency = (event.currency || 'BRL') as CurrencyCode;
   const isDivulgacao = event.type === 'divulgacao';
   const isExterno = event.type === 'externo';
+  const isCuradoria = event.curationType === 'curadoria';
 
   const handleUpdateQty = (typeId: string, val: number) => {
     setQuantities(prev => ({ ...prev, [typeId]: Math.max(0, val) }))
   }
 
   const handleRegisterInterest = async () => {
+    if (isCuradoria) return; // Curadoria não registra interesse como 'presença'
+
     if (!user) {
       router.push(`/login?redirect=${encodeURIComponent(pathname || '/')}`)
       return
@@ -111,6 +105,8 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
   }
 
   const handleAddToCart = (requestedQty: number, ticketTypeName: string) => {
+    if (isCuradoria) return;
+
     if (!user) {
       router.push(`/login?redirect=${encodeURIComponent(pathname || '/')}`)
       return
@@ -156,6 +152,81 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     }
   }
 
+  // FLOW: Curadoria Viby (Exclusivamente Informativo)
+  if (isCuradoria) {
+    return (
+      <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Informações do Evento</h2>
+          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">
+            {isExterno ? "Links oficiais e canais externos." : "Conteúdo curado pela plataforma."}
+          </p>
+        </div>
+
+        <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+          <CardContent className="p-10 space-y-10">
+            {event.disclosurePrices?.length > 0 ? (
+              <div className="space-y-6">
+                <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Coins className="w-4 h-4 text-secondary" /> Valores Informativos
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {event.disclosurePrices.map((p: any, i: number) => (
+                    <div key={i} className="p-5 bg-muted/20 rounded-2xl border border-dashed flex justify-between items-center">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Até {p.untilTime}</p>
+                        <p className="text-lg font-black text-primary">{formatPriceWithOriginal(p.price, eventCurrency)}</p>
+                      </div>
+                      <Clock className="w-5 h-5 text-secondary opacity-20" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p-8 bg-muted/20 rounded-3xl border-2 border-dashed border-border/50 flex flex-col items-center text-center gap-2">
+                <Zap className="w-8 h-8 text-secondary opacity-40" />
+                <p className="text-xl font-black uppercase italic text-primary">Evento gratuito</p>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              {isExterno && event.externalUrl && (
+                <Button asChild className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-base hover:scale-102 transition-transform">
+                  <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">
+                    Acessar Ingressos Oficiais <ExternalLink className="ml-2 w-5 h-5" />
+                  </a>
+                </Button>
+              )}
+            </div>
+
+            {/* Links Sociais / Site Oficial da Curadoria */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-dashed">
+               {orgSettings?.website && (
+                 <a href={orgSettings.website} target="_blank" className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl hover:bg-muted/50 transition-all">
+                    <Globe className="w-4 h-4 text-secondary" />
+                    <span className="text-[10px] font-black uppercase">Site Oficial</span>
+                 </a>
+               )}
+               {orgSettings?.instagram && (
+                 <a href={`https://instagram.com/${orgSettings.instagram.replace('@','')}`} target="_blank" className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl hover:bg-muted/50 transition-all">
+                    <Instagram className="w-4 h-4 text-pink-500" />
+                    <span className="text-[10px] font-black uppercase">Instagram</span>
+                 </a>
+               )}
+               {(orgSettings?.contactEmail || orgSettings?.email) && (
+                 <a href={`mailto:${orgSettings.contactEmail || orgSettings.email}`} className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl hover:bg-muted/50 transition-all">
+                    <Mail className="w-4 h-4 text-secondary" />
+                    <span className="text-[10px] font-black uppercase">Contato</span>
+                 </a>
+               )}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+    );
+  }
+
+  // FLOW: Divulgação ou Venda Externa (Padrão Viby)
   if (isDivulgacao || isExterno) {
     return (
       <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
@@ -233,6 +304,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     );
   }
 
+  // FLOW: Venda Interna (Viby Checkout)
   const ticketTypeGroups = React.useMemo(() => {
     const groups: Record<string, any[]> = {};
     event.batches?.forEach((b: any) => b.ticketTypes?.forEach((t: any) => {

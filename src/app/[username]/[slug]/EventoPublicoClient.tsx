@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -31,7 +30,9 @@ import {
   ShieldAlert,
   InfoIcon,
   RefreshCw,
-  ChevronRight
+  ChevronRight,
+  EyeOff,
+  Lock
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -50,7 +51,6 @@ import dynamic from "next/dynamic"
 import { format, startOfToday } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
-// Carregamento Client-Only para o Mapa para evitar ReferenceError: document is not defined
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
   ssr: false,
   loading: () => <div className="w-full h-full bg-muted animate-pulse flex items-center justify-center text-[10px] font-black uppercase opacity-20">Carregando Mapa...</div>
@@ -87,7 +87,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
   const { data: promotions } = useDoc<any>( promosRef)
 
-  // Consulta de Ocorrências (Sessões)
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !id || !event?.isRecurring) return null;
     return query(
@@ -130,19 +129,18 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   if (!event) return null;
 
+  const isCuradoria = event.curationType === 'curadoria';
   const dateValue = event.date || event.startDate;
   const dStart = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : new Date();
   const dEnd = event.endDate ? (event.endDate.toDate ? event.endDate.toDate() : new Date(event.endDate)) : null;
   
   const isEnded = dEnd ? (dEnd < new Date()) : false;
-  const isVibyCurated = event.curationType === 'curadoria';
   
   // Lógica de Venda
   const isExternalSale = event.type === 'externo' && event.externalUrl;
   const isVibySale = event.type === 'interno' && event.ticketMode !== 'none';
   const isDivulgacao = event.type === 'divulgacao' || (!isExternalSale && !isVibySale);
 
-  // O "Recurrence Hub" (escolha de datas) aparece se for recorrente E existirem ocorrências futuras
   const isRecurringHub = event.isRecurring === true && upcomingOccurrences.length > 0;
 
   return (
@@ -259,15 +257,15 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </Button>
                )}
 
-               {isVibySale && !isRecurringHub && (
+               {isVibySale && !isRecurringHub && !isCuradoria && (
                  <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-[10px] sm:text-xs px-6 sm:px-8 hover:scale-105 transition-transform shadow-secondary/20">
                    <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-3.5 h-3.5" /></Link>
                  </Button>
                )}
 
                {isRecurringHub && (
-                 <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
-                    <Link href="#sessões">Escolher Sessão <ArrowRight className="ml-2 w-4 h-4" /></Link>
+                 <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-secondary text-white font-black rounded-[1.5rem] shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
+                    <Link href="#sessões">Ver Agenda de Datas <ArrowRight className="ml-2 w-4 h-4" /></Link>
                  </Button>
                )}
             </div>
@@ -287,7 +285,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                       <div className="p-2 bg-secondary/10 rounded-lg text-secondary">
                         <Calendar className="w-5 h-5" />
                       </div>
-                      <h2 className="text-xl sm:text-2xl font-black uppercase italic tracking-tighter text-primary">Próximas Sessões</h2>
+                      <h2 className="text-xl sm:text-2xl font-black uppercase italic tracking-tighter text-primary">Próximas Datas</h2>
                     </div>
                     {loadingOccurrences && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
                   </div>
@@ -309,13 +307,13 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                                      </p>
                                      <div className="flex items-center gap-3 text-[10px] sm:text-xs font-bold text-muted-foreground uppercase">
                                         <span className="flex items-center gap-1.5">
-                                          <Clock className="w-3 h-3 text-secondary" /> {occ.startTime} às {occ.endTime}
+                                          <Clock className="w-3.5 h-3.5 text-secondary" /> {occ.startTime} às {occ.endTime}
                                         </span>
                                      </div>
                                   </div>
                                </div>
                                <div className="flex items-center gap-4">
-                                  <Badge variant="outline" className="hidden sm:flex text-[8px] font-black uppercase border-dashed">Disponível</Badge>
+                                  <Badge variant="outline" className="hidden sm:flex text-[8px] font-black uppercase border-dashed">Visualizar</Badge>
                                   <div className="p-2 bg-primary text-white rounded-full opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1">
                                      <ChevronRight className="w-4 h-4" />
                                   </div>
@@ -336,30 +334,30 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                 </section>
               ) : (
                 <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                  <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 flex items-center gap-4 sm:gap-6 group hover:shadow-md transition-all border border-border/50">
-                      <div className="p-4 sm:p-5 bg-secondary/5 rounded-2xl sm:rounded-3xl text-secondary group-hover:bg-secondary group-hover:text-white transition-colors shrink-0">
-                        <Calendar className="w-8 h-8 sm:w-10 sm:h-10" />
+                  <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 sm:p-8 flex items-center gap-4 sm:gap-6 border border-border/50">
+                      <div className="p-4 bg-secondary/5 rounded-2xl text-secondary shrink-0">
+                        <Calendar className="w-8 h-8" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] sm:tracking-[0.3em] mb-1">Início</p>
-                        <p className="text-lg sm:text-xl font-black text-primary uppercase italic leading-none truncate">
+                        <p className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-1">Início</p>
+                        <p className="text-lg font-black text-primary uppercase italic leading-none truncate">
                           {dStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
                         </p>
-                        <p className="text-xs sm:text-sm font-bold text-secondary mt-1">{dStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
+                        <p className="text-xs font-bold text-secondary mt-1">{dStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
                       </div>
                   </Card>
-                  <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 flex items-center gap-4 sm:gap-6 group hover:shadow-md transition-all border border-border/50">
-                      <div className="p-4 sm:p-5 bg-primary/5 rounded-2xl sm:rounded-3xl text-primary group-hover:bg-primary group-hover:text-white transition-colors shrink-0">
-                        <Clock className="w-8 h-8 sm:w-10 sm:h-10" />
+                  <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 sm:p-8 flex items-center gap-4 sm:gap-6 border border-border/50">
+                      <div className="p-4 bg-primary/5 rounded-2xl text-primary shrink-0">
+                        <Clock className="w-8 h-8" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] sm:tracking-[0.3em] mb-1">Encerramento</p>
+                        <p className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-1">Encerramento</p>
                         {dEnd ? (
                           <>
-                            <p className="text-lg sm:text-xl font-black text-primary uppercase italic leading-none truncate">
+                            <p className="text-lg font-black text-primary uppercase italic leading-none truncate">
                               {dEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
                             </p>
-                            <p className="text-xs sm:text-sm font-bold text-secondary mt-1">{dEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
+                            <p className="text-xs font-bold text-secondary mt-1">{dEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}h</p>
                           </>
                         ) : (
                           <p className="text-xs sm:text-sm font-bold text-muted-foreground italic uppercase">Conforme agenda</p>
@@ -386,7 +384,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </Card>
               </section>
 
-              {/* BILHETERIA (Oculta se for recorrente pois a escolha é feita na ocorrência) */}
+              {/* BILHETERIA */}
               {!isRecurringHub && (
                 <div id="bilheteria" className="scroll-mt-32 w-full overflow-hidden">
                    <BilheteriaPublic 
@@ -404,7 +402,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><MapIcon className="w-5 h-5" /></div>
                     <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary">Localização</h2>
                  </div>
-                 <Card className="border-none shadow-sm rounded-[2.5rem] sm:rounded-[3rem] bg-white overflow-hidden p-0 relative group border border-border/50">
+                 <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden p-0 border border-border/50">
                     <div className="h-[300px] sm:h-[400px] w-full">
                        <LocationMap 
                          latitude={event.address?.latitude || event.latitude || -23.55052} 
@@ -441,12 +439,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
            {/* SIDEBAR */}
            <aside className="lg:col-span-4 space-y-6 sm:space-y-8">
-              <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white overflow-hidden sticky top-24 sm:top-40 border border-border/50">
-                 <div className="p-6 sm:p-8 md:p-10 space-y-8 sm:space-y-10 relative">
+              <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden sticky top-24 sm:top-40 border border-border/50">
+                 <div className="p-6 sm:p-8 md:p-10 space-y-8 relative">
                     <div className="space-y-6">
-                       <p className="text-[9px] font-black uppercase tracking-[0.3em] sm:tracking-[0.4em] opacity-40 text-primary">Responsável</p>
+                       <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-40 text-primary">Informações do Autor</p>
                        <Link href={`/${org?.username || username}`} className="flex items-center gap-4 sm:gap-5 group">
-                          <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-4 border-muted/30 p-0.5 group-hover:scale-105 transition-transform rounded-[1.5rem] sm:rounded-[1.8rem] overflow-hidden shrink-0">
+                          <Avatar className="h-16 w-16 sm:h-20 sm:w-20 border-4 border-muted/30 p-0.5 group-hover:scale-105 transition-transform rounded-[1.5rem] overflow-hidden shrink-0">
                              <AvatarImage src={org?.avatar} className="object-cover" />
                              <AvatarFallback className="font-black bg-muted text-xl sm:text-2xl">{org?.name?.charAt(0)}</AvatarFallback>
                           </Avatar>
@@ -457,7 +455,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                              </div>
                              <div className="flex flex-col">
                                 <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-secondary truncate">@{org?.username || username}</span>
-                                {isVibyCurated && <Badge variant="secondary" className="w-fit h-4 px-1.5 text-[7px] font-black uppercase mt-1">Curadoria Viby</Badge>}
+                                {isCuradoria && <Badge variant="secondary" className="w-fit h-4 px-1.5 text-[7px] font-black uppercase mt-1">Curadoria Viby</Badge>}
                              </div>
                           </div>
                        </Link>
@@ -465,7 +463,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
                     <Separator className="bg-muted" />
 
-                    <div className="space-y-6 sm:space-y-8">
+                    <div className="space-y-6">
                        <div className="flex items-center justify-between gap-4">
                           <div className="space-y-0.5 shrink-0">
                              <p className="text-[8px] font-black uppercase opacity-40 tracking-widest text-primary">Seguidores</p>
@@ -480,27 +478,29 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                        <AgeRatingWarning code={event.ageRating?.code || "free"} />
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4">
-                       {isExternalSale && !isRecurringHub && (
-                         <Button asChild className="w-full h-14 sm:h-16 bg-primary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform">
-                            <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ArrowRight className="ml-2 w-4 h-4" /></a>
-                         </Button>
-                       )}
-                       {isVibySale && !isRecurringHub && (
-                         <Button asChild className="w-full h-14 sm:h-16 bg-secondary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
-                            <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-4 h-4" /></Link>
-                         </Button>
-                       )}
-                       {isRecurringHub && (
-                         <Button asChild className="w-full h-14 sm:h-16 bg-secondary text-white font-black rounded-[1.5rem] sm:rounded-3xl shadow-2xl uppercase italic text-sm sm:text-base hover:scale-105 transition-transform shadow-secondary/20">
-                            <Link href="#sessões">Escolher Sessão <ArrowRight className="ml-2 w-4 h-4" /></Link>
-                         </Button>
-                       )}
-                    </div>
+                    {!isCuradoria && (
+                      <div className="grid grid-cols-1 gap-4">
+                        {isExternalSale && !isRecurringHub && (
+                          <Button asChild className="w-full h-14 bg-primary text-white font-black rounded-[1.5rem] shadow-2xl uppercase italic hover:scale-105 transition-transform">
+                              <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ArrowRight className="ml-2 w-4 h-4" /></a>
+                          </Button>
+                        )}
+                        {isVibySale && !isRecurringHub && (
+                          <Button asChild className="w-full h-14 bg-secondary text-white font-black rounded-[1.5rem] shadow-2xl uppercase italic hover:scale-105 transition-transform shadow-secondary/20">
+                              <Link href="#bilheteria">Garantir Ingresso <ArrowRight className="ml-2 w-4 h-4" /></Link>
+                          </Button>
+                        )}
+                        {isRecurringHub && (
+                          <Button asChild className="w-full h-14 bg-secondary text-white font-black rounded-[1.5rem] shadow-2xl uppercase italic hover:scale-105 transition-transform shadow-secondary/20">
+                              <Link href="#sessões">Escolher Data <ArrowRight className="ml-2 w-4 h-4" /></Link>
+                          </Button>
+                        )}
+                      </div>
+                    )}
                  </div>
               </Card>
 
-              <Card className="border-none shadow-sm rounded-[2rem] sm:rounded-[2.5rem] bg-white p-6 sm:p-8 md:p-10 space-y-6 sm:space-y-8 border border-border/50">
+              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-6 sm:p-8 space-y-6 border border-border/50">
                  <div className="flex items-center gap-4">
                     <div className="p-3 bg-secondary/5 rounded-2xl text-secondary shrink-0"><Users className="w-5 h-5 sm:w-6 sm:h-6" /></div>
                     <h3 className="text-xs sm:text-sm font-black uppercase italic text-primary tracking-tighter leading-tight">Comunidade Vibrante</h3>
@@ -509,7 +509,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     {(event.interestedCount || 0).toLocaleString()} pessoas marcaram interesse nesta experiência. Faça parte do momento.
                  </p>
                  
-                 {!isDivulgacao && (
+                 {!isCuradoria && (
                    <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl">
                     {isExternalSale ? (
                        <>
@@ -524,10 +524,10 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     )}
                    </div>
                  )}
-                 {isDivulgacao && (
+                 {isCuradoria && (
                    <div className="flex items-center gap-3 p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
                       <InfoIcon className="w-4 h-4 sm:w-5 sm:h-5 text-secondary shrink-0" />
-                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-primary truncate">Informações Oficiais</span>
+                      <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-primary truncate">Informações de Curadoria</span>
                    </div>
                  )}
               </Card>

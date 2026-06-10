@@ -45,6 +45,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, [event.date, event.endDate]);
 
   const isEnded = React.useMemo(() => eventDates.end < new Date(), [eventDates.end]);
+  const isCuradoria = event.curationType === 'curadoria';
 
   React.useEffect(() => {
     const update = () => {
@@ -107,7 +108,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       return <span className="text-secondary font-black italic uppercase text-[10px]">{t('event.under_consultation')}</span>;
     }
 
-    if (event.type === 'divulgacao') {
+    if (event.type === 'divulgacao' || isCuradoria) {
       if (!currentDisplayPrice) {
         return <span className="text-green-600 font-black italic uppercase text-[10px]">{t('event.no_tickets')}</span>;
       }
@@ -141,7 +142,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         {formatPriceWithOriginal(min, event.currency || 'BRL')}
       </div>
     );
-  }, [event, t, formatPriceWithOriginal, currentDisplayPrice]);
+  }, [event, t, formatPriceWithOriginal, currentDisplayPrice, isCuradoria]);
 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
@@ -227,7 +228,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         </div>
 
         <Button className="w-full h-10 bg-primary text-white font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
-           {event.type === 'divulgacao' || event.type === 'externo' ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
+           {event.type === 'divulgacao' || event.type === 'externo' || isCuradoria ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
         </Button>
       </CardContent>
     </Card>

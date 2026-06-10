@@ -23,9 +23,6 @@ interface EventInterestProps {
   variant?: 'default' | 'compact'
 }
 
-/**
- * Utilitário para formatar a contagem de confirmados conforme as regras da Viby.
- */
 function formatConfirmedCount(count: number): string {
   if (count === 0) return "seja o primeiro a confirmar";
   if (count < 10) return "+1 confirmados";
@@ -51,6 +48,7 @@ export function EventInterest({ event, className, showButton = true, variant = '
   
   const eventId = event?.id
   const isInternal = event?.type === 'interno'
+  const isCuradoria = event?.curationType === 'curadoria'
   
   const interestRef = React.useMemo(() => 
     (db && user && eventId) ? doc(db, "events", eventId, "interests", user.uid) : null, 
@@ -59,8 +57,6 @@ export function EventInterest({ event, className, showButton = true, variant = '
   const { data: userInterest } = useDoc<any>(interestRef)
   const isInterested = !!userInterest
 
-  // Usamos o campo agregado ingressosVendidos do documento do evento para exibir o público
-  // Isso evita erros de permissão ao tentar listar a coleção registrations privadamente.
   const confirmedCount = event?.ingressosVendidos || 0
   const [toggling, setToggling] = React.useState(false)
 
@@ -107,7 +103,7 @@ export function EventInterest({ event, className, showButton = true, variant = '
           <Heart className={cn("w-3.5 h-3.5", isInterested ? "fill-red-500 text-red-500" : "opacity-40")} />
           {event.interestedCount || 0}
         </div>
-        {isInternal && (
+        {isInternal && !isCuradoria && (
           <div className="flex items-center gap-1 text-[10px] font-black uppercase text-secondary">
             <Users className="w-3.5 h-3.5" />
             {confirmedCount > 0 ? (confirmedCount >= 1000 ? `+${(confirmedCount/1000).toFixed(1)}k`.replace('.0', '') : `+${confirmedCount}`) : "0"}
@@ -152,7 +148,7 @@ export function EventInterest({ event, className, showButton = true, variant = '
           <span className="text-2xl font-black text-primary leading-none">{(event.interestedCount || 0).toLocaleString()}</span>
           <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest opacity-60">Interessados</span>
         </div>
-        {isInternal && (
+        {isInternal && !isCuradoria && (
           <div className="flex flex-col">
             <div className="flex items-center gap-2 text-xl font-black text-secondary leading-none uppercase italic tracking-tighter">
               {confirmedCount === 0 && <Sparkles className="w-4 h-4" />}
