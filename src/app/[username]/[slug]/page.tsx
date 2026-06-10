@@ -34,7 +34,6 @@ function serializeData(data: any): any {
 
   // Handle Objects (Plain)
   if (typeof data === 'object') {
-    // Only process plain objects to avoid errors with complex class instances
     if (Object.prototype.toString.call(data) !== '[object Object]') {
       return String(data);
     }
@@ -58,36 +57,33 @@ function stripHtml(text: string): string {
     .trim();
 }
 
+/**
+ * Resolve os dados do evento com base no username e no ID/Slug.
+ */
 async function getEventData(username: string, param: string) {
   try {
     const db = getAdminDb();
     const normalizedUsername = username.toLowerCase().trim();
     const normalizedParam = param.trim();
 
-    // 1. Resolve Target UID from the username index
+    // 1. Resolver UID do proprietário pelo username
     const usernameSnap = await db.collection("usernames").doc(normalizedUsername).get();
-    if (!usernameSnap.exists) {
-      console.warn(`[Event Resolver] Username not found in index: ${normalizedUsername}`);
-      return null;
-    }
+    if (!usernameSnap.exists) return null;
     
     const targetUid = usernameSnap.data()!.uid;
 
-    // 2. Try fetching by ID directly (slug in URL might actually be an ID)
+    // 2. Busca Direta por ID (param pode ser o ID do documento)
     const eventByIdSnap = await db.collection("events").doc(normalizedParam).get();
     if (eventByIdSnap.exists) {
       const data = eventByIdSnap.data()!;
-      // Verify ownership across all common fields for maximum resilience
-      const isOwner = data.organizationId === targetUid || 
-                      data.organizerId === targetUid || 
-                      (data.organizer && (data.organizer.id === targetUid || data.organizer.uid === targetUid));
+      const ownerId = data.organizationId || data.organizerId || data.organizer?.id || data.organizer?.uid;
       
-      if (isOwner) {
+      if (ownerId === targetUid) {
         return serializeData({ id: eventByIdSnap.id, ...data });
       }
     }
 
-    // 3. Try fetching by Slug field query
+    // 3. Busca por Campo Slug
     const slugLower = normalizedParam.toLowerCase();
     const queryBySlug = await db.collection("events")
       .where("slug", "==", slugLower)
@@ -95,12 +91,10 @@ async function getEventData(username: string, param: string) {
       .get();
     
     if (!queryBySlug.empty) {
-      // Find the document that belongs to the resolved targetUid
       const found = queryBySlug.docs.find(doc => {
         const d = doc.data();
-        return d.organizationId === targetUid || 
-               d.organizerId === targetUid || 
-               (d.organizer && (d.organizer.id === targetUid || d.organizer.uid === targetUid));
+        const ownerId = d.organizationId || d.organizerId || d.organizer?.id || d.organizer?.uid;
+        return ownerId === targetUid;
       });
       
       if (found) {
@@ -108,13 +102,12 @@ async function getEventData(username: string, param: string) {
       }
     }
 
-    // 4. Global Fallback: If found by ID but owner mismatched, 
-    // check if the event's actual owner has the username from the URL.
+    // 4. Fallback Global: Se encontrado por ID mas dono parece diferente, validar username
     if (eventByIdSnap.exists) {
        const data = eventByIdSnap.data()!;
-       const eventOrgId = data.organizationId || data.organizerId || data.organizer?.id || data.organizer?.uid;
-       if (eventOrgId) {
-          const orgUsernameSnap = await db.collection("usernames").where("uid", "==", eventOrgId).limit(1).get();
+       const ownerId = data.organizationId || data.organizerId || data.organizer?.id || data.organizer?.uid;
+       if (ownerId) {
+          const orgUsernameSnap = await db.collection("usernames").where("uid", "==", ownerId).limit(1).get();
           if (!orgUsernameSnap.empty && orgUsernameSnap.docs[0].id === normalizedUsername) {
             return serializeData({ id: eventByIdSnap.id, ...data });
           }
@@ -123,7 +116,7 @@ async function getEventData(username: string, param: string) {
 
     return null;
   } catch (e) {
-    console.error("[Event Route Resolver] Critical Error:", e);
+    console.error("[Event Route Resolver] Error:", e);
     return null;
   }
 }
