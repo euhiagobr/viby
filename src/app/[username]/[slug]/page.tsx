@@ -7,6 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Home, CalendarX, ArrowLeft } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
+const RESERVED_ROUTES = [
+  'dashboard', 'admin', 'login', 'cadastro', 'redefinir-senha', 
+  'checkout', 'privacidade', 'termos', 'api', 'suporte', 
+  'support', 'help', 'onboarding', 'faq', 'recorrente', 'ganhe-dinheiro',
+  'marketing', 'afiliados', 'anuncios', 'imposto', 'extrato', 'transferencias',
+  'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
+  'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos'
+];
+
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 function serializeData(data: any): any {
@@ -94,6 +103,8 @@ async function getEventData(usernameParam: string, slugParam: string) {
 export async function generateMetadata({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<Metadata> {
   try {
     const { username, slug } = await params;
+    if (RESERVED_ROUTES.includes(username.toLowerCase())) return { title: 'Viby' };
+    
     const event = await getEventData(username, slug);
     if (!event) return { title: 'Evento não encontrado | Viby' };
 
@@ -144,8 +155,13 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   }
 }
 
-export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }) {
+export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<React.ReactElement> {
   const { username, slug } = await params;
+  
+  if (RESERVED_ROUTES.includes(username.toLowerCase())) {
+    return <></>;
+  }
+  
   const event = await getEventData(username, slug);
 
   if (!event) {
