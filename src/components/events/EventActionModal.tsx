@@ -45,6 +45,7 @@ import {
 } from '@/app/actions/event-actions';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface EventActionModalProps {
   isOpen: boolean;
@@ -148,10 +149,10 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
     setLoading(false);
   };
 
-  const handleReportSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleReportSubmit = async (e: React.FormEvent<HTMLDivElement>) => {
     e.preventDefault();
     setLoading(true);
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(e.currentTarget as any);
 
     const res = await submitReportAction({
       eventId: event.id,
@@ -266,29 +267,31 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
         )}
 
         {step === 'report' && (
-          <form onSubmit={handleReportSubmit} className="p-8 space-y-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60">Seu Nome</Label>
-              <Input name="name" required className="rounded-xl h-11" defaultValue={user?.displayName || ""} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase opacity-60">E-mail</Label>
-                 <Input name="email" type="email" required className="rounded-xl h-11" defaultValue={user?.email || ""} />
-               </div>
-               <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase opacity-60">Telefone</Label>
-                 <Input name="phone" required className="rounded-xl h-11" placeholder="(00) 00000-0000" />
-               </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60">Motivo da Denúncia</Label>
-              <Textarea name="reason" required className="rounded-xl h-24 resize-none" placeholder="Descreva o problema observado..." />
-            </div>
-            <Button type="submit" disabled={loading} className="w-full h-14 bg-primary text-white font-black rounded-2xl uppercase italic mt-4">
-              {loading ? <Loader2 className="animate-spin" /> : "Enviar Denúncia"}
-            </Button>
-          </form>
+          <div onSubmit={handleReportSubmit} className="p-8 space-y-4">
+            <form onSubmit={handleReportSubmit as any}>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">Seu Nome</Label>
+                <Input name="name" required className="rounded-xl h-11" defaultValue={user?.displayName || ""} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">E-mail</Label>
+                  <Input name="email" type="email" required className="rounded-xl h-11" defaultValue={user?.email || ""} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Telefone</Label>
+                  <Input name="phone" required className="rounded-xl h-11" placeholder="(00) 00000-0000" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">Motivo da Denúncia</Label>
+                <Textarea name="reason" required className="rounded-xl h-24 resize-none" placeholder="Descreva o problema observado..." />
+              </div>
+              <Button type="submit" disabled={loading} className="w-full h-14 bg-primary text-white font-black rounded-2xl uppercase italic mt-4">
+                {loading ? <Loader2 className="animate-spin" /> : "Enviar Denúncia"}
+              </Button>
+            </form>
+          </div>
         )}
 
         {step === 'removal' && (
