@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -12,7 +11,11 @@ const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.f
 
 function stripHtml(text: string): string {
   if (!text) return "";
-  return text.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  // Remove tags HTML, quebras de linha e normaliza espaços
+  return text
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function serializeData(data: any) {
@@ -83,7 +86,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   const rawDesc = event.description || event.shortDescription || "";
   const description = stripHtml(rawDesc).substring(0, 200);
   
-  // Prioridade de Imagem: 1. Evento, 2. Marca, 3. Logo Viby
+  // Regra de Imagem: 1. Evento, 2. Marca, 3. Logo Viby
   const image = event.image || orgData?.avatar || VIBY_OG_IMAGE;
   const url = `https://viby.club/${username}/${event.slug || event.id}`;
 
@@ -105,7 +108,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
         }
       ],
       locale: 'pt_BR',
-      type: 'website', // og:type event é customizado, usamos website conforme padrão Next.js
+      type: 'event' as any,
     },
     twitter: {
       card: 'summary_large_image',
@@ -148,6 +151,7 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
     );
   }
 
+  // Redirecionamento canônico se acessado por ID mas possuir slug
   if (event.slug && event.slug !== slug) {
     redirect(`/${username}/${event.slug}`);
   }

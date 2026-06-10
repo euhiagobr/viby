@@ -17,10 +17,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName || 'Viby';
   
-  // Fonte única oficial vinda do Firestore com fallback para o link direto fornecido
   const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || DEFAULT_FAVICON;
-  
-  // Cache busting para o manifest
   const version = settings?.imageVersion || Date.now();
   const separator = rawIconUrl.includes('?') ? '&' : '?';
   const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}cache_v=${version}` : rawIconUrl;

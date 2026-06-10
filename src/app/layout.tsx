@@ -1,4 +1,3 @@
-
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
@@ -30,7 +29,6 @@ async function getSiteSettings() {
     const snap = await db.collection('settings').doc('site').get();
     return snap.exists ? snap.data() : null;
   } catch (e) {
-    console.error("[Metadata Fetch Error]", e);
     return null;
   }
 }
@@ -47,11 +45,12 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: {
-      default: `${siteName} | Gestão Inteligente de Eventos`,
+      default: `${siteName} | Experiências Memoráveis`,
       template: `%s | ${siteName}`
     },
     description,
     metadataBase: new URL('https://viby.club'),
+    keywords: ['eventos', 'ingressos', 'shows', 'experiências', 'viby', 'baladas', 'festivais'],
     icons: {
       icon: [
         { url: iconUrl, type: 'image/png' },

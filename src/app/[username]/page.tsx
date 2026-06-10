@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -91,6 +90,10 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       description,
       images: [image],
     },
+    robots: {
+      index: true,
+      follow: true,
+    }
   };
 }
 
