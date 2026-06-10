@@ -2,11 +2,16 @@ import * as admin from 'firebase-admin';
 
 /**
  * @fileOverview Inicialização robusta do Firebase Admin SDK.
- * Otimizado para ambientes de produção (Hosting/Cloud Run).
+ * Resolve o erro de credenciais: Failed to parse private key: Too few bytes to read ASN.1 value.
  */
 
 const getPrivateKey = () => {
-  const rawKey = process.env.FIREBASE_PRIVATE_KEY || `-----BEGIN PRIVATE KEY-----
+  // Prioridade 1: Variável de ambiente (Mais segura para produção)
+  let key = process.env.FIREBASE_PRIVATE_KEY;
+
+  if (!key) {
+    // Fallback: Chave hardcoded (Apenas se a env não estiver definida)
+    key = `-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCrUnnL+bjctODk
 J96Srd5A2UaADZIfz+zG7jhjKpXP4SNymOUL+puDs3MQkQwjDeQ9UNasIZmXnWg7
 iQE/FEUvgfJ9OvbaInh9Ec50UTz201wfaB2yiw9rQ0FZV+WWqiWRTHRM5l48h07W
@@ -34,25 +39,37 @@ zFltkagZ08iVgtIoFFnidwgi4+C4zzh6RtJKqeRYpHIG6taxTUXpq2CR6ICFX2qN
 6Z9lnrIRojeg7YsMDNoc8c9i+kaPF7h1cPFh1cPDhtJi3woX0gDxjBe+VAXS2tlw
 LXyeUurlZvKsRVIwXDdHEr32hZyDR
 -----END PRIVATE KEY-----`;
-  return rawKey.replace(/\\n/g, '\n');
-};
+  }
 
-const serviceAccount = {
-  projectId: "vibyeventos",
-  clientEmail: "firebase-adminsdk-fbsvc@vibyeventos.iam.gserviceaccount.com",
-  privateKey: getPrivateKey(),
+  // 1. Limpeza de espaços e aspas (alguns gerenciadores de segredo adicionam aspas)
+  key = key.trim();
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.substring(1, key.length - 1);
+  }
+
+  // 2. Correção de quebras de linha escapadas (\n literal -> newline real)
+  return key.replace(/\\n/g, '\n');
 };
 
 export const getAdminApp = () => {
+  // Garantir singleton para evitar conflitos de instância
   if (admin.apps.length > 0) return admin.apps[0]!;
 
   try {
+    const privateKey = getPrivateKey();
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL || "firebase-adminsdk-fbsvc@vibyeventos.iam.gserviceaccount.com";
+    const projectId = process.env.FIREBASE_PROJECT_ID || "vibyeventos";
+
     return admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      projectId: serviceAccount.projectId
+      credential: admin.credential.cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
+      projectId
     });
-  } catch (e) {
-    console.error("[Admin SDK] Erro fatal de inicialização:", e);
+  } catch (e: any) {
+    console.error("[Admin SDK] Erro fatal de inicialização:", e.message || e);
     throw e;
   }
 };
