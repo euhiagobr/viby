@@ -96,14 +96,12 @@ export function EventLocation({ address, onChange, isPublic, className, status }
   };
 
   const handleMapChange = async (lat: number, lng: number) => {
-    // Evita recalcular se já estivermos na mesma posição
     if (address.latitude?.toFixed(6) === lat.toFixed(6) && address.longitude?.toFixed(6) === lng.toFixed(6)) return;
 
     setIsSearching(true);
     try {
       const result = await reverseGeocode(lat, lng);
       if (result) {
-        // REGRA PRINCIPAL: PIN recalcula TODO o endereço
         onChange?.({
           ...address,
           ...result,
@@ -112,7 +110,6 @@ export function EventLocation({ address, onChange, isPublic, className, status }
           isCustomized: false
         });
       } else {
-        // Fallback: Mantém coordenadas e dados existentes
         onChange?.({ ...address, latitude: lat, longitude: lng });
       }
     } catch (e) {
@@ -126,7 +123,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
     onChange?.({
       ...address,
       [field]: value,
-      isCustomized: true // Qualquer edição manual marca como customizado
+      isCustomized: true
     });
   };
 
@@ -211,9 +208,9 @@ export function EventLocation({ address, onChange, isPublic, className, status }
 
   return (
     <div className={cn("space-y-8", className)}>
-      <Card className="border-none shadow-sm rounded-[2.5rem] bg-muted/30 overflow-hidden">
+      <Card className="border-none shadow-sm rounded-[2.5rem] bg-muted/30">
         <CardContent className="p-8 space-y-8">
-           <div className="space-y-4">
+           <div className="space-y-4 relative">
               <div className="flex items-center justify-between">
                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
                   <Globe className="w-3.5 h-3.5" /> Busca Global de Endereços
@@ -246,7 +243,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
               </div>
 
               {showSuggestions && suggestions.length > 0 && (
-                <div className="p-2 bg-white rounded-2xl border shadow-xl animate-in slide-in-from-top-2 z-50 relative">
+                <div className="absolute top-full left-0 right-0 mt-2 p-2 bg-white/95 backdrop-blur-md rounded-2xl border shadow-2xl animate-in slide-in-from-top-2 z-[100]">
                    <div className="flex justify-end p-1">
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowSuggestions(false)}><X className="w-3 h-3" /></Button>
                    </div>
@@ -255,7 +252,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                        key={i}
                        type="button"
                        onClick={() => selectSuggestion(s)}
-                       className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 rounded-xl text-left transition-colors group"
+                       className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 rounded-xl text-left transition-colors group border-b last:border-0"
                      >
                         <MapPin className="w-4 h-4 text-secondary opacity-40 group-hover:opacity-100" />
                         <div className="flex-1 min-w-0">
