@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,7 +20,6 @@ import {
   Edit3
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { LocationMap } from "./LocationMap"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
@@ -37,6 +37,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import dynamic from "next/dynamic"
+
+// Carregamento Client-Only para o Mapa para evitar ReferenceError: document is not defined durante SSR
+const LocationMap = dynamic(() => import("./LocationMap").then(mod => mod.LocationMap), { 
+  ssr: false,
+  loading: () => <div className="w-full h-full bg-muted animate-pulse flex items-center justify-center text-[10px] font-black uppercase opacity-20">Iniciando Mapa...</div>
+})
 
 const COUNTRIES = [
   { code: 'BR', name: 'Brasil', postalLabel: 'CEP' },
@@ -253,7 +260,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                         <MapPin className="w-4 h-4 text-secondary opacity-40 group-hover:opacity-100" />
                         <div className="flex-1 min-w-0">
                            <p className="text-xs font-bold truncate">{s.display_name}</p>
-                           <p className="text-[9px] text-muted-foreground uppercase font-black">{s.type || 'local'}</p>
+                           <p className="text-[9px] font-medium uppercase font-black">{s.type || 'local'}</p>
                         </div>
                      </button>
                    ))}

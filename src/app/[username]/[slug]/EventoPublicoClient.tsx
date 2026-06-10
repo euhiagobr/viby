@@ -43,8 +43,14 @@ import { useCurrency } from "@/contexts/CurrencyContext"
 import { UserNav } from "@/components/layout/UserNav"
 import { ShareModal } from "@/components/sharing/ShareModal"
 import { RichText } from "@/components/ui/rich-text"
-import { LocationMap } from "@/components/events/LocationMap"
 import { toast } from "@/hooks/use-toast"
+import dynamic from "next/dynamic"
+
+// Carregamento Client-Only para o Mapa para evitar ReferenceError: document is not defined
+const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
+  ssr: false,
+  loading: () => <div className="w-full h-full bg-muted animate-pulse flex items-center justify-center text-[10px] font-black uppercase opacity-20">Carregando Mapa...</div>
+})
 
 interface EventoPublicoClientProps {
   id: string
@@ -295,7 +301,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
               <section className="space-y-6 sm:space-y-8">
                  <div className="flex items-center gap-3 px-2">
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><MapIcon className="w-5 h-5" /></div>
-                    <h2 className="text-xl sm:text-2xl font-black uppercase italic tracking-tighter text-primary">Localização</h2>
+                    <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary">Localização</h2>
                  </div>
                  <Card className="border-none shadow-sm rounded-[2.5rem] sm:rounded-[3rem] bg-white overflow-hidden p-0 relative group border border-border/50">
                     <div className="h-[300px] sm:h-[400px] w-full">
@@ -308,7 +314,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     </div>
                     <CardContent className="p-6 sm:p-10 flex flex-col md:flex-row items-center justify-between gap-6 sm:gap-8">
                        <div className="space-y-2 text-center md:text-left min-w-0 flex-1">
-                          <h3 className="text-lg sm:text-xl font-black uppercase italic tracking-tighter text-primary break-words">{event.address?.venueName || event.location}</h3>
+                          <h3 className="text-lg sm:text-xl font-black uppercase italic tracking-tighter text-primary break-words">{address?.venueName || event.location}</h3>
                           <p className="text-xs sm:text-sm font-medium text-muted-foreground leading-relaxed max-w-md break-words">
                             {event.address?.formattedAddress || `${event.address?.addressLine1}, ${event.address?.city} - ${event.address?.stateRegion}`}
                           </p>
