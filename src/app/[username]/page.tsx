@@ -62,7 +62,14 @@ async function getProfileData(usernameParam: string) {
     const dataSnap = await db.collection(targetColl).doc(uid).get();
     
     if (!dataSnap.exists) return null;
-    return serializeData({ id: dataSnap.id, type, ...dataSnap.data() });
+    const profile = dataSnap.data()!;
+    
+    // Bloqueia acesso a perfis em estado de exclusão ou bloqueados
+    if (['Bloqueado', 'Excluído', 'Desativado', 'Exclusão Programada'].includes(profile.status)) {
+       return null;
+    }
+
+    return serializeData({ id: dataSnap.id, type, ...profile });
   } catch (e) {
     return null;
   }

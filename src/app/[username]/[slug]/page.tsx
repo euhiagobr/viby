@@ -73,6 +73,9 @@ async function getEventData(usernameParam: string, slugParam: string) {
     const eventByIdSnap = await db.collection("events").doc(slug).get();
     if (eventByIdSnap.exists) {
       const data = eventByIdSnap.data()!;
+      // Impede visualização de eventos marcados como excluídos
+      if (data.status === 'Excluído') return null;
+      
       const ownerId = data.organizationId || data.organizerId || data.organizer?.id;
       if (ownerId === targetUid) {
         return serializeData({ id: eventByIdSnap.id, ...data });
@@ -87,6 +90,9 @@ async function getEventData(usernameParam: string, slugParam: string) {
     if (!queryBySlug.empty) {
       const found = queryBySlug.docs.find(doc => {
         const data = doc.data();
+        // Impede visualização de eventos marcados como excluídos na busca por slug
+        if (data.status === 'Excluído') return false;
+        
         const ownerId = data.organizationId || data.organizerId || data.organizer?.id;
         return ownerId === targetUid;
       });
@@ -175,7 +181,7 @@ export default async function UnifiedEventPage({ params }: { params: Promise<{ u
           </div>
           <h1 className="text-5xl md:text-7xl font-black text-primary uppercase italic tracking-tighter mb-4">OPS!</h1>
           <h2 className="text-2xl md:text-3xl font-black uppercase italic text-primary">Evento <span className="text-secondary">Indisponível</span></h2>
-          <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto">Não encontramos este evento. Verifique o endereço ou procure na página inicial.</p>
+          <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto">Este evento não está mais disponível ou foi removido pelo organizador.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
           <Button variant="outline" asChild className="flex-1 h-14 rounded-2xl font-black uppercase italic border-2 gap-2 border-primary/10">
