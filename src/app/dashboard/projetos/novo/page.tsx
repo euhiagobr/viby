@@ -187,7 +187,6 @@ export default function NovoEventoPage() {
 
       if (!result.success) throw new Error(result.error);
 
-      // CORREÇÃO: Geração de recorrência dispara se isRecurring for true, independentemente de recurringEndDate
       if (formData.isRecurring) {
         await generateOccurrences(result.id!, {
           name: formData.title,

@@ -164,7 +164,6 @@ export default function EditarEventoPage() {
 
       if (!result.success) throw new Error(result.error);
 
-      // CORREÇÃO: Geração de recorrência dispara se isRecurring for true, sem exigir data final se for custom
       if (formData.isRecurring) {
         await generateOccurrences(eventId, {
           name: formData.title,
@@ -266,10 +265,26 @@ export default function EditarEventoPage() {
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                       <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v})}>
                           <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                           <SelectContent className="rounded-xl">{categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-60">Classificação</Label>
+                      <Select value={formData.ageRatingCode} onValueChange={v => setFormData({...formData, ageRatingCode: v})}>
+                          <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="free">Livre</SelectItem>
+                            <SelectItem value="10">10 Anos</SelectItem>
+                            <SelectItem value="12">12 Anos</SelectItem>
+                            <SelectItem value="14">14 Anos</SelectItem>
+                            <SelectItem value="16">16 Anos</SelectItem>
+                            <SelectItem value="not_recommended_18">18 Anos (Não recomendado)</SelectItem>
+                            <SelectItem value="adults_only_18">Proibido -18</SelectItem>
+                          </SelectContent>
                       </Select>
                     </div>
                   </div>
