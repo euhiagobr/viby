@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -18,7 +19,8 @@ import {
   Instagram,
   Phone,
   Mail,
-  Tag
+  Tag,
+  Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { calculateVibyOfficialSplit } from "@/lib/financial-utils"
@@ -221,28 +223,6 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                   </a>
                 </Button>
               )}
-            </div>
-
-            {/* Links Sociais / Site Oficial da Curadoria */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-dashed">
-               {orgSettings?.website && (
-                 <a href={orgSettings.website} target="_blank" className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl hover:bg-muted/50 transition-all">
-                    <Globe className="w-4 h-4 text-secondary" />
-                    <span className="text-[10px] font-black uppercase">Site Oficial</span>
-                 </a>
-               )}
-               {orgSettings?.instagram && (
-                 <a href={`https://instagram.com/${orgSettings.instagram.replace('@','')}`} target="_blank" className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl hover:bg-muted/50 transition-all">
-                    <Instagram className="w-4 h-4 text-pink-500" />
-                    <span className="text-[10px] font-black uppercase">Instagram</span>
-                 </a>
-               )}
-               {(orgSettings?.contactEmail || orgSettings?.email) && (
-                 <a href={`mailto:${orgSettings.contactEmail || orgSettings.email}`} className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl hover:bg-muted/50 transition-all">
-                    <Mail className="w-4 h-4 text-secondary" />
-                    <span className="text-[10px] font-black uppercase">Contato</span>
-                 </a>
-               )}
             </div>
           </CardContent>
         </Card>
