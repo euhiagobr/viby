@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -23,7 +22,8 @@ import {
   Upload,
   Info,
   X,
-  FileText
+  FileText,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase, useFirebaseApp } from '@/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
@@ -64,7 +64,7 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
     (db && user) ? query(collection(db, "organizations"), where("ownerId", "==", user.uid), limit(1)) : null, 
     [db, user?.uid]
   );
-  const { data: orgs, loading: loadingOrgs } = useCollection<any>(orgsQuery);
+  const { data: orgs } = useCollection<any>(orgsQuery);
 
   const resetForm = () => {
     setStep('options');
@@ -115,7 +115,7 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
 
   const handleOwnershipSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || orgs?.length === 0) return;
+    if (!user || !orgs || orgs.length === 0) return;
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     
@@ -256,7 +256,7 @@ export function EventActionModal({ isOpen, onOpenChange, event }: EventActionMod
           <ScrollArea className="max-h-[60vh]">
             <form onSubmit={handleRemovalSubmit} className="p-8 space-y-6">
                <div className="p-4 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 flex items-start gap-4">
-                  <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0" />
+                  <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
                   <p className="text-[10px] text-orange-700 font-bold uppercase leading-relaxed">
                     Esta é uma solicitação formal de remoção por direitos de propriedade ou imagem.
                   </p>
