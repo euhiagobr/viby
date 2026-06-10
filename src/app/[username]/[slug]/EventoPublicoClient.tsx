@@ -103,7 +103,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     if (!rawOccurrences) return [];
     const todayStr = format(startOfToday(), 'yyyy-MM-dd');
     
-    // Filtragem e Ordenação em memória para resiliência total
     return rawOccurrences
       .filter((occ: any) => occ.date >= todayStr)
       .sort((a: any, b: any) => {
@@ -143,8 +142,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const isVibySale = event.type === 'interno' && event.ticketMode !== 'none';
   const isDivulgacao = event.type === 'divulgacao' || (!isExternalSale && !isVibySale);
 
-  // O "Recurrence Hub" (escolha de datas) agora aparece para QUALQUER tipo de evento que seja recorrente.
-  const isRecurringHub = event.isRecurring === true;
+  // O "Recurrence Hub" (escolha de datas) aparece se for recorrente E existirem ocorrências futuras
+  const isRecurringHub = event.isRecurring === true && upcomingOccurrences.length > 0;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] h-full flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
@@ -254,7 +253,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                   <Share2 className="w-3.5 h-3.5" /> Material
                </Button>
                
-               {isExternalSale && (
+               {isExternalSale && !isRecurringHub && (
                  <Button asChild className="w-full sm:w-auto h-11 sm:h-12 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-[10px] sm:text-xs px-6 sm:px-8 hover:scale-105 transition-transform">
                    <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">Comprar no Site Oficial <ExternalLink className="ml-2 w-3.5 h-3.5" /></a>
                  </Button>
@@ -280,7 +279,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
            
            <div className="lg:col-span-8 space-y-12 sm:space-y-20">
               
-              {/* BLOCO DE DATA E HORA (Sempre visível para conferência, ou lista se recorrente) */}
+              {/* BLOCO DE DATA E HORA */}
               {isRecurringHub ? (
                 <section className="space-y-6 sm:space-y-8 animate-in fade-in duration-700" id="sessões">
                   <div className="flex items-center justify-between px-2">
@@ -387,8 +386,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                  </Card>
               </section>
 
-              {/* BILHETERIA (Apenas se não for hub de recorrente) */}
-              {isVibySale && !isRecurringHub && (
+              {/* BILHETERIA (Oculta se for recorrente pois a escolha é feita na ocorrência) */}
+              {!isRecurringHub && (
                 <div id="bilheteria" className="scroll-mt-32 w-full overflow-hidden">
                    <BilheteriaPublic 
                     event={event} 

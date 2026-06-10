@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -22,15 +23,20 @@ import {
   XCircle,
   Armchair,
   Users,
-  Layers
+  Layers,
+  ExternalLink,
+  Coins,
+  Heart
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { calculateFinancialBreakdown } from "@/lib/financial-utils"
 import { useCart, CartItem } from "@/contexts/CartContext"
 import { toast } from "@/hooks/use-toast"
-import { useAuth, useUser } from "@/firebase"
+import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { useRouter, usePathname } from "next/navigation"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+import { doc, updateDoc, increment, serverTimestamp, setDoc } from "firebase/firestore"
+import { generateFreeTickets } from "@/app/actions/tickets"
 
 interface BilheteriaPublicProps {
   event: any
@@ -41,6 +47,7 @@ interface BilheteriaPublicProps {
 
 export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }: BilheteriaPublicProps) {
   const { addMultipleItems } = useCart()
+  const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
   const router = useRouter()
@@ -48,10 +55,60 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
   const { formatPriceWithOriginal, rates } = useCurrency()
 
   const [quantities, setQuantities] = React.useState<Record<string, number>>({})
+  const [isRegisteringInterest, setIsRegisteringInterest] = React.useState(false)
+  const [hasRegistered, setHasRegistered] = React.useState(false)
+
   const eventCurrency = (event.currency || 'BRL') as CurrencyCode;
+  const isDivulgacao = event.type === 'divulgacao';
+  const isExterno = event.type === 'externo';
 
   const handleUpdateQty = (typeId: string, val: number) => {
     setQuantities(prev => ({ ...prev, [typeId]: Math.max(0, val) }))
+  }
+
+  const handleRegisterInterest = async () => {
+    if (!user) {
+      router.push(`/login?redirect=${encodeURIComponent(pathname || '/')}`)
+      return
+    }
+
+    if (!db || !event || isRegisteringInterest) return
+    setIsRegisteringInterest(true)
+
+    try {
+      // Usamos a mesma ação de ingressos gratuitos para garantir reserva de cota na ocorrência
+      const result = await generateFreeTickets({
+        userId: user.uid,
+        userName: user.displayName || "Membro Viby",
+        userEmail: user.email!,
+        items: [{
+          eventId: event.id,
+          eventTitle: event.title,
+          eventImage: event.image || "",
+          eventDate: event.date,
+          eventCity: event.city || "",
+          organizationId: event.organizationId,
+          organizerId: event.organizerId,
+          ticketTypeId: "interest",
+          ticketTypeName: "Interesse Confirmado",
+          batchId: "disclosure",
+          batchName: "Sessão",
+          quantity: 1,
+          occurrenceId: event.occurrenceId || null
+        }]
+      });
+
+      if (result.success) {
+        setHasRegistered(true)
+        toast({ title: "Presença confirmada!", description: "Sua intenção de ir nesta data foi registrada." })
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro na confirmação", description: e.message })
+    } finally {
+      setIsRegisteringInterest(false)
+    }
   }
 
   const handleAddToCart = (requestedQty: number, ticketTypeName: string) => {
@@ -100,6 +157,85 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     }
   }
 
+  // Renderização para Eventos de Divulgação ou Externos (Informações de Acesso)
+  if (isDivulgacao || isExterno) {
+    return (
+      <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
+         <div className="flex flex-col gap-2">
+            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Informações de Acesso</h2>
+            <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">
+              {isExterno ? "Venda realizada em site parceiro." : "Evento com cobrança no local ou entrada franca."}
+            </p>
+         </div>
+
+         <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+            <CardContent className="p-10 space-y-10">
+               {event.disclosurePrices?.length > 0 ? (
+                 <div className="space-y-6">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                       <Coins className="w-4 h-4 text-secondary" /> Cronograma de Valores
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       {event.disclosurePrices.map((p: any, i: number) => (
+                         <div key={i} className="p-5 bg-muted/20 rounded-2xl border border-dashed flex justify-between items-center group hover:bg-muted/40 transition-all">
+                            <div className="space-y-1">
+                               <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Até {p.untilTime}</p>
+                               <p className="text-lg font-black text-primary">{formatPriceWithOriginal(p.price, eventCurrency)}</p>
+                            </div>
+                            <Clock className="w-5 h-5 text-secondary opacity-20 group-hover:opacity-100 transition-opacity" />
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+               ) : (
+                 <div className="p-8 bg-green-50 rounded-3xl border-2 border-dashed border-green-100 flex flex-col items-center text-center gap-3">
+                    <Zap className="w-10 h-10 text-green-500" />
+                    <div className="space-y-1">
+                       <p className="text-xl font-black uppercase italic text-green-700">Entrada Gratuita</p>
+                       <p className="text-[10px] font-bold text-green-600 uppercase">Não há cobrança de ingressos para este acesso.</p>
+                    </div>
+                 </div>
+               )}
+
+               <div className="flex flex-col sm:flex-row gap-4">
+                  {isExterno && (
+                    <Button asChild className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-base hover:scale-102 transition-transform">
+                       <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">
+                          Acessar Site de Vendas <ExternalLink className="ml-2 w-5 h-5" />
+                       </a>
+                    </Button>
+                  )}
+                  
+                  {/* Botão de Interesse focado na sessão se for recorrente */}
+                  <Button 
+                    onClick={handleRegisterInterest}
+                    disabled={hasRegistered || isRegisteringInterest}
+                    className={cn(
+                      "flex-1 h-16 font-black rounded-2xl shadow-xl uppercase italic text-base transition-all",
+                      hasRegistered ? "bg-green-600 text-white" : "bg-secondary text-white hover:scale-102 shadow-secondary/20"
+                    )}
+                  >
+                     {isRegisteringInterest ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : hasRegistered ? <CheckCircle2 className="w-6 h-6 mr-2" /> : <Heart className="w-5 h-5 mr-2" />}
+                     {hasRegistered ? "Presença Confirmada" : "Vou nesta data"}
+                  </Button>
+               </div>
+
+               <div className="p-5 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-4">
+                  <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed">
+                      {isExterno 
+                        ? "Você será redirecionado para um ambiente externo. A Viby não se responsabiliza por transações fora do nosso checkout oficial." 
+                        : "Ao confirmar que 'Vai nesta data', você entra para a lista de presença do organizador e recebe lembretes sobre o evento."}
+                    </p>
+                  </div>
+               </div>
+            </CardContent>
+         </Card>
+      </section>
+    );
+  }
+
   const ticketTypeGroups = React.useMemo(() => {
     const groups: Record<string, any[]> = {};
     event.batches?.forEach((b: any) => b.ticketTypes?.forEach((t: any) => {
@@ -123,7 +259,6 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
            const displayInstance = activeInstance || instances[0];
            const status = activeInstance ? 'ativo' : 'esgotado';
            const qty = quantities[typeName] || 0;
-           const breakdown = calculateFinancialBreakdown(displayInstance.price, globalFees, promotions, orgSettings, eventCurrency, rates);
 
            return (
              <Card key={typeName} className={cn("border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden", status === 'esgotado' && "opacity-60 grayscale")}>
