@@ -14,21 +14,21 @@ import {
   Target, 
   Users, 
   Trophy,
-  Copy,
-  Star,
-  Building2,
-  Wallet,
-  Loader2,
-  Check,
-  Music,
-  Beer,
-  Map as MapIcon,
-  Video,
-  Megaphone,
-  HelpCircle,
-  ChevronRight,
-  Sparkles,
-  Info
+  Copy, 
+  Star, 
+  Building2, 
+  Wallet, 
+  Loader2, 
+  Check, 
+  Music, 
+  Beer, 
+  Map as MapIcon, 
+  Video, 
+  Megaphone, 
+  HelpCircle, 
+  ChevronRight, 
+  Sparkles, 
+  Info 
 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
@@ -46,6 +46,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion"
+import { cn } from "@/lib/utils"
 
 export default function EarnMoneyClient() {
   const { t } = useTranslation()
