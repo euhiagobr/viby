@@ -5,13 +5,13 @@ import EarnMoneyClient from "./EarnMoneyClient"
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 export const metadata: Metadata = {
-  title: 'Programa de Afiliados',
-  description: 'Monetize sua influência indicando novos organizadores para a Viby. Ganhe comissões vitalícias sobre cada ingresso vendido.',
-  keywords: ['afiliados', 'renda extra', 'eventos', 'viby', 'indicação'],
+  title: 'Ganhe Dinheiro com a Viby | Programa de Afiliados e Indicação',
+  description: 'Monetize sua influência indicando novos organizadores para a Viby. Ganhe comissões por indicação e renda extra online sobre cada ingresso vendido pelos seus indicados.',
+  keywords: ['programa de afiliados', 'ganhar dinheiro com eventos', 'afiliado de eventos', 'comissão por indicação', 'renda extra online', 'divulgar eventos', 'viby'],
   alternates: { canonical: '/ganhe-dinheiro' },
   openGraph: {
     title: 'Ganhe Dinheiro com a Viby | Programa de Afiliados',
-    description: 'Indique marcas e produtores e receba comissões automáticas. Saiba como ser um embaixador Viby.',
+    description: 'Indique marcas e produtores e receba comissões automáticas. Saiba como ser um embaixador Viby e garantir renda extra.',
     url: 'https://viby.club/ganhe-dinheiro',
     siteName: 'Viby',
     type: 'website',
