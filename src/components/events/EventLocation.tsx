@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -37,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import dynamic from "next/dynamic"
 
 // Carregamento Client-Only para o Mapa para evitar ReferenceError: document is not defined durante SSR
