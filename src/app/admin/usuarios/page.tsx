@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -45,7 +44,8 @@ import {
   ShieldBan,
   AtSign,
   AlertTriangle,
-  Fingerprint
+  Fingerprint,
+  Mail
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
