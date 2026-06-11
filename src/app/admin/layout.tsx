@@ -33,7 +33,8 @@ import {
   TicketPercent,
   Bell,
   Handshake,
-  Send
+  Send,
+  Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -108,6 +109,9 @@ export default function AdminLayout({
     { title: 'Logs do Sistema', url: '/admin/logs', icon: Terminal, permission: 'settings.view' as any },
     { title: 'E-mails Enviados', url: '/admin/emails', icon: Mail, permission: 'settings.view' as any },
     { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert, permission: 'events.approve' as any },
+    { title: 'Prp. Eventos', url: '/admin/solicitacoes-propriedade', icon: UserCheck, permission: 'events.approve' as any },
+    { title: 'Remoção Jurídica', url: '/admin/solicitacoes-remocao', icon: Trash2, permission: 'events.approve' as any },
+    { title: 'Lixeira Eventos', url: '/admin/lixeira-eventos', icon: History, permission: 'events.approve' as any },
     { title: 'Suporte', url: '/admin/suporte', icon: LifeBuoy, permission: 'tickets.view' as any },
     { title: 'Categorias', url: '/admin/categorias', icon: Tag, permission: 'settings.view' as any },
     { title: 'Equipe Admin', url: '/admin/configuracoes/equipe', icon: Users, permission: 'admins.view' as any },

@@ -1,0 +1,27 @@
+
+{
+  "collections": {
+    "admin_audit_logs": {
+      "description": "Trilha de auditoria para todas as ações executadas por administradores no painel de curadoria.",
+      "fields": {
+        "adminId": "string (UID)",
+        "adminName": "string",
+        "eventId": "string (opcional)",
+        "action": "string (approve_ownership | reject_ownership | archive_report | review_report | hide_event | delete_event | restore_event | hard_delete)",
+        "reason": "string (motivo informado pelo admin)",
+        "timestamp": "serverTimestamp",
+        "ip": "string",
+        "metadata": "map (dados contextuais da ação)"
+      }
+    }
+  },
+  "status_mappings": {
+    "solicitacoes_propriedade": ["pendente", "aprovado", "rejeitado"],
+    "reports": ["Pendente", "Arquivada", "Analisada", "em_analise", "ocultado", "excluido"],
+    "solicitacoes_remocao": ["pendente", "concluido", "rejeitado"],
+    "events": {
+      "status": ["Ativo", "Rascunho", "Privado", "Oculto", "Excluído"],
+      "underReview": "boolean (flag para denúncias em análise)"
+    }
+  }
+}
