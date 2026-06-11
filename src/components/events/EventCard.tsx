@@ -44,9 +44,18 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       return isNaN(d.getTime()) ? null : d;
     };
     const start = parseDate(event.date) || new Date();
-    const end = parseDate(event.endDate) || new Date(start.getTime() + 4 * 60 * 60 * 1000);
+    
+    let rawEnd = parseDate(event.endDate);
+    
+    // Se o evento é recorrente e a data de fim original é anterior à data de início atual (próxima ocorrência),
+    // ignoramos a data de fim antiga para evitar que o card fique cinza.
+    if (event.isRecurring && rawEnd && rawEnd < start) {
+      rawEnd = null;
+    }
+
+    const end = rawEnd || new Date(start.getTime() + 4 * 60 * 60 * 1000);
     return { start, end };
-  }, [event.date, event.endDate]);
+  }, [event.date, event.endDate, event.isRecurring]);
 
   const isEnded = React.useMemo(() => eventDates.end < new Date(), [eventDates.end]);
   

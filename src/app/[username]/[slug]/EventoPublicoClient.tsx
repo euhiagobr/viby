@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -159,8 +160,15 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   const dateValue = effectiveEventData.date || effectiveEventData.startDate;
   const dStart = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : new Date();
-  const dEnd = effectiveEventData.endDate ? (effectiveEventData.endDate.toDate ? effectiveEventData.endDate.toDate() : new Date(effectiveEventData.endDate)) : null;
+  let dEnd = effectiveEventData.endDate ? (effectiveEventData.endDate.toDate ? effectiveEventData.endDate.toDate() : new Date(effectiveEventData.endDate)) : null;
   
+  // Para eventos recorrentes que foram atualizados automaticamente,
+  // se o endDate original for anterior ao novo dStart, ele é ignorado
+  // para evitar o status 'Encerrado' indevido.
+  if (event.isRecurring && dEnd && dEnd < dStart) {
+    dEnd = null;
+  }
+
   const isEnded = dEnd ? (dEnd < new Date()) : false;
   
   const isExternalSale = event.type === 'externo' && event.externalUrl;
