@@ -95,8 +95,9 @@ export default function ExplorarPage() {
 
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null
-    const todayStr = format(startOfToday(), 'yyyy-MM-dd')
-    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", todayStr))
+    // Busca ocorrências desde ontem para garantir que sessões noturnas ainda ativas sejam capturadas
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
+    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
   }, [db])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
@@ -109,17 +110,26 @@ export default function ExplorarPage() {
   const processedEvents = React.useMemo(() => {
     if (!allEvents) return { events: [], isFallback: false }
     
+    const now = new Date();
+
     const baseFiltered = allEvents.map(e => {
-      // Lógica de transição automática para eventos recorrentes
       let effectiveDate = e.date;
       if (e.isRecurring) {
         const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
-          const sorted = [...myOccs].sort((a, b) => {
-            if (a.date !== b.date) return a.date.localeCompare(b.date);
-            return (a.startTime || "").localeCompare(b.startTime || "");
+          const sorted = [...myOccs]
+            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+          
+          // Encontra a primeira ocorrência que ainda não venceu o threshold de visibilidade (6h)
+          const nextValid = sorted.find(o => {
+            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+            return now < endThreshold;
           });
-          effectiveDate = sorted[0].date + 'T' + (sorted[0].startTime || '00:00') + ':00';
+
+          if (nextValid) {
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '00:00') + ':00';
+          }
         }
       }
       return { ...e, date: effectiveDate };

@@ -49,7 +49,7 @@ import { ShareModal } from "@/components/sharing/ShareModal"
 import { RichText } from "@/components/ui/rich-text"
 import { toast } from "@/hooks/use-toast"
 import dynamic from "next/dynamic"
-import { format, startOfToday } from "date-fns"
+import { format, startOfToday, addDays } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { EventActionModal } from "@/components/events/EventActionModal"
 
@@ -94,10 +94,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !id || !event?.isRecurring) return null;
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
     return query(
       collection(db, "recurring_occurrences"),
       where("parentId", "==", id),
-      where("status", "==", "active")
+      where("status", "==", "active"),
+      where("date", ">=", yesterdayStr)
     )
   }, [db, id, event?.isRecurring]);
 
@@ -105,14 +107,15 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   const upcomingOccurrences = React.useMemo(() => {
     if (!rawOccurrences) return [];
-    const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+    const now = new Date();
     
     return rawOccurrences
-      .filter((occ: any) => occ.date >= todayStr)
-      .sort((a: any, b: any) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        return (a.startTime || "").localeCompare(b.startTime || "");
-      });
+      .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+      .filter(o => {
+        const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+        return now < endThreshold;
+      })
+      .sort((a: any, b: any) => a._dt.getTime() - b._dt.getTime());
   }, [rawOccurrences]);
 
   // Lógica de Identificação de Próxima Data para Evento Recorrente

@@ -16,7 +16,7 @@ import { recordQrScan } from "@/app/actions/qr";
 import { useSearchParams } from "next/navigation";
 import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils";
-import { format, startOfToday } from "date-fns"
+import { format, startOfToday, addDays } from "date-fns"
 
 // Components - Organization
 import { OrganizerHero } from "@/components/organizer/OrganizerHero";
@@ -182,12 +182,12 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return null;
-    const todayStr = format(startOfToday(), 'yyyy-MM-dd')
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
     return query(
       collection(db, "recurring_occurrences"), 
       where("organizationId", "==", profileData.id),
       where("status", "==", "active"),
-      where("date", ">=", todayStr)
+      where("date", ">=", yesterdayStr)
     )
   }, [db, profileData?.id, profileType])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
@@ -235,11 +235,19 @@ export default function ProfilePageClient({ username }: { username: string }) {
        if (e.isRecurring) {
          const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
          if (myOccs.length > 0) {
-           const sorted = [...myOccs].sort((a, b) => {
-             if (a.date !== b.date) return a.date.localeCompare(b.date);
-             return (a.startTime || "").localeCompare(b.startTime || "");
+           const sorted = [...myOccs]
+            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+          
+           // Encontra a primeira ocorrência que ainda não venceu o threshold de visibilidade (6h)
+           const nextValid = sorted.find(o => {
+             const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+             return referenceDate < endThreshold;
            });
-           effectiveDate = sorted[0].date + 'T' + (sorted[0].startTime || '19:00') + ':00';
+
+           if (nextValid) {
+             effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+           }
          }
        }
        return { ...e, date: effectiveDate };
