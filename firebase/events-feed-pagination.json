@@ -1,0 +1,15 @@
+{
+  "collection": "events",
+  "description": "Configuração técnica da paginação incremental para a vitrine de eventos e descoberta.",
+  "pagination": {
+    "initial_load": 9,
+    "incremental_load": 3,
+    "strategy": "Cursor-based manual fetching with getDocs, startAfter, and limit.",
+    "sorting": "date ASC (Próximas Experiências)",
+    "index_requirement": "status == 'Ativo' AND date ASC"
+  },
+  "fields_monitored": {
+    "status": "Filtro de igualdade obrigatório",
+    "date": "Campo de ordenação e cursor"
+  }
+}

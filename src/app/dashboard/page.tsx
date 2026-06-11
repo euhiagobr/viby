@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, doc, query, where, limit, orderBy } from "firebase/firestore"
+import { collection, doc, query, where, limit, orderBy, getDocs, startAfter, DocumentSnapshot } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
@@ -66,12 +66,10 @@ export default function ExplorarPage() {
   const [radiusKm, setRadiusKm] = useState('30')
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
-  const [isFallbackActive, setIsFallbackActive] = useState(false)
   
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
 
-  const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
@@ -81,38 +79,70 @@ export default function ExplorarPage() {
   
   const isAdmin = profile?.role === 'admin'
 
+  // Pagination State
+  const [rawEvents, setRawEvents] = useState<any[]>([])
+  const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null)
+  const [hasMore, setHasMore] = useState(true)
+  const [isFetching, setIsFetching] = useState(false)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
+
   const categoriesQuery = useMemoFirebase(() => {
     if (!db) return null
     return query(collection(db, "categories"), orderBy("name", "asc"))
   }, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
-  const eventsQuery = React.useMemo(() => {
-    if (!db) return null
-    return query(collection(db, "events"), where("status", "==", "Ativo"))
-  }, [db])
-  const { data: allEvents, loading: eventsLoading } = useCollection<any>(eventsQuery)
-
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null
-    // Busca ocorrências desde ontem para garantir que sessões noturnas ainda ativas sejam capturadas
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
     return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
   }, [db])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
+  const fetchEvents = React.useCallback(async (isInitial = false) => {
+    if (!db || isFetching || ( !isInitial && !hasMore)) return
+    
+    setIsFetching(true)
+    try {
+      const q = query(
+        collection(db, "events"),
+        where("status", "==", "Ativo"),
+        orderBy("date", "asc"),
+        ...(isInitial ? [limit(9)] : [startAfter(lastVisible), limit(3)])
+      )
+      
+      const snapshot = await getDocs(q)
+      const fetchedDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      
+      if (isInitial) {
+        setRawEvents(fetchedDocs)
+      } else {
+        setRawEvents(prev => [...prev, ...fetchedDocs])
+      }
+      
+      setLastVisible(snapshot.docs[snapshot.docs.length - 1] || null)
+      setHasMore(snapshot.docs.length === (isInitial ? 9 : 3))
+    } catch (e) {
+      console.error("[Pagination Error]", e)
+    } finally {
+      setIsFetching(false)
+      setIsInitialLoad(false)
+    }
+  }, [db, lastVisible, isFetching, hasMore])
+
   useEffect(() => {
+    fetchEvents(true)
     getCurrentLocation()
       .then(loc => { if(loc) setUserLocation(loc); })
       .catch(() => console.warn("GPS negado. Fallback ativado."));
-  }, []);
+  }, [db])
 
   const processedEvents = React.useMemo(() => {
-    if (!allEvents) return { events: [], isFallback: false }
+    if (!rawEvents) return { events: [], isFallback: false }
     
     const now = new Date();
 
-    const baseFiltered = allEvents.map(e => {
+    const baseFiltered = rawEvents.map(e => {
       let effectiveDate = e.date;
       if (e.isRecurring) {
         const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
@@ -121,7 +151,6 @@ export default function ExplorarPage() {
             .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
-          // Encontra a primeira ocorrência que ainda não venceu o threshold de visibilidade (6h)
           const nextValid = sorted.find(o => {
             const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
             return now < endThreshold;
@@ -202,7 +231,7 @@ export default function ExplorarPage() {
     finalEvents.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
 
     return { events: finalEvents, isFallback: fallback };
-  }, [allEvents, allOccurrences, search, searchCity, userLocation, radiusKm, selectedCategory, dateFilter, customDate])
+  }, [rawEvents, allOccurrences, search, searchCity, userLocation, radiusKm, selectedCategory, dateFilter, customDate])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];
@@ -210,7 +239,7 @@ export default function ExplorarPage() {
     let adIndex = 0;
 
     if (processedEvents.events.length === 0) {
-      if (!eventsLoading) {
+      if (!isInitialLoad) {
         result.push({ type: "ad", adIndex: adIndex++ });
         result.push({ type: "ad", adIndex: adIndex++ });
       }
@@ -228,7 +257,7 @@ export default function ExplorarPage() {
     }
 
     return result;
-  }, [processedEvents.events, eventsLoading])
+  }, [processedEvents.events, isInitialLoad])
 
   const selectedCategoryName = React.useMemo(() => {
     if (selectedCategory === 'all') return t('dashboard.all');
@@ -243,6 +272,25 @@ export default function ExplorarPage() {
     setDateFilter("all");
     setCustomDate(undefined);
   };
+
+  const observerTarget = React.useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !isFetching && !isInitialLoad) {
+          fetchEvents(false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, isFetching, isInitialLoad, fetchEvents]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -380,14 +428,14 @@ export default function ExplorarPage() {
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-8">
-           {eventsLoading ? (
+           {isInitialLoad ? (
              <div className="py-32 flex flex-col items-center justify-center gap-4">
                <Loader2 className="w-12 h-12 animate-spin text-secondary" />
                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">{t('dashboard.syncing_data')}</p>
              </div>
            ) : (
              <>
-               {unifiedFeed.length === 0 && !eventsLoading && (
+               {unifiedFeed.length === 0 && !isFetching && (
                  <div className="py-40 text-center bg-white rounded-[3rem] border-2 border-dashed opacity-40 mb-10 flex flex-col items-center gap-4">
                    <Inbox className="w-10 h-10" />
                    <p className="text-xs font-black uppercase tracking-widest">{t('dashboard.no_events_filter')}</p>
@@ -415,6 +463,16 @@ export default function ExplorarPage() {
                       )
                     ))}
                  </div>
+               )}
+               
+               {isFetching && (
+                 <div className="py-10 flex justify-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+                 </div>
+               )}
+
+               {!isFetching && hasMore && (
+                 <div ref={observerTarget} className="h-20" />
                )}
              </>
            )}

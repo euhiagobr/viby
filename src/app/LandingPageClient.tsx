@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, limit, doc, where, orderBy } from "firebase/firestore"
+import { collection, query, limit, doc, where, orderBy, getDocs, startAfter, DocumentSnapshot } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
@@ -45,6 +45,7 @@ import { ptBR } from "date-fns/locale"
 import { useTranslation } from "@/i18n/i18n-context"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AnimatePresence, motion } from "framer-motion"
+import { useState, useEffect } from "react"
 
 export default function LandingPageClient() {
   const { t } = useTranslation()
@@ -58,10 +59,16 @@ export default function LandingPageClient() {
   const [selectedCategory, setSelectedCategory] = React.useState("all")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
   const [radiusKm, setRadiusKm] = React.useState("30")
-  const [isFallbackActive, setIsFallbackActive] = React.useState(false)
   
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
+
+  // Pagination State
+  const [rawEvents, setRawEvents] = useState<any[]>([])
+  const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null)
+  const [hasMore, setHasMore] = useState(true)
+  const [isFetching, setIsFetching] = useState(false)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -72,26 +79,58 @@ export default function LandingPageClient() {
   }, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
-  const eventsQuery = useMemoFirebase(() => {
-    if (!db) return null
-    return query(collection(db, "events"), where("status", "==", "Ativo"), limit(100))
-  }, [db])
-  const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
-
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null
-    // Busca ocorrências desde ontem para garantir que sessões noturnas ainda ativas sejam capturadas
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
     return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
   }, [db])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
+  const fetchEvents = React.useCallback(async (isInitial = false) => {
+    if (!db || isFetching || (!isInitial && !hasMore)) return
+    
+    setIsFetching(true)
+    try {
+      const q = query(
+        collection(db, "events"),
+        where("status", "==", "Ativo"),
+        orderBy("date", "asc"),
+        ...(isInitial ? [limit(9)] : [startAfter(lastVisible), limit(3)])
+      )
+      
+      const snapshot = await getDocs(q)
+      const fetchedDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      
+      if (isInitial) {
+        setRawEvents(fetchedDocs)
+      } else {
+        setRawEvents(prev => [...prev, ...fetchedDocs])
+      }
+      
+      setLastVisible(snapshot.docs[snapshot.docs.length - 1] || null)
+      setHasMore(snapshot.docs.length === (isInitial ? 9 : 3))
+    } catch (e) {
+      console.error("[Landing Pagination Error]", e)
+    } finally {
+      setIsFetching(false)
+      setIsInitialLoad(false)
+    }
+  }, [db, lastVisible, isFetching, hasMore])
+
+  useEffect(() => {
+    setHasMounted(true);
+    fetchEvents(true);
+    getCurrentLocation()
+      .then(loc => { if (loc) setUserLocation(loc); })
+      .catch(() => {})
+  }, [db])
+
   const processedEvents = React.useMemo(() => {
-    if (!events) return { events: [], isFallback: false }
+    if (!rawEvents) return { events: [], isFallback: false }
 
     const now = new Date();
 
-    const baseFiltered = events.map(e => {
+    const baseFiltered = rawEvents.map(e => {
       let effectiveDate = e.date;
       if (e.isRecurring) {
         const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
@@ -100,7 +139,6 @@ export default function LandingPageClient() {
             .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
-          // Encontra a primeira ocorrência que ainda não venceu o threshold de visibilidade (6h)
           const nextValid = sorted.find(o => {
             const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
             return now < endThreshold;
@@ -178,7 +216,7 @@ export default function LandingPageClient() {
     finalEvents.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
 
     return { events: finalEvents, isFallback: fallback };
-  }, [events, allOccurrences, searchName, searchCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
+  }, [rawEvents, allOccurrences, searchName, searchCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];
@@ -186,7 +224,7 @@ export default function LandingPageClient() {
     let adIndex = 0;
 
     if (processedEvents.events.length === 0) {
-      if (!eventsLoading) {
+      if (!isInitialLoad) {
         result.push({ type: "ad", adIndex: adIndex++ });
         result.push({ type: "ad", adIndex: adIndex++ });
       }
@@ -204,16 +242,28 @@ export default function LandingPageClient() {
     }
 
     return result;
-  }, [processedEvents.events, eventsLoading])
-
-  React.useEffect(() => {
-    setHasMounted(true);
-    getCurrentLocation()
-      .then(loc => { if (loc) setUserLocation(loc); })
-      .catch(() => {})
-  }, [])
+  }, [processedEvents.events, isInitialLoad])
 
   const siteName = settings?.siteName || "Viby"
+
+  const observerTarget = React.useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !isFetching && !isInitialLoad) {
+          fetchEvents(false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, isFetching, isInitialLoad, fetchEvents]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
@@ -335,14 +385,14 @@ export default function LandingPageClient() {
           </div>
         </div>
 
-        {eventsLoading ? (
+        {isInitialLoad ? (
           <div className="py-32 flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-12 h-12 animate-spin text-secondary" />
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{t('common.loading')}</p>
           </div>
         ) : (
           <>
-            {unifiedFeed.length === 0 && !eventsLoading && (
+            {unifiedFeed.length === 0 && !isFetching && (
               <div className="py-20 text-center bg-white rounded-[4rem] border-2 border-dashed border-border shadow-inner mb-20">
                 <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
                     <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
@@ -372,6 +422,16 @@ export default function LandingPageClient() {
                   )
                 ))}
               </div>
+            )}
+
+            {isFetching && (
+              <div className="py-10 flex justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+              </div>
+            )}
+
+            {!isFetching && hasMore && (
+              <div ref={observerTarget} className="h-20" />
             )}
           </>
         )}
