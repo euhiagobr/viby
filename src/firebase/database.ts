@@ -1,17 +1,24 @@
-import { getFirestore, Firestore } from "firebase/firestore";
+import { getFirestore, Firestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { app } from "./apps";
 
 /**
- * @fileOverview Instância isomórfica do Firestore.
- * Utiliza exclusivamente o banco de dados padrão (default) do projeto atual.
+ * @fileOverview Instância estabilizada do Firestore.
+ * Utiliza cache persistente e gerenciamento de múltiplas abas para evitar o erro ca9 do SDK v11.
  */
 
 let firestoreInstance: Firestore | null = null;
 
 export const db = (() => {
-  if (!firestoreInstance) {
-    // getFirestore sem parâmetros adicionais usa o banco (default)
-    firestoreInstance = getFirestore(app);
+  if (typeof window !== 'undefined') {
+    if (!firestoreInstance) {
+      firestoreInstance = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      });
+    }
+  } else {
+    if (!firestoreInstance) {
+      firestoreInstance = getFirestore(app);
+    }
   }
   return firestoreInstance;
 })();

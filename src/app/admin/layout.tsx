@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -34,7 +33,8 @@ import {
   Bell,
   Handshake,
   Send,
-  Trash2
+  Trash2,
+  History
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -75,7 +75,7 @@ export default function AdminLayout({
     }
   }, [user, isInitialized, authLoading, permsLoading, adminProfile, router]);
 
-  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
+  const settingsRef = React.useMemo(() => (db && isInitialized) ? doc(db, "settings", "site") : null, [db, isInitialized])
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
@@ -83,7 +83,7 @@ export default function AdminLayout({
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando Identidade...</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Autenticando...</p>
       </div>
     );
   }

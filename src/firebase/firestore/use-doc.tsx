@@ -12,7 +12,6 @@ import {
 /**
  * Hook resiliente para escutar documentos únicos.
  * Implementa proteção contra race conditions e o erro de asserção ca9 do SDK v11.
- * Silencia erros de permissão inofensivos durante a troca de contexto de auth.
  */
 export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
@@ -52,8 +51,6 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
         (serverError: FirestoreError) => {
           if (!isMounted.current) return;
           
-          // O erro ca9 muitas vezes ocorre em conjunto com falhas de permissão no stream.
-          // Silenciamos logs de erro de permissão no console se forem transitórios.
           if (serverError.code !== 'permission-denied') {
             console.error(`[Firestore Doc Error] ${serverError.code}`, serverError);
           }
@@ -64,8 +61,9 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
         }
       );
     } catch (e) {
-      console.warn("[Firestore] Sync starting failed, likely permission or SDK state issue.");
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
 
     return () => {

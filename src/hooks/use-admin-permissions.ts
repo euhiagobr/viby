@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuth, useUser, useFirestore, useDoc } from '@/firebase';
@@ -11,7 +10,7 @@ const MASTER_ADMIN_UID = "AqTVL8VRTZT435pZudkObzMGsrR2";
 
 /**
  * Hook para gestão de permissões administrativas.
- * Estabilizado para prevenir loops de renderização no AdminLayout.
+ * Estabilizado para prevenir loops de renderização e erros de construtor ilegal.
  */
 export function useAdminPermissions() {
   const auth = useAuth();
@@ -21,22 +20,26 @@ export function useAdminPermissions() {
   const userId = user?.uid;
   const userRole = profile?.role;
 
-  const adminRef = useMemo(() => 
-    (db && userId) ? doc(db, 'system_admins', userId) : null, 
-    [db, userId]
-  );
+  // Só tentamos criar a referência do documento se tivermos um DB e um Usuário válido
+  const adminRef = useMemo(() => {
+    if (!db || !userId) return null;
+    try {
+      return doc(db, 'system_admins', userId);
+    } catch (e) {
+      return null;
+    }
+  }, [db, userId]);
   
   const { data: dbAdminProfile, loading: adminLoading } = useDoc<SystemAdmin>(adminRef);
 
-  // Buffer persistente para estabilizar o objeto de saída e quebrar o ciclo de renderização
   const stableProfileRef = useRef<any>(null);
 
   const adminProfile = useMemo(() => {
     if (!authInitialized || userLoading || adminLoading) return null;
+    if (!userId) return null;
 
     let result = null;
 
-    // 1. Prioridade: Super Admin via UID
     if (userId === MASTER_ADMIN_UID) {
       result = {
         uid: userId,
@@ -48,11 +51,9 @@ export function useAdminPermissions() {
         permissions: ALL_PERMISSIONS.reduce((acc, p) => ({ ...acc, [p]: true }), {} as any)
       };
     }
-    // 2. Cadastro granular no Firestore
     else if (dbAdminProfile && dbAdminProfile.status !== 'Desativado') {
       result = dbAdminProfile;
     }
-    // 3. Fallback: Role legada
     else if (userRole === 'admin') {
       result = {
         uid: userId,
@@ -65,13 +66,11 @@ export function useAdminPermissions() {
       };
     }
 
-    // Estabilização de referência para evitar Maximum update depth exceeded
     if (
       stableProfileRef.current && 
       result && 
       stableProfileRef.current.uid === result.uid && 
-      stableProfileRef.current.cargo === result.cargo &&
-      stableProfileRef.current.status === result.status
+      stableProfileRef.current.cargo === result.cargo
     ) {
       return stableProfileRef.current;
     }

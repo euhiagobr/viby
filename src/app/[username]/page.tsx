@@ -11,7 +11,7 @@ const RESERVED_ROUTES = [
   'marketing', 'afiliados', 'anuncios', 'imposto', 'extrato', 'transferencias',
   'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
-  'novo', 'new', 'projeto'
+  'novo', 'new', 'projeto', 'auth'
 ];
 
 const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
@@ -51,8 +51,10 @@ function serializeData(data: any): any {
 
 async function getProfileData(usernameParam: string) {
   try {
-    const db = getAdminDb();
     const username = decodeURIComponent(usernameParam).toLowerCase().trim();
+    if (RESERVED_ROUTES.includes(username)) return null;
+
+    const db = getAdminDb();
     const usernameSnap = await db.collection("usernames").doc(username).get();
     
     if (!usernameSnap.exists) return null;
@@ -64,7 +66,6 @@ async function getProfileData(usernameParam: string) {
     if (!dataSnap.exists) return null;
     const profile = dataSnap.data()!;
     
-    // Bloqueia acesso a perfis em estado de exclusão ou bloqueados
     if (['Bloqueado', 'Excluído', 'Desativado', 'Exclusão Programada'].includes(profile.status)) {
        return null;
     }
@@ -78,10 +79,8 @@ async function getProfileData(usernameParam: string) {
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
   try {
     const { username } = await params;
-    if (RESERVED_ROUTES.includes(username.toLowerCase())) return { title: 'Viby' };
-
     const profile = await getProfileData(username);
-    if (!profile) return { title: 'Perfil não encontrado | Viby' };
+    if (!profile) return { title: 'Viby' };
 
     const name = profile.type === 'organization' ? profile.name : (profile.name || profile.displayName || username);
     const title = `${name} • Viby`;
@@ -120,10 +119,15 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
-  if (RESERVED_ROUTES.includes(username.toLowerCase())) return <></>;
-  
   const profile = await getProfileData(username);
-  if (!profile) notFound();
+  
+  if (!profile) {
+    // Se for rota reservada, o Next.js continuará procurando por outros arquivos (admin/page.tsx etc)
+    // Se não for reservada e não houver perfil, retornamos 404
+    const cleanUser = username.toLowerCase().trim();
+    if (RESERVED_ROUTES.includes(cleanUser)) return null;
+    notFound();
+  }
 
   return <ProfilePageClient username={username} />;
 }

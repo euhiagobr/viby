@@ -27,7 +27,6 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
   useEffect(() => {
     isMounted.current = true;
 
-    // Se a query mudar, limpamos o listener ativo imediatamente
     if (unsubRef.current) {
       unsubRef.current();
       unsubRef.current = null;
@@ -35,6 +34,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
 
     if (!query) {
       setLoading(false);
+      setData([]);
       return;
     }
 
@@ -59,16 +59,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
           if (!isMounted.current) return;
 
           if (serverError.code === 'permission-denied') {
-            let path = 'collection_query';
-            try {
-              const q = query as any;
-              if (q._query?.path?.segments) path = q._query.path.segments.join('/');
-            } catch (e) {}
-            
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: path,
-              operation: 'list',
-            }));
+            console.warn("[useCollection] Permission denied for query");
             setData([]);
           } else {
             setError(serverError);
@@ -77,7 +68,9 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
         }
       );
     } catch (e) {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
 
     return () => {

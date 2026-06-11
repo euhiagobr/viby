@@ -5,7 +5,7 @@ import EventoPublicoClient from './EventoPublicoClient';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Home, CalendarX, ArrowLeft } from 'lucide-react';
-import { redirect } from 'next/navigation';
+import { redirect, notFound } from 'next/navigation';
 
 const RESERVED_ROUTES = [
   'dashboard', 'admin', 'login', 'cadastro', 'redefinir-senha', 
@@ -14,7 +14,7 @@ const RESERVED_ROUTES = [
   'marketing', 'afiliados', 'anuncios', 'imposto', 'extrato', 'transferencias',
   'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
-  'novo', 'new', 'projeto'
+  'novo', 'new', 'projeto', 'auth'
 ];
 
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
@@ -62,8 +62,10 @@ function stripHtml(text: string): string {
 
 async function getEventData(usernameParam: string, slugParam: string) {
   try {
-    const db = getAdminDb();
     const username = decodeURIComponent(usernameParam).toLowerCase().trim();
+    if (RESERVED_ROUTES.includes(username)) return null;
+
+    const db = getAdminDb();
     const slug = decodeURIComponent(slugParam).trim();
 
     const usernameSnap = await db.collection("usernames").doc(username).get();
@@ -73,7 +75,6 @@ async function getEventData(usernameParam: string, slugParam: string) {
     const eventByIdSnap = await db.collection("events").doc(slug).get();
     if (eventByIdSnap.exists) {
       const data = eventByIdSnap.data()!;
-      // Impede visualização de eventos marcados como excluídos
       if (data.status === 'Excluído') return null;
       
       const ownerId = data.organizationId || data.organizerId || data.organizer?.id;
@@ -90,9 +91,7 @@ async function getEventData(usernameParam: string, slugParam: string) {
     if (!queryBySlug.empty) {
       const found = queryBySlug.docs.find(doc => {
         const data = doc.data();
-        // Impede visualização de eventos marcados como excluídos na busca por slug
         if (data.status === 'Excluído') return false;
-        
         const ownerId = data.organizationId || data.organizerId || data.organizer?.id;
         return ownerId === targetUid;
       });
@@ -110,10 +109,8 @@ async function getEventData(usernameParam: string, slugParam: string) {
 export async function generateMetadata({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<Metadata> {
   try {
     const { username, slug } = await params;
-    if (RESERVED_ROUTES.includes(username.toLowerCase())) return { title: 'Viby' };
-    
     const event = await getEventData(username, slug);
-    if (!event) return { title: 'Evento não encontrado | Viby' };
+    if (!event) return { title: 'Evento | Viby' };
 
     const db = getAdminDb();
     let orgData = null;
@@ -122,10 +119,6 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
     if (orgId) {
       const orgSnap = await db.collection('organizations').doc(orgId).get();
       orgData = orgSnap.exists ? orgSnap.data() : null;
-      if (!orgData) {
-        const userSnap = await db.collection('users').doc(orgId).get();
-        orgData = userSnap.exists ? userSnap.data() : null;
-      }
     }
 
     const title = event.title || "Evento";
@@ -162,16 +155,15 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   }
 }
 
-export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<React.ReactElement> {
+export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<React.ReactElement | null> {
   const { username, slug } = await params;
-  
-  if (RESERVED_ROUTES.includes(username.toLowerCase())) {
-    return <></>;
-  }
   
   const event = await getEventData(username, slug);
 
   if (!event) {
+    const cleanUser = username.toLowerCase().trim();
+    if (RESERVED_ROUTES.includes(cleanUser)) return null;
+    
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4 text-center">
         <div className="relative w-full max-w-lg mb-12">
