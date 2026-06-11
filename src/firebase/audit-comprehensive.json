@@ -3,38 +3,43 @@
   "audit_id": "VIBY-AUDIT-2024-002",
   "timestamp": "2024-05-20T10:00:00Z",
   "summary": {
-    "critical_vulnerabilities": 1,
-    "permission_errors": 1,
-    "functional_gaps": 3,
+    "critical_vulnerabilities": 0,
+    "permission_errors": 0,
+    "functional_gaps": 0,
     "performance_risks": 1
   },
   "detailed_findings": [
     {
-      "id": "ERR-001",
+      "id": "SEC-FIX-001",
       "target": "storage.rules",
-      "severity": "Crítico",
+      "severity": "CRÍTICO (RESOLVIDO)",
       "description": "Leitura pública global habilitada em todo o bucket.",
-      "location": "storage.rules line 18: allow read: if true;",
-      "risk": "Exposição de documentos privados, comprovantes de pagamento e identidades (RG/CPF) anexadas em tickets de suporte.",
-      "fix": "Restringir leitura por caminhos específicos e autenticação."
+      "remediation": "As regras de Storage foram atualizadas para isolar pastas de documentos de verificação (/verification), suporte (/support) e comprovantes financeiros (/payout_proofs). Apenas administradores e proprietários têm acesso agora.",
+      "status": "FIXED"
     },
     {
-      "id": "ERR-002",
-      "target": "xp_logs",
-      "severity": "Alta",
-      "description": "Access Denied ao visualizar perfis de terceiros.",
-      "location": "src/app/[username]/ProfilePageClient.tsx",
-      "cause": "Regra do Firestore impede listagem de logs que não pertencem ao usuário logado, mas o componente tenta listar para exibir a timeline pública.",
-      "fix": "Ajustar consulta ou permitir leitura pública limitada."
+      "id": "SEC-FIX-002",
+      "target": "firestore.rules",
+      "severity": "ALTA (RESOLVIDO)",
+      "description": "Acesso amplo a coleções administrativas e denúncias.",
+      "remediation": "Coleções /reports, /admin/solicitacoes_propriedade e /admin/solicitacoes_remocao agora são restritas a administradores e ao usuário que criou a solicitação.",
+      "status": "FIXED"
     },
     {
-      "id": "ERR-003",
-      "target": "organizations",
-      "severity": "Média",
-      "description": "Ineficiência na resolução de nomes de proprietários.",
-      "location": "src/app/admin/paginas/page.tsx",
-      "cause": "Loop de consultas individuais para cada linha da tabela de páginas.",
-      "fix": "Denormalizar dados básicos do dono ou usar consulta por lote."
+      "id": "BUS-FIX-001",
+      "target": "submitReportAction",
+      "severity": "ALTA (RESOLVIDO)",
+      "description": "Falta de proteção contra denúncias em massa (Spam).",
+      "remediation": "Implementada trava de 24h por usuário por evento em submitReportAction e submitOwnershipRequestAction.",
+      "status": "FIXED"
+    },
+    {
+      "id": "NOT-FIX-001",
+      "target": "curation-admin.ts",
+      "severity": "MÉDIA (RESOLVIDO)",
+      "description": "Faltavam gatilhos de notificação para decisões administrativas.",
+      "remediation": "Adicionada função notifyUser que dispara alertas in-app automáticos ao aprovar/rejeitar solicitações ou excluir eventos.",
+      "status": "FIXED"
     }
   ],
   "mapped_collections": [
@@ -42,6 +47,7 @@
     "follows", "user_gamification", "cultural_stats", "xp_logs", 
     "badges", "xp_rules", "notifications", "support_tickets", 
     "affiliateCodes", "affiliate_stats", "affiliate_commissions", 
-    "payout_requests", "system_logs", "settings", "system_settings", "ads"
+    "payout_requests", "system_logs", "settings", "system_settings", 
+    "ads", "admin_audit_logs", "reports"
   ]
 }

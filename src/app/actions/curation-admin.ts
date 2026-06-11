@@ -5,9 +5,12 @@ import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { headers } from 'next/headers';
 
-async function getClientIp() {
+async function getClientContext() {
   const head = await headers();
-  return head.get('x-forwarded-for')?.split(',')[0] || head.get('x-real-ip') || '0.0.0.0';
+  return {
+    ip: head.get('x-forwarded-for')?.split(',')[0] || head.get('x-real-ip') || '0.0.0.0',
+    userAgent: head.get('user-agent') || 'unknown'
+  };
 }
 
 async function recordAdminAudit(params: {
@@ -19,11 +22,26 @@ async function recordAdminAudit(params: {
   metadata?: any;
 }) {
   const db = getAdminDb();
-  const ip = await getClientIp();
+  const context = await getClientContext();
   await db.collection('admin_audit_logs').add({
     ...params,
-    ip,
+    ip: context.ip,
+    userAgent: context.userAgent,
     timestamp: admin.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+async function notifyUser(userId: string, senderId: string, message: string, type: string, link?: string) {
+  const db = getAdminDb();
+  await db.collection('notifications').add({
+    targetUid: userId,
+    senderId,
+    senderName: "Viby Moderação",
+    type,
+    message,
+    link,
+    read: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
   });
 }
 
@@ -65,6 +83,21 @@ export async function processOwnershipAction(params: {
         curationType: admin.firestore.FieldValue.delete(), // Remove flag de curadoria ao assumir
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
+
+      await notifyUser(
+        request.requesterUid, 
+        params.adminId, 
+        `Sua solicitação de propriedade do evento "${request.eventTitle}" foi APROVADA.`,
+        'system',
+        `/dashboard/organizacoes/${orgData?.username}/events`
+      );
+    } else {
+      await notifyUser(
+        request.requesterUid, 
+        params.adminId, 
+        `Sua solicitação de propriedade do evento "${request.eventTitle}" foi rejeitada. Motivo: ${params.reason}`,
+        'system'
+      );
     }
 
     await requestRef.update({
@@ -107,6 +140,8 @@ export async function processReportAction(params: {
     if (!reportSnap.exists) throw new Error("Denúncia não encontrada.");
     const report = reportSnap.data()!;
     const eventRef = db.collection('events').doc(report.eventId);
+    const eventSnap = await eventRef.get();
+    const eventData = eventSnap.data();
 
     switch (params.action) {
       case 'em_analise':
@@ -122,6 +157,14 @@ export async function processReportAction(params: {
           deletedBy: params.adminId,
           deleteReason: params.reason
         });
+        if (eventData?.organizerId) {
+          await notifyUser(
+            eventData.organizerId,
+            params.adminId,
+            `O evento "${eventData.title}" foi removido pela moderação devido a denúncias.`,
+            'system'
+          );
+        }
         break;
     }
 
@@ -167,12 +210,25 @@ export async function processRemovalAction(params: {
     const request = requestSnap.data()!;
 
     if (params.status === 'concluido') {
-      await db.collection('events').doc(request.eventId).update({
+      const eventRef = db.collection('events').doc(request.eventId);
+      const eventSnap = await eventRef.get();
+      const eventData = eventSnap.data();
+
+      await eventRef.update({
         status: 'Excluído',
         deletedAt: admin.firestore.FieldValue.serverTimestamp(),
         deletedBy: params.adminId,
         deleteReason: `Remoção Jurídica: ${params.reason}`
       });
+
+      if (eventData?.organizerId) {
+        await notifyUser(
+          eventData.organizerId,
+          params.adminId,
+          `O evento "${eventData.title}" foi removido permanentemente por solicitação jurídica de terceiros.`,
+          'system'
+        );
+      }
     }
 
     await requestRef.update({

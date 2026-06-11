@@ -1,10 +1,12 @@
+
 "use client"
 
 import * as React from "react"
-import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag } from "lucide-react"
+import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag, ShieldAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -181,6 +183,14 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         <div className="absolute top-0 right-0 z-20">
           <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg">
             <Megaphone className="w-2.5 h-2.5 text-secondary fill-secondary" /> {t('event.sponsored')}
+          </Badge>
+        </div>
+      )}
+
+      {event.underReview && !isEnded && (
+        <div className="absolute top-0 left-0 z-20">
+          <Badge className="bg-orange-500 text-white rounded-none rounded-br-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg animate-pulse">
+            <ShieldAlert className="w-2.5 h-2.5" /> Evento em Revisão
           </Badge>
         </div>
       )}
