@@ -16,6 +16,7 @@ export function calculateDistanceMeters(coords1: Coordinates, coords2: Coordinat
 /**
  * Define se um evento deve ser exibido nas vitrines públicas.
  * Regra: Eventos não encerrados (até 6h após o início) e ativos.
+ * Para eventos recorrentes, a visibilidade depende da próxima ocorrência válida.
  */
 export function isEventVisible(event: any): boolean {
   if (!event || event.status !== 'Ativo') return false;

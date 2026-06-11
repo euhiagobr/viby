@@ -76,13 +76,34 @@ export default function LandingPageClient() {
     if (!db) return null
     return query(collection(db, "events"), where("status", "==", "Ativo"), limit(100))
   }, [db])
-
   const { data: events, loading: eventsLoading } = useCollection<any>(eventsQuery)
+
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db) return null
+    const todayStr = format(startOfToday(), 'yyyy-MM-dd')
+    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", todayStr))
+  }, [db])
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
   const processedEvents = React.useMemo(() => {
     if (!events) return { events: [], isFallback: false }
 
-    const baseFiltered = events.filter(e => {
+    const baseFiltered = events.map(e => {
+      // Lógica de transição automática para eventos recorrentes
+      let effectiveDate = e.date;
+      if (e.isRecurring) {
+        const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
+        if (myOccs.length > 0) {
+          const sorted = [...myOccs].sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return (a.startTime || "").localeCompare(b.startTime || "");
+          });
+          // Define a próxima ocorrência como a data ativa do card
+          effectiveDate = sorted[0].date + 'T' + (sorted[0].startTime || '00:00') + ':00';
+        }
+      }
+      return { ...e, date: effectiveDate };
+    }).filter(e => {
       if (!isEventVisible(e)) return false;
 
       const nameNorm = normalizeText(searchName);
@@ -148,7 +169,7 @@ export default function LandingPageClient() {
     finalEvents.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
 
     return { events: finalEvents, isFallback: fallback };
-  }, [events, searchName, searchCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
+  }, [events, allOccurrences, searchName, searchCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];

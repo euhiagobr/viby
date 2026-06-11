@@ -91,8 +91,14 @@ export default function ExplorarPage() {
     if (!db) return null
     return query(collection(db, "events"), where("status", "==", "Ativo"))
   }, [db])
-
   const { data: allEvents, loading: eventsLoading } = useCollection<any>(eventsQuery)
+
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db) return null
+    const todayStr = format(startOfToday(), 'yyyy-MM-dd')
+    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", todayStr))
+  }, [db])
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
   useEffect(() => {
     getCurrentLocation()
@@ -103,8 +109,21 @@ export default function ExplorarPage() {
   const processedEvents = React.useMemo(() => {
     if (!allEvents) return { events: [], isFallback: false }
     
-    // 1. Normalização e Filtragem Inicial (Tempo, Busca, Categoria)
-    const baseFiltered = allEvents.filter(e => {
+    const baseFiltered = allEvents.map(e => {
+      // Lógica de transição automática para eventos recorrentes
+      let effectiveDate = e.date;
+      if (e.isRecurring) {
+        const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
+        if (myOccs.length > 0) {
+          const sorted = [...myOccs].sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return (a.startTime || "").localeCompare(b.startTime || "");
+          });
+          effectiveDate = sorted[0].date + 'T' + (sorted[0].startTime || '00:00') + ':00';
+        }
+      }
+      return { ...e, date: effectiveDate };
+    }).filter(e => {
       if (!isEventVisible(e)) return false
       
       const searchNorm = normalizeText(search);
@@ -140,7 +159,6 @@ export default function ExplorarPage() {
       }
       return matchesSearch && matchesCategory && matchesDate;
     }).map(e => {
-      // Normalização de distância em metros para processamento interno
       let distMeters = Infinity;
       if (userLocation && e.latitude && e.longitude) {
         distMeters = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
@@ -153,7 +171,6 @@ export default function ExplorarPage() {
       };
     });
 
-    // 2. Filtro por Raio com Fallback Automático
     let finalEvents = baseFiltered;
     let fallback = false;
 
@@ -161,24 +178,21 @@ export default function ExplorarPage() {
       const radiusMeters = parseInt(radiusKm) * 1000;
       finalEvents = baseFiltered.filter(e => e._distanceMeters <= radiusMeters);
 
-      // Fallback 1: Expandir para 100km se não houver nada no raio original
       if (finalEvents.length === 0) {
         finalEvents = baseFiltered.filter(e => e._distanceMeters <= 100000);
         if (finalEvents.length > 0) fallback = true;
       }
 
-      // Fallback 2: Ilimitado se ainda estiver vazio
       if (finalEvents.length === 0) {
         finalEvents = baseFiltered;
         if (finalEvents.length > 0) fallback = true;
       }
     }
 
-    // 3. Ordenação Exclusiva por Data/Hora (ASC)
     finalEvents.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
 
     return { events: finalEvents, isFallback: fallback };
-  }, [allEvents, search, searchCity, userLocation, radiusKm, selectedCategory, dateFilter, customDate, categories])
+  }, [allEvents, allOccurrences, search, searchCity, userLocation, radiusKm, selectedCategory, dateFilter, customDate])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];

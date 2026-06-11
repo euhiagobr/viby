@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -116,6 +115,21 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
       });
   }, [rawOccurrences]);
 
+  // Lógica de Identificação de Próxima Data para Evento Recorrente
+  const effectiveEventData = React.useMemo(() => {
+    if (!event) return null;
+    if (!event.isRecurring || upcomingOccurrences.length === 0) return event;
+
+    const nextOcc = upcomingOccurrences[0];
+    const nextDateStr = nextOcc.date + 'T' + (nextOcc.startTime || '19:00') + ':00';
+    
+    return {
+      ...event,
+      date: nextDateStr,
+      _isAutoUpdated: true
+    };
+  }, [event, upcomingOccurrences]);
+
   const siteName = settings?.siteName || "Viby"
 
   const handleCopyLink = () => {
@@ -133,16 +147,16 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     )
   }
 
-  if (!event) return null;
+  if (!event || !effectiveEventData) return null;
 
   // Lógica de Identificação de Curadoria
   const isCuradoria = event.curationType === 'curadoria' || 
                       event.curatorProfile === 'viby' || 
                       (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
 
-  const dateValue = event.date || event.startDate;
+  const dateValue = effectiveEventData.date || effectiveEventData.startDate;
   const dStart = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : new Date();
-  const dEnd = event.endDate ? (event.endDate.toDate ? event.endDate.toDate() : new Date(event.endDate)) : null;
+  const dEnd = effectiveEventData.endDate ? (effectiveEventData.endDate.toDate ? effectiveEventData.endDate.toDate() : new Date(effectiveEventData.endDate)) : null;
   
   const isEnded = dEnd ? (dEnd < new Date()) : false;
   
@@ -153,7 +167,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   return (
     <div className="min-h-screen bg-[#f8fafc] h-full flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
-      <EventSEO event={event} username={username} />
+      <EventSEO event={effectiveEventData} username={username} />
       
       {/* HEADER GLOBAL */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
@@ -237,7 +251,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
       <div className="bg-white border-b border-border/60 sticky top-16 z-40 shadow-sm w-full overflow-hidden">
          <div className="container mx-auto px-4 max-w-6xl py-4 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
             <div className="flex items-center gap-6 sm:gap-10 w-full sm:w-auto overflow-x-auto scrollbar-hide pb-1 sm:pb-0">
-               <EventInterest event={event} showButton={true} className="gap-4 sm:gap-6 shrink-0" />
+               <EventInterest event={effectiveEventData} showButton={true} className="gap-4 sm:gap-6 shrink-0" />
                {!isCuradoria && (
                  <div className="hidden md:flex flex-col shrink-0">
                     <span className="text-xl font-black text-primary leading-none">{(event.sharesCount || 0).toLocaleString()}</span>
@@ -409,7 +423,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
               {/* BILHETERIA E AVISO DE CURADORIA */}
               <div id="bilheteria" className="scroll-mt-32 w-full overflow-hidden space-y-12">
                  <BilheteriaPublic 
-                  event={event} 
+                  event={effectiveEventData} 
                   globalFees={globalFees} 
                   promotions={promotions} 
                   orgSettings={org} 

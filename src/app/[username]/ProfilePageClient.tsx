@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -17,6 +16,7 @@ import { recordQrScan } from "@/app/actions/qr";
 import { useSearchParams } from "next/navigation";
 import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils";
+import { format, startOfToday } from "date-fns"
 
 // Components - Organization
 import { OrganizerHero } from "@/components/organizer/OrganizerHero";
@@ -180,6 +180,18 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   const { data: orgEvents } = useCollection<any>(orgEventsQuery);
 
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db || !profileData?.id || profileType !== 'organization') return null;
+    const todayStr = format(startOfToday(), 'yyyy-MM-dd')
+    return query(
+      collection(db, "recurring_occurrences"), 
+      where("organizationId", "==", profileData.id),
+      where("status", "==", "active"),
+      where("date", ">=", todayStr)
+    )
+  }, [db, profileData?.id, profileType])
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
+
   // Busca de Eventos em Parceria
   React.useEffect(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return;
@@ -217,28 +229,44 @@ export default function ProfilePageClient({ username }: { username: string }) {
     if (!orgEvents) return { upcomingEvents: [], pastEvents: [] };
     const referenceDate = new Date();
     
-    const upcoming = orgEvents.filter((e: any) => {
+    // Processa datas efetivas para recorrência
+    const processed = orgEvents.map(e => {
+       let effectiveDate = e.date;
+       if (e.isRecurring) {
+         const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
+         if (myOccs.length > 0) {
+           const sorted = [...myOccs].sort((a, b) => {
+             if (a.date !== b.date) return a.date.localeCompare(b.date);
+             return (a.startTime || "").localeCompare(b.startTime || "");
+           });
+           effectiveDate = sorted[0].date + 'T' + (sorted[0].startTime || '19:00') + ':00';
+         }
+       }
+       return { ...e, date: effectiveDate };
+    });
+
+    const upcoming = processed.filter((e: any) => {
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
       return end >= referenceDate;
     }).sort((a, b) => {
-      const tA = a.date?.seconds || new Date(a.date).getTime();
-      const tB = b.date?.seconds || new Date(b.date).getTime();
+      const tA = a.date?.seconds ? a.date.seconds * 1000 : new Date(a.date).getTime();
+      const tB = b.date?.seconds ? b.date.seconds * 1000 : new Date(b.date).getTime();
       return tA - tB;
     });
 
-    const past = orgEvents.filter((e: any) => {
+    const past = processed.filter((e: any) => {
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
       return end < referenceDate;
     }).sort((a, b) => {
-      const tA = a.date?.seconds || new Date(a.date).getTime();
-      const tB = b.date?.seconds || new Date(b.date).getTime();
+      const tA = a.date?.seconds ? a.date.seconds * 1000 : new Date(a.date).getTime();
+      const tB = b.date?.seconds ? b.date.seconds * 1000 : new Date(b.date).getTime();
       return tB - tA;
     });
 
     return { upcomingEvents: upcoming, pastEvents: past };
-  }, [orgEvents]);
+  }, [orgEvents, allOccurrences]);
 
   const unifiedUpcomingFeed = React.useMemo(() => {
     const result = [];
