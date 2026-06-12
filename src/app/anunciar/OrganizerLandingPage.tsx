@@ -21,7 +21,8 @@ import {
   Globe,
   Star,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  BadgeCheck
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -70,7 +71,7 @@ const FEATURES = [
 ];
 
 const FAQS = [
-  { q: "Quanto custa vender ingressos pela Viby?", a: "A Viby não cobra taxas para eventos gratuitos. Para eventos pagos, aplicamos uma taxa de serviço competitiva que pode ser absorvida pelo organizador ou repassada ao comprador." },
+  { q: "Quanto custa vender ingressos pela Viby?", a: "Fale com a equipe da Viby e veja uma taxa personalizada para você!" },
   { q: "Preciso ter CNPJ para vender?", a: "Não. A Viby permite que tanto pessoas físicas (CPF) quanto jurídicas (CNPJ) criem eventos e vendam ingressos." },
   { q: "Como recebo os pagamentos?", a: "Utilizamos o Stripe Connect, um dos processadores de pagamento mais seguros do mundo. O valor líquido das suas vendas é transferido para sua conta bancária conforme o ciclo financeiro escolhido." },
   { q: "Posso criar eventos gratuitos?", a: "Com certeza! A Viby é ideal para gerir listas de presença e convites em eventos sem custo de entrada." },
@@ -166,8 +167,12 @@ export default function OrganizerLandingPage() {
               </div>
             </div>
             <div className="relative group perspective-1000">
-               <div className="relative z-10 rounded-[3rem] overflow-hidden shadow-2xl border-8 border-white bg-muted aspect-[4/3] rotate-2 group-hover:rotate-0 transition-transform duration-700">
-                  <Image src="https://picsum.photos/seed/dashboard/1200/900" alt="Viby Dashboard" fill className="object-cover" unoptimized data-ai-hint="dashboard events" />
+               <div className="relative z-10 rounded-[3rem] overflow-hidden shadow-2xl border-8 border-white bg-primary aspect-[4/3] rotate-2 group-hover:rotate-0 transition-transform duration-700 flex items-center justify-center p-12 md:p-20">
+                  {settings?.logoUrl ? (
+                    <img src={settings.logoUrl} alt={siteName} className="w-full h-auto object-contain brightness-0 invert" />
+                  ) : (
+                    <span className="text-white text-9xl font-black italic">{siteName.charAt(0)}</span>
+                  )}
                </div>
                <div className="absolute -bottom-6 -left-6 bg-secondary text-white p-8 rounded-[2rem] shadow-2xl z-20 animate-bounce">
                   <BarChart3 className="w-10 h-10" />
