@@ -20,7 +20,8 @@ import {
   CalendarDays,
   Map as MapIcon,
   Bell,
-  Handshake
+  Handshake,
+  Star
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -52,7 +53,7 @@ export function AppSidebar() {
   const router = useRouter()
   const auth = useAuth()
   const db = useFirestore()
-  const { user } = useUser(auth)
+  const { user, profile } = useUser(auth)
   const { 
     currentOrg, 
     userRole, 
@@ -84,6 +85,9 @@ export function AppSidebar() {
     { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
     { title: t('nav.organizations'), url: "/dashboard/organizacoes", icon: Building2 },
     { title: "Afiliados", url: "/dashboard/afiliados", icon: Handshake },
+    ...(profile?.isPartner ? [
+      { title: "Portal do Parceiro", url: "/dashboard/parceiro", icon: Star }
+    ] : []),
     { 
       title: t('common.notifications'), 
       url: "/dashboard/notificacoes", 

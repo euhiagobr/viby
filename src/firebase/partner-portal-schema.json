@@ -1,0 +1,32 @@
+
+{
+  "feature": "Portal do Parceiro",
+  "collections": {
+    "partner_referrals": {
+      "description": "Vínculos entre parceiros e organizadores indicados.",
+      "fields": {
+        "partnerId": "string (UID do parceiro)",
+        "referredUserId": "string (UID do organizador)",
+        "status": "active | expired | suspended",
+        "referredAt": "timestamp",
+        "expiresAt": "timestamp (referredAt + 365 dias)"
+      }
+    },
+    "partner_withdrawals": {
+      "description": "Solicitações de saque de comissões por parceiros.",
+      "fields": {
+        "partnerId": "string",
+        "amount": "number",
+        "status": "requested | processing | paid | cancelled",
+        "pixKey": "string",
+        "pixType": "string",
+        "bankDetails": "string",
+        "requestedAt": "timestamp",
+        "processedAt": "timestamp"
+      }
+    }
+  },
+  "access_control": {
+    "isPartner": "Boolean field on /users/{uid} mandatory for access."
+  }
+}

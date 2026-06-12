@@ -64,6 +64,7 @@ export async function createPartnerAction(params: {
           pendingBalance: 0,
           availableBalance: 0,
           totalEarned: 0,
+          totalWithdrawn: 0,
           referralsCount: 0,
           salesCount: 0
         },
@@ -73,6 +74,54 @@ export async function createPartnerAction(params: {
 
       transaction.set(partnerRef, partnerData);
       transaction.update(userRef, { isPartner: true, partnerCode: codeNormalized });
+
+      return { success: true };
+    });
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function requestPartnerWithdrawalAction(params: {
+  userId: string;
+  amount: number;
+  pixKey: string;
+  pixType: string;
+  bankDetails?: string;
+}) {
+  const db = getAdminDb();
+  const { userId, amount, pixKey, pixType, bankDetails } = params;
+
+  if (amount < 50) throw new Error("O valor mínimo para saque é R$ 50,00.");
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      const partnerRef = db.collection('partners').doc(userId);
+      const partnerSnap = await transaction.get(partnerRef);
+
+      if (!partnerSnap.exists) throw new Error("Perfil de parceiro não localizado.");
+      const partner = partnerSnap.data()!;
+
+      if (partner.stats.availableBalance < amount) {
+        throw new Error("Saldo disponível insuficiente.");
+      }
+
+      const withdrawalRef = db.collection('partner_withdrawals').doc();
+      transaction.set(withdrawalRef, {
+        partnerId: userId,
+        amount,
+        status: 'requested',
+        pixKey,
+        pixType,
+        bankDetails: bankDetails || null,
+        requestedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      transaction.update(partnerRef, {
+        "stats.availableBalance": admin.firestore.FieldValue.increment(-amount),
+        "stats.totalWithdrawn": admin.firestore.FieldValue.increment(amount),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
 
       return { success: true };
     });
@@ -112,48 +161,6 @@ export async function togglePartnerStatusAction(partnerId: string, status: 'acti
     });
     await logPartnerAction(status === 'active' ? 'reactivate' : 'suspend', adminUid, partnerId);
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function usePartnerCodeAction(userId: string, code: string) {
-  const db = getAdminDb();
-  const codeNormalized = code.trim().toUpperCase();
-
-  try {
-    return await db.runTransaction(async (transaction) => {
-      // 1. Verificar se usuário já tem parceiro
-      const refCheck = db.collection('partner_referrals').doc(userId);
-      const refSnap = await transaction.get(refCheck);
-      if (refSnap.exists) throw new Error("Usuário já possui um parceiro vinculado.");
-
-      // 2. Localizar parceiro pelo código
-      const partnerQ = db.collection('partners').where('code', '==', codeNormalized).where('status', '==', 'active').limit(1);
-      const partnerSnap = await transaction.get(partnerQ);
-      if (partnerSnap.empty) throw new Error("Código de parceiro inválido ou inativo.");
-      
-      const partner = partnerSnap.docs[0];
-      const partnerId = partner.id;
-
-      const now = new Date();
-      const expiresAt = new Date();
-      expiresAt.setFullYear(now.getFullYear() + 1);
-
-      transaction.set(refCheck, {
-        partnerId,
-        referredUserId: userId,
-        referredAt: admin.firestore.FieldValue.serverTimestamp(),
-        expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
-        status: 'active'
-      });
-
-      transaction.update(partner.ref, {
-        "stats.referralsCount": admin.firestore.FieldValue.increment(1)
-      });
-
-      return { success: true, partnerName: partner.data().name };
-    });
   } catch (e: any) {
     return { success: false, error: e.message };
   }
