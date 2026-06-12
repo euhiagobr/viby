@@ -31,9 +31,11 @@ export async function POST(req: Request) {
     if (webhookSecret) {
       event = stripe.webhooks.constructEvent(payload, sig, webhookSecret);
     } else {
+      // Fallback para ambientes de teste sem secret configurado
       event = JSON.parse(payload);
     }
   } catch (err: any) {
+    console.error(`[Stripe Webhook] Signature Verification Failed: ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
@@ -47,7 +49,7 @@ export async function POST(req: Request) {
           const orderRef = db.collection("orders").doc(orderId);
           const orderSnap = await orderRef.get();
           
-          // IDEMPOTÊNCIA: Verifica se o pedido já foi processado
+          // IDEMPOTÊNCIA: Verifica se o pedido já foi processado para evitar duplicidade de ingressos
           if (orderSnap.exists() && orderSnap.data()?.status !== 'paid') {
             await db.runTransaction(async (transaction) => {
               const orderData = orderSnap.data()!;
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
               const currency = (orderData.currency || 'BRL').toUpperCase();
 
               for (const item of items) {
+                // 1. Atualizar Inventário (Ocorrência ou Evento Principal)
                 const targetRef = item.occurrenceId 
                   ? db.collection("recurring_occurrences").doc(item.occurrenceId) 
                   : db.collection("events").doc(item.eventId);
@@ -80,7 +83,7 @@ export async function POST(req: Request) {
                     const regRef = db.collection("registrations").doc();
                     regIds.push(regRef.id);
                     
-                    // EMISSÃO DO INGRESSO
+                    // 2. Emissão do Ingresso
                     transaction.set(regRef, {
                       eventId: item.eventId,
                       eventTitle: item.eventTitle,
@@ -100,7 +103,7 @@ export async function POST(req: Request) {
                       batchName: item.batchName,
                       paymentStatus: "Pago",
                       status: "active",
-                      ticketCode, // QR CODE STRING
+                      ticketCode,
                       stripeSessionId: session.id,
                       stripePaymentIntentId: session.payment_intent,
                       orderId,
@@ -109,7 +112,7 @@ export async function POST(req: Request) {
                       timestamp: admin.firestore.FieldValue.serverTimestamp()
                     });
 
-                    // ENVIO DE E-MAIL (Trigger no Webhook)
+                    // 3. Notificação por E-mail
                     sendTicketEmail({
                       to: orderData.userEmail,
                       userName: orderData.userName,
@@ -118,9 +121,10 @@ export async function POST(req: Request) {
                       eventDate: item.eventDate,
                       eventCity: item.eventCity,
                       voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`
-                    }).catch(e => console.error("[Email Webhook Error]", e));
+                    }).catch(e => console.error("[Webhook Email Error]", e));
                   }
 
+                  // 4. Lógica de Comissionamento de Afiliados
                   if (isAffiliateValid) {
                     const statsRef = db.collection("affiliate_stats").doc(affiliateId);
                     const statsSnap = await transaction.get(statsRef);
@@ -154,7 +158,12 @@ export async function POST(req: Request) {
                   }
                 }
               }
-              transaction.update(orderRef, { status: 'paid', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+              // 5. Finalizar Ordem
+              transaction.update(orderRef, { 
+                status: 'paid', 
+                stripePaymentIntentId: session.payment_intent,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+              });
             });
           }
         }
@@ -203,6 +212,7 @@ export async function POST(req: Request) {
             db.collection("registrations").doc(d.id).update({
               status: 'disputed',
               disputeId: dispute.id,
+              underReview: true,
               updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
           });
@@ -228,6 +238,7 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ received: true });
   } catch (error: any) {
+    console.error(`[Stripe Webhook Error] Process Failure: ${error.message}`);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
