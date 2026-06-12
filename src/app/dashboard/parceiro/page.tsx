@@ -70,6 +70,7 @@ import {
   ResponsiveContainer, 
   Cell 
 } from 'recharts'
+import { startOfWeek, endOfWeek, subWeeks } from 'date-fns'
 
 export default function PartnerPortalPage() {
   const db = useFirestore()
@@ -88,7 +89,7 @@ export default function PartnerPortalPage() {
   const referralsQuery = useMemoFirebase(() => (db && user) ? query(collection(db, "partner_referrals"), where("partnerId", "==", user.uid), orderBy("referredAt", "desc")) : null, [db, user])
   const { data: referrals, loading: loadingReferrals } = useCollection<any>(referralsQuery)
 
-  const commissionsQuery = useMemoFirebase(() => (db && user) ? query(collection(db, "partner_commissions"), where("partnerId", "==", user.uid), orderBy("createdAt", "desc"), limit(50)) : null, [db, user])
+  const commissionsQuery = useMemoFirebase(() => (db && user) ? query(collection(db, "partner_commissions"), where("partnerId", "==", user.uid), orderBy("createdAt", "desc"), limit(100)) : null, [db, user])
   const { data: commissions, loading: loadingComms } = useCollection<any>(commissionsQuery)
 
   const withdrawalsQuery = useMemoFirebase(() => (db && user) ? query(collection(db, "partner_withdrawals"), where("partnerId", "==", user.uid), orderBy("requestedAt", "desc")) : null, [db, user])
@@ -108,6 +109,31 @@ export default function PartnerPortalPage() {
     }
     fetch()
   }, [referrals, db])
+
+  // Processamento de Dados Reais para o Gráfico
+  const performanceData = React.useMemo(() => {
+    if (!commissions) return []
+    
+    const now = new Date()
+    // Gera dados para as últimas 4 semanas (S1, S2, S3, S4)
+    const weeks = [3, 2, 1, 0].map(offset => {
+      const start = startOfWeek(subWeeks(now, offset))
+      const end = endOfWeek(start)
+      
+      const weekComms = commissions.filter(c => {
+        const date = c.createdAt?.toDate ? c.createdAt.toDate() : new Date(c.createdAt)
+        return date >= start && date <= end && c.status !== 'CANCELADO'
+      })
+
+      return {
+        name: `S${4 - offset}`,
+        sales: weekComms.length,
+        label: `${start.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`
+      }
+    })
+
+    return weeks
+  }, [commissions])
 
   const handleCopyLink = () => {
     if (!partner?.code) return
@@ -185,21 +211,48 @@ export default function PartnerPortalPage() {
         <TabsContent value="overview" className="space-y-8 animate-in fade-in">
            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               <Card className="lg:col-span-8 border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
-                 <CardHeader className="bg-muted/30 border-b p-8">
-                    <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Performance de Vendas (30 dias)</CardTitle>
+                 <CardHeader className="bg-muted/30 border-b p-8 flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Volume de Vendas</CardTitle>
+                      <CardDescription className="text-[10px] font-bold uppercase">Últimas 4 semanas consolidado</CardDescription>
+                    </div>
                  </CardHeader>
                  <CardContent className="p-8 h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={[
-                         { name: 'S1', sales: 40 }, { name: 'S2', sales: 65 }, { name: 'S3', sales: 48 }, { name: 'S4', sales: 82 }
-                       ]}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
-                          <XAxis dataKey="name" hide />
-                          <YAxis hide />
-                          <Tooltip cursor={{fill: 'transparent'}} />
-                          <Bar dataKey="sales" fill="hsl(var(--secondary))" radius={[8, 8, 0, 0]} />
-                       </BarChart>
-                    </ResponsiveContainer>
+                    {loadingComms ? (
+                      <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-secondary" /></div>
+                    ) : performanceData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                         <BarChart data={performanceData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900}} />
+                            <YAxis hide />
+                            <Tooltip 
+                              cursor={{fill: 'rgba(0,0,0,0.05)'}}
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  return (
+                                    <div className="bg-white p-3 rounded-xl shadow-2xl border border-border">
+                                       <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">{payload[0].payload.label}</p>
+                                       <p className="text-sm font-black text-primary">{payload[0].value} Ingressos</p>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Bar dataKey="sales" fill="hsl(var(--secondary))" radius={[8, 8, 0, 0]}>
+                               {performanceData.map((entry, index) => (
+                                 <Cell key={`cell-${index}`} fill={index === 3 ? 'hsl(var(--secondary))' : 'hsl(var(--primary))'} />
+                               ))}
+                            </Bar>
+                         </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full gap-2 opacity-20">
+                         <TrendingUp className="w-10 h-10" />
+                         <p className="text-xs font-bold uppercase">Aguardando dados de vendas</p>
+                      </div>
+                    )}
                  </CardContent>
               </Card>
 
@@ -212,7 +265,7 @@ export default function PartnerPortalPage() {
                           <p className="text-xs font-medium opacity-60 mt-2">Suas comissões seguem o ciclo financeiro oficial da Viby para total segurança operacional.</p>
                        </div>
                     </div>
-                    <Button variant="secondary" className="w-full h-12 rounded-xl font-black uppercase italic mt-10" onClick={() => setActiveTab('wallet')}>
+                    <Button variant="secondary" className="w-full h-12 rounded-xl font-black uppercase italic mt-10 shadow-lg" onClick={() => setActiveTab('wallet')}>
                        Acessar Minha Carteira <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                  </CardContent>
@@ -243,15 +296,21 @@ export default function PartnerPortalPage() {
                       return (
                         <TableRow key={ref.id} className="hover:bg-muted/5">
                            <TableCell className="p-6">
-                              <div className="flex flex-col">
-                                 <span className="font-bold text-sm uppercase italic text-primary">{profile?.name || "Usuário"}</span>
-                                 <span className="text-[10px] text-muted-foreground">{maskEmail(profile?.email || "")}</span>
+                              <div className="flex items-center gap-3">
+                                 <Avatar className="h-9 w-9 border">
+                                    <AvatarImage src={profile?.avatar} className="object-cover" />
+                                    <AvatarFallback className="font-bold bg-muted">{profile?.name?.charAt(0) || "U"}</AvatarFallback>
+                                 </Avatar>
+                                 <div className="flex flex-col">
+                                    <span className="font-bold text-sm uppercase italic text-primary">{profile?.name || "Usuário"}</span>
+                                    <span className="text-[10px] text-muted-foreground">{maskEmail(profile?.email || "")}</span>
+                                 </div>
                               </div>
                            </TableCell>
                            <TableCell className="text-xs font-medium">{date.toLocaleDateString('pt-BR')}</TableCell>
                            <TableCell className="text-xs font-medium text-muted-foreground">{expires.toLocaleDateString('pt-BR')}</TableCell>
                            <TableCell className="p-6 text-center">
-                              <Badge className={cn("text-[8px] font-black uppercase h-5", isExpired ? "bg-muted" : "bg-green-600")}>{isExpired ? 'Expirado' : 'Ativo'}</Badge>
+                              <Badge className={cn("text-[8px] font-black uppercase h-5", isExpired ? "bg-muted" : "bg-green-600 text-white")}>{isExpired ? 'Expirado' : 'Ativo'}</Badge>
                            </TableCell>
                         </TableRow>
                       )
@@ -306,7 +365,7 @@ export default function PartnerPortalPage() {
                  <div className="relative z-10 space-y-12">
                     <div className="flex justify-between items-start">
                        <div className="p-4 bg-white/10 rounded-2xl"><Coins className="w-8 h-8 text-secondary" /></div>
-                       <Badge className="bg-secondary text-white font-black uppercase text-[9px] h-6 px-4">Saque Mínimo R$ 50,00</Badge>
+                       <Badge className="bg-secondary text-white font-black uppercase text-[9px] h-6 px-4 border-none shadow-lg">Saque Mínimo R$ 50,00</Badge>
                     </div>
                     <div className="space-y-2">
                        <p className="text-[10px] font-black uppercase opacity-40 tracking-widest">Disponível para Resgate</p>
@@ -338,6 +397,10 @@ export default function PartnerPortalPage() {
                                      </SelectContent>
                                    </Select>
                                 </div>
+                                <div className="space-y-2">
+                                   <Label className="text-[10px] font-black uppercase opacity-60">Observações de Banco (Opcional)</Label>
+                                   <Input name="bankDetails" className="h-12 rounded-xl" placeholder="Agência, conta..." />
+                                </div>
                              </div>
                              <DialogFooter><Button type="submit" disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">{isSubmitting ? <Loader2 className="animate-spin" /> : "Confirmar Solicitação"}</Button></DialogFooter>
                           </form>
@@ -360,7 +423,7 @@ export default function PartnerPortalPage() {
                                        {w.status === 'paid' ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
                                     </div>
                                     <div className="flex flex-col">
-                                       <span className="text-[9px] font-black text-muted-foreground uppercase">{new Date(w.requestedAt?.seconds * 1000).toLocaleDateString('pt-BR')}</span>
+                                       <span className="text-[9px] font-black text-muted-foreground uppercase">{new Date(w.requestedAt?.seconds * 1000 || w.requestedAt).toLocaleDateString('pt-BR')}</span>
                                        <span className="font-bold text-sm text-primary uppercase italic">Saque #{w.id.slice(-6)}</span>
                                     </div>
                                  </div>
