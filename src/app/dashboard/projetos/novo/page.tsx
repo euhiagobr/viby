@@ -9,7 +9,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, ShieldAlert, Building2, MapPin, Star, Landmark, ShieldCheck } from "lucide-react"
+import { Loader2, ArrowLeft, ShieldAlert, Building2, MapPin, Star, Landmark, ShieldCheck, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -145,8 +145,25 @@ export default function NovoEventoPage() {
     e.preventDefault()
     if (!db || !user || !currentOrg) return
 
-    if (!hasStripeAccount) {
-      toast({ variant: "destructive", title: "Ação Bloqueada", description: "Para criar eventos é necessário configurar sua conta de recebimento Stripe primeiro." });
+    const isPublic = formData.status === 'Ativo';
+    if (isPublic) {
+      const { address } = formData;
+      if (!address.countryCode || !address.city || (!address.addressLine1 && !address.street) || !address.latitude || !address.longitude) {
+        toast({ 
+          variant: "destructive", 
+          title: "Localização Incompleta", 
+          description: "Eventos ativos exigem endereço completo e coordenadas no mapa." 
+        });
+        return;
+      }
+    }
+
+    // Identificar se o evento é pago (Venda interna com preço > 0)
+    const isPaid = formData.type === 'interno' && 
+      batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
+
+    if (isPaid && !hasStripeAccount) {
+      toast({ variant: "destructive", title: "Ação Bloqueada", description: "Para vender ingressos é necessário configurar sua conta de recebimento Stripe." });
       return;
     }
 
@@ -211,49 +228,8 @@ export default function NovoEventoPage() {
     }
   }
 
-  // UI de Bloqueio Mandatório
-  if (!hasStripeAccount && currentOrg) {
-    return (
-      <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Novo Evento</h1>
-        </div>
-
-        <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
-           <div className="bg-primary p-12 flex flex-col items-center text-white gap-6">
-              <div className="w-20 h-20 bg-white/10 rounded-[2rem] flex items-center justify-center backdrop-blur-xl border border-white/20">
-                 <Landmark className="w-10 h-10 text-secondary" />
-              </div>
-              <div className="text-center space-y-2">
-                 <h2 className="text-3xl font-black uppercase italic tracking-tighter">Ação Necessária</h2>
-                 <p className="text-sm font-medium opacity-80 max-w-xs mx-auto">Para criar eventos é necessário configurar sua conta de recebimento Stripe primeiro.</p>
-              </div>
-           </div>
-           <CardContent className="p-10 space-y-8 text-center">
-              <div className="p-6 bg-muted/30 rounded-3xl border border-dashed space-y-4">
-                 <div className="flex items-center gap-3 text-left">
-                    <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><ShieldCheck className="w-5 h-5" /></div>
-                    <div>
-                       <p className="text-xs font-black uppercase italic text-primary">Segurança Financeira</p>
-                       <p className="text-[10px] text-muted-foreground uppercase leading-relaxed font-medium">A Viby utiliza o Stripe Connect para garantir que seus repasses sejam automáticos e seguros.</p>
-                    </div>
-                 </div>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                 <Button asChild className="h-16 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic text-lg hover:scale-[1.02] transition-transform">
-                    <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`}>Configurar recebimentos</Link>
-                 </Button>
-                 <Button variant="ghost" asChild className="font-bold text-xs uppercase text-muted-foreground">
-                    <Link href="/dashboard/organizacoes">Voltar para Marcas</Link>
-                 </Button>
-              </div>
-           </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  const isCurrentEventPaid = formData.type === 'interno' && 
+    batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -389,6 +365,25 @@ export default function NovoEventoPage() {
 
         {formData.type === 'interno' && (
           <div className="space-y-6">
+             {isCurrentEventPaid && !hasStripeAccount && (
+                <Card className="border-none shadow-xl rounded-[2rem] bg-white overflow-hidden animate-in zoom-in-95">
+                   <div className="bg-orange-500 p-8 flex items-center text-white gap-4">
+                      <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-xl border border-white/20">
+                         <Landmark className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-0.5">
+                         <h2 className="text-lg font-black uppercase italic tracking-tighter">Recebimentos Bloqueados</h2>
+                         <p className="text-xs font-medium opacity-90">Sua marca não possui conta Stripe vinculada para processar pagamentos.</p>
+                      </div>
+                   </div>
+                   <CardContent className="p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase leading-relaxed max-w-sm">Para vender ingressos é necessário configurar sua conta de recebimento Stripe.</p>
+                      <Button asChild className="bg-secondary text-white font-black rounded-xl h-11 px-8 shadow-lg uppercase italic text-[10px]">
+                         <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`}>Configurar recebimentos</Link>
+                      </Button>
+                   </CardContent>
+                </Card>
+             )}
              <BilheteriaAdmin 
                mode={ticketMode} 
                onModeChange={setTicketMode}

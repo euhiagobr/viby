@@ -8,13 +8,19 @@ import { slugify } from '@/lib/slug-utils';
  * @fileOverview Server Actions para gestão de eventos com geração de slug único e validação Stripe.
  */
 
-async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string) {
+async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string, eventData: any) {
+  // A regra de obrigatoriedade do Stripe aplica-se apenas a eventos com venda interna de ingressos pagos
+  const isPaidOnViby = eventData.type === 'interno' && 
+    eventData.batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
+
+  if (!isPaidOnViby) return true;
+
   const orgSnap = await db.collection('organizations').doc(orgId).get();
   if (!orgSnap.exists) throw new Error("Organização não encontrada.");
   
   const orgData = orgSnap.data();
   if (!orgData?.stripeAccountId) {
-    throw new Error("Para criar eventos é necessário configurar sua conta de recebimento Stripe primeiro.");
+    throw new Error("Para vender ingressos é necessário configurar sua conta de recebimento Stripe.");
   }
   return true;
 }
@@ -48,8 +54,8 @@ export async function createEventAction(params: {
   const db = getAdminDb();
   
   try {
-    // Validação Mandatória de Conta Connect
-    await validateStripeAccount(db, params.orgId);
+    // Validação Condicional de Conta Connect
+    await validateStripeAccount(db, params.orgId, params.eventData);
 
     const slug = await generateUniqueSlug(db, params.orgId, params.eventData.title);
     
@@ -81,8 +87,8 @@ export async function updateEventAction(params: {
   const db = getAdminDb();
   
   try {
-    // Validação Mandatória de Conta Connect (Mesmo para edições/ativações)
-    await validateStripeAccount(db, params.orgId);
+    // Validação Condicional de Conta Connect (Mesmo para edições/ativações)
+    await validateStripeAccount(db, params.orgId, params.eventData);
 
     const eventRef = db.collection('events').doc(params.eventId);
     const eventSnap = await eventRef.get();

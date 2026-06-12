@@ -1,16 +1,17 @@
 {
   "business_rules": {
     "stripe_connect_requirement": {
-      "description": "Nenhum organizador poderá criar ou publicar eventos sem possuir uma conta Stripe Connect vinculada.",
+      "description": "Organizadores podem divulgar eventos gratuitos livremente. No entanto, a conta Stripe Connect é mandatória para qualquer evento que possua ingressos com valor maior que zero.",
       "validation_field": "organizations/{orgId}/stripeAccountId",
-      "error_message": "Para criar eventos é necessário configurar sua conta de recebimento Stripe primeiro.",
+      "error_message": "Para vender ingressos é necessário configurar sua conta de recebimento Stripe.",
       "accepted_payout_statuses": ["none", "pending", "pending_admin", "waiting_user", "verified"],
       "enforcement_points": [
         "src/app/actions/events.ts (createEventAction)",
         "src/app/actions/events.ts (updateEventAction)",
         "src/app/dashboard/projetos/novo/page.tsx (Frontend Block)",
-        "src/app/dashboard/evento/[id]/editar/page.tsx (Frontend Block)"
-      ]
+        "src/app/dashboard/evento/[id]/editar/page.tsx (Ticketing Tab Warning)"
+      ],
+      "paid_event_definition": "Evento com type=='interno' e pelo menos um ticketType com price > 0."
     }
   }
 }
