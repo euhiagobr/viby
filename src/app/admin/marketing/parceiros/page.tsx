@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from '@/firebase';
-import { collection, query, orderBy, where, getDocs, limit, doc } from 'firebase/firestore';
+import { collection, query, orderBy, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,8 @@ import {
   AlertTriangle,
   X,
   Info,
-  Save
+  Save,
+  AtSign
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -47,7 +48,7 @@ export default function AdminPartnersPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   
   const [selectedPartner, setSelectedPartner] = React.useState<any>(null);
-  const [newPartnerId, setNewPartnerId] = React.useState("");
+  const [newPartnerUsername, setNewPartnerUsername] = React.useState("");
   const [newPartnerCode, setNewPartnerCode] = React.useState("");
   
   // Tiers editor state
@@ -69,18 +70,32 @@ export default function AdminPartnersPage() {
   }, [partners, search]);
 
   const handleAddPartner = async () => {
-    if (!newPartnerId || !newPartnerCode || !adminUser) return;
+    if (!newPartnerUsername || !newPartnerCode || !adminUser || !db) return;
+    
     setIsSubmitting(true);
     try {
+      const cleanUsername = newPartnerUsername.toLowerCase().trim().replace('@', '');
+      
+      // Resolução de Username para UID
+      const usernameRef = doc(db, "usernames", cleanUsername);
+      const usernameSnap = await getDoc(usernameRef);
+      
+      if (!usernameSnap.exists()) {
+        throw new Error("Usuário não encontrado. Verifique o @username.");
+      }
+
+      const targetUid = usernameSnap.data().uid;
+
       const res = await createPartnerAction({
-        userId: newPartnerId,
+        userId: targetUid,
         code: newPartnerCode,
         adminUid: adminUser.uid
       });
+
       if (res.success) {
         toast({ title: "Parceiro adicionado!" });
         setIsAddOpen(false);
-        setNewPartnerId("");
+        setNewPartnerUsername("");
         setNewPartnerCode("");
       } else throw new Error(res.error);
     } catch (e: any) {
@@ -150,16 +165,29 @@ export default function AdminPartnersPage() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">UID do Usuário (Viby)</Label>
-                    <Input value={newPartnerId} onChange={e => setNewPartnerId(e.target.value)} placeholder="Copie o UID do perfil do usuário" className="rounded-xl h-11" />
+                    <Label className="text-[10px] font-black uppercase opacity-60">Username do Usuário (@)</Label>
+                    <div className="relative">
+                      <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                      <Input 
+                        value={newPartnerUsername} 
+                        onChange={e => setNewPartnerUsername(e.target.value)} 
+                        placeholder="Ex: joaosilva" 
+                        className="rounded-xl h-11 pl-9" 
+                      />
+                    </div>
                  </div>
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Código de Indicação</Label>
-                    <Input value={newPartnerCode} onChange={e => setNewPartnerCode(e.target.value.toUpperCase())} placeholder="EX: MARIA10" className="rounded-xl h-11 uppercase font-bold" />
+                    <Label className="text-[10px] font-black uppercase opacity-60">Código de Indicação Único</Label>
+                    <Input 
+                      value={newPartnerCode} 
+                      onChange={e => setNewPartnerCode(e.target.value.toUpperCase())} 
+                      placeholder="EX: MARIA10" 
+                      className="rounded-xl h-11 uppercase font-bold" 
+                    />
                  </div>
               </div>
               <DialogFooter>
-                 <Button onClick={handleAddPartner} disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                 <Button onClick={handleAddPartner} disabled={isSubmitting || !newPartnerUsername || !newPartnerCode} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
                     {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Confirmar Parceria"}
                  </Button>
               </DialogFooter>
