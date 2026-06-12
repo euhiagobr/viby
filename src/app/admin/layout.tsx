@@ -35,7 +35,8 @@ import {
   Handshake,
   Send,
   Trash2,
-  History
+  History,
+  Target
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -91,6 +92,7 @@ export default function AdminLayout({
 
   const navItems = [
     { title: 'Painel', url: '/admin', icon: LayoutDashboard, permission: 'dashboard.view' as any },
+    { title: 'Leads (Organização)', url: '/admin/leads', icon: Target, permission: 'marketing.view' as any },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays, permission: 'events.view' as any },
     { title: 'Recorrentes', url: '/admin/eventos-recorrentes', icon: RefreshCw, permission: 'events.view' as any },
     { title: 'Páginas', url: '/admin/paginas', icon: Building2, permission: 'organizations.view' as any },

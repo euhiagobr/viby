@@ -22,7 +22,6 @@ service cloud.firestore {
       return config == null || config.enabled == true;
     }
 
-    // Função central de autorização administrativa
     function isAdmin() {
       return isSignedIn() && (
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
@@ -44,16 +43,12 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- REGRAS DE EXCLUSIVIDADE ---
-    function isPartner() {
-      return getUserData().isPartner == true;
-    }
-
-    function isAffiliate() {
-      return getUserData().isAffiliate == true;
-    }
-
     // --- REGRAS POR COLEÇÃO ---
+
+    match /organizer_leads/{leadId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
 
     match /settings/affiliates {
       allow read: if true;
@@ -78,14 +73,12 @@ service cloud.firestore {
 
     match /affiliateCodes/{code} {
       allow read: if true; 
-      // BLOQUEIO: Parceiros não podem criar. Programa deve estar ativo.
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == request.resource.data.userId && !isPartner() && isAffiliateEnabled());
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == request.resource.data.userId && getUserData().isPartner != true && isAffiliateEnabled());
     }
 
     match /affiliate_stats/{uid} {
       allow read: if isAdmin() || isOwner(uid);
-      // BLOQUEIO: Impedir novos registros se for parceiro ou programa desativado
-      allow write: if isAdmin() || (isOwner(uid) && !isPartner() && isAffiliateEnabled()); 
+      allow write: if isAdmin() || (isOwner(uid) && getUserData().isPartner != true && isAffiliateEnabled()); 
     }
 
     match /affiliate_payouts/{payoutId} {
@@ -96,21 +89,6 @@ service cloud.firestore {
     match /partners/{partnerId} {
       allow read: if isAdmin() || isOwner(partnerId);
       allow write: if isAdmin();
-    }
-
-    match /partner_referrals/{refId} {
-      allow read: if isAdmin() || (isSignedIn() && (resource.data.partnerId == request.auth.uid || resource.data.referredUserId == request.auth.uid));
-      allow write: if isAdmin();
-    }
-
-    match /partner_commissions/{commId} {
-       allow read: if isAdmin() || (isSignedIn() && resource.data.partnerId == request.auth.uid);
-       allow write: if isAdmin();
-    }
-
-    match /partner_withdrawals/{withdrawalId} {
-       allow read: if isAdmin() || (isSignedIn() && resource.data.partnerId == request.auth.uid);
-       allow write: if isAdmin();
     }
 
     match /organizations/{orgId} {

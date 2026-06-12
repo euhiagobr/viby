@@ -1,0 +1,24 @@
+
+{
+  "collection": "organizer_leads",
+  "description": "Captação de potenciais organizadores interessados na plataforma (Leads B2B).",
+  "fields": {
+    "id": "string (auto-id)",
+    "nome": "string (obrigatório)",
+    "empresa": "string (opcional)",
+    "cidade": "string (obrigatório)",
+    "whatsapp": "string (obrigatório)",
+    "email": "string (obrigatório)",
+    "instagram": "string (opcional)",
+    "tipoEvento": "string (Festa | Casa Noturna | Show | Festival | Feira | Congresso | Evento Corporativo | Outro)",
+    "publicoMedio": "string (Até 100 | 100 a 500 | 500 a 1000 | 1000 a 5000 | Mais de 5000)",
+    "mensagem": "string (opcional)",
+    "aceitouContato": "boolean (obrigatório)",
+    "status": "novo | contatado | negociando | convertido | encerrado",
+    "createdAt": "timestamp"
+  },
+  "security_rules": {
+    "create": "Permitido para qualquer visitante (público)",
+    "read_write": "Restrito a administradores do sistema"
+  }
+}
