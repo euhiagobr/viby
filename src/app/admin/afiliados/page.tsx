@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, orderBy, limit, doc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { collection, query, orderBy, limit, doc, setDoc, serverTimestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -74,11 +74,12 @@ export default function AdminAfiliadosPage() {
     if (!db || !isSuperAdmin) return;
     setIsStatusUpdating(true);
     try {
-      await updateDoc(doc(db, "settings", "affiliates"), {
+      // Usar setDoc com merge para evitar erro de "documento não encontrado" no primeiro acesso
+      await setDoc(doc(db, "settings", "affiliates"), {
         enabled: v,
         updatedAt: serverTimestamp(),
         updatedBy: user?.uid
-      });
+      }, { merge: true });
       toast({ title: v ? "Programa Ativado!" : "Programa Suspenso!" });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao alterar status" });
