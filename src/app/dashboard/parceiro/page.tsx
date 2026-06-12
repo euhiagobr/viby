@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -45,6 +44,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -142,7 +148,7 @@ export default function PartnerPortalPage() {
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
             <Star className="w-8 h-8 text-secondary fill-secondary" />
@@ -321,7 +327,16 @@ export default function PartnerPortalPage() {
                                 </div>
                                 <div className="space-y-2">
                                    <Label className="text-[10px] font-black uppercase opacity-60">Tipo de Chave</Label>
-                                   <Select name="pixType" defaultValue="cpf"><SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger><SelectContent className="rounded-xl"><SelectItem value="cpf">CPF</SelectItem><SelectItem value="email">E-mail</SelectItem><SelectItem value="random">Aleatória</SelectItem></SelectContent></Select>
+                                   <Select name="pixType" defaultValue="cpf">
+                                     <SelectTrigger className="h-12 rounded-xl">
+                                       <SelectValue />
+                                     </SelectTrigger>
+                                     <SelectContent className="rounded-xl">
+                                       <SelectItem value="cpf">CPF</SelectItem>
+                                       <SelectItem value="email">E-mail</SelectItem>
+                                       <SelectItem value="random">Aleatória</SelectItem>
+                                     </SelectContent>
+                                   </Select>
                                 </div>
                              </div>
                              <DialogFooter><Button type="submit" disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">{isSubmitting ? <Loader2 className="animate-spin" /> : "Confirmar Solicitação"}</Button></DialogFooter>
