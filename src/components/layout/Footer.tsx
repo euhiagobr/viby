@@ -54,7 +54,7 @@ export default function Footer() {
             <h4 className="font-black uppercase tracking-widest text-xs">{t('footer.platform')}</h4>
             <nav className="flex flex-col gap-3">
               <Link href="/dashboard" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.explore')}</Link>
-              <Link href="/cadastro" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.announce')}</Link>
+              <Link href="/anunciar" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.announce')}</Link>
               <Link href="/login" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors">{t('footer.login')}</Link>
             </nav>
           </div>

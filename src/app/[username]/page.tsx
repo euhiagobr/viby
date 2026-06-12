@@ -11,7 +11,7 @@ const RESERVED_ROUTES = [
   'marketing', 'afiliados', 'anuncios', 'imposto', 'extrato', 'transferencias',
   'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
-  'novo', 'new', 'projeto', 'auth'
+  'novo', 'new', 'projeto', 'auth', 'anunciar'
 ];
 
 const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
