@@ -25,7 +25,8 @@ import {
   Inbox,
   AlertTriangle,
   X,
-  Info
+  Info,
+  Save
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
