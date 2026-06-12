@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -26,7 +25,9 @@ import {
   Globe,
   Star,
   Coins,
-  Wand2
+  Wand2,
+  ShieldAlert,
+  ArrowRight
 } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
@@ -59,7 +60,7 @@ import { cn } from "@/lib/utils"
 export default function AffiliateDashboard() {
   const db = useFirestore()
   const auth = useAuth()
-  const { user, profile, forceRefresh } = useUser(auth)
+  const { user, profile, forceRefresh, loading: userLoading } = useUser(auth)
   const { formatPrice } = useCurrency()
   
   const statsRef = React.useMemo(() => (db && user) ? doc(db, "affiliate_stats", user.uid) : null, [db, user])
@@ -138,7 +139,27 @@ export default function AffiliateDashboard() {
     }
   }
 
-  if (statsLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
+  if (userLoading || statsLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
+
+  // EXCLUSIVIDADE: Bloqueia acesso se for Parceiro
+  if (profile?.isPartner) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-6 animate-in fade-in duration-500">
+        <div className="w-20 h-20 bg-destructive/10 rounded-[2rem] flex items-center justify-center text-destructive">
+          <ShieldAlert className="w-10 h-10" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Acesso Restrito</h1>
+          <p className="text-muted-foreground font-medium max-w-sm mx-auto">
+            Você é um **Parceiro Estratégico** da Viby. O programa de afiliados (Divulgue e Ganhe) está desativado para sua conta para evitar conflitos de comissionamento.
+          </p>
+        </div>
+        <Button asChild className="bg-secondary text-white font-black h-12 px-8 rounded-xl shadow-lg gap-2 uppercase italic">
+          <Link href="/dashboard/parceiro">Acessar Portal do Parceiro <ArrowRight className="w-4 h-4" /></Link>
+        </Button>
+      </div>
+    )
+  }
 
   const currentLevel = getAffiliateLevel(stats?.totalTicketsSold || 0)
   const nextLevel = getNextLevel(stats?.totalTicketsSold || 0)
@@ -148,7 +169,7 @@ export default function AffiliateDashboard() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-10 pb-20 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col gap-6 md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
             <Handshake className="w-8 h-8 text-secondary" />

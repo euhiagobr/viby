@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -7,7 +6,7 @@ import { PartnerTier, validatePartnerTiers } from '@/lib/partner-utils';
 import { revalidatePath } from 'next/cache';
 
 /**
- * @fileOverview Server Actions para gestão do módulo de Parceiros.
+ * @fileOverview Server Actions para gestão do módulo de Parceiros com exclusividade de papel.
  */
 
 async function logPartnerAction(action: string, userId: string, partnerId?: string, metadata?: any) {
@@ -73,7 +72,20 @@ export async function createPartnerAction(params: {
       };
 
       transaction.set(partnerRef, partnerData);
-      transaction.update(userRef, { isPartner: true, partnerCode: codeNormalized });
+      
+      // REGRA DE EXCLUSIVIDADE: Ativa Parceiro e desativa Afiliado (Divulgue e Ganhe)
+      transaction.update(userRef, { 
+        isPartner: true, 
+        partnerCode: codeNormalized,
+        isAffiliate: false, // Bloqueia participação no Divulgue e Ganhe
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Desativar código de afiliado antigo se existir
+      if (userData.affiliateCode) {
+        const affCodeRef = db.collection('affiliateCodes').doc(userData.affiliateCode);
+        transaction.update(affCodeRef, { active: false });
+      }
 
       return { success: true };
     });

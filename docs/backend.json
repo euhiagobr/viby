@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "User": {
@@ -18,17 +17,11 @@
         "needsCPFUpdate": { "type": "boolean", "description": "Sinaliza se a conta precisa migrar para o novo padrão seguro" },
         "plan": { "type": "string", "enum": ["free", "pro", "top"] },
         "walletBalance": { "type": "number" },
+        "isPartner": { "type": "boolean", "description": "Define se o usuário é um Parceiro Estratégico Viby" },
+        "isAffiliate": { "type": "boolean", "description": "Define se o usuário participa do programa Divulgue e Ganhe" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "username", "email", "cpfHash"]
-    },
-    "SensitiveData": {
-      "title": "Dados Sensíveis",
-      "description": "Subcoleção restrita para dados PII criptografados.",
-      "type": "object",
-      "properties": {
-        "cpfEncrypted": { "type": "string", "description": "CPF completo criptografado via AES-256" }
-      }
     }
   },
   "auth": {
@@ -38,10 +31,6 @@
     "/users/{userId}": {
       "schema": "User",
       "description": "Perfis públicos e metadados de busca."
-    },
-    "/users/{userId}/private/sensitive": {
-      "schema": "SensitiveData",
-      "description": "Armazenamento isolado de PII criptografado conforme LGPD."
     }
   }
 }

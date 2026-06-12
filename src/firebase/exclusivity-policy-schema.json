@@ -1,0 +1,20 @@
+{
+  "policy": "Role Exclusivity",
+  "rules": {
+    "isPartner_true": {
+      "isAffiliate": "MUST be false",
+      "affiliateDashboard": "Access Blocked",
+      "affiliateCommissions": "Generation Blocked"
+    },
+    "isAffiliate_true": {
+      "isPartner": "MUST be false",
+      "partnerPortal": "Access Blocked",
+      "partnerCommissions": "Generation Blocked"
+    }
+  },
+  "implementation": {
+    "server_actions": "createPartnerAction handles toggle",
+    "firestore_rules": "Block writes to affiliate collections if user.isPartner == true",
+    "frontend": "Conditional menu visibility and route guards"
+  }
+}
