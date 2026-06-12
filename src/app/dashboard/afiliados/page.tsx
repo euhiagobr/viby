@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -27,7 +28,8 @@ import {
   Coins,
   Wand2,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  ShieldX
 } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
@@ -66,6 +68,9 @@ export default function AffiliateDashboard() {
   const statsRef = React.useMemo(() => (db && user) ? doc(db, "affiliate_stats", user.uid) : null, [db, user])
   const { data: stats, loading: statsLoading } = useDoc<any>(statsRef)
 
+  const affConfigRef = React.useMemo(() => db ? doc(db, "settings", "affiliates") : null, [db]);
+  const { data: affConfig, loading: configLoading } = useDoc<any>(affConfigRef);
+
   const commissionsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
     return query(collection(db, "affiliate_commissions"), where("affiliateId", "==", user.uid), orderBy("createdAt", "desc"), limit(20))
@@ -87,7 +92,6 @@ export default function AffiliateDashboard() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [isGeneratingCode, setIsGeneratingCode] = React.useState(false);
 
-  // O código agora vem diretamente do perfil do usuário, garantindo sincronia total
   const affiliateCode = profile?.affiliateCode
   const affiliateLink = typeof window !== 'undefined' ? `${window.location.origin}/cadastro?ref=${affiliateCode}` : ""
 
@@ -98,6 +102,10 @@ export default function AffiliateDashboard() {
 
   const handleGenerateCode = async () => {
     if (!user) return;
+    if (affConfig?.enabled === false) {
+      toast({ variant: "destructive", title: "Programa desativado", description: "O cadastro de novos afiliados está suspenso temporariamente." });
+      return;
+    }
     setIsGeneratingCode(true);
     try {
       const res = await generateAffiliateCodeAction({ userId: user.uid });
@@ -139,7 +147,28 @@ export default function AffiliateDashboard() {
     }
   }
 
-  if (userLoading || statsLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
+  if (userLoading || statsLoading || configLoading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
+
+  // BLOQUEIO GLOBAL: Programa Desativado
+  if (affConfig?.enabled === false) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 text-center gap-6 animate-in fade-in duration-500">
+        <div className="w-24 h-24 bg-muted rounded-[3rem] flex items-center justify-center text-muted-foreground opacity-30">
+          <ShieldX className="w-12 h-12" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Programa Suspenso</h1>
+          <p className="text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">
+            O programa **Divulgue e Ganhe** está temporariamente indisponível para novas indicações. 
+            Suas comissões anteriores e histórico permanecem seguros.
+          </p>
+        </div>
+        <Button asChild variant="outline" className="rounded-xl h-12 px-8 font-black uppercase italic">
+          <Link href="/dashboard">Voltar ao Início</Link>
+        </Button>
+      </div>
+    )
+  }
 
   // EXCLUSIVIDADE: Bloqueia acesso se for Parceiro
   if (profile?.isPartner) {

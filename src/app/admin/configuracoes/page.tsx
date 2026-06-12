@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -37,7 +38,9 @@ import {
   Youtube,
   Video,
   Twitter,
-  MessageCircle
+  MessageCircle,
+  Handshake,
+  ShieldAlert
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -64,6 +67,7 @@ export default function AdminConfiguracoesPage() {
   const contactRef = React.useMemo(() => (db ? doc(db, 'settings', 'contact') : null), [db]);
   const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
   const googleAdsRef = React.useMemo(() => (db ? doc(db, 'system_settings', 'google_ads') : null), [db]);
+  const affiliateConfigRef = React.useMemo(() => (db ? doc(db, 'settings', 'affiliates') : null), [db]);
 
   const { data: siteSettings, loading: loadingSite } = useDoc<any>(siteRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
@@ -72,6 +76,7 @@ export default function AdminConfiguracoesPage() {
   const { data: contactSettings, loading: loadingContact } = useDoc<any>(contactRef);
   const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsRef);
   const { data: googleAdsSettings, loading: loadingGoogleAds } = useDoc<any>(googleAdsRef);
+  const { data: affiliateConfig, loading: loadingAffiliate } = useDoc<any>(affiliateConfigRef);
 
   const [saving, setSaving] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<{ [key: string]: number | null }>({});
@@ -86,6 +91,7 @@ export default function AdminConfiguracoesPage() {
   const [emailForm, setEmailForm] = React.useState({ smtpHost: 'smtp.gmail.com', smtpPort: '465', smtpUser: '', smtpPass: '' });
   const [feesForm, setFeesForm] = React.useState({ buyerMarkupPercent: '15', organizerBasePercent: '10', organizerMinFee: '3.99' });
   const [adsForm, setAdsForm] = React.useState({ cpcValue: '0.50', cpmValue: '10.00', minRechargeValue: '30.00' });
+  const [affiliateForm, setAffiliateForm] = React.useState({ enabled: true });
   
   const [contactForm, setContactForm] = React.useState({
     whatsapp: '',
@@ -170,6 +176,10 @@ export default function AdminConfiguracoesPage() {
       minRechargeValue: adsSettings.minRechargeValue?.toString() || '30.00'
     });
   }, [adsSettings]);
+
+  React.useEffect(() => {
+    if (affiliateConfig) setAffiliateForm({ enabled: affiliateConfig.enabled ?? true });
+  }, [affiliateConfig]);
 
   React.useEffect(() => {
     if (googleAdsSettings) setGoogleAdsForm({
@@ -306,7 +316,7 @@ export default function AdminConfiguracoesPage() {
     }
   };
 
-  const isLoading = loadingSite || loadingStripe || loadingEmail || loadingFees || loadingContact || loadingGoogleAds || loadingAds;
+  const isLoading = loadingSite || loadingStripe || loadingEmail || loadingFees || loadingContact || loadingGoogleAds || loadingAds || loadingAffiliate;
 
   if (isLoading) {
     return (
@@ -333,6 +343,7 @@ export default function AdminConfiguracoesPage() {
           <TabsTrigger value="taxas" className="rounded-lg px-6 font-bold gap-2"><Coins className="w-4 h-4" /> Taxas</TabsTrigger>
           <TabsTrigger value="email" className="rounded-lg px-6 font-bold gap-2"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
 		      <TabsTrigger value="anuncios" className="rounded-lg px-6 font-bold gap-2"><Megaphone className="w-4 h-4" /> Anúncios</TabsTrigger>
+          <TabsTrigger value="afiliados" className="rounded-lg px-6 font-bold gap-2"><Handshake className="w-4 h-4" /> Afiliados</TabsTrigger>
 		      <TabsTrigger value="google-ads" className="rounded-lg px-6 font-bold gap-2"><Settings className="w-4 h-4" /> Google Ads</TabsTrigger>
         </TabsList>
 
@@ -612,6 +623,54 @@ export default function AdminConfiguracoesPage() {
 				</CardContent>
 			</Card>
 		</TabsContent>
+
+    <TabsContent value="afiliados">
+      <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
+        <CardHeader className="bg-muted/30 p-8 border-b">
+          <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+            <Handshake className="w-6 h-6 text-secondary" /> Programa de Afiliados
+          </CardTitle>
+          <CardDescription>Controle global de ativação e regras do Divulgue e Ganhe.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-8 space-y-8">
+           <div className="flex items-center justify-between p-6 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/50">
+              <div className="space-y-1">
+                 <p className="font-black uppercase italic text-primary">Programa de Afiliados Ativo</p>
+                 <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase max-w-md">
+                    Ao desativar, os menus e links de indicação serão ocultados para usuários comuns. Comissões pendentes continuarão sendo processadas.
+                 </p>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                 <Switch 
+                   checked={affiliateForm.enabled} 
+                   onCheckedChange={(v) => setAffiliateForm({ enabled: v })} 
+                 />
+                 <span className={cn("text-[9px] font-black uppercase", affiliateForm.enabled ? "text-green-600" : "text-destructive")}>
+                   {affiliateForm.enabled ? "Habilitado" : "Desativado"}
+                 </span>
+              </div>
+           </div>
+
+           {!affiliateForm.enabled && (
+             <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200 flex items-start gap-3">
+                <ShieldAlert className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">
+                   Aviso: Novos rastreamentos de indicações e cadastros de afiliados serão bloqueados imediatamente após salvar.
+                </p>
+             </div>
+           )}
+
+           <Button 
+            onClick={() => handleSave('settings', 'affiliates', affiliateForm)} 
+            disabled={saving} 
+            className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic"
+           >
+              {saving ? <Loader2 className="animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              Salvar Configuração de Afiliados
+           </Button>
+        </CardContent>
+      </Card>
+    </TabsContent>
 
 		<TabsContent value="google-ads">
 			<Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">

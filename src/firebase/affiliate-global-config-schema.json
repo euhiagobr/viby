@@ -1,0 +1,11 @@
+
+{
+  "collection": "settings",
+  "document": "affiliates",
+  "description": "Configuração mestre para o programa de afiliados (Divulgue e Ganhe).",
+  "fields": {
+    "enabled": "boolean (Habilita/Desabilita o programa em toda a rede)",
+    "updatedAt": "timestamp",
+    "updatedBy": "string (UID do administrador)"
+  }
+}

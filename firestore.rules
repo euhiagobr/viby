@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -10,6 +11,15 @@ service cloud.firestore {
 
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getAffiliateConfig() {
+      return get(/databases/$(database)/documents/settings/affiliates).data;
+    }
+
+    function isAffiliateEnabled() {
+      let config = getAffiliateConfig();
+      return config == null || config.enabled == true;
     }
 
     // Função central de autorização administrativa
@@ -45,6 +55,11 @@ service cloud.firestore {
 
     // --- REGRAS POR COLEÇÃO ---
 
+    match /settings/affiliates {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /system_admins/{adminId} {
       allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
       allow write: if isSuperAdmin();
@@ -63,14 +78,19 @@ service cloud.firestore {
 
     match /affiliateCodes/{code} {
       allow read: if true; 
-      // BLOQUEIO: Parceiros não podem criar ou ativar códigos de afiliado
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == request.resource.data.userId && !isPartner());
+      // BLOQUEIO: Parceiros não podem criar. Programa deve estar ativo.
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == request.resource.data.userId && !isPartner() && isAffiliateEnabled());
     }
 
     match /affiliate_stats/{uid} {
       allow read: if isAdmin() || isOwner(uid);
-      // BLOQUEIO: Impedir novos registros se for parceiro
-      allow write: if isAdmin() || (isOwner(uid) && !isPartner()); 
+      // BLOQUEIO: Impedir novos registros se for parceiro ou programa desativado
+      allow write: if isAdmin() || (isOwner(uid) && !isPartner() && isAffiliateEnabled()); 
+    }
+
+    match /affiliate_payouts/{payoutId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
     match /partners/{partnerId} {
@@ -136,7 +156,7 @@ service cloud.firestore {
     match /follows/{followId} {
       allow read: if true;
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
     }
 
     match /user_gamification/{uid} {

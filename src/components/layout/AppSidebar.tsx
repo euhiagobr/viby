@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -65,7 +66,11 @@ export function AppSidebar() {
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
   
+  const affConfigRef = React.useMemo(() => db ? doc(db, "settings", "affiliates") : null, [db])
+  const { data: affConfig } = useDoc<any>(affConfigRef)
+
   const siteName = settings?.siteName || "Viby"
+  const isAffiliateActiveGlobal = affConfig?.enabled !== false;
 
   const handleLogout = async () => {
     if (!auth) return
@@ -85,8 +90,8 @@ export function AppSidebar() {
     { title: t('nav.tickets'), url: "/dashboard/ingressos", icon: Ticket },
     { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
     { title: t('nav.organizations'), url: "/dashboard/organizacoes", icon: Building2 },
-    // EXCLUSIVIDADE: Esconde Divulgue e Ganhe se for parceiro
-    ...(!isPartner ? [{ title: "Afiliados", url: "/dashboard/afiliados", icon: Handshake }] : []),
+    // EXCLUSIVIDADE E TRAVA GLOBAL: Esconde Divulgue e Ganhe se for parceiro ou se programa estiver OFF
+    ...(!isPartner && isAffiliateActiveGlobal ? [{ title: "Afiliados", url: "/dashboard/afiliados", icon: Handshake }] : []),
     ...(isPartner ? [{ title: "Portal do Parceiro", url: "/dashboard/parceiro", icon: Star }] : []),
     { 
       title: t('common.notifications'), 
@@ -236,8 +241,8 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         
-        {/* Banner Ganhe Dinheiro - Oculto para parceiros */}
-        {!isPartner && (
+        {/* Banner Ganhe Dinheiro - Oculto para parceiros ou se programa global estiver OFF */}
+        {!isPartner && isAffiliateActiveGlobal && (
           <div className="px-6 py-4">
              <Link href="/ganhe-dinheiro">
                 <div className="bg-secondary/10 rounded-2xl p-4 border border-secondary/20 hover:bg-secondary/20 transition-all group">

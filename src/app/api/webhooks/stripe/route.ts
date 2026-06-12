@@ -65,13 +65,17 @@ export async function POST(req: Request) {
             const items = orderData.items || [];
             const currency = (orderData.currency || 'BRL').toUpperCase();
 
+            // INTEGRIDADE GLOBAL: Verificar se Programa de Afiliados está ativo
+            const affConfigSnap = await transaction.get(db.collection('settings').doc('affiliates'));
+            const isAffiliateEnabledGlobal = affConfigSnap.exists ? (affConfigSnap.data()?.enabled !== false) : true;
+
             // Identificar o organizador proprietário para comissão de parceiro
             const organizerId = orderData.organizerId || items[0]?.organizerId;
 
             // Verificar se existe parceiro vinculado ao organizador
             let partnerRef = null;
             let partnerReferral = null;
-            if (organizerId) {
+            if (organizerId && isAffiliateEnabledGlobal) {
                const refDoc = await transaction.get(db.collection('partner_referrals').doc(organizerId));
                if (refDoc.exists) {
                   const rData = refDoc.data()!;
@@ -127,8 +131,8 @@ export async function POST(req: Request) {
 
                 transaction.set(regRef, regData);
 
-                // Lógica de Comissão de Parceiro (Individual por Ingresso)
-                if (partnerRef && partnerReferral && item.price > 0) {
+                // Lógica de Comissão de Parceiro (Individual por Ingresso) - Somente se global ON
+                if (partnerRef && partnerReferral && item.price > 0 && isAffiliateEnabledGlobal) {
                    const pSnap = await transaction.get(partnerRef);
                    if (pSnap.exists && pSnap.data()?.status === 'active') {
                       const pData = pSnap.data()!;

@@ -7,6 +7,15 @@ import { FieldValue } from "firebase-admin/firestore";
 const firestore = getAdminDb();
 
 /**
+ * Verifica se o programa de afiliados está habilitado globalmente.
+ */
+async function isAffiliateProgramActive() {
+  const snap = await firestore.collection('settings').doc('affiliates').get();
+  if (!snap.exists) return true; // Padrão é habilitado
+  return snap.data()?.enabled !== false;
+}
+
+/**
  * Gera um código numérico único de 10 dígitos.
  */
 const generateUniqueCode = async (): Promise<string> => {
@@ -57,11 +66,18 @@ export async function generateAffiliateCodeAction(params: { userId: string }) {
   if (!userId) return { success: false, error: "Usuário não autenticado." };
 
   try {
+    const isActive = await isAffiliateProgramActive();
+    if (!isActive) throw new Error("O programa de afiliados está desativado no momento.");
+
     const userRef = firestore.collection("users").doc(userId);
     const userDoc = await userRef.get();
     if (!userDoc.exists) throw new Error("Usuário não encontrado.");
     
     const userData = userDoc.data()!;
+
+    // EXCLUSIVIDADE: Bloqueia se for parceiro
+    if (userData.isPartner) throw new Error("Parceiros não podem ser afiliados.");
+
     if (userData.affiliateCode) {
       // Garante que o registro na coleção oficial exista
       const codeRef = firestore.collection("affiliateCodes").doc(userData.affiliateCode);
@@ -83,7 +99,7 @@ export async function generateAffiliateCodeAction(params: { userId: string }) {
     const newCode = await generateUniqueCode();
     const userName = userData.name || userData.displayName || "Membro Viby";
 
-    await userRef.update({ affiliateCode: newCode });
+    await userRef.update({ affiliateCode: newCode, isAffiliate: true });
 
     await firestore.collection("affiliateCodes").doc(newCode).set({
       code: newCode,
@@ -108,18 +124,24 @@ export async function generateAffiliateCodeAction(params: { userId: string }) {
  */
 export async function generatePendingAffiliateCodesAction() {
   try {
+    const isActive = await isAffiliateProgramActive();
+    if (!isActive) throw new Error("O programa de afiliados está desativado.");
+
     const usersSnapshot = await firestore.collection('users').get();
     let processedCount = 0;
 
     for (const userDoc of usersSnapshot.docs) {
       const userData = userDoc.data();
       const userId = userDoc.id;
+
+      if (userData.isPartner) continue;
+
       let currentCode = userData.affiliateCode;
 
       // 1. Se não tem código no perfil, gera um novo
       if (!currentCode) {
         currentCode = await generateUniqueCode();
-        await userDoc.ref.update({ affiliateCode: currentCode });
+        await userDoc.ref.update({ affiliateCode: currentCode, isAffiliate: true });
       }
 
       // 2. Garante que o documento na coleção oficial exista
