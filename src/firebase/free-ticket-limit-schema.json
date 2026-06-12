@@ -1,0 +1,20 @@
+
+{
+  "collections": {
+    "registrations_locks": {
+      "description": "Coleção de travas de segurança para garantir a unicidade de resgates gratuitos (1 por usuário/tipo).",
+      "fields": {
+        "id": "string (format: free_lock_{userId}_{eventId}_{ticketTypeId})",
+        "userId": "string",
+        "eventId": "string",
+        "ticketTypeId": "string",
+        "createdAt": "timestamp"
+      },
+      "security_rules": "Leitura restrita ao dono e admin. Escrita via Server Action apenas."
+    }
+  },
+  "business_rules": {
+    "free_ticket_limit": "Usuários podem adquirir apenas 1 unidade de ingressos com preço 0.00 durante toda a existência do evento.",
+    "concurrency_protection": "Utiliza transações atômicas com a coleção de locks para evitar múltiplos resgates simultâneos."
+  }
+}

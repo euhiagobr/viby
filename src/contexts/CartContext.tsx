@@ -2,6 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { toast } from '@/hooks/use-toast';
 
 export interface CartItem {
   id: string; // Unique ID for the cart entry (eventId + batchId + typeId + sectorId + seatId)
@@ -126,10 +127,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     resetTimer();
     setItemsState(prev => {
       const existing = prev.find(i => i.id === item.id);
+      const isFree = item.price === 0;
+
       if (existing) {
+        // REGRA: Ingressos gratuitos não podem exceder 1 unidade no carrinho
+        if (isFree) {
+          return prev;
+        }
         return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i);
       }
-      return [...prev, { ...item, originalPrice: item.originalPrice || item.price }];
+      
+      // Garante que ingresso grátis entre com no máximo 1 unidade
+      const finalQty = isFree ? 1 : item.quantity;
+      return [...prev, { ...item, quantity: finalQty, originalPrice: item.originalPrice || item.price }];
     });
   };
 
@@ -139,10 +149,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       let current = [...prev];
       newItems.forEach(item => {
         const idx = current.findIndex(i => i.id === item.id);
+        const isFree = item.price === 0;
+
         if (idx > -1) {
-          current[idx] = { ...current[idx], quantity: current[idx].quantity + item.quantity };
+          if (!isFree) {
+            current[idx] = { ...current[idx], quantity: current[idx].quantity + item.quantity };
+          }
         } else {
-          current.push({ ...item, originalPrice: item.originalPrice || item.price });
+          const finalQty = isFree ? 1 : item.quantity;
+          current.push({ ...item, quantity: finalQty, originalPrice: item.originalPrice || item.price });
         }
       });
       return current;
@@ -160,6 +175,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateQuantity = (id: string, quantity: number) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
+    if (item.price === 0 && quantity > 1) {
+      toast({ title: "Limite atingido", description: "Apenas 1 unidade permitida para ingressos gratuitos." });
+      return;
+    }
+
     if (quantity <= 0) {
       removeItem(id);
       return;

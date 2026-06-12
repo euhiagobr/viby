@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -60,8 +61,13 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                       event.curatorProfile === 'viby' || 
                       (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
 
-  const handleUpdateQty = (typeId: string, val: number) => {
-    setQuantities(prev => ({ ...prev, [typeId]: Math.max(0, val) }))
+  const handleUpdateQty = (typeName: string, val: number, isFree: boolean) => {
+    // REGRA: Ingressos gratuitos permitem apenas 1 unidade
+    if (isFree && val > 1) {
+      toast({ title: "Limite atingido", description: "Máximo de 1 unidade para ingressos gratuitos." });
+      return;
+    }
+    setQuantities(prev => ({ ...prev, [typeName]: Math.max(0, val) }))
   }
 
   const handleRegisterInterest = async () => {
@@ -358,13 +364,17 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
            const displayInstance = activeInstance || instances[0];
            const status = activeInstance ? 'ativo' : 'esgotado';
            const qty = quantities[typeName] || 0;
+           const isFree = displayInstance.price === 0;
 
            return (
              <Card key={typeName} className={cn("border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden", status === 'esgotado' && "opacity-60 grayscale")}>
                 <CardContent className="p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
                    <div className="space-y-1">
                       <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">{typeName}</h3>
-                      {status === 'ativo' && <Badge className="bg-secondary text-white border-none text-[8px] font-black uppercase">{displayInstance.batch.name}</Badge>}
+                      <div className="flex items-center gap-2">
+                        {status === 'ativo' && <Badge className="bg-secondary text-white border-none text-[8px] font-black uppercase">{displayInstance.batch.name}</Badge>}
+                        {isFree && <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary text-secondary">Máx. 1 p/ pessoa</Badge>}
+                      </div>
                    </div>
                    <div className="flex items-center gap-6">
                       <div className="text-right">
@@ -372,9 +382,9 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                          {displayInstance.price > 0 && <p className="text-[8px] font-black text-muted-foreground uppercase opacity-50">+ taxas de serviço</p>}
                       </div>
                       <div className="flex items-center gap-3 bg-muted/40 p-2 rounded-2xl border">
-                         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleUpdateQty(typeName, qty - 1)} disabled={status !== 'ativo'}><Minus className="w-3.5 h-3.5" /></Button>
+                         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleUpdateQty(typeName, qty - 1, isFree)} disabled={status !== 'ativo'}><Minus className="w-3.5 h-3.5" /></Button>
                          <span className="font-black text-base w-6 text-center">{qty}</span>
-                         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleUpdateQty(typeName, qty + 1)} disabled={status !== 'ativo'}><Plus className="w-3.5 h-3.5" /></Button>
+                         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleUpdateQty(typeName, qty + 1, isFree)} disabled={status !== 'ativo' || (isFree && qty >= 1)}><Plus className="w-3.5 h-3.5" /></Button>
                       </div>
                       <Button onClick={() => handleAddToCart(qty, typeName)} disabled={qty <= 0 || status !== 'ativo'} className="h-14 px-8 rounded-2xl font-black uppercase italic shadow-lg">
                          <ShoppingCart className="w-5 h-5 mr-2" /> Garantir
@@ -388,3 +398,4 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     </section>
   )
 }
+

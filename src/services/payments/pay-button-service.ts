@@ -1,3 +1,4 @@
+
 'use client';
 
 import { 
@@ -8,7 +9,11 @@ import {
   getDoc,
   serverTimestamp,
   runTransaction,
-  increment
+  increment,
+  query,
+  where,
+  getDocs,
+  limit
 } from "firebase/firestore";
 import { db as staticDb } from "@/firebase/database";
 import { createCheckoutSession } from "@/app/actions/stripe";
@@ -31,7 +36,6 @@ export interface PayButtonOptions {
 
 /**
  * @fileOverview PayButton Service - Processamento de Checkout do Carrinho.
- * Implementa validação de consistência de moeda para evitar erros no Stripe.
  */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, useBalance, rates } = options;
@@ -39,14 +43,14 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   if (!user) throw new Error("Usuário não identificado.");
   if (!items || items.length === 0) throw new Error("O carrinho está vazio.");
 
-  // 1. VALIDAÇÃO DE CONSISTÊNCIA DE MOEDA (Impedir mixed currency checkout)
+  // 1. VALIDAÇÃO DE CONSISTÊNCIA E UNICIDADE DE GRATUITOS
   const currenciesInCart = new Set(items.map(i => i.currency || 'BRL'));
   if (currenciesInCart.size > 1) {
     throw new Error("Não é possível realizar checkout com múltiplas moedas. Remova os itens divergentes.");
   }
 
-  // 2. VALIDAÇÃO DE ESTOQUE
   for (const item of items) {
+    // VALIDAÇÃO DE ESTOQUE
     const eSnap = await getDoc(doc(staticDb, "events", item.eventId));
     if (!eSnap.exists()) throw new Error(`O evento ${item.eventTitle} não está mais disponível.`);
     
@@ -56,6 +60,31 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
     if (!batch || !type || type.quantity < item.quantity) {
       throw new Error(`A disponibilidade para o lote "${item.batchName}" mudou.`);
+    }
+
+    // REGRA: UNICIDADE DE INGRESSOS GRATUITOS
+    if (item.price === 0) {
+      // Verifica trava de segurança atômica
+      const lockId = `free_lock_${user.uid}_${item.eventId}_${item.ticketTypeId}`;
+      const lockSnap = await getDoc(doc(staticDb, "registrations_locks", lockId));
+      
+      if (lockSnap.exists()) {
+        throw new Error("Você já resgatou este ingresso gratuito.");
+      }
+
+      // Fallback: Busca manual por segurança adicional
+      const q = query(
+        collection(staticDb, "registrations"),
+        where("userId", "==", user.uid),
+        where("eventId", "==", item.eventId),
+        where("ticketTypeId", "==", item.ticketTypeId),
+        where("price", "==", 0),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        throw new Error("Você já resgatou este ingresso gratuito.");
+      }
     }
   }
   
