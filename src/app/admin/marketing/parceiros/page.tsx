@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -25,7 +24,8 @@ import {
   TrendingUp,
   Inbox,
   AlertTriangle,
-  X
+  X,
+  Info
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
