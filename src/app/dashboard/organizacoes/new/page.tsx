@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -74,7 +73,7 @@ const RESERVED_USERNAMES = [
   "admin", "suporte", "support", "help", "ajuda", "dashboard", "login", "cadastro", 
   "signup", "signin", "redefinir-senha", "reset-password", "checkout", "privacidade", 
   "privacy", "termos", "terms", "api", "viby", "oficial", "official", "status", 
-  "settings", "configuracoes", "root", "sys", "system", "onboarding"
+  "settings", "configuracoes", "root", "sys", "system", "onboarding", "para-organizadores"
 ];
 
 export default function NovaOrganizacaoPage() {

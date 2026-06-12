@@ -9,6 +9,7 @@ export async function GET() {
   const routes = [
     { loc: `${baseUrl}/`, lastmod: now, changefreq: 'daily', priority: '1.0' },
     { loc: `${baseUrl}/ganhe-dinheiro`, lastmod: now, changefreq: 'weekly', priority: '0.8' },
+    { loc: `${baseUrl}/para-organizadores`, lastmod: now, changefreq: 'weekly', priority: '0.8' },
     { loc: `${baseUrl}/termos`, lastmod: now, changefreq: 'monthly', priority: '0.5' },
     { loc: `${baseUrl}/privacidade`, lastmod: now, changefreq: 'monthly', priority: '0.5' },
     { loc: `${baseUrl}/suporte/faq`, lastmod: now, changefreq: 'weekly', priority: '0.6' },
