@@ -28,13 +28,15 @@ import {
   X,
   Info,
   Save,
-  AtSign
+  AtSign,
+  LayoutGrid
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
+import { maskEmail } from "@/lib/crypto-utils"
 import { createPartnerAction, togglePartnerStatusAction, updatePartnerTiersAction } from '@/app/actions/partners';
 import { PartnerTier } from '@/lib/partner-utils';
 import { useAdminPermissions } from '@/hooks/use-admin-permissions';

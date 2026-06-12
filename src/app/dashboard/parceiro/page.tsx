@@ -26,13 +26,15 @@ import {
   ArrowRight,
   ShieldCheck,
   SendHorizontal,
-  Coins
+  Coins,
+  LayoutGrid
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/financial-utils"
-import { cn, maskEmail } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import { maskEmail } from "@/lib/crypto-utils"
 import { requestPartnerWithdrawalAction } from "@/app/actions/partners"
 import {
   Dialog,
