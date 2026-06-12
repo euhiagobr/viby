@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getAffiliateLevel, AFFILIATE_SAFETY_DAYS } from '@/lib/affiliate-utils';
+import { sendTicketEmail } from '@/app/actions/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,15 +28,12 @@ export async function POST(req: Request) {
     const stripeSettings = stripeSettingsSnap.data();
     const webhookSecret = stripeSettings?.webhookSecret;
     
-    // A validação de assinatura é OBRIGATÓRIA para produção
     if (webhookSecret) {
       event = stripe.webhooks.constructEvent(payload, sig, webhookSecret);
     } else {
-      console.warn("[Stripe Webhook] Alerta: Webhook Secret não configurado. Utilizando modo inseguro.");
       event = JSON.parse(payload);
     }
   } catch (err: any) {
-    console.error(`[Stripe Webhook Error] Signature failed: ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
@@ -44,13 +42,13 @@ export async function POST(req: Request) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         
-        // FLUXO: COMPRA DE INGRESSOS
         if (session.metadata?.type === 'order_checkout' && session.metadata?.orderId) {
           const orderId = session.metadata.orderId;
           const orderRef = db.collection("orders").doc(orderId);
           const orderSnap = await orderRef.get();
           
-          if (orderSnap.exists && orderSnap.data()?.status !== 'paid') {
+          // IDEMPOTÊNCIA: Verifica se o pedido já foi processado
+          if (orderSnap.exists() && orderSnap.data()?.status !== 'paid') {
             await db.runTransaction(async (transaction) => {
               const orderData = orderSnap.data()!;
               const userId = session.metadata!.userId;
@@ -71,7 +69,7 @@ export async function POST(req: Request) {
                 const orgSnap = await transaction.get(orgRef);
                 const regIds: string[] = [];
 
-                if (orgSnap.exists) {
+                if (orgSnap.exists()) {
                   const org = orgSnap.data()!;
                   const affiliateId = org.originalAffiliateId;
                   const affExpireAt = org.affiliateExpireAt ? new Date(org.affiliateExpireAt) : null;
@@ -82,6 +80,7 @@ export async function POST(req: Request) {
                     const regRef = db.collection("registrations").doc();
                     regIds.push(regRef.id);
                     
+                    // EMISSÃO DO INGRESSO
                     transaction.set(regRef, {
                       eventId: item.eventId,
                       eventTitle: item.eventTitle,
@@ -93,29 +92,39 @@ export async function POST(req: Request) {
                       userEmail: orderData.userEmail,
                       organizationId: item.organizationId,
                       ticketBasePrice: item.price,
-                      price: item.financials?.customerFinalPrice || item.price,
+                      price: item.price + (item.administrativeFeeAmount || 0),
                       currency: currency,
-                      producerNetAmount: item.financials?.producerNetAmount || item.price,
+                      producerNetAmount: item.producerNetAmount || item.price,
+                      administrativeFeeAmount: item.administrativeFeeAmount || 0,
                       ticketTypeName: item.ticketTypeName,
                       batchName: item.batchName,
                       paymentStatus: "Pago",
                       status: "active",
-                      ticketCode,
+                      ticketCode, // QR CODE STRING
                       stripeSessionId: session.id,
+                      stripePaymentIntentId: session.payment_intent,
                       orderId,
-                      affiliateId: isAffiliateValid ? affiliateId : null,
                       confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
                       createdAt: admin.firestore.FieldValue.serverTimestamp(),
                       timestamp: admin.firestore.FieldValue.serverTimestamp()
                     });
+
+                    // ENVIO DE E-MAIL (Trigger no Webhook)
+                    sendTicketEmail({
+                      to: orderData.userEmail,
+                      userName: orderData.userName,
+                      eventTitle: item.eventTitle,
+                      ticketCode,
+                      eventDate: item.eventDate,
+                      eventCity: item.eventCity,
+                      voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`
+                    }).catch(e => console.error("[Email Webhook Error]", e));
                   }
 
-                  // Processamento de comissão de afiliado automático
                   if (isAffiliateValid) {
                     const statsRef = db.collection("affiliate_stats").doc(affiliateId);
                     const statsSnap = await transaction.get(statsRef);
                     const stats = statsSnap.data() || { totalTicketsSold: 0, balances: {} };
-                    
                     const level = getAffiliateLevel(stats.totalTicketsSold + item.quantity);
                     const commissionAmount = level.commission * item.quantity;
                     const availableDate = new Date();
@@ -152,10 +161,58 @@ export async function POST(req: Request) {
         break;
       }
 
+      case 'payment_intent.payment_failed': {
+        const intent = event.data.object as Stripe.PaymentIntent;
+        const orderId = intent.metadata?.orderId;
+        if (orderId) {
+          await db.collection("orders").doc(orderId).update({
+            status: 'failed',
+            lastError: intent.last_payment_error?.message || 'Payment failed',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+        break;
+      }
+
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        const paymentIntentId = charge.payment_intent as string;
+        if (paymentIntentId) {
+          const regsSnap = await db.collection("registrations").where("stripePaymentIntentId", "==", paymentIntentId).get();
+          if (!regsSnap.empty) {
+            const batch = db.batch();
+            regsSnap.forEach(d => {
+              batch.update(d.ref, {
+                status: 'refunded',
+                paymentStatus: 'Estornado (Stripe)',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+            });
+            await batch.commit();
+          }
+        }
+        break;
+      }
+
+      case 'charge.dispute.created': {
+        const dispute = event.data.object as Stripe.Dispute;
+        const paymentIntentId = dispute.payment_intent as string;
+        if (paymentIntentId) {
+          const regsSnap = await db.collection("registrations").where("stripePaymentIntentId", "==", paymentIntentId).get();
+          regsSnap.forEach(d => {
+            db.collection("registrations").doc(d.id).update({
+              status: 'disputed',
+              disputeId: dispute.id,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+          });
+        }
+        break;
+      }
+
       case 'account.updated': {
         const account = event.data.object as Stripe.Account;
         const orgId = account.metadata?.orgId;
-        
         if (orgId) {
           const isVerified = account.charges_enabled && account.payouts_enabled;
           await db.collection('organizations').doc(orgId).update({
@@ -165,40 +222,12 @@ export async function POST(req: Request) {
             "payoutSettings.status": isVerified ? 'verified' : (account.details_submitted ? 'pending_admin' : 'none'),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
-          console.log(`[Stripe Webhook] KYC Sync for org: ${orgId}`);
-        }
-        break;
-      }
-
-      case 'charge.refunded': {
-        const charge = event.data.object as Stripe.Charge;
-        const paymentIntentId = charge.payment_intent as string;
-        
-        if (paymentIntentId) {
-          // Localizar ingressos vinculados a este pagamento para cancelamento automático
-          const regsSnap = await db.collection("registrations")
-            .where("stripePaymentIntentId", "==", paymentIntentId)
-            .get();
-          
-          if (!regsSnap.empty) {
-            const batch = db.batch();
-            regsSnap.forEach(d => {
-              batch.update(d.ref, {
-                status: 'cancelled',
-                paymentStatus: 'Estornado (Dashboard)',
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-              });
-            });
-            await batch.commit();
-            console.log(`[Stripe Webhook] Refund sync for ${regsSnap.size} tickets`);
-          }
         }
         break;
       }
     }
     return NextResponse.json({ received: true });
   } catch (error: any) {
-    console.error("[Stripe Webhook Error]", error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

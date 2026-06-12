@@ -1,4 +1,5 @@
-'use server';
+
+'use client';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
@@ -24,6 +25,7 @@ export async function createCheckoutSession(data: any) {
 
     const { metadata, userEmail, lineItems, totalApplicationFeeCents, destinationStripeAccount, currency = 'brl' } = data;
 
+    // EVIDÊNCIA: Configuração de Split em Linha Direta (Connect Express)
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ['card'],
       line_items: lineItems,
@@ -32,22 +34,20 @@ export async function createCheckoutSession(data: any) {
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
       metadata: metadata,
-    };
-
-    if (destinationStripeAccount) {
-      sessionConfig.payment_intent_data = {
+      payment_intent_data: {
+        // EVIDÊNCIA: Retenção de comissão na conta da Viby
         application_fee_amount: totalApplicationFeeCents,
+        // EVIDÊNCIA: Repasse líquido para a conta do Organizador
         transfer_data: {
           destination: destinationStripeAccount,
         },
         statement_descriptor: 'VIBY*INGRESSOS',
-      };
-    }
+      }
+    };
 
     const session = await stripe.checkout.sessions.create(sessionConfig);
     return { success: true, url: session.url };
   } catch (error: any) {
-    // Log detalhado para o ErrorManager
     await logSystemError({
       error: { message: error.message, stack: error.stack },
       type: 'stripe_checkout_failure',
@@ -55,12 +55,10 @@ export async function createCheckoutSession(data: any) {
       metadata: { 
         orderId: data.metadata?.orderId,
         destination: data.destinationStripeAccount,
-        errorCode: error.code,
-        errorType: error.type
+        errorCode: error.code
       }
     });
 
-    // Mensagem amigável para o usuário final
     let userMessage = error.message;
     if (error.message.includes('No such destination')) {
        userMessage = "O organizador deste evento possui um problema na conta de recebimento. Por favor, tente novamente mais tarde.";
@@ -70,13 +68,6 @@ export async function createCheckoutSession(data: any) {
   }
 }
 
-export async function finalizeCheckoutSession(sessionId: string) {
-  return { success: true };
-}
-
-/**
- * Cria uma sessão de checkout para recarga de saldo de anúncios de uma marca.
- */
 export async function createAdBalanceTopUpSession(data: any) {
   try {
     const db = getAdminDb();
@@ -117,12 +108,14 @@ export async function createAdBalanceTopUpSession(data: any) {
 
     return { success: true, url: session.url };
   } catch (error: any) {
-    console.error("[Stripe Ads TopUp Error]", error);
     return { success: false, error: error.message };
   }
 }
 
 export async function finalizeAdTopUpSession(sessionId: string) {
-  // O processamento real é feito via Webhook, esta função serve como gatilho de UI.
+  return { success: true };
+}
+
+export async function finalizeCheckoutSession(sessionId: string) {
   return { success: true };
 }

@@ -18,7 +18,7 @@ import {
 import { db as staticDb } from "@/firebase/database";
 import { createCheckoutSession } from "@/app/actions/stripe";
 import { generateFreeTickets } from "@/app/actions/tickets";
-import { calculateVibyOfficialSplit, toCents } from "@/lib/financial-utils";
+import { calculateVibyOfficialSplit, toCents, calculateFinancialBreakdown } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
 import { CurrencyCode } from "@/contexts/CurrencyContext";
 
@@ -34,23 +34,18 @@ export interface PayButtonOptions {
   rates?: Record<string, number>;
 }
 
-/**
- * @fileOverview PayButton Service - Processamento de Checkout do Carrinho.
- */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
-  const { user, profile, items, totals, useBalance, rates } = options;
+  const { user, profile, items, totals, useBalance, rates, globalFees, promotions, orgsData } = options;
 
   if (!user) throw new Error("Usuário não identificado.");
   if (!items || items.length === 0) throw new Error("O carrinho está vazio.");
 
-  // 1. VALIDAÇÃO DE CONSISTÊNCIA E UNICIDADE DE GRATUITOS
   const currenciesInCart = new Set(items.map(i => i.currency || 'BRL'));
   if (currenciesInCart.size > 1) {
     throw new Error("Não é possível realizar checkout com múltiplas moedas. Remova os itens divergentes.");
   }
 
   for (const item of items) {
-    // VALIDAÇÃO DE ESTOQUE
     const eSnap = await getDoc(doc(staticDb, "events", item.eventId));
     if (!eSnap.exists()) throw new Error(`O evento ${item.eventTitle} não está mais disponível.`);
     
@@ -62,36 +57,16 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       throw new Error(`A disponibilidade para o lote "${item.batchName}" mudou.`);
     }
 
-    // REGRA: UNICIDADE DE INGRESSOS GRATUITOS
     if (item.price === 0) {
-      // Verifica trava de segurança atômica
       const lockId = `free_lock_${user.uid}_${item.eventId}_${item.ticketTypeId}`;
       const lockSnap = await getDoc(doc(staticDb, "registrations_locks", lockId));
-      
-      if (lockSnap.exists()) {
-        throw new Error("Você já resgatou este ingresso gratuito.");
-      }
-
-      // Fallback: Busca manual por segurança adicional
-      const q = query(
-        collection(staticDb, "registrations"),
-        where("userId", "==", user.uid),
-        where("eventId", "==", item.eventId),
-        where("ticketTypeId", "==", item.ticketTypeId),
-        where("price", "==", 0),
-        limit(1)
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        throw new Error("Você já resgatou este ingresso gratuito.");
-      }
+      if (lockSnap.exists()) throw new Error("Você já resgatou este ingresso gratuito.");
     }
   }
   
   const isFreeOrder = totals.total <= 0 && totals.balanceUsed === 0;
   const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
-  // 3. FLUXO GRATUITO
   if (isFreeOrder) {
     const result = await generateFreeTickets({
       userId: user.uid,
@@ -103,16 +78,25 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     return { type: 'free', success: true };
   }
 
-  // Capturar cotação congelada para persistência histórica
   const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
   const exchangeDate = new Date().toISOString().slice(0, 10);
 
-  // 4. PREPARAR PEDIDO (ORDEM)
+  // EVIDÊNCIA: Preparação do registro de Ordem antes do Checkout
+  const orderItems = items.map(item => {
+    const breakdown = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId], eventCurrency, rates);
+    return {
+      ...item,
+      producerNetAmount: breakdown.producerNetAmount,
+      administrativeFeeAmount: breakdown.administrativeFeeAmount,
+      financials: breakdown
+    };
+  });
+
   const orderData = {
     userId: user.uid,
     userEmail: user.email,
     userName: profile?.name || user.displayName || "Comprador",
-    items: items,
+    items: orderItems,
     currency: eventCurrency,
     exchangeData: {
       rate: exchangeRateToBRL,
@@ -129,7 +113,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     createdAt: serverTimestamp()
   };
 
-  // Abatimento de saldo (Apenas se a moeda for BRL)
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
     await runTransaction(staticDb, async (transaction) => {
       const walletRef = doc(staticDb, "wallets", user.uid);
@@ -138,27 +121,23 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
         throw new Error("Saldo insuficiente na carteira.");
       }
       transaction.update(walletRef, { balance: increment(-totals.balanceUsed), updatedAt: serverTimestamp() });
-      const txRef = doc(collection(staticDb, "wallet_transactions"));
-      transaction.set(txRef, {
-        userId: user.uid, amount: totals.balanceUsed, type: 'debit', reason: 'compra_ingresso',
-        description: `Abatimento em Pedido`, timestamp: serverTimestamp()
-      });
     });
   }
 
   const orderRef = await addDoc(collection(staticDb, "orders"), orderData);
 
-  // 5. PREPARAR STRIPE LINE ITEMS
+  // EVIDÊNCIA: Cálculo de application_fee_amount (centavos)
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
   const stripeLineItems = items.map((item) => {
-    const split = calculateVibyOfficialSplit(item.price, eventCurrency, rates);
+    const split = calculateVibyOfficialSplit(item.price, eventCurrency, rates, orgsData[item.organizationId]);
+    
+    // SOMA DAS TAXAS (MARKUP + COMISSÃO) PARA O STRIPE RETER
     totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     
     let unitAmountCents = toCents(split.totalCharged);
     
-    // Distribuir o abatimento de saldo proporcionalmente entre os itens (Apenas se BRL)
     if (balanceToSubtractCents > 0 && eventCurrency === 'BRL') {
       const maxSub = unitAmountCents * item.quantity;
       const actualSub = Math.min(balanceToSubtractCents, maxSub);
@@ -190,7 +169,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     lineItems: stripeLineItems,
     currency: eventCurrency.toLowerCase(),
     totalApplicationFeeCents,
-    destinationStripeAccount: stripeAccountId,
+    destinationStripeAccount: stripeAccountId, // EVIDÊNCIA: Destino do Split
     metadata: {
       type: "order_checkout",
       orderId: orderRef.id,
