@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { sendTicketEmail } from '@/app/actions/email';
+import { calculatePartnerCommissionValue } from '@/lib/partner-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,13 +38,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
-  // Referência do log de evento para Idempotência (Lock de Nível 1)
   const eventLogRef = db.collection('stripe_processed_events').doc(event.id);
 
   try {
-    // MECANISMO ANTI-DUPLICIDADE: runTransaction garante atomicidade total
     await db.runTransaction(async (transaction) => {
-      // 1. Verifica se o evento já foi processado (Proteção contra Race Condition)
       const eventLogSnap = await transaction.get(eventLogRef);
       if (eventLogSnap.exists) {
         throw new Error("ALREADY_PROCESSED");
@@ -61,18 +59,31 @@ export async function POST(req: Request) {
             if (!orderSnap.exists) throw new Error("Order not found");
             const orderData = orderSnap.data()!;
 
-            // BLOQUEIO: Se a ordem já estiver paga, aborta para não duplicar ingressos
-            if (orderData.status === 'paid') {
-              console.log(`[Stripe Webhook] Order ${orderId} already paid. Aborting transaction.`);
-              return;
-            }
+            if (orderData.status === 'paid') return;
 
             const userId = session.metadata!.userId;
             const items = orderData.items || [];
             const currency = (orderData.currency || 'BRL').toUpperCase();
 
+            // Identificar o organizador proprietário para comissão de parceiro
+            const organizerId = orderData.organizerId || items[0]?.organizerId;
+
+            // Verificar se existe parceiro vinculado ao organizador
+            let partnerRef = null;
+            let partnerReferral = null;
+            if (organizerId) {
+               const refDoc = await transaction.get(db.collection('partner_referrals').doc(organizerId));
+               if (refDoc.exists) {
+                  const rData = refDoc.data()!;
+                  const now = admin.firestore.Timestamp.now();
+                  if (rData.status === 'active' && rData.expiresAt > now) {
+                     partnerReferral = rData;
+                     partnerRef = db.collection('partners').doc(rData.partnerId);
+                  }
+               }
+            }
+
             for (const item of items) {
-              // Devolução de Capacidade / Incremento de Vendas
               const targetRef = item.occurrenceId 
                 ? db.collection("recurring_occurrences").doc(item.occurrenceId) 
                 : db.collection("events").doc(item.eventId);
@@ -82,7 +93,6 @@ export async function POST(req: Request) {
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Emissão dos Ingressos (Registrations)
               for (let j = 0; j < item.quantity; j++) {
                 const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
                 const regRef = db.collection("registrations").doc();
@@ -117,7 +127,44 @@ export async function POST(req: Request) {
 
                 transaction.set(regRef, regData);
 
-                // Envio de E-mail (Async fora da transação, mas agendado pelo sucesso dela)
+                // Lógica de Comissão de Parceiro (Individual por Ingresso)
+                if (partnerRef && partnerReferral && item.price > 0) {
+                   const pSnap = await transaction.get(partnerRef);
+                   if (pSnap.exists && pSnap.data()?.status === 'active') {
+                      const pData = pSnap.data()!;
+                      const commissionValue = calculatePartnerCommissionValue(item.price, pData.tiers || []);
+                      
+                      if (commissionValue > 0) {
+                         const commRef = db.collection('partner_commissions').doc();
+                         const availableAt = new Date();
+                         availableAt.setDate(availableAt.getDate() + 30);
+
+                         transaction.set(commRef, {
+                            partnerId: pData.id,
+                            referredUserId: organizerId,
+                            registrationId: regRef.id,
+                            orderId: orderId,
+                            eventId: item.eventId,
+                            eventTitle: item.eventTitle,
+                            buyerName: orderData.userName,
+                            ticketPrice: item.price,
+                            amount: commissionValue,
+                            status: "PENDENTE",
+                            availableAt: admin.firestore.Timestamp.fromDate(availableAt),
+                            createdAt: admin.firestore.FieldValue.serverTimestamp()
+                         });
+
+                         // Atualiza métricas do parceiro
+                         transaction.update(partnerRef, {
+                            "stats.pendingBalance": admin.firestore.FieldValue.increment(commissionValue),
+                            "stats.totalEarned": admin.firestore.FieldValue.increment(commissionValue),
+                            "stats.salesCount": admin.firestore.FieldValue.increment(1),
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                         });
+                      }
+                   }
+                }
+
                 sendTicketEmail({
                   to: orderData.userEmail,
                   userName: orderData.userName,
@@ -130,7 +177,6 @@ export async function POST(req: Request) {
               }
             }
             
-            // Marca ordem como paga
             transaction.update(orderRef, { 
               status: 'paid', 
               stripePaymentIntentId: session.payment_intent,
@@ -140,31 +186,33 @@ export async function POST(req: Request) {
           break;
         }
 
-        case 'payment_intent.payment_failed': {
-          const intent = event.data.object as Stripe.PaymentIntent;
-          const orderId = intent.metadata?.orderId;
-          if (orderId) {
-            transaction.update(db.collection("orders").doc(orderId), {
-              status: 'failed',
-              lastError: intent.last_payment_error?.message || 'Payment failed',
-              updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-          }
-          break;
-        }
-
         case 'charge.refunded': {
           const charge = event.data.object as Stripe.Charge;
           const paymentIntentId = charge.payment_intent as string;
           if (paymentIntentId) {
-            const regsSnap = await getDocs(query(collection(db, "registrations"), where("stripePaymentIntentId", "==", paymentIntentId)));
-            regsSnap.forEach(d => {
+            const regsSnap = await db.collection("registrations").where("stripePaymentIntentId", "==", paymentIntentId).get();
+            for (const d of regsSnap.docs) {
               transaction.update(d.ref, {
                 status: 'refunded',
                 paymentStatus: 'Estornado (Stripe)',
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
               });
-            });
+
+              // Cancelar comissões de parceiro vinculadas a estes ingressos
+              const commsSnap = await db.collection("partner_commissions").where("registrationId", "==", d.id).where("status", "==", "PENDENTE").get();
+              for (const cDoc of commsSnap.docs) {
+                 const cData = cDoc.data();
+                 transaction.update(cDoc.ref, { status: 'CANCELADO', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                 
+                 const pRef = db.collection('partners').doc(cData.partnerId);
+                 transaction.update(pRef, {
+                    "stats.pendingBalance": admin.firestore.FieldValue.increment(-cData.amount),
+                    "stats.totalEarned": admin.firestore.FieldValue.increment(-cData.amount),
+                    "stats.salesCount": admin.firestore.FieldValue.increment(-1),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                 });
+              }
+            }
           }
           break;
         }
@@ -186,7 +234,6 @@ export async function POST(req: Request) {
         }
       }
 
-      // REGISTRO FINAL DE IDEMPOTÊNCIA (Lock Pessimista)
       transaction.set(eventLogRef, {
         processedAt: admin.firestore.FieldValue.serverTimestamp(),
         type: event.type

@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -95,7 +96,8 @@ export default function AdminLayout({
     { title: 'Páginas', url: '/admin/paginas', icon: Building2, permission: 'organizations.view' as any },
     { title: 'Usuários', url: '/admin/usuarios', icon: Users, permission: 'users.view' as any },
     { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket, permission: 'tickets.view' as any },
-    { title: 'Afiliados', url: '/admin/afiliados', icon: Handshake, permission: 'marketing.view' as any },
+    { title: 'Divulgue e Ganhe', url: '/admin/afiliados', icon: Handshake, permission: 'marketing.view' as any },
+    { title: 'Parceiros', url: '/admin/marketing/parceiros', icon: Users, permission: 'marketing.view' as any },
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone, permission: 'marketing.view' as any },
     { title: 'Cupons Globais', url: '/admin/cupons', icon: TicketPercent, permission: 'marketing.coupons' as any },
     { title: 'Campanhas', url: '/admin/campanhas', icon: Zap, permission: 'marketing.campaigns' as any },

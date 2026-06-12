@@ -1,0 +1,64 @@
+
+{
+  "collections": {
+    "partners": {
+      "description": "Usuários promovidos a parceiros estratégicos pela administração.",
+      "fields": {
+        "id": "string (UID do usuário)",
+        "name": "string",
+        "email": "string",
+        "code": "string (código de indicação único)",
+        "status": "active | inactive",
+        "tiers": "array of objects { min: number, max: number | null, value: number }",
+        "stats": {
+          "pendingBalance": "number",
+          "availableBalance": "number",
+          "totalEarned": "number",
+          "referralsCount": "number",
+          "salesCount": "number"
+        },
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
+    "partner_referrals": {
+      "description": "Vínculos de indicação entre parceiros e organizadores.",
+      "fields": {
+        "id": "string (UID do organizador indicado)",
+        "partnerId": "string (UID do parceiro)",
+        "referredAt": "timestamp",
+        "expiresAt": "timestamp (referredAt + 365 dias)",
+        "status": "active | expired"
+      }
+    },
+    "partner_commissions": {
+      "description": "Registros individuais de comissões geradas por vendas.",
+      "fields": {
+        "id": "string (auto-id)",
+        "partnerId": "string",
+        "referredUserId": "string",
+        "registrationId": "string",
+        "orderId": "string",
+        "eventId": "string",
+        "eventTitle": "string",
+        "buyerName": "string",
+        "ticketPrice": "number",
+        "amount": "number",
+        "status": "PENDENTE | DISPONÍVEL | PAGO | CANCELADO | ESTORNADO",
+        "availableAt": "timestamp (venda + 30 dias)",
+        "createdAt": "timestamp"
+      }
+    },
+    "partner_logs": {
+      "description": "Trilha de auditoria do módulo de parceiros.",
+      "fields": {
+        "id": "string",
+        "action": "string",
+        "partnerId": "string (opcional)",
+        "userId": "string (admin ou alvo)",
+        "metadata": "map",
+        "timestamp": "timestamp"
+      }
+    }
+  }
+}
