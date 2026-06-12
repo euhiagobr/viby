@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -82,13 +81,17 @@ function LoginContent() {
     <div className="min-h-screen flex flex-col bg-muted/30">
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2 group">
             {settings?.logoUrl ? (
-              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-10 w-auto object-contain" priority unoptimized />
+              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
             ) : (
-              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center"><span className="text-white font-bold text-lg">{siteName.charAt(0)}</span></div>
+              <>
+                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg">
+                  <span className="text-white font-bold text-lg">V</span>
+                </div>
+                <span className="text-xl font-bold tracking-tight italic uppercase text-primary ml-1">{siteName}</span>
+              </>
             )}
-            <span className="text-xl font-bold tracking-tight">{siteName}</span>
           </Link>
           <div className="flex items-center gap-4">
             <Button variant="ghost" asChild className="font-semibold text-xs uppercase tracking-widest">

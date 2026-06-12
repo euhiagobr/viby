@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Globe, Instagram, Facebook, Linkedin, Youtube, Video, Twitter, Mail, Phone, Handshake } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
@@ -27,9 +28,9 @@ export default function Footer() {
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-12 mb-16">
           <div className="md:col-span-2 space-y-6">
-            <Link href="/" className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2 group">
               {settings?.logoUrl ? (
-                <img src={settings.logoUrl} alt={siteName} className="h-10 object-contain" />
+                <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-10 w-auto object-contain transition-transform group-hover:scale-105" unoptimized />
               ) : (
                 <>
                   <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center">

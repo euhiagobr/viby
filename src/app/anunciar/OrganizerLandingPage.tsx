@@ -125,11 +125,17 @@ export default function OrganizerLandingPage() {
       {/* NAVBAR */}
       <nav className="fixed top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center">
-              <span className="text-white font-black text-lg">V</span>
-            </div>
-            <span className="text-xl font-bold tracking-tight italic uppercase">{siteName}</span>
+          <Link href="/" className="flex items-center gap-2 group">
+            {settings?.logoUrl ? (
+              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
+            ) : (
+              <>
+                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg">
+                  <span className="text-white font-black text-lg">V</span>
+                </div>
+                <span className="text-xl font-bold tracking-tight italic uppercase text-primary ml-1">{siteName}</span>
+              </>
+            )}
           </Link>
           <div className="flex items-center gap-4">
             <Button variant="ghost" asChild className="hidden sm:flex font-bold uppercase text-[10px] tracking-widest">
@@ -169,7 +175,7 @@ export default function OrganizerLandingPage() {
             <div className="relative group perspective-1000">
                <div className="relative z-10 rounded-[3rem] overflow-hidden shadow-2xl border-8 border-white bg-primary aspect-[4/3] rotate-2 group-hover:rotate-0 transition-transform duration-700 flex items-center justify-center p-12 md:p-20">
                   {settings?.logoUrl ? (
-                    <img src={settings.logoUrl} alt={siteName} className="w-full h-auto object-contain brightness-0 invert" />
+                    <Image src={settings.logoUrl} alt={siteName} width={400} height={200} className="w-full h-auto object-contain brightness-0 invert" unoptimized />
                   ) : (
                     <span className="text-white text-9xl font-black italic">{siteName.charAt(0)}</span>
                   )}
@@ -272,7 +278,7 @@ export default function OrganizerLandingPage() {
                     <div className="md:col-span-7 p-12">
                        {success ? (
                          <div className="h-full flex flex-col items-center justify-center text-center gap-6 animate-in zoom-in-95 duration-500">
-                            <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center text-white shadow-xl"><CheckCircle2 className="w-10 h-10" /></div>
+                            <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto text-white shadow-xl"><CheckCircle2 className="w-10 h-10" /></div>
                             <div className="space-y-2">
                                <h3 className="text-2xl font-black uppercase italic text-primary">Solicitação Enviada!</h3>
                                <p className="text-sm text-muted-foreground font-medium uppercase leading-relaxed">Obrigado pelo interesse. Em breve um de nossos consultores falará com você.</p>

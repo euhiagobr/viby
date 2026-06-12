@@ -1,8 +1,8 @@
-
 "use client"
 
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { MapPinOff, ArrowLeft, Home } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
@@ -23,7 +23,11 @@ export default function NotFound() {
         <div className="absolute inset-0 bg-secondary/10 blur-3xl rounded-full" />
         <div className="relative">
           <div className="w-24 h-24 bg-white rounded-[2rem] shadow-2xl flex items-center justify-center mx-auto mb-8 animate-bounce">
-            <MapPinOff className="w-12 h-12 text-secondary" />
+            {settings?.logoUrl ? (
+               <Image src={settings.logoUrl} alt={siteName} width={120} height={120} className="w-20 h-20 object-contain" unoptimized />
+            ) : (
+               <MapPinOff className="w-12 h-12 text-secondary" />
+            )}
           </div>
           
           <h1 className="text-8xl md:text-9xl font-black text-primary uppercase italic tracking-tighter leading-none mb-4">
@@ -38,7 +42,7 @@ export default function NotFound() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+      <div className="flex flex-col sm:flex-row gap-4 w-full max-md mx-auto">
         <Button 
           variant="outline" 
           onClick={() => window.history.back()} 
