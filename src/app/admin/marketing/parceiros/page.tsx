@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -36,11 +37,13 @@ import { formatCurrency } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
 import { createPartnerAction, togglePartnerStatusAction, updatePartnerTiersAction } from '@/app/actions/partners';
 import { PartnerTier } from '@/lib/partner-utils';
+import { useAdminPermissions } from '@/hooks/use-admin-permissions';
 
 export default function AdminPartnersPage() {
   const db = useFirestore();
   const auth = useAuth();
   const { user: adminUser } = useUser(auth);
+  const { adminProfile } = useAdminPermissions();
   
   const [search, setSearch] = React.useState("");
   const [isAddOpen, setIsAddOpen] = React.useState(false);
@@ -51,12 +54,13 @@ export default function AdminPartnersPage() {
   const [newPartnerUsername, setNewPartnerUsername] = React.useState("");
   const [newPartnerCode, setNewPartnerCode] = React.useState("");
   
-  // Tiers editor state
   const [editingTiers, setEditingTiers] = React.useState<PartnerTier[]>([]);
 
+  const adminUid = adminProfile?.uid;
+
   const partnersQuery = useMemoFirebase(() => 
-    db ? query(collection(db, "partners"), orderBy("createdAt", "desc")) : null, 
-    [db]
+    (db && adminUid) ? query(collection(db, "partners"), orderBy("createdAt", "desc")) : null, 
+    [db, adminUid]
   );
   const { data: partners, loading } = useCollection<any>(partnersQuery);
 
@@ -76,7 +80,6 @@ export default function AdminPartnersPage() {
     try {
       const cleanUsername = newPartnerUsername.toLowerCase().trim().replace('@', '');
       
-      // Resolução de Username para UID
       const usernameRef = doc(db, "usernames", cleanUsername);
       const usernameSnap = await getDoc(usernameRef);
       
@@ -216,7 +219,7 @@ export default function AdminPartnersPage() {
               <TableRow><TableCell colSpan={5} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
             ) : filtered.length > 0 ? (
               filtered.map(p => (
-                <TableRow key={p.id} className={cn("hover:bg-muted/5", p.status === 'inactive' && "opacity-50 grayscale")}>
+                <TableRow key={p.id} className={cn("hover:bg-muted/5 transition-colors", p.status === 'inactive' && "opacity-50 grayscale")}>
                   <TableCell className="p-6">
                     <div className="flex flex-col">
                       <span className="font-bold text-sm text-primary uppercase italic">{p.name}</span>

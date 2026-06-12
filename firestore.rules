@@ -294,5 +294,32 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // --- REGRAS DO MÓDULO DE PARCEIROS (ROOT) ---
+
+    match /partners/{partnerId} {
+      allow read: if isAdmin() || isOwner(partnerId);
+      allow write: if isAdmin();
+    }
+
+    match /partner_referrals/{refId} {
+      allow read: if isAdmin() || (isSignedIn() && (resource.data.partnerId == request.auth.uid || resource.data.referredUserId == request.auth.uid));
+      allow write: if isAdmin();
+    }
+
+    match /partner_commissions/{commId} {
+       allow read: if isAdmin() || (isSignedIn() && resource.data.partnerId == request.auth.uid);
+       allow write: if isAdmin();
+    }
+
+    match /partner_withdrawals/{withdrawalId} {
+       allow read: if isAdmin() || (isSignedIn() && resource.data.partnerId == request.auth.uid);
+       allow write: if isAdmin();
+    }
+
+    match /partner_logs/{logId} {
+       allow read: if isAdmin();
+       allow write: if false; // Apenas via Server Actions
+    }
   }
 }
