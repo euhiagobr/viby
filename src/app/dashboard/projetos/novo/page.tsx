@@ -9,7 +9,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, ShieldAlert, Building2, MapPin, Star } from "lucide-react"
+import { Loader2, ArrowLeft, ShieldAlert, Building2, MapPin, Star, Landmark, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -102,7 +102,7 @@ export default function NovoEventoPage() {
   const [batches, setBatches] = useState<any[]>([])
   const [totalCapacity, setTotalCapacity] = useState(100)
 
-  const isStripeVerified = currentOrg?.stripeChargesEnabled && currentOrg?.stripePayoutsEnabled;
+  const hasStripeAccount = !!currentOrg?.stripeAccountId;
   const isVibyOfficial = currentOrg?.id === VIBY_OFFICIAL_UID;
 
   const handleUseOrgLocation = () => {
@@ -145,10 +145,9 @@ export default function NovoEventoPage() {
     e.preventDefault()
     if (!db || !user || !currentOrg) return
 
-    const isPaid = ticketMode === 'paid_single' || ticketMode === 'batches';
-    if (isPaid && !isStripeVerified) {
-       toast({ variant: "destructive", title: "Ação Bloqueada", description: "Sua conta de recebimento não está aprovada no Stripe." });
-       return;
+    if (!hasStripeAccount) {
+      toast({ variant: "destructive", title: "Ação Bloqueada", description: "Para criar eventos é necessário configurar sua conta de recebimento Stripe primeiro." });
+      return;
     }
 
     setLoading(true)
@@ -210,6 +209,50 @@ export default function NovoEventoPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // UI de Bloqueio Mandatório
+  if (!hasStripeAccount && currentOrg) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Novo Evento</h1>
+        </div>
+
+        <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+           <div className="bg-primary p-12 flex flex-col items-center text-white gap-6">
+              <div className="w-20 h-20 bg-white/10 rounded-[2rem] flex items-center justify-center backdrop-blur-xl border border-white/20">
+                 <Landmark className="w-10 h-10 text-secondary" />
+              </div>
+              <div className="text-center space-y-2">
+                 <h2 className="text-3xl font-black uppercase italic tracking-tighter">Ação Necessária</h2>
+                 <p className="text-sm font-medium opacity-80 max-w-xs mx-auto">Para criar eventos é necessário configurar sua conta de recebimento Stripe primeiro.</p>
+              </div>
+           </div>
+           <CardContent className="p-10 space-y-8 text-center">
+              <div className="p-6 bg-muted/30 rounded-3xl border border-dashed space-y-4">
+                 <div className="flex items-center gap-3 text-left">
+                    <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><ShieldCheck className="w-5 h-5" /></div>
+                    <div>
+                       <p className="text-xs font-black uppercase italic text-primary">Segurança Financeira</p>
+                       <p className="text-[10px] text-muted-foreground uppercase leading-relaxed font-medium">A Viby utiliza o Stripe Connect para garantir que seus repasses sejam automáticos e seguros.</p>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                 <Button asChild className="h-16 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic text-lg hover:scale-[1.02] transition-transform">
+                    <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`}>Configurar recebimentos</Link>
+                 </Button>
+                 <Button variant="ghost" asChild className="font-bold text-xs uppercase text-muted-foreground">
+                    <Link href="/dashboard/organizacoes">Voltar para Marcas</Link>
+                 </Button>
+              </div>
+           </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -346,15 +389,6 @@ export default function NovoEventoPage() {
 
         {formData.type === 'interno' && (
           <div className="space-y-6">
-             {!isStripeVerified && (
-               <div className="p-6 bg-red-50 rounded-[2rem] border-2 border-dashed border-red-200 flex items-start gap-4">
-                  <ShieldAlert className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                     <h4 className="font-black uppercase text-xs italic text-red-800">Bilheteria Paga Bloqueada</h4>
-                     <p className="text-[10px] text-red-700 font-medium leading-relaxed uppercase">Sua conta Stripe não está aprovada. Apenas eventos gratuitos são permitidos.</p>
-                  </div>
-               </div>
-             )}
              <BilheteriaAdmin 
                mode={ticketMode} 
                onModeChange={setTicketMode}

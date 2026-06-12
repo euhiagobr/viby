@@ -9,7 +9,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Save, Handshake, Settings2, Ticket, RefreshCw, Eye, Star } from "lucide-react"
+import { Loader2, ArrowLeft, Save, Handshake, Settings2, Ticket, RefreshCw, Eye, Star, Landmark, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -131,6 +131,11 @@ export default function EditarEventoPage() {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
 
+    if (!currentOrg.stripeAccountId) {
+      toast({ variant: "destructive", title: "Ação Bloqueada", description: "Para criar eventos é necessário configurar sua conta de recebimento Stripe primeiro." });
+      return;
+    }
+
     setLoading(true)
     try {
       const searchKeywords = [
@@ -191,7 +196,39 @@ export default function EditarEventoPage() {
 
   if (eventLoading || !formData) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
 
+  const hasStripeAccount = !!currentOrg?.stripeAccountId;
   const isVibyOfficial = currentOrg?.id === VIBY_OFFICIAL_UID;
+
+  // UI de Bloqueio Mandatório
+  if (!hasStripeAccount && currentOrg) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/organizacoes/${currentOrg.username}/events`}><ArrowLeft className="w-5 h-5" /></Link></Button>
+          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Evento</h1>
+        </div>
+
+        <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden">
+           <div className="bg-primary p-12 flex flex-col items-center text-white gap-6">
+              <div className="w-20 h-20 bg-white/10 rounded-[2rem] flex items-center justify-center backdrop-blur-xl border border-white/20">
+                 <Landmark className="w-10 h-10 text-secondary" />
+              </div>
+              <div className="text-center space-y-2">
+                 <h2 className="text-3xl font-black uppercase italic tracking-tighter">Ação Necessária</h2>
+                 <p className="text-sm font-medium opacity-80 max-w-xs mx-auto">Para gerenciar ou publicar eventos é necessário configurar sua conta de recebimento Stripe primeiro.</p>
+              </div>
+           </div>
+           <CardContent className="p-10 space-y-8 text-center">
+              <div className="flex flex-col gap-3">
+                 <Button asChild className="h-16 bg-secondary text-white font-black rounded-2xl shadow-xl shadow-secondary/20 uppercase italic text-lg hover:scale-[1.02] transition-transform">
+                    <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`}>Configurar recebimentos</Link>
+                 </Button>
+              </div>
+           </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">

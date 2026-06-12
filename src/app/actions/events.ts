@@ -5,8 +5,19 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { slugify } from '@/lib/slug-utils';
 
 /**
- * @fileOverview Server Actions para gestão de eventos com geração de slug único.
+ * @fileOverview Server Actions para gestão de eventos com geração de slug único e validação Stripe.
  */
+
+async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string) {
+  const orgSnap = await db.collection('organizations').doc(orgId).get();
+  if (!orgSnap.exists) throw new Error("Organização não encontrada.");
+  
+  const orgData = orgSnap.data();
+  if (!orgData?.stripeAccountId) {
+    throw new Error("Para criar eventos é necessário configurar sua conta de recebimento Stripe primeiro.");
+  }
+  return true;
+}
 
 async function generateUniqueSlug(db: admin.firestore.Firestore, orgId: string, title: string, currentEventId?: string, manualSlug?: string) {
   const baseSlug = manualSlug ? slugify(manualSlug) : slugify(title);
@@ -20,7 +31,6 @@ async function generateUniqueSlug(db: admin.firestore.Firestore, orgId: string, 
       .limit(1)
       .get();
 
-    // Se não encontrou nada, ou o que encontrou é o próprio evento (em caso de update), o slug está livre
     if (snap.empty || (currentEventId && snap.docs[0].id === currentEventId)) {
       return slug;
     }
@@ -38,6 +48,9 @@ export async function createEventAction(params: {
   const db = getAdminDb();
   
   try {
+    // Validação Mandatória de Conta Connect
+    await validateStripeAccount(db, params.orgId);
+
     const slug = await generateUniqueSlug(db, params.orgId, params.eventData.title);
     
     const eventRef = db.collection('events').doc();
@@ -68,13 +81,15 @@ export async function updateEventAction(params: {
   const db = getAdminDb();
   
   try {
+    // Validação Mandatória de Conta Connect (Mesmo para edições/ativações)
+    await validateStripeAccount(db, params.orgId);
+
     const eventRef = db.collection('events').doc(params.eventId);
     const eventSnap = await eventRef.get();
     
     if (!eventSnap.exists) throw new Error("Evento não localizado.");
     const oldData = eventSnap.data()!;
 
-    // Só recalcula slug se o título mudar
     let slug = oldData.slug;
     if (slugify(params.eventData.title) !== slugify(oldData.title)) {
       slug = await generateUniqueSlug(db, params.orgId, params.eventData.title, params.eventId);
@@ -95,9 +110,6 @@ export async function updateEventAction(params: {
   }
 }
 
-/**
- * Server Action exclusiva para atualizar ou regenerar o slug de um evento.
- */
 export async function updateEventSlugAction(params: {
   eventId: string;
   orgId: string;
