@@ -20,7 +20,8 @@ import {
   MessageCircle,
   Globe,
   Star,
-  Users
+  Users,
+  ShieldCheck
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -119,7 +120,7 @@ export default function OrganizerLandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] selection:bg-secondary selection:text-white">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
       {/* NAVBAR */}
       <nav className="fixed top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
