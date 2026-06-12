@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -29,6 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
 import { 
   Select, 
   SelectContent, 
@@ -57,7 +57,7 @@ const BENEFITS = [
 
 const STEPS = [
   { number: "01", title: "Crie sua conta", desc: "Cadastre seu perfil pessoal e crie a página da sua marca ou produtora." },
-  { number: "02", title: "Configure o Stripe", desc: "Vincule sua conta bancária para receber os valores das vendas de ingressos." },
+  { number: "02", title: "Configure o Stripe Connect", desc: "Vincule sua conta bancária para receber os valores das vendas de ingressos." },
   { number: "03", title: "Publique seu evento", desc: "Defina local, data, descrição e tipos de ingressos que deseja vender." },
   { number: "04", title: "Acompanhe e Venda", desc: "Divulgue seu link oficial e monitore os resultados no seu painel." },
 ];
