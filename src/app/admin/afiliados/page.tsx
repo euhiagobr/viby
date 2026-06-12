@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
-import { collection, query, orderBy, limit } from "firebase/firestore"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase"
+import { collection, query, orderBy, limit, doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -14,7 +14,12 @@ import {
   Ticket, 
   Inbox,
   RefreshCw,
-  History
+  History,
+  ShieldCheck,
+  AlertTriangle,
+  Settings,
+  Power,
+  PowerOff
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -31,6 +36,7 @@ import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
 import { generatePendingAffiliateCodesAction } from "@/app/actions/affiliates"
 import { useAdminPermissions } from "@/hooks/use-admin-permissions"
+import { Switch } from "@/components/ui/switch"
 
 export default function AdminAfiliadosPage() {
   const db = useFirestore()
@@ -40,10 +46,15 @@ export default function AdminAfiliadosPage() {
   
   const [search, setSearch] = React.useState("")
   const [isProcessing, setIsProcessing] = React.useState(false)
+  const [isStatusUpdating, setIsStatusUpdating] = React.useState(false)
 
   const adminUid = adminProfile?.uid;
 
-  // Consultas Estabilizadas (Usando IDs primitivos nas dependências)
+  // Configuração Global
+  const affConfigRef = React.useMemo(() => db ? doc(db, "settings", "affiliates") : null, [db]);
+  const { data: affConfig, loading: loadingConfig } = useDoc<any>(affConfigRef);
+
+  // Consultas Estabilizadas
   const statsQuery = useMemoFirebase(() => {
     if (!db || !adminUid) return null
     return query(collection(db, "affiliate_stats"), orderBy("totalTicketsSold", "desc"), limit(50))
@@ -56,6 +67,25 @@ export default function AdminAfiliadosPage() {
 
   const { data: stats, loading: loadingStats } = useCollection<any>(statsQuery)
   const { data: commissions, loading: loadingComms } = useCollection<any>(recentCommissionsQuery)
+
+  const isEnabled = affConfig?.enabled !== false;
+
+  const handleToggleProgram = async (v: boolean) => {
+    if (!db || !isSuperAdmin) return;
+    setIsStatusUpdating(true);
+    try {
+      await updateDoc(doc(db, "settings", "affiliates"), {
+        enabled: v,
+        updatedAt: serverTimestamp(),
+        updatedBy: user?.uid
+      });
+      toast({ title: v ? "Programa Ativado!" : "Programa Suspenso!" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao alterar status" });
+    } finally {
+      setIsStatusUpdating(false);
+    }
+  };
 
   const filteredStats = React.useMemo(() => {
     if (!stats) return []
@@ -98,17 +128,66 @@ export default function AdminAfiliadosPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
             <Handshake className="w-8 h-8 text-secondary" />
-            Admin de Afiliados
+            Divulgue e Ganhe
           </h1>
           <p className="text-muted-foreground font-medium">Gestão de crescimento e rede de indicações Viby.</p>
         </div>
-        {isSuperAdmin && (
-          <Button onClick={handleGeneratePending} disabled={isProcessing} variant="outline" className="rounded-xl h-11 border-dashed gap-2 uppercase italic text-[10px] font-black border-secondary text-secondary">
-            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Gerar Códigos Pendentes
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {isSuperAdmin && (
+            <Button onClick={handleGeneratePending} disabled={isProcessing} variant="outline" className="rounded-xl h-11 border-dashed gap-2 uppercase italic text-[10px] font-black border-secondary text-secondary">
+              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Manutenção de Códigos
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Controle Global do Programa */}
+      <Card className={cn(
+        "border-none shadow-sm rounded-[2rem] overflow-hidden transition-all duration-500",
+        isEnabled ? "bg-white ring-1 ring-border" : "bg-orange-50 border-2 border-dashed border-orange-200"
+      )}>
+        <CardContent className="p-8">
+           <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+              <div className="flex items-center gap-6">
+                 <div className={cn(
+                   "p-4 rounded-[1.5rem] shadow-lg transition-colors",
+                   isEnabled ? "bg-green-500 text-white" : "bg-orange-500 text-white"
+                 )}>
+                    {isEnabled ? <Power className="w-8 h-8" /> : <PowerOff className="w-8 h-8" />}
+                 </div>
+                 <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                       <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">Status do Programa</h3>
+                       <Badge className={cn("text-[9px] font-black uppercase h-5", isEnabled ? "bg-green-600" : "bg-orange-600")}>
+                          {isEnabled ? "ATIVO" : "SUSPENSO"}
+                       </Badge>
+                    </div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase leading-relaxed max-w-md">
+                       {isEnabled 
+                         ? "O programa está operando normalmente. Novos usuários podem se afiliar e gerar comissões." 
+                         : "Novas indicações e cadastros de afiliados estão bloqueados em toda a rede."}
+                    </p>
+                 </div>
+              </div>
+
+              {isSuperAdmin && (
+                <div className="flex items-center gap-3 p-4 bg-muted/20 rounded-2xl border border-dashed">
+                   <div className="space-y-0.5 text-right mr-2">
+                      <p className="text-[9px] font-black uppercase opacity-60">Alternar Chave Mestra</p>
+                      <p className="text-[8px] font-bold text-muted-foreground uppercase italic">Afeta toda a plataforma</p>
+                   </div>
+                   {isStatusUpdating ? <Loader2 className="w-6 h-6 animate-spin text-secondary" /> : (
+                     <Switch 
+                        checked={isEnabled} 
+                        onCheckedChange={handleToggleProgram} 
+                     />
+                   )}
+                </div>
+              )}
+           </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <MetricCard label="Ingressos por Afiliados" value={globalMetrics.sales} icon={Ticket} color="orange" />
