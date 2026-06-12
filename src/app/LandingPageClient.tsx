@@ -269,11 +269,16 @@ export default function LandingPageClient() {
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2 group">
             {settings?.logoUrl ? (
-              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-10 w-auto object-contain" priority unoptimized />
+              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-10 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
             ) : (
-              <span className="text-xl font-bold tracking-tight italic uppercase">{siteName}</span>
+              <>
+                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg transition-transform group-hover:scale-105">
+                  <span className="text-white font-black text-lg">V</span>
+                </div>
+                <span className="text-xl font-black tracking-tight italic uppercase text-primary ml-1">{siteName}</span>
+              </>
             )}
           </Link>
           <div className="flex items-center gap-4">

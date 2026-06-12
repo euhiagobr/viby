@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -109,9 +108,13 @@ export default function CadastroPage() {
             {settings?.logoUrl ? (
               <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-9 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
             ) : (
-              <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg"><span className="text-white font-black text-lg">V</span></div>
+              <>
+                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg transition-transform group-hover:scale-105">
+                  <span className="text-white font-black text-lg">V</span>
+                </div>
+                <span className="text-xl font-black tracking-tight italic uppercase text-primary ml-1">{siteName}</span>
+              </>
             )}
-            {!settings?.logoUrl && <span className="text-xl font-black tracking-tight italic uppercase text-primary ml-1">{siteName}</span>}
           </Link>
           <div className="flex items-center gap-4">
             <Button variant="ghost" asChild className="font-bold text-[10px] uppercase tracking-widest">

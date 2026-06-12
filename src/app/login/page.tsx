@@ -86,8 +86,8 @@ function LoginContent() {
               <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
             ) : (
               <>
-                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg">
-                  <span className="text-white font-bold text-lg">V</span>
+                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg transition-transform group-hover:scale-105">
+                  <span className="text-white font-black text-lg">V</span>
                 </div>
                 <span className="text-xl font-bold tracking-tight italic uppercase text-primary ml-1">{siteName}</span>
               </>

@@ -24,9 +24,11 @@ export default function NotFound() {
         <div className="relative">
           <div className="w-24 h-24 bg-white rounded-[2rem] shadow-2xl flex items-center justify-center mx-auto mb-8 animate-bounce">
             {settings?.logoUrl ? (
-               <Image src={settings.logoUrl} alt={siteName} width={120} height={120} className="w-20 h-20 object-contain" unoptimized />
+               <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="w-20 h-auto object-contain" unoptimized />
             ) : (
-               <MapPinOff className="w-12 h-12 text-secondary" />
+               <div className="w-16 h-16 bg-secondary rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-white font-black text-2xl">V</span>
+               </div>
             )}
           </div>
           
