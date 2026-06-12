@@ -1,5 +1,5 @@
 
-'use client';
+'use server';
 
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
@@ -9,11 +9,9 @@ import { logSystemError } from '@/lib/error-manager';
 
 async function getStripeInstance(db: admin.firestore.Firestore) {
   const snap = await db.collection('settings').doc('stripe').get();
-  if (!snap.exists) throw new Error('Configurações do Stripe não localizadas.');
   const data = snap.data();
-  const secretKey = data?.secretKey?.trim();
-  if (!secretKey) throw new Error('Secret Key do Stripe ausente.');
-  return new Stripe(secretKey, { apiVersion: '2024-12-18.acacia' as any });
+  if (!data?.secretKey) throw new Error("Stripe Secret Key not found.");
+  return new Stripe(data.secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
 export async function createCheckoutSession(data: any) {
