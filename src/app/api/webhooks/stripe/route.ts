@@ -27,10 +27,15 @@ export async function POST(req: Request) {
     const stripeSettings = stripeSettingsSnap.data();
     const webhookSecret = stripeSettings?.webhookSecret;
     
-    event = webhookSecret 
-      ? stripe.webhooks.constructEvent(payload, sig, webhookSecret)
-      : JSON.parse(payload);
+    // A validação de assinatura é OBRIGATÓRIA para produção
+    if (webhookSecret) {
+      event = stripe.webhooks.constructEvent(payload, sig, webhookSecret);
+    } else {
+      console.warn("[Stripe Webhook] Alerta: Webhook Secret não configurado. Utilizando modo inseguro.");
+      event = JSON.parse(payload);
+    }
   } catch (err: any) {
+    console.error(`[Stripe Webhook Error] Signature failed: ${err.message}`);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
@@ -39,6 +44,7 @@ export async function POST(req: Request) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         
+        // FLUXO: COMPRA DE INGRESSOS
         if (session.metadata?.type === 'order_checkout' && session.metadata?.orderId) {
           const orderId = session.metadata.orderId;
           const orderRef = db.collection("orders").doc(orderId);
@@ -104,6 +110,7 @@ export async function POST(req: Request) {
                     });
                   }
 
+                  // Processamento de comissão de afiliado automático
                   if (isAffiliateValid) {
                     const statsRef = db.collection("affiliate_stats").doc(affiliateId);
                     const statsSnap = await transaction.get(statsRef);
@@ -122,7 +129,7 @@ export async function POST(req: Request) {
                       eventId: item.eventId,
                       registrationIds: regIds,
                       amount: commissionAmount,
-                      currency: currency, // Mantém a moeda original da venda
+                      currency: currency,
                       status: 'pending',
                       availableAt: admin.firestore.Timestamp.fromDate(availableDate),
                       createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -140,6 +147,50 @@ export async function POST(req: Request) {
               }
               transaction.update(orderRef, { status: 'paid', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
             });
+          }
+        }
+        break;
+      }
+
+      case 'account.updated': {
+        const account = event.data.object as Stripe.Account;
+        const orgId = account.metadata?.orgId;
+        
+        if (orgId) {
+          const isVerified = account.charges_enabled && account.payouts_enabled;
+          await db.collection('organizations').doc(orgId).update({
+            stripeChargesEnabled: account.charges_enabled,
+            stripePayoutsEnabled: account.payouts_enabled,
+            stripeOnboardingComplete: account.details_submitted,
+            "payoutSettings.status": isVerified ? 'verified' : (account.details_submitted ? 'pending_admin' : 'none'),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          console.log(`[Stripe Webhook] KYC Sync for org: ${orgId}`);
+        }
+        break;
+      }
+
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        const paymentIntentId = charge.payment_intent as string;
+        
+        if (paymentIntentId) {
+          // Localizar ingressos vinculados a este pagamento para cancelamento automático
+          const regsSnap = await db.collection("registrations")
+            .where("stripePaymentIntentId", "==", paymentIntentId)
+            .get();
+          
+          if (!regsSnap.empty) {
+            const batch = db.batch();
+            regsSnap.forEach(d => {
+              batch.update(d.ref, {
+                status: 'cancelled',
+                paymentStatus: 'Estornado (Dashboard)',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+            });
+            await batch.commit();
+            console.log(`[Stripe Webhook] Refund sync for ${regsSnap.size} tickets`);
           }
         }
         break;

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { headers } from 'next/headers';
@@ -64,7 +65,6 @@ export async function createStripeConnectAccount(orgId: string) {
     }
 
     if (!accountId) {
-      // Regra de Negócio: business_type dinâmico baseado no tipo da organização
       const isIndividual = orgData.tipoOrganizacao === 'individual';
       
       const accountParams: Stripe.AccountCreateParams = {
