@@ -121,6 +121,7 @@ export default function OrganizerLandingPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
+      {/* NAVBAR */}
       <nav className="fixed top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
@@ -146,6 +147,7 @@ export default function OrganizerLandingPage() {
         </div>
       </nav>
 
+      {/* HERO SECTION */}
       <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden bg-white">
         <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[800px] h-[800px] bg-secondary/5 rounded-full blur-3xl pointer-events-none" />
         <div className="container mx-auto px-4 relative z-10">
@@ -185,6 +187,7 @@ export default function OrganizerLandingPage() {
         </div>
       </section>
 
+      {/* BENEFÍCIOS */}
       <section className="py-24 bg-[#f8fafc]">
         <div className="container mx-auto px-4">
           <div className="text-center mb-20 space-y-3">
@@ -209,6 +212,7 @@ export default function OrganizerLandingPage() {
         </div>
       </section>
 
+      {/* COMO FUNCIONA */}
       <section className="py-24 bg-primary text-white overflow-hidden relative">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-secondary/10 rounded-full blur-[120px]" />
         <div className="container mx-auto px-4 relative z-10">
@@ -229,6 +233,7 @@ export default function OrganizerLandingPage() {
         </div>
       </section>
 
+      {/* RECURSOS */}
       <section className="py-24 bg-white">
         <div className="container mx-auto px-4">
            <div className="max-w-5xl mx-auto bg-muted/20 rounded-[3rem] p-12 md:p-20 flex flex-col md:flex-row items-center gap-16 border border-border/40">
@@ -252,6 +257,7 @@ export default function OrganizerLandingPage() {
         </div>
       </section>
 
+      {/* FORMULÁRIO DE LEADS */}
       <section id="contato" className="py-24 bg-[#f8fafc]">
         <div className="container mx-auto px-4">
            <div className="max-w-4xl mx-auto">
@@ -263,7 +269,7 @@ export default function OrganizerLandingPage() {
                           <p className="text-sm font-medium text-white/60 leading-relaxed uppercase tracking-wide">Preencha o formulário e nossa equipe comercial entrará em contato em menos de 24 horas.</p>
                        </div>
                        <div className="relative z-10 space-y-6">
-                          <div className="flex items-center gap-3"><Users className="w-5 h-5 text-secondary" /><span className="text-xs font-bold uppercase tracking-widest">+200 mil ingressos emitidos</span></div>
+                          <div className="flex items-center gap-3"><Users className="w-5 h-5 text-secondary" /><span className="text-xs font-bold uppercase tracking-widest">Divulgação e emissão de ingressos</span></div>
                           <div className="flex items-center gap-3"><Star className="w-5 h-5 text-secondary" /><span className="text-xs font-bold uppercase tracking-widest">Plataforma líder em experiência</span></div>
                        </div>
                        <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-secondary/10 rounded-full blur-3xl" />
@@ -331,6 +337,7 @@ export default function OrganizerLandingPage() {
         </div>
       </section>
 
+      {/* FAQ */}
       <section id="faq" className="py-24 bg-white">
         <div className="container mx-auto px-4 max-w-3xl">
            <div className="text-center mb-16 space-y-2">
@@ -354,6 +361,7 @@ export default function OrganizerLandingPage() {
         </div>
       </section>
 
+      {/* CTA FINAL */}
       <section className="py-24 bg-primary text-white text-center relative overflow-hidden">
          <div className="container mx-auto px-4 relative z-10 space-y-10">
             <div className="max-w-2xl mx-auto space-y-4">
