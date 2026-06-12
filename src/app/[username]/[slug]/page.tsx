@@ -21,25 +21,12 @@ const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.f
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
-
-  if (typeof data.toDate === 'function') {
-    return data.toDate().toISOString();
-  }
-  
-  if (data instanceof Date) {
-    return data.toISOString();
-  }
-
-  if (Array.isArray(data)) {
-    return data.map(item => serializeData(item));
-  }
-
+  if (typeof data.toDate === 'function') return data.toDate().toISOString();
+  if (data instanceof Date) return data.toISOString();
+  if (Array.isArray(data)) return data.map(item => serializeData(item));
   if (typeof data === 'object') {
     const proto = Object.getPrototypeOf(data);
-    if (proto !== null && proto !== Object.prototype) {
-      return String(data);
-    }
-    
+    if (proto !== null && proto !== Object.prototype) return String(data);
     const serialized: any = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -48,16 +35,12 @@ function serializeData(data: any): any {
     }
     return serialized;
   }
-
   return data;
 }
 
 function stripHtml(text: string): string {
   if (!text) return "";
-  return text
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 async function getEventData(usernameParam: string, slugParam: string) {
@@ -72,124 +55,132 @@ async function getEventData(usernameParam: string, slugParam: string) {
     if (!usernameSnap.exists) return null;
     const targetUid = usernameSnap.data()!.uid;
 
+    let eventDoc = null;
     const eventByIdSnap = await db.collection("events").doc(slug).get();
-    if (eventByIdSnap.exists) {
-      const data = eventByIdSnap.data()!;
-      if (data.status === 'Excluído') return null;
+    if (eventByIdSnap.exists && eventByIdSnap.data()!.status !== 'Excluído') {
+      const ownerId = eventByIdSnap.data()!.organizationId || eventByIdSnap.data()!.organizerId;
+      if (ownerId === targetUid) eventDoc = { id: eventByIdSnap.id, ...eventByIdSnap.data() };
+    }
+
+    if (!eventDoc) {
+      const queryBySlug = await db.collection("events")
+        .where("organizationId", "==", targetUid)
+        .where("slug", "==", slug.toLowerCase())
+        .limit(1).get();
+      if (!queryBySlug.empty) eventDoc = { id: queryBySlug.docs[0].id, ...queryBySlug.docs[0].data() };
+    }
+
+    if (!eventDoc) return null;
+
+    // Lógica para Recorrência no Servidor (SEO)
+    if (eventDoc.isRecurring) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const occSnap = await db.collection('recurring_occurrences')
+        .where('parentId', '==', eventDoc.id)
+        .where('status', '==', 'active')
+        .where('date', '>=', todayStr)
+        .orderBy('date', 'asc').limit(1).get();
       
-      const ownerId = data.organizationId || data.organizerId || data.organizer?.id;
-      if (ownerId === targetUid) {
-        return serializeData({ id: eventByIdSnap.id, ...data });
+      if (!occSnap.empty) {
+        const nextOcc = occSnap.docs[0].data();
+        eventDoc.date = `${nextOcc.date}T${nextOcc.startTime || '00:00'}:00`;
+        if (nextOcc.endTime) eventDoc.endDate = `${nextOcc.date}T${nextOcc.endTime}:00`;
       }
     }
 
-    const queryBySlug = await db.collection("events")
-      .where("slug", "==", slug.toLowerCase())
-      .limit(10)
-      .get();
-    
-    if (!queryBySlug.empty) {
-      const found = queryBySlug.docs.find(doc => {
-        const data = doc.data();
-        if (data.status === 'Excluído') return false;
-        const ownerId = data.organizationId || data.organizerId || data.organizer?.id;
-        return ownerId === targetUid;
-      });
-      if (found) {
-        return serializeData({ id: found.id, ...found.data() });
-      }
-    }
-
-    return null;
+    return serializeData(eventDoc);
   } catch (e) {
     return null;
   }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<Metadata> {
-  try {
-    const { username, slug } = await params;
-    const event = await getEventData(username, slug);
-    if (!event) return { title: 'Evento | Viby' };
+  const { username, slug } = await params;
+  const event = await getEventData(username, slug);
+  if (!event) return { title: 'Evento Indisponível | Viby' };
 
-    const db = getAdminDb();
-    let orgData = null;
-    
-    const orgId = event.organizationId || event.organizerId || event.organizer?.id;
-    if (orgId) {
-      const orgSnap = await db.collection('organizations').doc(orgId).get();
-      orgData = orgSnap.exists ? orgSnap.data() : null;
-    }
+  const title = `${event.title} | @${username} | Viby`;
+  const description = stripHtml(event.description || "").substring(0, 160);
+  const image = event.image || VIBY_OG_IMAGE;
+  const url = `https://viby.club/${username}/${slug}`;
 
-    const title = event.title || "Evento";
-    const description = stripHtml(event.description || event.shortDescription || "").substring(0, 200);
-    const image = event.image || orgData?.avatar || VIBY_OG_IMAGE;
-
-    return {
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
       title,
       description,
-      keywords: ['evento', 'ingressos', 'viby', title, event.city, username],
-      alternates: { canonical: `/${username}/${slug}` },
-      openGraph: {
-        title,
-        description,
-        url: `https://viby.club/${username}/${slug}`,
-        siteName: 'Viby',
-        images: [{ url: image, width: 1200, height: 630, alt: title }],
-        type: 'video.other',
-        locale: 'pt_BR',
-      },
-      twitter: {
-        card: 'summary_large_image',
-        title,
-        description,
-        images: [image],
-      },
-      robots: {
-        index: true,
-        follow: true,
-      }
-    };
-  } catch (e) {
-    return { title: 'Viby | Experiências' };
-  }
+      url,
+      siteName: 'Viby',
+      images: [{ url: image, width: 1200, height: 630, alt: event.title }],
+      type: 'video.other',
+      locale: 'pt_BR',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [image],
+    },
+    robots: { index: true, follow: true }
+  };
 }
 
-export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }): Promise<React.ReactElement | null> {
+export default async function UnifiedEventPage({ params }: { params: Promise<{ username: string, slug: string }> }) {
   const { username, slug } = await params;
-  
   const event = await getEventData(username, slug);
 
   if (!event) {
-    const cleanUser = username.toLowerCase().trim();
-    if (RESERVED_ROUTES.includes(cleanUser)) return null;
-    
+    if (RESERVED_ROUTES.includes(username.toLowerCase())) return null;
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4 text-center">
         <div className="relative w-full max-w-lg mb-12">
           <div className="absolute inset-0 bg-secondary/10 blur-3xl rounded-full" />
-          <div className="w-24 h-24 bg-white rounded-[2rem] shadow-2xl flex items-center justify-center mx-auto mb-8">
-            <CalendarX className="w-12 h-12 text-secondary" />
-          </div>
+          <div className="w-24 h-24 bg-white rounded-[2rem] shadow-2xl flex items-center justify-center mx-auto mb-8"><CalendarX className="w-12 h-12 text-secondary" /></div>
           <h1 className="text-5xl md:text-7xl font-black text-primary uppercase italic tracking-tighter mb-4">OPS!</h1>
           <h2 className="text-2xl md:text-3xl font-black uppercase italic text-primary">Evento <span className="text-secondary">Indisponível</span></h2>
           <p className="mt-6 text-muted-foreground font-medium max-w-sm mx-auto">Este evento não está mais disponível ou foi removido pelo organizador.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-          <Button variant="outline" asChild className="flex-1 h-14 rounded-2xl font-black uppercase italic border-2 gap-2 border-primary/10">
-            <Link href="/"><ArrowLeft className="w-5 h-5" /> Voltar</Link>
-          </Button>
-          <Button asChild className="flex-1 h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic gap-2 hover:bg-secondary transition-all">
-            <Link href="/"><Home className="w-5 h-5" /> Início</Link>
-          </Button>
+          <Button variant="outline" asChild className="flex-1 h-14 rounded-2xl font-black uppercase italic border-2 gap-2"><Link href="/"><ArrowLeft className="w-5 h-5" /> Voltar</Link></Button>
+          <Button asChild className="flex-1 h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic gap-2 hover:bg-secondary"><Link href="/"><Home className="w-5 h-5" /> Início</Link></Button>
         </div>
       </div>
     );
   }
 
-  if (event.slug && event.slug !== slug && event.id === slug) {
-    redirect(`/${username}/${event.slug}`);
-  }
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    "name": event.title,
+    "description": stripHtml(event.description || ""),
+    "image": [event.image],
+    "startDate": event.date,
+    "endDate": event.endDate || event.date,
+    "eventStatus": "https://schema.org/EventScheduled",
+    "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+    "location": {
+      "@type": "Place",
+      "name": event.location || event.address?.venueName,
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": event.city,
+        "addressRegion": event.state,
+        "addressCountry": "BR"
+      }
+    },
+    "organizer": {
+      "@type": "Organization",
+      "name": event.organizer?.name,
+      "url": `https://viby.club/${username}`
+    }
+  };
 
-  return <EventoPublicoClient id={event.id} username={username} />;
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <EventoPublicoClient id={event.id} username={username} />
+    </>
+  );
 }

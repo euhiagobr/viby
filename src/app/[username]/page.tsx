@@ -18,25 +18,12 @@ const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeven
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
-  
-  if (typeof data.toDate === 'function') {
-    return data.toDate().toISOString();
-  }
-  
-  if (data instanceof Date) {
-    return data.toISOString();
-  }
-
-  if (Array.isArray(data)) {
-    return data.map(item => serializeData(item));
-  }
-
+  if (typeof data.toDate === 'function') return data.toDate().toISOString();
+  if (data instanceof Date) return data.toISOString();
+  if (Array.isArray(data)) return data.map(item => serializeData(item));
   if (typeof data === 'object') {
     const proto = Object.getPrototypeOf(data);
-    if (proto !== null && proto !== Object.prototype) {
-      return String(data);
-    }
-    
+    if (proto !== null && proto !== Object.prototype) return String(data);
     const serialized: any = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -45,7 +32,6 @@ function serializeData(data: any): any {
     }
     return serialized;
   }
-  
   return data;
 }
 
@@ -56,7 +42,6 @@ async function getProfileData(usernameParam: string) {
 
     const db = getAdminDb();
     const usernameSnap = await db.collection("usernames").doc(username).get();
-    
     if (!usernameSnap.exists) return null;
     
     const { uid, type } = usernameSnap.data()!;
@@ -66,9 +51,7 @@ async function getProfileData(usernameParam: string) {
     if (!dataSnap.exists) return null;
     const profile = dataSnap.data()!;
     
-    if (['Bloqueado', 'Excluído', 'Desativado', 'Exclusão Programada'].includes(profile.status)) {
-       return null;
-    }
+    if (['Bloqueado', 'Excluído', 'Desativado'].includes(profile.status)) return null;
 
     return serializeData({ id: dataSnap.id, type, ...profile });
   } catch (e) {
@@ -77,44 +60,37 @@ async function getProfileData(usernameParam: string) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
-  try {
-    const { username } = await params;
-    const profile = await getProfileData(username);
-    if (!profile) return { title: 'Viby' };
+  const { username } = await params;
+  const profile = await getProfileData(username);
+  if (!profile) return { title: 'Perfil | Viby' };
 
-    const name = profile.type === 'organization' ? profile.name : (profile.name || profile.displayName || username);
-    const title = `${name} • Viby`;
-    const description = profile.bio || `Confira o perfil oficial de ${name} na Viby.`;
-    const image = profile.avatar || profile.banner || VIBY_DEFAULT_IMAGE;
+  const name = profile.type === 'organization' ? profile.name : (profile.name || profile.displayName || username);
+  const title = `${name} | @${username} | Viby`;
+  const description = profile.bio || `Confira o perfil oficial de ${name} na Viby.`;
+  const image = profile.avatar || profile.banner || VIBY_DEFAULT_IMAGE;
+  const url = `https://viby.club/${username}`;
 
-    return {
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
       title,
       description,
-      keywords: ['perfil', 'viby', name, profile.username],
-      alternates: { canonical: `/${username}` },
-      openGraph: {
-        title,
-        description,
-        url: `https://viby.club/${username}`,
-        siteName: 'Viby',
-        images: [{ url: image, width: 1200, height: 630, alt: name }],
-        type: 'profile',
-        locale: 'pt_BR',
-      },
-      twitter: {
-        card: 'summary_large_image',
-        title,
-        description,
-        images: [image],
-      },
-      robots: {
-        index: true,
-        follow: true,
-      }
-    };
-  } catch (e) {
-    return { title: 'Viby | Perfil' };
-  }
+      url,
+      siteName: 'Viby',
+      images: [{ url: image, width: 1200, height: 630, alt: name }],
+      type: 'profile',
+      locale: 'pt_BR',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [image],
+    },
+    robots: { index: true, follow: true }
+  };
 }
 
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
@@ -122,12 +98,29 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const profile = await getProfileData(username);
   
   if (!profile) {
-    // Se for rota reservada, o Next.js continuará procurando por outros arquivos (admin/page.tsx etc)
-    // Se não for reservada e não houver perfil, retornamos 404
-    const cleanUser = username.toLowerCase().trim();
-    if (RESERVED_ROUTES.includes(cleanUser)) return null;
+    if (RESERVED_ROUTES.includes(username.toLowerCase())) return null;
     notFound();
   }
 
-  return <ProfilePageClient username={username} />;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": profile.type === 'organization' ? "Organization" : "Person",
+    "name": profile.name || profile.displayName || username,
+    "description": profile.bio || "",
+    "image": profile.avatar || VIBY_DEFAULT_IMAGE,
+    "url": `https://viby.club/${username}`,
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": profile.city,
+      "addressRegion": profile.state,
+      "addressCountry": "BR"
+    }
+  };
+
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <ProfilePageClient username={username} />
+    </>
+  );
 }

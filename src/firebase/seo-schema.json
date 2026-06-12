@@ -1,13 +1,22 @@
-
 {
-  "seo_optimization": {
-    "dynamic_og": {
-      "endpoint": "/api/og",
-      "features": ["Geração de imagem server-side", "Cache Edge", "Logo Viby automática", "Gradientes premium"]
+  "seo_config": {
+    "dynamic_metadata": {
+      "pages": ["Eventos", "Perfis", "Home"],
+      "tags": ["title", "description", "canonical", "OG", "Twitter"]
     },
-    "metadata": {
-      "types": ["OpenGraph", "Twitter Cards", "JSON-LD (Schema.org)"],
-      "dynamic_pages": ["Eventos", "Perfis (User/Org)", "Home", "Explorar"]
+    "structured_data": {
+      "events": "https://schema.org/Event",
+      "organizations": "https://schema.org/Organization",
+      "people": "https://schema.org/Person"
+    },
+    "sitemap": {
+      "path": "/sitemap.xml",
+      "frequency": "hourly cache",
+      "entities": ["static_routes", "profiles", "active_events"]
+    },
+    "robots": {
+      "path": "/robots.txt",
+      "rules": "standard index allow with admin exclusions"
     }
   }
 }
