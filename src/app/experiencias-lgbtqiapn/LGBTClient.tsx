@@ -7,8 +7,15 @@ import { EventCard } from "@/components/events/EventCard"
 import { PrideHeader } from "@/components/layout/PrideHeader"
 import Footer from "@/components/layout/Footer"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Inbox } from "lucide-react"
+import { Loader2, Inbox, MapPin, Calendar as CalendarIcon, FilterX, Clock } from "lucide-react"
 import ProgressPrideBackground from "@/components/ui/ProgressPrideBackground"
+import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { Button } from "@/components/ui/button"
+import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { cn, normalizeText } from "@/lib/utils"
 
 const LGBT_CATEGORY_IDS = [
   "bNr5g766mc0vGskU1RBq",
@@ -23,6 +30,9 @@ const LGBT_TAGS = [
 
 export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[] }) {
   const db = useFirestore()
+  const [searchCity, setSearchCity] = React.useState("")
+  const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
+  const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
 
   const eventsQuery = React.useMemo(() => {
     if (!db) return null
@@ -33,23 +43,64 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
   
   const displayEvents = React.useMemo(() => {
     const source = rawEvents?.length > 0 ? rawEvents : initialEvents;
+    const now = startOfToday();
     
     return source.filter(event => {
+      // Base Filter (LGBT)
       const byCategory = LGBT_CATEGORY_IDS.includes(event.categoryId)
       const byTags = event.tags?.some((tag: string) => 
         LGBT_TAGS.includes(tag.toLowerCase())
       )
       
-      return byCategory || byTags
+      if (!(byCategory || byTags)) return false;
+
+      // City Filter
+      if (searchCity) {
+        const cityNorm = normalizeText(searchCity);
+        const eventLoc = normalizeText(`${event.city || ""} ${event.state || ""}`);
+        if (!eventLoc.includes(cityNorm)) return false;
+      }
+
+      // Date Filter
+      if (dateFilter !== 'all') {
+        const parseDate = (val: any) => {
+          if (!val) return null;
+          if (val.toDate) return val.toDate();
+          const d = new Date(val);
+          return isNaN(d.getTime()) ? null : d;
+        };
+
+        const eventDate = parseDate(event.date);
+        if (!eventDate) return false;
+
+        if (dateFilter === 'today') {
+          if (!isSameDay(eventDate, now)) return false;
+        } else if (dateFilter === 'tomorrow') {
+          if (!isSameDay(eventDate, addDays(now, 1))) return false;
+        } else if (dateFilter === 'week') {
+          const endWeek = endOfWeek(now);
+          if (eventDate < now || eventDate > endWeek) return false;
+        } else if (dateFilter === 'custom' && customDate) {
+          if (!isSameDay(eventDate, customDate)) return false;
+        }
+      }
+
+      return true;
     })
-  }, [rawEvents, initialEvents])
+  }, [rawEvents, initialEvents, searchCity, dateFilter, customDate])
+
+  const clearFilters = () => {
+    setSearchCity("");
+    setDateFilter("all");
+    setCustomDate(undefined);
+  };
 
   return (
     <ProgressPrideBackground>
       <div className="flex flex-col min-h-screen">
         <PrideHeader />
 
-        <section className="relative h-[60vh] flex items-center justify-center overflow-hidden">
+        <section className="relative h-[50vh] flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
           <div className="container mx-auto px-4 relative z-10 text-center text-white space-y-6">
             <Badge className="bg-white/20 backdrop-blur-md text-white border-white/20 px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest animate-bounce">
@@ -69,6 +120,51 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
             <div className="space-y-1">
               <h2 className="text-3xl font-black uppercase italic tracking-tighter text-white drop-shadow-md">Agenda da Diversidade</h2>
               <p className="text-white/80 font-medium uppercase text-[10px] tracking-widest">Encontre o seu próximo rolê.</p>
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative w-full sm:w-48">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+                <Input 
+                  placeholder="Cidade" 
+                  className="pl-10 h-11 rounded-xl bg-white/10 border-white/20 text-white placeholder:text-white/40 border-dashed focus-visible:ring-secondary/50" 
+                  value={searchCity} 
+                  onChange={(e) => setSearchCity(e.target.value)} 
+                />
+              </div>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("rounded-xl h-11 border-dashed gap-2 font-bold text-xs uppercase bg-white/10 border-white/20 text-white hover:bg-white/20", dateFilter !== 'all' && "bg-secondary text-white border-secondary")}>
+                    <CalendarIcon className="h-4 w-4" />
+                    {dateFilter === 'today' ? 'Hoje' :
+                     dateFilter === 'tomorrow' ? 'Amanhã' :
+                     dateFilter === 'week' ? 'Semana' :
+                     dateFilter === 'custom' && customDate ? format(customDate, "dd/MM", { locale: ptBR }) :
+                     'Quando?'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="end">
+                  <div className="p-3 border-b grid grid-cols-3 gap-2">
+                      <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
+                      <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'tomorrow' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
+                      <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'week' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
+                  </div>
+                  <Calendar
+                    mode="single"
+                    selected={customDate}
+                    onSelect={(d) => { if(d) { setCustomDate(d); setDateFilter('custom'); } }}
+                    initialFocus
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+
+              {(searchCity || dateFilter !== 'all') && (
+                <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl text-white hover:bg-white/10" onClick={clearFilters}>
+                  <FilterX className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
 
@@ -91,7 +187,8 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
           ) : (
             <div className="py-32 text-center bg-white/10 backdrop-blur-md rounded-[3rem] border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-4 shadow-inner text-white">
               <Inbox className="w-12 h-12 opacity-40" />
-              <p className="text-sm font-black uppercase tracking-widest">Nenhum evento localizado no momento.</p>
+              <p className="text-sm font-black uppercase tracking-widest">Nenhum evento localizado para estes filtros.</p>
+              <Button variant="link" className="text-white font-bold underline" onClick={clearFilters}>Limpar Filtros</Button>
             </div>
           )}
         </main>
