@@ -30,7 +30,6 @@ import {
   MoreVertical,
   Layers,
   AtSign,
-  Briefcase,
   Zap,
   Tag,
   Ticket,
@@ -80,7 +79,6 @@ const STATUS_OPTIONS = [
   { value: 'arquivado', label: 'Arquivado' }
 ];
 
-const AGENTS = ["Hiago", "João", "Maria", "Parceiro Externo"];
 const SOURCES = ["Landing Page", "Instagram", "WhatsApp", "Indicação", "Evento", "Manual"];
 const PRIORITIES = ["baixa", "media", "alta", "urgente"];
 const POTENTIALS = ["baixo", "medio", "alto"];
@@ -100,6 +98,10 @@ export default function LeadDetailPage() {
     [db, id]
   )
   const { data: history, loading: loadingHistory } = useCollection<any>(historyQuery)
+
+  // Busca administradores reais do sistema para o campo Responsável
+  const adminsQuery = useMemoFirebase(() => db ? query(collection(db, "system_admins"), where("status", "==", "Ativo")) : null, [db]);
+  const { data: admins } = useCollection<any>(adminsQuery);
 
   const [isContactModalOpen, setIsContactModalOpen] = React.useState(false)
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = React.useState(false)
@@ -239,7 +241,7 @@ export default function LeadDetailPage() {
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase opacity-60">Interesse em:</Label>
-                       <Select value={lead.interessePrincipal} onValueChange={v => handleUpdateLead('interessePrincipal', v)}>
+                       <Select value={lead.interessePrincipal || ""} onValueChange={v => handleUpdateLead('interessePrincipal', v)}>
                           <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                           <SelectContent className="rounded-xl">
                              <SelectItem value="gratuitos">Eventos Gratuitos</SelectItem>
@@ -282,12 +284,12 @@ export default function LeadDetailPage() {
                  <HistoryIcon className="w-5 h-5 text-secondary" /> Histórico de Gestão
               </h2>
               <div className="relative pl-8 space-y-12 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-border/60 before:border-dashed">
-                 {loadingHistory ? <Loader2 className="animate-spin w-4 h-4" /> : 
+                 {loadingHistory ? <div className="flex justify-center"><Loader2 className="animate-spin w-4 h-4" /></div> : 
                   history && history.length > 0 ? history.map((h, i) => (
                     <div key={h.id} className="relative">
                        <div className={cn(
                          "absolute -left-8 top-1 w-6 h-6 rounded-full flex items-center justify-center border-2 border-background shadow-md",
-                         h.tipo === 'contato' ? "bg-green-50 text-white" : 
+                         h.tipo === 'contato' ? "bg-green-600 text-white" : 
                          h.tipo === 'conversao' ? "bg-secondary text-white" : 
                          h.tipo === 'follow_up' ? "bg-orange-500 text-white" : "bg-primary text-white"
                        )}>
@@ -324,7 +326,7 @@ export default function LeadDetailPage() {
               <div className="space-y-6">
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Status Atual</Label>
-                    <Select value={lead.status} onValueChange={v => handleUpdateLead('status', v)}>
+                    <Select value={lead.status || ""} onValueChange={v => handleUpdateLead('status', v)}>
                        <SelectTrigger className="h-12 rounded-xl font-black italic uppercase"><SelectValue /></SelectTrigger>
                        <SelectContent className="rounded-xl">
                           {STATUS_OPTIONS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label.toUpperCase()}</SelectItem>)}
@@ -334,10 +336,13 @@ export default function LeadDetailPage() {
 
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Responsável</Label>
-                    <Select value={lead.responsavel} onValueChange={v => handleUpdateLead('responsavel', v)}>
+                    <Select value={lead.responsavel || ""} onValueChange={v => handleUpdateLead('responsavel', v)}>
                        <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Selecione o agente" /></SelectTrigger>
                        <SelectContent className="rounded-xl">
-                          {AGENTS.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                          {admins?.map((adm: any) => (
+                             <SelectItem key={adm.uid} value={adm.nome}>{adm.nome.toUpperCase()}</SelectItem>
+                          ))}
+                          <SelectItem value="Parceiro Externo">PARCEIRO EXTERNO</SelectItem>
                        </SelectContent>
                     </Select>
                  </div>
@@ -347,7 +352,7 @@ export default function LeadDetailPage() {
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase opacity-60">Prioridade</Label>
-                       <Select value={lead.prioridade} onValueChange={v => handleUpdateLead('prioridade', v)}>
+                       <Select value={lead.prioridade || ""} onValueChange={v => handleUpdateLead('prioridade', v)}>
                           <SelectTrigger className="rounded-xl h-10"><SelectValue placeholder="Definir" /></SelectTrigger>
                           <SelectContent className="rounded-xl">
                              {PRIORITIES.map(p => <SelectItem key={p} value={p}>{p.toUpperCase()}</SelectItem>)}
@@ -356,7 +361,7 @@ export default function LeadDetailPage() {
                     </div>
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase opacity-60">Potencial</Label>
-                       <Select value={lead.potencial} onValueChange={v => handleUpdateLead('potencial', v)}>
+                       <Select value={lead.potencial || ""} onValueChange={v => handleUpdateLead('potencial', v)}>
                           <SelectTrigger className="rounded-xl h-10"><SelectValue placeholder="Definir" /></SelectTrigger>
                           <SelectContent className="rounded-xl">
                              {POTENTIALS.map(p => <SelectItem key={p} value={p}>{p.toUpperCase()}</SelectItem>)}
@@ -367,7 +372,7 @@ export default function LeadDetailPage() {
 
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Origem do Lead</Label>
-                    <Select value={lead.origem} onValueChange={v => handleUpdateLead('origem', v)}>
+                    <Select value={lead.origem || ""} onValueChange={v => handleUpdateLead('origem', v)}>
                        <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione a origem" /></SelectTrigger>
                        <SelectContent className="rounded-xl">
                           {SOURCES.map(s => <SelectItem key={s} value={s}>{s.toUpperCase()}</SelectItem>)}
@@ -440,7 +445,7 @@ export default function LeadDetailPage() {
                </div>
                <DialogFooter>
                   <Button type="submit" disabled={isSaving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                     {isSaving ? <Loader2 className="animate-spin" /> : "Salvar Registro"}
+                     {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : "Salvar Registro"}
                   </Button>
                </DialogFooter>
             </form>
@@ -473,7 +478,7 @@ export default function LeadDetailPage() {
                </div>
                <DialogFooter>
                   <Button type="submit" disabled={isSaving} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                     {isSaving ? <Loader2 className="animate-spin" /> : "Agendar Follow-up"}
+                     {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : "Agendar Follow-up"}
                   </Button>
                </DialogFooter>
             </form>
@@ -507,7 +512,7 @@ export default function LeadDetailPage() {
                </div>
                <DialogFooter>
                   <Button type="submit" disabled={isSaving} className="w-full bg-green-600 text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                     {isSaving ? <Loader2 className="animate-spin" /> : "Marcar como CONVERTIDO"}
+                     {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : "Marcar como CONVERTIDO"}
                   </Button>
                </DialogFooter>
             </form>

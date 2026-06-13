@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -30,28 +29,41 @@ export async function updateLeadAction(leadId: string, data: any, adminName: str
   try {
     const leadRef = db.collection('organizer_leads').doc(leadId);
     const oldSnap = await leadRef.get();
-    const oldData = oldSnap.data();
+    if (!oldSnap.exists) throw new Error("Lead não encontrado.");
+    
+    const oldData = oldSnap.data()!;
 
     await leadRef.update({
       ...data,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // Detectar mudanças para o histórico
-    if (data.status && data.status !== oldData?.status) {
-      await addLeadHistory({
-        leadId,
-        tipo: 'status',
-        descricao: `Status alterado de ${oldData?.status} para ${data.status}`,
-        usuarioResponsavel: adminName
-      });
+    // Auditoria automática de alterações para o histórico
+    const fieldsToMonitor = [
+      { key: 'status', label: 'Status' },
+      { key: 'responsavel', label: 'Responsável' },
+      { key: 'prioridade', label: 'Prioridade' },
+      { key: 'potencial', label: 'Potencial' },
+      { key: 'origem', label: 'Origem' },
+      { key: 'interessePrincipal', label: 'Interesse' }
+    ];
+
+    for (const field of fieldsToMonitor) {
+      if (data[field.key] !== undefined && data[field.key] !== oldData[field.key]) {
+        await addLeadHistory({
+          leadId,
+          tipo: 'alteracao',
+          descricao: `${field.label} alterado de "${oldData[field.key] || 'Vazio'}" para "${data[field.key]}"`,
+          usuarioResponsavel: adminName
+        });
+      }
     }
 
-    if (data.responsavel && data.responsavel !== oldData?.responsavel) {
+    if (data.observacoesInternas && data.observacoesInternas !== oldData.observacoesInternas) {
       await addLeadHistory({
         leadId,
-        tipo: 'responsavel',
-        descricao: `Responsável alterado de ${oldData?.responsavel || 'Ninguém'} para ${data.responsavel}`,
+        tipo: 'nota',
+        descricao: `Anotação interna atualizada.`,
         usuarioResponsavel: adminName
       });
     }
@@ -124,7 +136,6 @@ export async function convertLeadAction(params: {
   leadId: string;
   adminName: string;
   stripeStatus: string;
-  firstEventDate?: string;
   publishedCount: number;
 }) {
   const db = getAdminDb();
