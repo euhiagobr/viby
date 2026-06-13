@@ -1,11 +1,12 @@
 import * as React from "react"
 import { Metadata } from "next"
-import { getAdminDb } from "@/lib/firebase/admin"
 import CopaMundoClient from "./CopaMundoClient"
 import { COPA_TAGS } from "@/lib/constants"
 import Link from "next/link"
 import Image from "next/image"
 import { Trophy } from "lucide-react"
+import Footer from '@/components/layout/Footer';
+import { getAdminDb } from "@/lib/firebase/admin"
 
 export const metadata: Metadata = {
   title: 'Onde Assistir à Copa do Mundo 2026 | Viby',
@@ -81,7 +82,7 @@ export default async function CopaMundoPage() {
                 width={120} 
                 height={40} 
                 style={{ height: 'auto' }}
-                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
+                className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" 
                 priority 
                 unoptimized 
               />
