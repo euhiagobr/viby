@@ -15,11 +15,10 @@ import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
 import { isEventVisible, calculateDistanceMeters } from "@/lib/event-scoring-utils"
 import Footer from "@/components/layout/Footer"
-import Image from "next/image"
-import { UserNav } from "@/components/layout/UserNav"
 import { format, startOfToday, addDays } from "date-fns"
 import { useTranslation } from "@/i18n/i18n-context"
 import { useState, useEffect, useCallback } from "react"
+import { PublicHeader } from "@/components/layout/PublicHeader"
 
 export default function LandingPageClient({ initialEvents = [] }: { initialEvents?: any[] }) {
   const { t } = useTranslation()
@@ -36,9 +35,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const [hasMore, setHasMore] = useState(initialEvents.length >= 12)
   const [isFetching, setIsFetching] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
-
-  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
-  const { data: settings } = useDoc<any>(settingsRef)
 
   // Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
@@ -139,45 +135,9 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
     return { events: baseFiltered, isFallback: false };
   }, [rawEvents, allOccurrences, searchName, searchCity, userLocation])
 
-  const siteName = settings?.siteName || "Viby"
-
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
-      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            {settings?.logoUrl ? (
-              <Image 
-                src={settings.logoUrl} 
-                alt={siteName} 
-                width={120} 
-                height={40} 
-                style={{ height: 'auto' }}
-                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
-                priority 
-                unoptimized 
-              />
-            ) : (
-              <span className="text-xl font-black italic uppercase text-primary ml-1">{siteName}</span>
-            )}
-          </Link>
-          <div className="flex items-center gap-4">
-            <Button asChild variant="outline" className="hidden md:flex rounded-full h-9 border-[#ffdf00] bg-[#ffdf00]/10 text-[#002776] font-black uppercase text-[9px] gap-2">
-               <Link href="/copa-do-mundo"><Trophy className="w-3.5 h-3.5" /> Copa 2026</Link>
-            </Button>
-            {user ? <UserNav /> : (
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest px-2 sm:px-4">
-                  <Link href="/login">{t('home.login')}</Link>
-                </Button>
-                <Button asChild className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-4 sm:px-6 shadow-lg">
-                  <Link href="/cadastro">{t('home.signup')}</Link>
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </nav>
+      <PublicHeader />
 
       <section className="relative min-h-[85vh] flex items-center justify-center overflow-hidden bg-primary text-white text-center">
         <div className="absolute inset-0 pointer-events-none">
