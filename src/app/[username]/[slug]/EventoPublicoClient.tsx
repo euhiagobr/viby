@@ -120,21 +120,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     };
   }, [event, upcomingOccurrences]);
 
-  // Log de Depuração no Cliente
-  React.useEffect(() => {
-    if (id) {
-       console.log(`[DEBUG-CLIENT] EventoPublicoClient mounted. ID: ${id}, Username: ${username}`);
-    }
-  }, [id, username]);
-
-  React.useEffect(() => {
-    if (event) {
-       console.log(`[DEBUG-CLIENT] Event data loaded successfully:`, event.title);
-    } else if (!eventLoading && id) {
-       console.warn(`[DEBUG-CLIENT] Event document ${id} exists but data is null or empty.`);
-    }
-  }, [event, eventLoading, id]);
-
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
     try {
@@ -271,7 +256,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
           <aside className="lg:col-span-4 space-y-8">
             <section className="sticky top-24 space-y-8">
-               <AgeRatingWarning code={event.ageRatingCode || "free"} />
+               <AgeRatingBadge code={event.ageRatingCode || "free"} showLabel className="px-2" />
                
                <BilheteriaPublic 
                  event={effectiveEventData} 

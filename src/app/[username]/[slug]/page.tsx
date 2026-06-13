@@ -46,10 +46,7 @@ async function getEventData(usernameParam: string, slugParam: string) {
     const username = decodeURIComponent(usernameParam).toLowerCase().trim();
     const slug = decodeURIComponent(slugParam).trim();
 
-    console.log(`[DEBUG-SERVER] Fetching event. Username: ${username}, Slug: ${slug}`);
-
     if (RESERVED_ROUTES.includes(username)) {
-      console.log(`[DEBUG-SERVER] Username '${username}' is a reserved route.`);
       return null;
     }
 
@@ -58,12 +55,10 @@ async function getEventData(usernameParam: string, slugParam: string) {
     // 1. Buscar UID pelo username
     const usernameSnap = await db.collection("usernames").doc(username).get();
     if (!usernameSnap.exists) {
-      console.log(`[DEBUG-SERVER] Username document '${username}' not found.`);
       return null;
     }
     
     const targetUid = usernameSnap.data()!.uid;
-    console.log(`[DEBUG-SERVER] Found targetUid: ${targetUid} for username: ${username}`);
 
     let eventDoc = null;
 
@@ -73,21 +68,18 @@ async function getEventData(usernameParam: string, slugParam: string) {
       const data = eventByIdSnap.data()!;
       const ownerId = data.organizationId || data.organizerId;
       if (ownerId === targetUid) {
-        console.log(`[DEBUG-SERVER] Event found by direct ID: ${slug}`);
         eventDoc = { id: eventByIdSnap.id, ...data };
       }
     }
 
     // 3. Tentar buscar por campo 'slug'
     if (!eventDoc) {
-      console.log(`[DEBUG-SERVER] Searching for event by slug field: ${slug.toLowerCase()}`);
       const queryBySlug = await db.collection("events")
         .where("organizationId", "==", targetUid)
         .where("slug", "==", slug.toLowerCase())
         .limit(1).get();
       
       if (!queryBySlug.empty) {
-        console.log(`[DEBUG-SERVER] Event found by slug field.`);
         eventDoc = { id: queryBySlug.docs[0].id, ...queryBySlug.docs[0].data() };
       } else {
         const queryByOrganizer = await db.collection("events")
@@ -96,14 +88,12 @@ async function getEventData(usernameParam: string, slugParam: string) {
           .limit(1).get();
           
         if (!queryByOrganizer.empty) {
-          console.log(`[DEBUG-SERVER] Event found by slug field (Legacy).`);
           eventDoc = { id: queryByOrganizer.docs[0].id, ...queryByOrganizer.docs[0].data() };
         }
       }
     }
 
     if (!eventDoc) {
-      console.log(`[DEBUG-SERVER] Event NOT FOUND for slug: ${slug}`);
       return null;
     }
 
@@ -121,17 +111,14 @@ async function getEventData(usernameParam: string, slugParam: string) {
           const nextOcc = occSnap.docs[0].data();
           eventDoc.date = `${nextOcc.date}T${nextOcc.startTime || '00:00'}:00`;
           if (nextOcc.endTime) eventDoc.endDate = `${nextOcc.date}T${nextOcc.endTime}:00`;
-          console.log(`[DEBUG-SERVER] Recurrence updated for event.`);
         }
       } catch (occError: any) {
-        // Se falhar por falta de índice, não quebramos a página, apenas usamos a data base
-        console.warn(`[DEBUG-SERVER] Recurrence query failed (possibly missing index). Using base date.`, occError.message);
+        // Silently use base date on index error
       }
     }
 
     return serializeData(eventDoc);
   } catch (e: any) {
-    console.error(`[DEBUG-SERVER] Fatal error in getEventData:`, e.message);
     return null;
   }
 }
