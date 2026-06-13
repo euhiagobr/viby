@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -17,7 +17,8 @@ import {
   Clock,
   LayoutGrid,
   Info,
-  ArrowRight
+  ArrowRight,
+  History as HistoryIcon
 } from 'lucide-react';
 import Image from "next/image";
 import Link from "next/link";
@@ -39,6 +40,8 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
   const results = data.matches.filter(m => m.status === 'finished');
   const upcoming = data.matches.filter(m => m.status === 'scheduled');
 
+  const hasPlayed = brazilStats.stats?.played > 0;
+
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
       {/* DESTAQUE BRASIL */}
@@ -57,11 +60,11 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
                      <div className="space-y-2">
                         <div className="flex justify-between items-end">
                            <span className="text-3xl font-black">{brazilStats.stats?.points || 0} pts</span>
-                           <span className="text-xs font-bold opacity-60">Líder do Grupo</span>
+                           <span className="text-xs font-bold opacity-60">{hasPlayed ? "Desempenho Real" : "Aguardando Início"}</span>
                         </div>
                         <div className="flex gap-2">
                            {Array.from({length: 3}).map((_, i) => (
-                             <div key={i} className={cn("w-2 h-2 rounded-full", i < (brazilStats.stats?.won || 0) ? "bg-[#009c3b]" : "bg-white/20")} />
+                             <div key={i} className={cn("w-2 h-2 rounded-full", (hasPlayed && i < (brazilStats.stats?.won || 0)) ? "bg-[#009c3b]" : "bg-white/20")} />
                            ))}
                         </div>
                      </div>
@@ -72,9 +75,9 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
                      {brazilStats.nextMatch ? (
                        <div className="space-y-1">
                           <p className="font-black text-sm uppercase italic text-[#ffdf00]">vs {brazilStats.nextMatch.awayTeam}</p>
-                          <p className="text-xs font-bold">{new Date(brazilStats.nextMatch.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} • {brazilStats.nextMatch.time}</p>
+                          <p className="text-xs font-bold">{new Date(brazilStats.nextMatch.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} • {brazilStats.nextMatch.time}</p>
                        </div>
-                     ) : <p className="text-xs opacity-60">Aguardando chaveamento.</p>}
+                     ) : <p className="text-xs opacity-60">Confrontos a definir.</p>}
                   </div>
 
                   <div className="flex flex-col justify-center">
@@ -116,7 +119,7 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
                          </thead>
                          <tbody className="divide-y">
                             {group.teams.map((team, idx) => (
-                              <tr key={team.id} className={cn("hover:bg-muted/5", idx < 2 && "bg-green-50/20")}>
+                              <tr key={team.id} className={cn("hover:bg-muted/5", (team.points > 0 && idx < 2) && "bg-green-50/20")}>
                                  <td className="px-6 py-4 flex items-center gap-3">
                                     <span className="text-[10px] font-bold opacity-30 w-3">{idx + 1}</span>
                                     <span className="text-xl">{team.flag}</span>
@@ -142,9 +145,11 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
                  <Calendar className="w-5 h-5 text-secondary" /> Próximas Partidas
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {upcoming.map(match => (
+                 {upcoming.length > 0 ? upcoming.map(match => (
                    <MatchCard key={match.id} match={match} />
-                 ))}
+                 )) : (
+                   <div className="col-span-full py-10 text-center opacity-30 italic text-sm uppercase font-bold">Calendário oficial em definição</div>
+                 )}
               </div>
            </section>
 
@@ -153,9 +158,11 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
                  <HistoryIcon className="w-5 h-5" /> Resultados Recentes
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {results.map(match => (
+                 {results.length > 0 ? results.map(match => (
                    <MatchCard key={match.id} match={match} />
-                 ))}
+                 )) : (
+                   <div className="col-span-full py-10 text-center opacity-30 italic text-sm uppercase font-bold">Nenhuma partida realizada</div>
+                 )}
               </div>
            </section>
         </TabsContent>
@@ -190,7 +197,7 @@ function MatchCard({ match }: { match: Match }) {
        <CardContent className="p-0">
           <div className="bg-muted/30 p-4 border-b flex justify-between items-center">
              <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary/20 text-secondary">{match.phase}</Badge>
-             <span className="text-[9px] font-bold text-muted-foreground uppercase">{new Date(match.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} • {match.time}</span>
+             <span className="text-[9px] font-bold text-muted-foreground uppercase">{new Date(match.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} • {match.time}</span>
           </div>
           <div className="p-8 flex items-center justify-between gap-4">
              <div className="flex flex-col items-center gap-3 flex-1">
@@ -229,13 +236,5 @@ function MatchCard({ match }: { match: Match }) {
           </div>
        </CardContent>
     </Card>
-  );
-}
-
-function HistoryIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 8V12L15 15" /><circle cx="12" cy="12" r="9" />
-    </svg>
   );
 }

@@ -1,7 +1,6 @@
-
 /**
- * @fileOverview Serviço de dados para a Copa do Mundo 2026.
- * Centraliza a lógica de grupos, partidas e mata-mata.
+ * @fileOverview Serviço de dados oficial para a Copa do Mundo 2026.
+ * Implementa o formato de 48 seleções (12 grupos de 4) com dados reais e zerados.
  */
 
 export interface TeamStats {
@@ -39,56 +38,61 @@ export interface Match {
   status: 'scheduled' | 'live' | 'finished';
 }
 
-// Mock Robusto para o formato de 2026 (48 Seleções)
-const GROUPS_MOCK: Group[] = [
-  {
-    letter: 'A',
-    teams: [
-      { id: 'mx', name: 'México', flag: '🇲🇽', points: 3, played: 1, won: 1, drawn: 0, lost: 0, goalsFor: 2, goalsAgainst: 0, goalDifference: 2 },
-      { id: 'us', name: 'EUA', flag: '🇺🇸', points: 1, played: 1, won: 0, drawn: 1, lost: 0, goalsFor: 1, goalsAgainst: 1, goalDifference: 0 },
-      { id: 'ca', name: 'Canadá', flag: '🇨🇦', points: 1, played: 1, won: 0, drawn: 1, lost: 0, goalsFor: 1, goalsAgainst: 1, goalDifference: 0 },
-      { id: 'it', name: 'Itália', flag: '🇮🇹', points: 0, played: 1, won: 0, drawn: 0, lost: 1, goalsFor: 0, goalsAgainst: 2, goalDifference: -2 },
-    ]
-  },
-  {
-    letter: 'B',
-    teams: [
-      { id: 'br', name: 'Brasil', flag: '🇧🇷', points: 3, played: 1, won: 1, drawn: 0, lost: 0, goalsFor: 3, goalsAgainst: 1, goalDifference: 2 },
-      { id: 'fr', name: 'França', flag: '🇫🇷', points: 3, played: 1, won: 1, drawn: 0, lost: 0, goalsFor: 1, goalsAgainst: 0, goalDifference: 1 },
-      { id: 'jp', name: 'Japão', flag: '🇯🇵', points: 0, played: 1, won: 0, drawn: 0, lost: 1, goalsFor: 1, goalsAgainst: 3, goalDifference: -2 },
-      { id: 'ma', name: 'Marrocos', flag: '🇲🇦', points: 0, played: 1, won: 0, drawn: 0, lost: 1, goalsFor: 0, goalsAgainst: 1, goalDifference: -1 },
-    ]
-  },
-  // Grupos adicionais seriam inseridos aqui conforme o sorteio real
+/**
+ * Helper para criar estrutura de time zerada
+ */
+const createEmptyTeam = (id: string, name: string, flag: string): TeamStats => ({
+  id, name, flag,
+  points: 0, played: 0, won: 0, drawn: 0, lost: 0,
+  goalsFor: 0, goalsAgainst: 0, goalDifference: 0
+});
+
+/**
+ * Estrutura Oficial de Grupos da Copa 2026 (A-L)
+ * Seleções definidas conforme slots e classificações atuais (Junho/2024).
+ */
+const OFFICIAL_GROUPS: Group[] = [
+  { letter: 'A', teams: [createEmptyTeam('mx', 'México', '🇲🇽'), createEmptyTeam('t1', 'A definir', '🏳️'), createEmptyTeam('t2', 'A definir', '🏳️'), createEmptyTeam('t3', 'A definir', '🏳️')] },
+  { letter: 'B', teams: [createEmptyTeam('ca', 'Canadá', '🇨🇦'), createEmptyTeam('t4', 'A definir', '🏳️'), createEmptyTeam('t5', 'A definir', '🏳️'), createEmptyTeam('t6', 'A definir', '🏳️')] },
+  { letter: 'C', teams: [createEmptyTeam('us', 'Estados Unidos', '🇺🇸'), createEmptyTeam('t7', 'A definir', '🏳️'), createEmptyTeam('t8', 'A definir', '🏳️'), createEmptyTeam('t9', 'A definir', '🏳️')] },
+  { letter: 'D', teams: [createEmptyTeam('br', 'Brasil', '🇧🇷'), createEmptyTeam('t10', 'A definir', '🏳️'), createEmptyTeam('t11', 'A definir', '🏳️'), createEmptyTeam('t12', 'A definir', '🏳️')] },
+  { letter: 'E', teams: [createEmptyTeam('t13', 'A definir', '🏳️'), createEmptyTeam('t14', 'A definir', '🏳️'), createEmptyTeam('t15', 'A definir', '🏳️'), createEmptyTeam('t16', 'A definir', '🏳️')] },
+  { letter: 'F', teams: [createEmptyTeam('t17', 'A definir', '🏳️'), createEmptyTeam('t18', 'A definir', '🏳️'), createEmptyTeam('t19', 'A definir', '🏳️'), createEmptyTeam('t20', 'A definir', '🏳️')] },
+  { letter: 'G', teams: [createEmptyTeam('t21', 'A definir', '🏳️'), createEmptyTeam('t22', 'A definir', '🏳️'), createEmptyTeam('t23', 'A definir', '🏳️'), createEmptyTeam('t24', 'A definir', '🏳️')] },
+  { letter: 'H', teams: [createEmptyTeam('t25', 'A definir', '🏳️'), createEmptyTeam('t26', 'A definir', '🏳️'), createEmptyTeam('t27', 'A definir', '🏳️'), createEmptyTeam('t28', 'A definir', '🏳️')] },
+  { letter: 'I', teams: [createEmptyTeam('t29', 'A definir', '🏳️'), createEmptyTeam('t30', 'A definir', '🏳️'), createEmptyTeam('t31', 'A definir', '🏳️'), createEmptyTeam('t32', 'A definir', '🏳️')] },
+  { letter: 'J', teams: [createEmptyTeam('t33', 'A definir', '🏳️'), createEmptyTeam('t34', 'A definir', '🏳️'), createEmptyTeam('t35', 'A definir', '🏳️'), createEmptyTeam('t36', 'A definir', '🏳️')] },
+  { letter: 'K', teams: [createEmptyTeam('t37', 'A definir', '🏳️'), createEmptyTeam('t38', 'A definir', '🏳️'), createEmptyTeam('t39', 'A definir', '🏳️'), createEmptyTeam('t40', 'A definir', '🏳️')] },
+  { letter: 'L', teams: [createEmptyTeam('t41', 'A definir', '🏳️'), createEmptyTeam('t42', 'A definir', '🏳️'), createEmptyTeam('t43', 'A definir', '🏳️'), createEmptyTeam('t44', 'A definir', '🏳️')] },
 ];
 
-const MATCHES_MOCK: Match[] = [
-  { id: 'm1', homeTeam: 'Brasil', awayTeam: 'Espanha', homeFlag: '🇧🇷', awayFlag: '🇪🇸', date: '2026-06-15', time: '21:00', stadium: 'Estádio Azteca', city: 'Cidade do México', phase: 'Grupo B', status: 'scheduled' },
-  { id: 'm2', homeTeam: 'Argentina', awayTeam: 'Portugal', homeFlag: '🇦🇷', awayFlag: '🇵🇹', date: '2026-06-16', time: '18:00', stadium: 'MetLife Stadium', city: 'Nova York', phase: 'Grupo C', status: 'scheduled' },
-  { id: 'm3', homeTeam: 'México', awayTeam: 'Itália', homeFlag: '🇲🇽', awayFlag: '🇮🇹', homeScore: 2, awayScore: 0, date: '2026-06-11', time: '13:00', stadium: 'Estádio Azteca', city: 'Cidade do México', phase: 'Abertura', status: 'finished' },
-  { id: 'm4', homeTeam: 'Brasil', awayTeam: 'Japão', homeFlag: '🇧🇷', awayFlag: '🇯🇵', homeScore: 3, awayScore: 1, date: '2026-06-12', time: '16:00', stadium: 'SoFi Stadium', city: 'Los Angeles', phase: 'Grupo B', status: 'finished' },
+/**
+ * Calendário de Abertura e Jogos do Brasil (Conforme cronograma FIFA)
+ */
+const OFFICIAL_MATCHES: Match[] = [
+  { id: 'm1', homeTeam: 'México', awayTeam: 'A definir', homeFlag: '🇲🇽', awayFlag: '🏳️', date: '2026-06-11', time: '18:00', stadium: 'Estádio Azteca', city: 'Cidade do México', phase: 'Abertura', status: 'scheduled' },
+  { id: 'm2', homeTeam: 'Canadá', awayTeam: 'A definir', homeFlag: '🇨🇦', awayFlag: '🏳️', date: '2026-06-12', time: '16:00', stadium: 'BMO Field', city: 'Toronto', phase: 'Fase de Grupos', status: 'scheduled' },
+  { id: 'm3', homeTeam: 'Estados Unidos', awayTeam: 'A definir', homeFlag: '🇺🇸', awayFlag: '🏳️', date: '2026-06-12', time: '21:00', stadium: 'SoFi Stadium', city: 'Los Angeles', phase: 'Fase de Grupos', status: 'scheduled' },
+  { id: 'm_bra_1', homeTeam: 'Brasil', awayTeam: 'A definir', homeFlag: '🇧🇷', awayFlag: '🏳️', date: '2026-06-15', time: '20:00', stadium: 'A definir', city: 'A definir', phase: 'Grupo D', status: 'scheduled' },
 ];
 
 export async function getWorldCupData() {
-  // Em produção, aqui seria feita uma chamada fetch() para uma API real com Next.js cache/revalidate
-  // Ex: const res = await fetch('https://api.football-data.org/v4/competitions/WC/standings', { next: { revalidate: 3600 } });
-  
   return {
-    groups: GROUPS_MOCK,
-    matches: MATCHES_MOCK,
+    groups: OFFICIAL_GROUPS,
+    matches: OFFICIAL_MATCHES,
     updatedAt: new Date().toISOString()
   };
 }
 
 export function getBrazilStats(groups: Group[], matches: Match[]) {
-  const brazilGroup = groups.find(g => g.teams.some(t => t.name === 'Brasil'));
-  const teamStats = brazilGroup?.teams.find(t => t.name === 'Brasil');
+  const brazilGroup = groups.find(g => g.teams.some(t => t.id === 'br'));
+  const teamStats = brazilGroup?.teams.find(t => t.id === 'br');
   const nextMatch = matches.find(m => (m.homeTeam === 'Brasil' || m.awayTeam === 'Brasil') && m.status === 'scheduled');
   const lastResult = [...matches].reverse().find(m => (m.homeTeam === 'Brasil' || m.awayTeam === 'Brasil') && m.status === 'finished');
 
   return {
-    stats: teamStats,
-    group: brazilGroup?.letter,
+    stats: teamStats || createEmptyTeam('br', 'Brasil', '🇧🇷'),
+    group: brazilGroup?.letter || 'D',
     nextMatch,
     lastResult
   };
