@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -24,7 +25,8 @@ import {
   ChevronRight,
   ArrowUpRight,
   Inbox,
-  Info
+  Info,
+  Lock as LockIcon
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -248,7 +250,7 @@ export default function AdminFinanceiroPage() {
                   return (
                     <TableRow 
                       key={org.id} 
-                      className="hover:bg-muted/10 transition-colors cursor-pointer"
+                      className="hover:bg-muted/5 transition-colors cursor-pointer"
                       onClick={() => setSelectedOrgForFinance(org)}
                     >
                       <TableCell className="p-6">
@@ -465,16 +467,10 @@ function OrgFinanceDetail({ orgId }: { orgId: string }) {
                      </TableCell>
                      <TableCell className="text-right">
                         {!isAvailable && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="h-7 text-[8px] font-black uppercase gap-1.5 border-secondary text-secondary"
-                            onClick={() => handleReleaseImmediately(sale)}
-                            disabled={isUpdating === sale.id}
-                          >
-                             {isUpdating === sale.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Zap className="w-2.5 h-2.5 fill-current" />}
-                             Liberar Agora
-                          </Button>
+                          <div className="flex items-center gap-2 text-muted-foreground bg-muted/50 p-2 rounded-lg">
+                             <LockIcon className="w-4 h-4 shrink-0" />
+                             <span className="text-[10px] font-black uppercase tracking-tight">Bloqueado</span>
+                          </div>
                         )}
                      </TableCell>
                    </TableRow>
