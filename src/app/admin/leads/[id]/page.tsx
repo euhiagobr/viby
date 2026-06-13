@@ -99,7 +99,6 @@ export default function LeadDetailPage() {
   )
   const { data: history, loading: loadingHistory } = useCollection<any>(historyQuery)
 
-  // Busca administradores reais do sistema para o campo Responsável
   const adminsQuery = useMemoFirebase(() => db ? query(collection(db, "system_admins"), where("status", "==", "Ativo")) : null, [db]);
   const { data: admins } = useCollection<any>(adminsQuery);
 
@@ -283,12 +282,12 @@ export default function LeadDetailPage() {
               <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-3 px-2">
                  <HistoryIcon className="w-5 h-5 text-secondary" /> Histórico de Gestão
               </h2>
-              <div className="relative pl-8 space-y-12 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-border/60 before:border-dashed">
+              <div className="relative pl-8 space-y-12 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-border/60 before:border-dashed before:border-l">
                  {loadingHistory ? <div className="flex justify-center"><Loader2 className="animate-spin w-4 h-4" /></div> : 
                   history && history.length > 0 ? history.map((h, i) => (
                     <div key={h.id} className="relative">
                        <div className={cn(
-                         "absolute -left-8 top-1 w-6 h-6 rounded-full flex items-center justify-center border-2 border-background shadow-md",
+                         "absolute -left-8 top-1 w-6 h-6 rounded-full flex items-center justify-center border-2 border-background shadow-md z-10",
                          h.tipo === 'contato' ? "bg-green-600 text-white" : 
                          h.tipo === 'conversao' ? "bg-secondary text-white" : 
                          h.tipo === 'follow_up' ? "bg-orange-500 text-white" : "bg-primary text-white"

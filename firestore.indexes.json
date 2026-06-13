@@ -26,6 +26,14 @@
       ]
     },
     {
+      "collectionId": "crm_lead_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "leadId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionId": "events",
       "queryScope": "COLLECTION",
       "fields": [
