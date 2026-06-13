@@ -7,9 +7,13 @@ const API_KEY = process.env.NEXT_PUBLIC_FOOTBALL_DATA_API_KEY;
 const BASE_URL = 'https://api.football-data.org/v4';
 
 export const fetcher = async (url: string) => {
+  if (!API_KEY) {
+    throw new Error('API Key da Football Data não configurada.');
+  }
+
   const response = await fetch(url, {
     headers: {
-      'X-Auth-Token': API_KEY || '',
+      'X-Auth-Token': API_KEY,
     },
   });
 

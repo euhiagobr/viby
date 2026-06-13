@@ -36,11 +36,16 @@ export interface Standing {
   table: TableEntry[];
 }
 
+export interface ScoreValue {
+  home: number | null;
+  away: number | null;
+}
+
 export interface Score {
   winner: string | null;
   duration: string;
-  fullTime: { home: number | null; away: number | null };
-  halfTime: { home: number | null; away: number | null };
+  fullTime: ScoreValue;
+  halfTime: ScoreValue;
 }
 
 export interface Match {
