@@ -80,6 +80,25 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "slug"]
+    },
+    "Occurrence": {
+      "title": "Ocorrência Recorrente",
+      "description": "Sessão individual de um evento recorrente.",
+      "type": "object",
+      "properties": {
+        "parentId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["active", "cancelled"] }
+      }
+    },
+    "Ad": {
+      "title": "Anúncio",
+      "description": "Campanha publicitária paga.",
+      "type": "object",
+      "properties": {
+        "organizationId": { "type": "string" },
+        "status": { "type": "string", "enum": ["Ativo", "Pendente", "Finalizado", "Rejeitado"] }
+      }
     }
   },
   "auth": {
@@ -101,6 +120,14 @@
     "/categories/{categoryId}": {
       "schema": "Category",
       "description": "Lista global de categorias de eventos."
+    },
+    "/recurring_occurrences/{occId}": {
+      "schema": "Occurrence",
+      "description": "Sessões individuais para eventos recorrentes e Copa."
+    },
+    "/ads/{adId}": {
+      "schema": "Ad",
+      "description": "Gestão de campanhas patrocinadas."
     }
   }
 }

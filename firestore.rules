@@ -65,6 +65,21 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /settings/ads {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/currency_rates {
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
+    }
+
+    match /system_settings/google_ads {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /categories/{categoryId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -164,6 +179,16 @@ service cloud.firestore {
       }
     }
 
+    match /recurring_occurrences/{occId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isAdmin() || isSignedIn();
+    }
+
     match /registrations/{regId} {
       allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.userId || exists(/databases/$(database)/documents/organizations/$(resource.data.organizationId)/members/$(request.auth.uid))));
       allow create: if isSignedIn(); 
@@ -192,6 +217,14 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow update: if isSignedIn() && resource.data.targetUid == request.auth.uid;
       allow delete: if isAdmin();
+    }
+
+    // Regras globais para Collection Groups (necessário wildcards)
+    match /{path=**}/members/{memberId} {
+      allow read: if isSignedIn();
+    }
+    match /{path=**}/partners/{partnerId} {
+      allow read: if true;
     }
   }
 }
