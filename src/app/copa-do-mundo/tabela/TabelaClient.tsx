@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -177,7 +177,7 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
       </Tabs>
 
       <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4 max-w-2xl mx-auto">
-         <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
+         <span className="shrink-0 mt-0.5"><Info className="w-6 h-6 text-secondary" /></span>
          <div className="space-y-1">
             <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Dados Oficiais</h4>
             <p className="text-[10px] text-muted-foreground font-bold uppercase leading-relaxed">
