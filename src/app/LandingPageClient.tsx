@@ -28,12 +28,19 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const [searchName, setSearchName] = React.useState("")
   const [searchCity, setSearchCity] = React.useState("")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
+  const [now, setNow] = useState(new Date())
   
   const [rawEvents, setRawEvents] = useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null)
   const [hasMore, setHasMore] = useState(initialEvents.length >= 12)
   const [isFetching, setIsFetching] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
+
+  // Atualiza o relógio a cada minuto para manter o threshold de visibilidade preciso
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
+  }, [])
 
   // Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
@@ -48,7 +55,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
     
     setIsFetching(true)
     try {
-      // REGRA DE NEGÓCIO: Buscar apenas eventos relevantes (futuros ou em andamento recente)
       const yesterday = new Date();
       yesterday.setHours(yesterday.getHours() - 12);
       const dateThreshold = yesterday.toISOString();
@@ -92,8 +98,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   }, [initialEvents.length, fetchEvents])
 
   const processedEvents = React.useMemo(() => {
-    const now = new Date();
-    
     const baseFiltered = rawEvents.map(e => {
       let effectiveDate = e.date;
       if (e.isRecurring && allOccurrences) {
@@ -115,10 +119,8 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
-      // REGRA DE VISIBILIDADE CRÍTICA
       if (!isEventVisible(e)) return false;
       
-      // Filtros de busca
       const nameNorm = normalizeText(searchName);
       if (searchName && !normalizeText(e.title || "").includes(nameNorm)) return false;
       
@@ -137,7 +139,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
 
     baseFiltered.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
     return { events: baseFiltered, isFallback: false };
-  }, [rawEvents, allOccurrences, searchName, searchCity, userLocation])
+  }, [rawEvents, allOccurrences, searchName, searchCity, userLocation, now])
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">

@@ -57,6 +57,10 @@ export default function ProfilePageClient({ username }: { username: string }) {
   React.useEffect(() => {
     setNow(new Date());
     getCurrentLocation().then(loc => { if(loc) setUserLocation(loc); }).catch(() => {});
+    
+    // Timer para atualizar visibilidade dos eventos
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
   }, []);
 
   // Rastreamento de Scan de QR Code
@@ -227,9 +231,8 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   const { upcomingEvents, pastEvents } = React.useMemo(() => {
     if (!orgEvents) return { upcomingEvents: [], pastEvents: [] };
-    const referenceDate = new Date();
     
-    // Processa datas efetivas para recorrência
+    // Processa datas efetivas para recorrência baseadas no relógio 'now'
     const processed = orgEvents.map(e => {
        let effectiveDate = e.date;
        if (e.isRecurring) {
@@ -242,7 +245,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
            // Encontra a primeira ocorrência que ainda não venceu o threshold de visibilidade (6h)
            const nextValid = sorted.find(o => {
              const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
-             return referenceDate < endThreshold;
+             return now < endThreshold;
            });
 
            if (nextValid) {
@@ -256,7 +259,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
     const upcoming = processed.filter((e: any) => {
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-      return end >= referenceDate;
+      return end >= now;
     }).sort((a, b) => {
       const tA = a.date?.seconds ? a.date.seconds * 1000 : new Date(a.date).getTime();
       const tB = b.date?.seconds ? b.date.seconds * 1000 : new Date(b.date).getTime();
@@ -266,7 +269,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
     const past = processed.filter((e: any) => {
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-      return end < referenceDate;
+      return end < now;
     }).sort((a, b) => {
       const tA = a.date?.seconds ? a.date.seconds * 1000 : new Date(a.date).getTime();
       const tB = b.date?.seconds ? b.date.seconds * 1000 : new Date(b.date).getTime();
@@ -274,7 +277,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
     });
 
     return { upcomingEvents: upcoming, pastEvents: past };
-  }, [orgEvents, allOccurrences]);
+  }, [orgEvents, allOccurrences, now]);
 
   const unifiedUpcomingFeed = React.useMemo(() => {
     const result = [];

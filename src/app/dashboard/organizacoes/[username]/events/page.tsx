@@ -63,8 +63,11 @@ export default function OrganizationEventsPage() {
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [now, setNow] = React.useState<Date>(new Date());
 
+  // Atualiza o relógio a cada minuto para manter sincronia de visibilidade
   React.useEffect(() => {
     setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
   }, []);
 
   const eventsQuery = useMemoFirebase(() => {
@@ -118,15 +121,12 @@ export default function OrganizationEventsPage() {
           });
 
           if (nextValid) {
-            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '00:00') + ':00';
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
             isEventPast = false;
           } else {
-            // Se tem ocorrências mas nenhuma é futura ou recente, é passado
             isEventPast = true;
           }
         } else {
-          // Se não há ocorrências futuras na lista (query restringida a >= yesterday)
-          // Mas o evento é marcado como recorrente, verificamos se a data original já passou
           const start = effectiveDate?.toDate ? effectiveDate.toDate() : new Date(effectiveDate);
           const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
           isEventPast = end < now;
@@ -145,7 +145,6 @@ export default function OrganizationEventsPage() {
       }
     });
 
-    // Ordenação: Próximos por data Ascendente, Passados por data Descendente
     upcoming.sort((a, b) => {
       const tA = a._effectiveDate?.toDate ? a._effectiveDate.toDate().getTime() : new Date(a._effectiveDate).getTime();
       const tB = b._effectiveDate?.toDate ? b._effectiveDate.toDate().getTime() : new Date(b._effectiveDate).getTime();

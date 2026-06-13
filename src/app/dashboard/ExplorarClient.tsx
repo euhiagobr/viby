@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -66,6 +65,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
   const [radiusKm, setRadiusKm] = useState('30')
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
+  const [now, setNow] = useState(new Date())
   
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
@@ -85,6 +85,12 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
   const [hasMore, setHasMore] = useState(initialEvents.length >= 9)
   const [isFetching, setIsFetching] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
+
+  // Atualiza o relógio a cada minuto para manter sincronia de visibilidade
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
+  }, [])
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -144,8 +150,6 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
   const processedEvents = React.useMemo(() => {
     if (!rawEvents) return { events: [], isFallback: false }
     
-    const now = new Date();
-
     const baseFiltered = rawEvents.map(e => {
       let effectiveDate = e.date;
       if (e.isRecurring) {
@@ -235,7 +239,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
     finalEvents.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
 
     return { events: finalEvents, isFallback: fallback };
-  }, [rawEvents, allOccurrences, search, searchCity, userLocation, radiusKm, selectedCategory, dateFilter, customDate])
+  }, [rawEvents, allOccurrences, search, searchCity, userLocation, radiusKm, selectedCategory, dateFilter, customDate, now])
 
   const unifiedFeed = React.useMemo(() => {
     const result = [];

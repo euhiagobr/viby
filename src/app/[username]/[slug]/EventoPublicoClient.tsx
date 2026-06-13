@@ -74,6 +74,13 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = React.useState(false)
+  const [now, setNow] = React.useState<Date>(new Date())
+
+  // Atualiza o relógio a cada minuto para manter sincronia de visibilidade
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
+  }, [])
 
   const eventRef = React.useMemo(() => (db && id) ? doc(db, "events", id) : null, [db, id])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
@@ -108,7 +115,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   const upcomingOccurrences = React.useMemo(() => {
     if (!rawOccurrences) return [];
-    const now = new Date();
     
     return rawOccurrences
       .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
@@ -117,7 +123,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
         return now < endThreshold;
       })
       .sort((a: any, b: any) => a._dt.getTime() - b._dt.getTime());
-  }, [rawOccurrences]);
+  }, [rawOccurrences, now]);
 
   // Lógica de Identificação de Próxima Data para Evento Recorrente
   const effectiveEventData = React.useMemo(() => {
@@ -166,13 +172,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     dEnd = null;
   }
 
-  const isEnded = dEnd ? (dEnd < new Date()) : false;
+  const isEnded = dEnd ? (dEnd < now) : false;
   
   return (
     <div className="min-h-screen bg-[#f8fafc] h-full flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
       <EventSEO event={effectiveEventData} username={username} />
       
-      {/* HEADER GLOBAL */}
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
