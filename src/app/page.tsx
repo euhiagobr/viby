@@ -43,6 +43,7 @@ export const metadata: Metadata = {
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
   
+  // Trata Timestamps do Firestore
   if (typeof data.toDate === 'function') {
     return data.toDate().toISOString();
   }
@@ -54,7 +55,7 @@ function serializeData(data: any): any {
   if (typeof data === 'object') {
     const serialized: any = {};
     
-    // Tratamento para datas de fim em dados legados que cruzam a madrugada
+    // Normalização de datas para evitar inconsistências cronológicas
     if (data.date && data.endDate && typeof data.date === 'string' && typeof data.endDate === 'string') {
       const dStart = new Date(data.date);
       let dEnd = new Date(data.endDate);
@@ -68,11 +69,11 @@ function serializeData(data: any): any {
       }
     }
 
-    for (const key in data) {
-      if (Object.prototype.hasOwnProperty.call(data, key)) {
-        serialized[key] = serializeData(data[key]);
-      }
-    }
+    // Garante a serialização de todas as propriedades enumeráveis
+    Object.keys(data).forEach(key => {
+      serialized[key] = serializeData(data[key]);
+    });
+    
     return serialized;
   }
   return data;
@@ -81,13 +82,20 @@ function serializeData(data: any): any {
 async function getInitialEvents() {
   try {
     const db = getAdminDb();
+    // Busca eventos ativos ordenados por data
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .orderBy('date', 'asc')
-      .limit(9)
+      .limit(12)
       .get();
       
-    const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    if (snap.empty) return [];
+    
+    const events = snap.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data() 
+    }));
+    
     return serializeData(events);
   } catch (e) {
     console.error("[SSR Events Fetch Error]", e);

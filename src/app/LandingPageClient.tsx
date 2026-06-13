@@ -4,35 +4,20 @@ import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
 import { collection, query, limit, doc, where, orderBy, getDocs, startAfter, DocumentSnapshot } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
-import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, MapPin, Navigation, Loader2, Zap, Globe, Calendar as CalendarIcon, Inbox, Tag, ChevronRight, AlertTriangle, Trophy } from "lucide-react"
+import { Search, MapPin, Loader2, Inbox, Trophy } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
-import { cn, normalizeText } from "@/lib/utils"
+import { normalizeText } from "@/lib/utils"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
 import { isEventVisible, calculateDistanceMeters } from "@/lib/event-scoring-utils"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
 import { UserNav } from "@/components/layout/UserNav"
-import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
-import { ptBR } from "date-fns/locale"
+import { format, startOfToday, addDays } from "date-fns"
 import { useTranslation } from "@/i18n/i18n-context"
 import { useState, useEffect } from "react"
 
@@ -42,24 +27,20 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const auth = useAuth()
   const { user } = useUser(auth)
 
-  const [hasMounted, setHasMounted] = React.useState(false)
   const [searchName, setSearchName] = React.useState("")
   const [searchCity, setSearchCity] = React.useState("")
-  const [selectedCategory, setSelectedCategory] = React.useState("all")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
   
-  const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
-  const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
-
   const [rawEvents, setRawEvents] = useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null)
-  const [hasMore, setHasMore] = useState(true)
+  const [hasMore, setHasMore] = useState(initialEvents.length === 12)
   const [isFetching, setIsFetching] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
+  // Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
@@ -76,7 +57,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         collection(db, "events"),
         where("status", "==", "Ativo"),
         orderBy("date", "asc"),
-        ...(isInitial ? [limit(9)] : [startAfter(lastVisible), limit(3)])
+        ...(isInitial ? [limit(12)] : [startAfter(lastVisible), limit(6)])
       )
       
       const snapshot = await getDocs(q)
@@ -88,8 +69,10 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         setRawEvents(prev => [...prev, ...fetchedDocs])
       }
       
-      setLastVisible(snapshot.docs[snapshot.docs.length - 1] || null)
-      setHasMore(snapshot.docs.length === (isInitial ? 9 : 3))
+      if (snapshot.docs.length > 0) {
+        setLastVisible(snapshot.docs[snapshot.docs.length - 1])
+      }
+      setHasMore(snapshot.docs.length === (isInitial ? 12 : 6))
     } catch (e) {
       console.error("[Landing Pagination Error]", e)
     } finally {
@@ -99,27 +82,29 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   }, [db, lastVisible, isFetching, hasMore])
 
   useEffect(() => {
-    setHasMounted(true);
     if (initialEvents.length === 0) {
       fetchEvents(true);
     } else {
       setIsInitialLoad(false);
     }
     getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {})
-  }, [db, initialEvents.length, fetchEvents])
+  }, [initialEvents.length, fetchEvents])
 
   const processedEvents = React.useMemo(() => {
     const now = new Date();
+    
     const baseFiltered = rawEvents.map(e => {
       let effectiveDate = e.date;
-      if (e.isRecurring) {
-        const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
+      // Lógica de próxima data para recorrentes
+      if (e.isRecurring && allOccurrences) {
+        const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
             .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
           const nextValid = sorted.find(o => {
+            // Threshold de 6h para manter visível após início
             const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
             return now < endThreshold;
           });
@@ -131,23 +116,29 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
+      // Visibilidade básica
       if (!isEventVisible(e)) return false;
+      
+      // Filtros de busca
       const nameNorm = normalizeText(searchName);
       if (searchName && !normalizeText(e.title || "").includes(nameNorm)) return false;
-      if (searchCity && !normalizeText(`${e.city || ""} ${e.state || ""}`).includes(normalizeText(searchCity))) return false;
-      if (selectedCategory !== 'all' && e.categoryId !== selectedCategory) return false;
+      
+      const cityNorm = normalizeText(searchCity);
+      if (searchCity && !normalizeText(`${e.city || ""} ${e.state || ""}`).includes(cityNorm)) return false;
+      
       return true;
     }).map(e => {
       let distMeters = Infinity;
       if (userLocation && e.latitude && e.longitude) {
         distMeters = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
       }
-      return { ...e, _distanceMeters: distMeters, _startDateTime: e.date?.toDate ? e.date.toDate() : new Date(e.date) };
+      const startDateTime = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      return { ...e, _distanceMeters: distMeters, _startDateTime: isNaN(startDateTime.getTime()) ? new Date() : startDateTime };
     });
 
     baseFiltered.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
     return { events: baseFiltered, isFallback: false };
-  }, [rawEvents, allOccurrences, searchName, searchCity, selectedCategory, userLocation])
+  }, [rawEvents, allOccurrences, searchName, searchCity, userLocation])
 
   const siteName = settings?.siteName || "Viby"
 
@@ -240,6 +231,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         {isInitialLoad ? (
           <div className="py-32 flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-12 h-12 animate-spin text-secondary" />
+            <p className="text-[10px] font-black uppercase tracking-widest animate-pulse opacity-40">Sincronizando experiências...</p>
           </div>
         ) : processedEvents.events.length === 0 ? (
           <div className="py-32 text-center bg-white rounded-[3rem] border-2 border-dashed border-border flex flex-col items-center gap-4 opacity-40">
@@ -247,11 +239,21 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
              <p className="text-sm font-black uppercase tracking-widest">Nenhum evento ativo localizado.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {processedEvents.events.map((event, idx) => (
-              <EventCard key={event.id} event={event} userLocation={userLocation} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {processedEvents.events.map((event) => (
+                <EventCard key={event.id} event={event} userLocation={userLocation} />
+              ))}
+            </div>
+            {hasMore && (
+              <div className="mt-16 flex justify-center">
+                <Button variant="outline" onClick={() => fetchEvents(false)} disabled={isFetching} className="rounded-full px-10 h-12 font-bold uppercase border-secondary text-secondary">
+                  {isFetching ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Carregar Mais
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </section>
       <Footer />
