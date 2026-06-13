@@ -52,6 +52,22 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Animação Arco-Íris para a página LGBT */
+  @keyframes rainbow-bg {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .animate-rainbow-bg {
+    background: linear-gradient(
+      -45deg, 
+      #ee7752, #e73c7e, #23a6d5, #23d5ab, #ff0000, #ff8000, #ffff00, #008000, #0000ff, #8b00ff
+    );
+    background-size: 400% 400%;
+    animation: rainbow-bg 15s ease infinite;
+  }
 }
 
 .circular-timer-progress {
