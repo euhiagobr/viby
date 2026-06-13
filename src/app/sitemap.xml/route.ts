@@ -1,42 +1,8 @@
-import { NextResponse } from 'next/server';
-
-export const dynamic = 'force-dynamic';
-export const revalidate = 3600;
-
 /**
- * @fileOverview Sitemap Index oficial da Viby.
- * Segrega a indexação em módulos para otimizar o rastreamento do Googlebot.
+ * ARQUIVO DESATIVADO
+ * Esta rota foi consolidada no arquivo root /src/app/sitemap.ts para 
+ * cumprir com os padrões de metadados do Next.js 15 e evitar conflitos de rota.
  */
-
 export async function GET() {
-  const baseUrl = 'https://viby.club';
-  const now = new Date().toISOString();
-
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <sitemap>
-    <loc>${baseUrl}/sitemap-static.xml</loc>
-    <lastmod>${now}</lastmod>
-  </sitemap>
-  <sitemap>
-    <loc>${baseUrl}/sitemap-users.xml</loc>
-    <lastmod>${now}</lastmod>
-  </sitemap>
-  <sitemap>
-    <loc>${baseUrl}/sitemap-events.xml</loc>
-    <lastmod>${now}</lastmod>
-  </sitemap>
-  <sitemap>
-    <loc>${baseUrl}/sitemap-categories.xml</loc>
-    <lastmod>${now}</lastmod>
-  </sitemap>
-</sitemapindex>`.trim();
-
-  return new Response(xml, {
-    headers: {
-      'Content-Type': 'application/xml',
-      'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=600'
-    },
-  });
+  return new Response(null, { status: 410 }); // Gone - Informa ao bot que a rota mudou permanentemente
 }
