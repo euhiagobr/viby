@@ -26,9 +26,10 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const db = useFirestore()
   const auth = useAuth()
 
-  const [searchName, setSearchName] = React.useState("")
-  const [searchCity, setSearchCity] = React.useState("")
-  const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
+  // Hooks de Estado (Ordem garantida)
+  const [searchName, setSearchName] = useState("")
+  const [searchCity, setSearchCity] = useState("")
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
   const [now, setNow] = useState<Date | null>(null)
   
   const [rawEvents, setRawEvents] = useState<any[]>(initialEvents)
@@ -38,7 +39,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
 
   // Atualiza o relógio a cada minuto para manter o threshold de visibilidade preciso
-  // Iniciamos apenas no cliente para evitar erro de hidratação
   useEffect(() => {
     setNow(new Date())
     const timer = setInterval(() => setNow(new Date()), 60000)
