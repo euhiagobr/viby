@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -33,8 +32,9 @@ import {
   Briefcase,
   Zap,
   Tag,
-  Stripe,
-  Ticket
+  Ticket,
+  MapPin,
+  ChevronRight
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -66,6 +66,7 @@ import {
   convertLeadAction 
 } from "@/app/actions/crm"
 import { formatCurrency } from "@/lib/financial-utils"
+import Link from "next/link"
 
 const STATUS_OPTIONS = [
   { value: 'novo', label: 'Novo' },
@@ -216,7 +217,7 @@ export default function LeadDetailPage() {
               </CardHeader>
               <CardContent className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                  <DetailItem label="Cidade" value={lead.cidade} icon={MapPin} />
-                 <DetailItem label="WhatsApp" value={lead.whatsapp} icon={Phone} link={`https://wa.me/${lead.whatsapp.replace(/\D/g, "")}`} />
+                 <DetailItem label="WhatsApp" value={lead.whatsapp} icon={Phone} link={`https://wa.me/${lead.whatsapp?.replace(/\D/g, "")}`} />
                  <DetailItem label="E-mail" value={lead.email} icon={Mail} link={`mailto:${lead.email}`} />
                  <DetailItem label="Instagram" value={lead.instagram ? `@${lead.instagram}` : "---"} icon={Instagram} link={lead.instagram ? `https://instagram.com/${lead.instagram.replace('@','')}` : undefined} />
                  <DetailItem label="Tipo de Evento" value={lead.tipoEvento} icon={Layers} />
@@ -279,7 +280,7 @@ export default function LeadDetailPage() {
               <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-3 px-2">
                  <HistoryIcon className="w-5 h-5 text-secondary" /> Histórico de Gestão
               </h2>
-              <div className="relative pl-8 space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-border/60 before:border-dashed">
+              <div className="relative pl-8 space-y-12 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-border/60 before:border-dashed">
                  {loadingHistory ? <Loader2 className="animate-spin w-4 h-4" /> : 
                   history && history.length > 0 ? history.map((h, i) => (
                     <div key={h.id} className="relative">
