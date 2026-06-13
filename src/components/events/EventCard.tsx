@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -49,10 +50,11 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       return isNaN(d.getTime()) ? null : d;
     };
     
-    const start = parseDate(event.date) || new Date();
+    // Na fase de hidratação, não podemos usar Date() pois o tempo mudou.
+    // Usamos o início dos tempos como placeholder se a data do evento estiver faltando.
+    const start = parseDate(event.date) || (mounted ? new Date() : new Date(0));
     let end = parseDate(event.endDate);
     
-    // Normalização de Madrugada
     if (end && end <= start) {
       if (start.toISOString().split('T')[0] === end.toISOString().split('T')[0]) {
         end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
@@ -64,9 +66,13 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     }
     
     return { start, end };
-  }, [event.date, event.endDate]);
+  }, [event.date, event.endDate, mounted]);
 
-  const isEnded = React.useMemo(() => eventDates.end < new Date(), [eventDates.end]);
+  const isEnded = React.useMemo(() => {
+    if (!mounted) return false;
+    return eventDates.end < new Date();
+  }, [eventDates.end, mounted]);
+
   const isOvernight = React.useMemo(() => {
     return eventDates.start.toDateString() !== eventDates.end.toDateString();
   }, [eventDates]);
@@ -218,14 +224,14 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
                 {liveStatus.icon && <liveStatus.icon className="w-3 h-3" />} {liveStatus.label}
               </Badge>
             )}
-            {!isEnded && (
+            {mounted && !isEnded && (
               <div className="flex items-center gap-1.5">
                  <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-lg shadow-md" />
               </div>
             )}
           </div>
           
-          {!isEnded && (
+          {mounted && !isEnded && (
             <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
               {displayCategory && (
                 <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1.5 text-[9px] font-black uppercase flex items-center gap-1">

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -65,7 +66,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
   const [radiusKm, setRadiusKm] = useState('30')
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
-  const [now, setNow] = useState(new Date())
+  const [now, setNow] = useState<Date | null>(null)
   
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
@@ -88,6 +89,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
 
   // Atualiza o relógio a cada minuto para manter sincronia de visibilidade
   useEffect(() => {
+    setNow(new Date())
     const timer = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(timer)
   }, [])
@@ -152,7 +154,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
     
     const baseFiltered = rawEvents.map(e => {
       let effectiveDate = e.date;
-      if (e.isRecurring) {
+      if (e.isRecurring && now) {
         const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
@@ -435,7 +437,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="mt-8">
+        <TabsContent value="all" className="mt-8">
            {isInitialLoad ? (
              <div className="py-32 flex flex-col items-center justify-center gap-4">
                <Loader2 className="w-12 h-12 animate-spin text-secondary" />

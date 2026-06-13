@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -28,7 +29,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const [searchName, setSearchName] = React.useState("")
   const [searchCity, setSearchCity] = React.useState("")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
-  const [now, setNow] = useState(new Date())
+  const [now, setNow] = useState<Date | null>(null)
   
   const [rawEvents, setRawEvents] = useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null)
@@ -37,7 +38,9 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
 
   // Atualiza o relógio a cada minuto para manter o threshold de visibilidade preciso
+  // Iniciamos apenas no cliente para evitar erro de hidratação
   useEffect(() => {
+    setNow(new Date())
     const timer = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(timer)
   }, [])
@@ -100,7 +103,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const processedEvents = React.useMemo(() => {
     const baseFiltered = rawEvents.map(e => {
       let effectiveDate = e.date;
-      if (e.isRecurring && allOccurrences) {
+      if (e.isRecurring && allOccurrences && now) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
