@@ -4,17 +4,28 @@ import { getAdminDb } from "@/lib/firebase/admin"
 import LGBTClient from "./LGBTClient"
 
 export const metadata: Metadata = {
-  title: 'Experiências LGBTQIAPN+ | Viby',
-  description: 'Descubra eventos, celebrações e espaços de diversidade LGBTQIAPN+ no Brasil. Junte-se à comunidade na maior vitrine cultural do país.',
-  alternates: { canonical: '/lgbt' },
+  title: "Viby celebrando a Diversidade",
+  description: "Descubra eventos, roteiros e lugares que celebram a diversidade e acolhem todo mundo. Siga sua vibe na Viby.",
+  alternates: { canonical: 'https://viby.com/lgbt' },
   openGraph: {
-    title: 'Experiências LGBTQIAPN+ | Viby',
-    description: 'Eventos, celebrações e espaços de diversidade para viver o agora.',
-    url: 'https://viby.club/lgbt',
+    title: "Viby celebrando a Diversidade",
+    description: "Descubra eventos, roteiros e lugares que celebram a diversidade e acolhem todo mundo. Siga sua vibe na Viby.",
+    url: 'https://viby.com/lgbt',
     siteName: 'Viby',
     type: 'website',
     locale: 'pt_BR',
-    images: [{ url: 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fcopaviby.png?alt=media', width: 1200, height: 630 }]
+    images: [{ 
+      url: 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibydiversidadecapa.png?alt=media&token=238e4bbd-1bb6-4ddd-9e36-c81287f8ed54', 
+      width: 1200, 
+      height: 630,
+      alt: "Viby celebrando a Diversidade"
+    }]
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "Viby celebrando a Diversidade",
+    description: "Descubra eventos, roteiros e lugares que celebram a diversidade e acolhem todo mundo. Siga sua vibe na Viby.",
+    images: ['https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibydiversidadecapa.png?alt=media&token=238e4bbd-1bb6-4ddd-9e36-c81287f8ed54']
   }
 }
 
