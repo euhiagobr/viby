@@ -1,0 +1,35 @@
+
+{
+  "collections": {
+    "organizer_leads": {
+      "description": "Gestão completa de leads comerciais Viby.",
+      "fields": {
+        "responsavel": "string (Nome do consultor)",
+        "origem": "string (Landing Page | Instagram | etc)",
+        "prioridade": "string (baixa | media | alta | urgente)",
+        "potencial": "string (baixo | medio | alto)",
+        "observacoesInternas": "string",
+        "ultimoContato": "timestamp",
+        "proximoFollowUp": "timestamp",
+        "dataConversao": "timestamp",
+        "stripeStatus": "string (sim | nao | pendente)",
+        "eventosPublicados": "number",
+        "valorNegociado": "number",
+        "interessesComerciais": "array",
+        "updatedAt": "timestamp"
+      }
+    },
+    "crm_lead_history": {
+      "description": "Timeline cronológica de eventos do CRM.",
+      "fields": {
+        "leadId": "string (ref:organizer_leads)",
+        "tipo": "string (contato | status | responsavel | follow_up | nota | conversao)",
+        "descricao": "string",
+        "canal": "string (Instagram | WhatsApp | Telefone | etc)",
+        "resultado": "string (Interessado | Sem Resposta | etc)",
+        "usuarioResponsavel": "string (Nome do admin)",
+        "createdAt": "timestamp"
+      }
+    }
+  }
+}

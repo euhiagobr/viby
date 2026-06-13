@@ -70,6 +70,10 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /crm_lead_history/{historyId} {
+      allow read, write: if isAdmin();
+    }
+
     match /system_admins/{adminId} {
       allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
       allow write: if isSuperAdmin();
@@ -88,13 +92,11 @@ service cloud.firestore {
 
     match /affiliateCodes/{code} {
       allow read: if true; 
-      // BLOQUEIO: Parceiros não podem criar. Programa deve estar ativo.
       allow write: if isAdmin() || (isSignedIn() && request.auth.uid == request.resource.data.userId && !isPartner() && isAffiliateEnabled());
     }
 
     match /affiliate_stats/{uid} {
       allow read: if isAdmin() || isOwner(uid);
-      // BLOQUEIO: Impedir novos registros se for parceiro ou programa desativado
       allow write: if isAdmin() || (isOwner(uid) && !isPartner() && isAffiliateEnabled()); 
     }
 

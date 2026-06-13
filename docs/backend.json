@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -22,6 +23,51 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "username", "email", "cpfHash"]
+    },
+    "Lead": {
+      "title": "Lead de Organizador",
+      "description": "Captação e gestão de potenciais organizadores (CRM).",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string" },
+        "empresa": { "type": "string" },
+        "cidade": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "email": { "type": "string" },
+        "instagram": { "type": "string" },
+        "tipoEvento": { "type": "string" },
+        "publicoMedio": { "type": "string" },
+        "mensagem": { "type": "string" },
+        "status": { "type": "string", "enum": ["novo", "sem_contato", "contatado", "negociando", "aguardando_retorno", "convertido", "perdido", "arquivado"] },
+        "responsavel": { "type": "string" },
+        "origem": { "type": "string" },
+        "prioridade": { "type": "string", "enum": ["baixa", "media", "alta", "urgente"] },
+        "potencial": { "type": "string", "enum": ["baixo", "medio", "alto"] },
+        "observacoesInternas": { "type": "string" },
+        "ultimoContato": { "type": "string", "format": "date-time" },
+        "proximoFollowUp": { "type": "string", "format": "date-time" },
+        "dataConversao": { "type": "string", "format": "date-time" },
+        "stripeStatus": { "type": "string", "enum": ["sim", "nao", "pendente"] },
+        "eventosPublicados": { "type": "number" },
+        "valorNegociado": { "type": "number" },
+        "interessesComerciais": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "LeadHistory": {
+      "title": "Histórico do Lead",
+      "description": "Timeline de interações e alterações no CRM.",
+      "type": "object",
+      "properties": {
+        "leadId": { "type": "string" },
+        "tipo": { "type": "string" },
+        "descricao": { "type": "string" },
+        "canal": { "type": "string" },
+        "resultado": { "type": "string" },
+        "usuarioResponsavel": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -31,6 +77,14 @@
     "/users/{userId}": {
       "schema": "User",
       "description": "Perfis públicos e metadados de busca."
+    },
+    "/organizer_leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Central de Leads (CRM)."
+    },
+    "/crm_lead_history/{historyId}": {
+      "schema": "LeadHistory",
+      "description": "Timeline de eventos do CRM."
     }
   }
 }
