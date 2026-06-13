@@ -28,7 +28,6 @@ import Link from "next/link"
 import { cn, normalizeText } from "@/lib/utils"
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
 import { isEventVisible, calculateDistanceMeters } from "@/lib/event-scoring-utils"
-import Footer from "@/components/layout/Footer"
 import {
   Select,
   SelectContent,
@@ -45,7 +44,6 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
 
   const [search, setSearch] = React.useState("")
   const [searchCity, setSearchCity] = React.useState("")
-  const [radiusKm, setRadiusKm] = React.useState("25")
   const [priceFilter, setPriceFilter] = React.useState("all")
   const [dateFilter, setDateFilter] = React.useState("all")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
@@ -70,7 +68,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
         where("status", "==", "Ativo"),
         where("tags", "array-contains-any", COPA_TAGS),
         orderBy("date", "asc"),
-        startAfter(lastVisible || initialEvents[initialEvents.length - 1]?.date),
+        startAfter(lastVisible || (initialEvents.length > 0 ? initialEvents[initialEvents.length - 1]?.date : null)),
         limit(12)
       )
       const snap = await getDocs(q)
@@ -130,17 +128,19 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   const clearFilters = () => {
     setSearch("");
     setSearchCity("");
-    setRadiusKm("25");
     setPriceFilter("all");
     setDateFilter("all");
   };
 
   const handleGlobalSearchManual = () => {
-    window.scrollTo({ top: 800, behavior: 'smooth' });
+    const feedSection = document.getElementById('copa-feed');
+    if (feedSection) {
+      feedSection.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-[#009c3b] selection:text-white">
+    <>
       {/* THEMED HERO */}
       <section className="relative min-h-[70vh] flex items-center justify-center overflow-hidden bg-[#002776] text-white">
         <div className="absolute inset-0 opacity-20 pointer-events-none">
@@ -207,7 +207,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       </section>
 
       {/* FEED DE EVENTOS */}
-      <section className="py-20 container mx-auto px-4 flex-1">
+      <section id="copa-feed" className="py-20 container mx-auto px-4 flex-1">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
           <div className="space-y-2">
             <h2 className="text-5xl font-black uppercase italic tracking-tighter text-primary">Perto de <span className="text-[#009c3b]">Você</span></h2>
@@ -266,8 +266,6 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
            </div>
         )}
       </section>
-
-      <Footer />
-    </div>
+    </>
   )
 }
