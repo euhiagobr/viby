@@ -90,89 +90,78 @@ export default function OrganizationEventsPage() {
 
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery);
 
-  const allEvents = React.useMemo(() => {
-    if (!rawEvents) return [];
-    return [...rawEvents].filter(e => e.status !== 'Excluído');
-  }, [rawEvents]);
+  const { upcomingEvents, pastEvents } = React.useMemo(() => {
+    if (!rawEvents) return { upcomingEvents: [], pastEvents: [] };
 
-  const filteredEvents = React.useMemo(() => {
-    return allEvents.filter(e => 
-      e.title?.toLowerCase().includes(search.toLowerCase())
+    const upcoming: any[] = [];
+    const past: any[] = [];
+
+    const filtered = rawEvents.filter(e => 
+      e.status !== 'Excluído' && 
+      (!search || e.title?.toLowerCase().includes(search.toLowerCase()))
     );
-  }, [allEvents, search]);
 
-  const upcomingEvents = React.useMemo(() => {
-    return filteredEvents
-      .map(e => {
-        let effectiveDate = e.date || e.startDate;
-        if (e.isRecurring) {
-          const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
-          if (myOccs.length > 0) {
-            const sorted = [...myOccs]
-              .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
-              .sort((a, b) => a._dt.getTime() - b._dt.getTime());
-            
-            const nextValid = sorted.find(o => {
-              const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
-              return now < endThreshold;
-            });
+    filtered.forEach(e => {
+      let isEventPast = false;
+      let effectiveDate = e.date || e.startDate;
 
-            if (nextValid) {
-              effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '00:00') + ':00';
-            }
+      if (e.isRecurring) {
+        const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
+        if (myOccs.length > 0) {
+          const sorted = [...myOccs]
+            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+          
+          const nextValid = sorted.find(o => {
+            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+            return now < endThreshold;
+          });
+
+          if (nextValid) {
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '00:00') + ':00';
+            isEventPast = false;
+          } else {
+            // Se tem ocorrências mas nenhuma é futura ou recente, é passado
+            isEventPast = true;
           }
+        } else {
+          // Se não há ocorrências futuras na lista (query restringida a >= yesterday)
+          // Mas o evento é marcado como recorrente, verificamos se a data original já passou
+          const start = effectiveDate?.toDate ? effectiveDate.toDate() : new Date(effectiveDate);
+          const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+          isEventPast = end < now;
         }
-        return { ...e, _effectiveDate: effectiveDate };
-      })
-      .filter(e => {
-        const dateVal = e._effectiveDate;
-        if (!dateVal) return true;
-        
-        // Se for recorrente, forçamos ficar no upcoming se houver qualquer data futura ativa
-        if (e.isRecurring) {
-           const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
-           if (myOccs.length > 0) {
-              return myOccs.some((o: any) => {
-                const oDate = new Date(o.date + 'T' + (o.startTime || '00:00') + ':00');
-                const oEnd = new Date(oDate.getTime() + 6 * 60 * 60 * 1000);
-                return oEnd >= now;
-              });
-           }
-        }
-
-        const start = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
+      } else {
+        const start = effectiveDate?.toDate ? effectiveDate.toDate() : new Date(effectiveDate);
         const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-        return end >= now;
-      })
-      .sort((a, b) => {
-        const tA = a._effectiveDate?.toDate ? a._effectiveDate.toDate().getTime() : (a._effectiveDate ? new Date(a._effectiveDate).getTime() : 0);
-        const tB = b._effectiveDate?.toDate ? b._effectiveDate.toDate().getTime() : (b._effectiveDate ? new Date(b._effectiveDate).getTime() : 0);
-        return tA - tB;
-      });
-  }, [filteredEvents, now, allOccurrences]);
+        isEventPast = end < now;
+      }
 
-  const pastEvents = React.useMemo(() => {
-    return filteredEvents
-      .filter(e => {
-        // Se for recorrente, só é passado se não estiver na lista de upcoming
-        if (e.isRecurring) {
-          return !upcomingEvents.some(u => u.id === e.id);
-        }
+      const enrichedEvent = { ...e, _effectiveDate: effectiveDate };
+      if (isEventPast) {
+        past.push(enrichedEvent);
+      } else {
+        upcoming.push(enrichedEvent);
+      }
+    });
 
-        const dateVal = e.date || e.startDate;
-        if (!dateVal) return false;
-        const start = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
-        const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-        return end < now;
-      })
-      .sort((a, b) => {
-        const dA = a.date || a.startDate;
-        const dB = b.date || b.startDate;
-        const tA = dA?.toDate ? dA.toDate().getTime() : (dA ? new Date(dA).getTime() : 0);
-        const tB = dB?.toDate ? dB.toDate().getTime() : (dB ? new Date(dB).getTime() : 0);
-        return tB - tA;
-      });
-  }, [filteredEvents, now, upcomingEvents]);
+    // Ordenação: Próximos por data Ascendente, Passados por data Descendente
+    upcoming.sort((a, b) => {
+      const tA = a._effectiveDate?.toDate ? a._effectiveDate.toDate().getTime() : new Date(a._effectiveDate).getTime();
+      const tB = b._effectiveDate?.toDate ? b._effectiveDate.toDate().getTime() : new Date(b._effectiveDate).getTime();
+      return tA - tB;
+    });
+
+    past.sort((a, b) => {
+      const dA = a.date || a.startDate;
+      const dB = b.date || b.startDate;
+      const tA = dA?.toDate ? dA.toDate().getTime() : new Date(dA).getTime();
+      const tB = dB?.toDate ? dB.toDate().getTime() : new Date(dB).getTime();
+      return tB - tA;
+    });
+
+    return { upcomingEvents: upcoming, pastEvents: past };
+  }, [rawEvents, allOccurrences, search, now]);
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
   const canCheckIn = ['owner', 'admin', 'editor', 'checkin'].includes(userRole || '');
