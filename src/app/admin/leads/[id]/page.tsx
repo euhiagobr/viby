@@ -24,6 +24,7 @@ import {
   DollarSign,
   AlertTriangle,
   User,
+  Users,
   Plus,
   Send,
   MoreVertical,
@@ -286,7 +287,7 @@ export default function LeadDetailPage() {
                     <div key={h.id} className="relative">
                        <div className={cn(
                          "absolute -left-8 top-1 w-6 h-6 rounded-full flex items-center justify-center border-2 border-background shadow-md",
-                         h.tipo === 'contato' ? "bg-green-500 text-white" : 
+                         h.tipo === 'contato' ? "bg-green-50 text-white" : 
                          h.tipo === 'conversao' ? "bg-secondary text-white" : 
                          h.tipo === 'follow_up' ? "bg-orange-500 text-white" : "bg-primary text-white"
                        )}>
@@ -522,7 +523,7 @@ function DetailItem({ label, value, icon: Icon, link }: { label: string; value: 
        <div className="p-2.5 bg-muted rounded-xl text-secondary"><Icon className="w-4 h-4" /></div>
        <div className="min-w-0">
           <p className="text-[8px] font-black uppercase opacity-40 leading-none mb-1">{label}</p>
-          <p className="text-xs font-bold text-primary truncate uppercase">{value}</p>
+          <p className="text-xs font-bold text-primary uppercase">{value}</p>
        </div>
     </div>
   );
