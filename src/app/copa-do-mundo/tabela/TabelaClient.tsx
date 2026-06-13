@@ -152,6 +152,7 @@ export default function TabelaClient() {
                        <div className="space-y-1">
                           <p className="font-black text-sm uppercase italic text-[#ffdf00] truncate">vs {brazilNextMatch.homeTeam.id === BRAZIL_ID ? brazilNextMatch.awayTeam.name : brazilNextMatch.homeTeam.name}</p>
                           <p className="text-xs font-bold uppercase">{new Date(brazilNextMatch.utcDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} • {new Date(brazilNextMatch.utcDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                          {brazilNextMatch.venue && <p className="text-[9px] font-bold opacity-50 uppercase truncate flex items-center gap-1"><MapPin className="w-2.5 h-2.5" /> {brazilNextMatch.venue}</p>}
                        </div>
                      ) : <p className="text-xs opacity-60 uppercase font-black">Calendário a definir</p>}
                   </div>
@@ -309,6 +310,9 @@ function MatchCard({ match }: { match: Match }) {
   const isFinished = match.status === 'FINISHED';
   const isLive = match.status === 'IN_PLAY' || match.status === 'PAUSED';
 
+  // Fallback de local: Se não houver venue, mostramos o grupo ou a fase
+  const locationDisplay = match.venue || match.group?.replace('GROUP_', 'Grupo ') || match.stage?.replace('_', ' ') || "Estádio a definir";
+
   return (
     <Card className={cn(
       "border-none shadow-sm rounded-[2rem] bg-white overflow-hidden group hover:shadow-xl transition-all duration-300",
@@ -355,7 +359,7 @@ function MatchCard({ match }: { match: Match }) {
           </div>
           <div className="p-4 border-t border-dashed bg-muted/5 flex flex-col sm:flex-row items-center justify-between gap-4">
              <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase truncate">
-                <MapPin className="w-3.5 h-3.5 text-secondary" /> {match.venue || "Estádio a definir"}
+                <MapPin className="w-3.5 h-3.5 text-secondary" /> {locationDisplay}
              </div>
              {!isFinished && (
                <Button asChild variant="ghost" size="sm" className="h-8 rounded-xl font-black uppercase italic text-[9px] gap-2 text-secondary hover:bg-secondary/10">
