@@ -7,9 +7,7 @@ import { EventCard } from "@/components/events/EventCard"
 import { PrideHeader } from "@/components/layout/PrideHeader"
 import Footer from "@/components/layout/Footer"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Inbox, Sparkles, FilterX } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { cn, normalizeText } from "@/lib/utils"
+import { Loader2, Inbox } from "lucide-react"
 import ProgressPrideBackground from "@/components/ui/ProgressPrideBackground"
 
 const LGBT_CATEGORY_IDS = [
@@ -25,7 +23,6 @@ const LGBT_TAGS = [
 
 export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[] }) {
   const db = useFirestore()
-  const [filter, setFilter] = React.useState("all")
 
   const eventsQuery = React.useMemo(() => {
     if (!db) return null
@@ -43,16 +40,9 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
         LGBT_TAGS.includes(tag.toLowerCase())
       )
       
-      const isLGBT = byCategory || byTags
-      if (!isLGBT) return false
-
-      if (filter === 'festas') return normalizeText(event.title || "").includes("festa") || normalizeText(event.description || "").includes("balada")
-      if (filter === 'cultura') return event.categoryName?.toLowerCase().includes("cultura")
-      if (filter === 'gratis') return event.startingPrice === 0 || event.isFree === true
-      
-      return true
+      return byCategory || byTags
     })
-  }, [rawEvents, initialEvents, filter])
+  }, [rawEvents, initialEvents])
 
   return (
     <ProgressPrideBackground>
@@ -80,13 +70,6 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
               <h2 className="text-3xl font-black uppercase italic tracking-tighter text-white drop-shadow-md">Agenda da Diversidade</h2>
               <p className="text-white/80 font-medium uppercase text-[10px] tracking-widest">Encontre o seu próximo rolê.</p>
             </div>
-
-            <div className="flex flex-wrap gap-2">
-              <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>Tudo</FilterButton>
-              <FilterButton active={filter === 'festas'} onClick={() => setFilter('festas')}>Festas</FilterButton>
-              <FilterButton active={filter === 'cultura'} onClick={() => setFilter('cultura')}>Cultura</FilterButton>
-              <FilterButton active={filter === 'gratis'} onClick={() => setFilter('gratis')}>Gratuitos</FilterButton>
-            </div>
           </div>
 
           {loading && rawEvents.length === 0 ? (
@@ -95,7 +78,6 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {displayEvents.map((event) => (
                 <div key={event.id} className="relative group/lgbt">
-                  {/* Borda Arco-Íris Sutil */}
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 via-yellow-500 to-purple-500 rounded-3xl opacity-20 group-hover/lgbt:opacity-100 transition-opacity blur-[2px] group-hover/lgbt:blur-md" />
                   <div className="relative">
                       <EventCard event={event} />
@@ -109,8 +91,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
           ) : (
             <div className="py-32 text-center bg-white/10 backdrop-blur-md rounded-[3rem] border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-4 shadow-inner text-white">
               <Inbox className="w-12 h-12 opacity-40" />
-              <p className="text-sm font-black uppercase tracking-widest">Nenhum evento localizado para este filtro.</p>
-              <Button variant="link" onClick={() => setFilter('all')} className="font-bold uppercase text-xs text-white">Ver todas as experiências</Button>
+              <p className="text-sm font-black uppercase tracking-widest">Nenhum evento localizado no momento.</p>
             </div>
           )}
         </main>
@@ -118,20 +99,5 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
         <Footer />
       </div>
     </ProgressPrideBackground>
-  )
-}
-
-function FilterButton({ children, active, onClick }: any) {
-  return (
-    <Button 
-      variant={active ? 'default' : 'outline'} 
-      onClick={onClick}
-      className={cn(
-        "rounded-xl h-10 px-6 font-black uppercase italic text-[10px] tracking-widest transition-all",
-        active ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "bg-white/10 text-white border-white/20 hover:bg-white/20"
-      )}
-    >
-      {children}
-    </Button>
   )
 }
