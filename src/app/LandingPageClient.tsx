@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -7,7 +8,7 @@ import { EventCard } from "@/components/events/EventCard"
 import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, MapPin, FilterX, Navigation, Loader2, Clock, Zap, Globe, Calendar as CalendarIcon, Inbox, Tag, ChevronRight, AlertTriangle } from "lucide-react"
+import { Search, MapPin, Navigation, Loader2, Zap, Globe, Calendar as CalendarIcon, Inbox, Tag, ChevronRight, AlertTriangle, Trophy } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -52,7 +53,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
 
-  // Pagination State - Inicializado com dados do servidor
   const [rawEvents, setRawEvents] = useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null)
   const [hasMore, setHasMore] = useState(true)
@@ -61,19 +61,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
-
-  const categoriesQuery = useMemoFirebase(() => {
-    if (!db) return null
-    return query(collection(db, "categories"), orderBy("name", "asc"))
-  }, [db])
-  const { data: categories } = useCollection<any>(categoriesQuery)
-
-  const occurrencesQuery = useMemoFirebase(() => {
-    if (!db) return null
-    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
-    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
-  }, [db])
-  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
   const fetchEvents = React.useCallback(async (isInitial = false) => {
     if (!db || isFetching || (!isInitial && !hasMore)) return
@@ -108,155 +95,34 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
 
   useEffect(() => {
     setHasMounted(true);
-    // Se não tivermos dados do servidor, buscamos no cliente
     if (initialEvents.length === 0) {
       fetchEvents(true);
     }
-    
-    getCurrentLocation()
-      .then(loc => { if (loc) setUserLocation(loc); })
-      .catch(() => {})
+    getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {})
   }, [db, initialEvents.length, fetchEvents])
 
   const processedEvents = React.useMemo(() => {
-    if (!rawEvents) return { events: [], isFallback: false }
-
     const now = new Date();
-
-    const baseFiltered = rawEvents.map(e => {
-      let effectiveDate = e.date;
-      if (e.isRecurring) {
-        const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
-        if (myOccs.length > 0) {
-          const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
-            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
-          
-          const nextValid = sorted.find(o => {
-            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
-            return now < endThreshold;
-          });
-
-          if (nextValid) {
-            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '00:00') + ':00';
-          }
-        }
-      }
-      return { ...e, date: effectiveDate };
-    }).filter(e => {
+    const baseFiltered = rawEvents.filter(e => {
       if (!isEventVisible(e)) return false;
-
       const nameNorm = normalizeText(searchName);
       if (searchName && !normalizeText(e.title || "").includes(nameNorm)) return false;
-      
-      const cityNorm = normalizeText(searchCity);
-      if (searchCity) {
-        const eventLoc = normalizeText(`${e.city || ""} ${e.state || ""}`);
-        if (!eventLoc.includes(cityNorm)) return false;
-      }
-
+      if (searchCity && !normalizeText(`${e.city || ""} ${e.state || ""}`).includes(normalizeText(searchCity))) return false;
       if (selectedCategory !== 'all' && e.categoryId !== selectedCategory) return false;
-      
-      const parseDate = (val: any) => {
-        if (!val) return null;
-        if (val.toDate) return val.toDate();
-        const d = new Date(val);
-        return isNaN(d.getTime()) ? null : d;
-      };
-
-      const eventDate = parseDate(e.date);
-      if (!eventDate) return false;
-
-      let matchesDate = true;
-      if (dateFilter !== 'all') {
-        const today = startOfToday();
-        if (dateFilter === 'today') matchesDate = isSameDay(eventDate, today);
-        else if (dateFilter === 'tomorrow') matchesDate = isSameDay(eventDate, addDays(today, 1));
-        else if (dateFilter === 'week') matchesDate = eventDate >= today && eventDate <= endOfWeek(today);
-        else if (dateFilter === 'custom' && customDate) matchesDate = isSameDay(eventDate, customDate);
-      }
-      return matchesDate;
+      return true;
     }).map(e => {
       let distMeters = Infinity;
       if (userLocation && e.latitude && e.longitude) {
         distMeters = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
       }
-      return {
-        ...e,
-        _distanceMeters: distMeters,
-        _startDateTime: e.date?.toDate ? e.date.toDate() : new Date(e.date)
-      };
+      return { ...e, _distanceMeters: distMeters, _startDateTime: e.date?.toDate ? e.date.toDate() : new Date(e.date) };
     });
 
-    let finalEvents = baseFiltered;
-    let fallback = false;
-
-    if (radiusKm !== 'unlimited' && userLocation) {
-      const radiusMeters = parseInt(radiusKm) * 1000;
-      finalEvents = baseFiltered.filter(e => e._distanceMeters <= radiusMeters);
-
-      if (finalEvents.length === 0) {
-        finalEvents = baseFiltered.filter(e => e._distanceMeters <= 100000);
-        if (finalEvents.length > 0) fallback = true;
-      }
-
-      if (finalEvents.length === 0) {
-        finalEvents = baseFiltered;
-        if (finalEvents.length > 0) fallback = true;
-      }
-    }
-
-    finalEvents.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
-
-    return { events: finalEvents, isFallback: fallback };
-  }, [rawEvents, allOccurrences, searchName, searchCity, selectedCategory, radiusKm, userLocation, dateFilter, customDate])
-
-  const unifiedFeed = React.useMemo(() => {
-    const result = [];
-    let eventCounter = 0;
-    let adIndex = 0;
-
-    if (processedEvents.events.length === 0) {
-      if (!isInitialLoad) {
-        result.push({ type: "ad", adIndex: adIndex++ });
-        result.push({ type: "ad", adIndex: adIndex++ });
-      }
-      return result;
-    }
-
-    for (let i = 0; i < processedEvents.events.length; i++) {
-      result.push({ type: "event", data: processedEvents.events[i] });
-      eventCounter++;
-
-      if (eventCounter === 6) {
-        result.push({ type: "ad", adIndex: adIndex++ });
-        eventCounter = 0;
-      }
-    }
-
-    return result;
-  }, [processedEvents.events, isInitialLoad])
+    baseFiltered.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
+    return { events: baseFiltered, isFallback: false };
+  }, [rawEvents, searchName, searchCity, selectedCategory, userLocation])
 
   const siteName = settings?.siteName || "Viby"
-
-  const observerTarget = React.useRef(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      entries => {
-        if (entries[0].isIntersecting && hasMore && !isFetching && !isInitialLoad) {
-          fetchEvents(false);
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
-    }
-
-    return () => observer.disconnect();
-  }, [hasMore, isFetching, isInitialLoad, fetchEvents]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
@@ -266,21 +132,19 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
             {settings?.logoUrl ? (
               <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-10 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
             ) : (
-              <>
-                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg transition-transform group-hover:scale-105">
-                  <span className="text-white font-black text-lg">V</span>
-                </div>
-                <span className="text-xl font-black tracking-tight italic uppercase text-primary ml-1">{siteName}</span>
-              </>
+              <span className="text-xl font-black italic uppercase text-primary ml-1">{siteName}</span>
             )}
           </Link>
           <div className="flex items-center gap-4">
+            <Button asChild variant="outline" className="hidden md:flex rounded-full h-9 border-[#ffdf00] bg-[#ffdf00]/10 text-[#002776] font-black uppercase text-[9px] gap-2">
+               <Link href="/copa-do-mundo"><Trophy className="w-3.5 h-3.5" /> Copa 2026</Link>
+            </Button>
             {user ? <UserNav /> : (
               <>
                 <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest">
                   <Link href="/login">{t('home.login')}</Link>
                 </Button>
-                <Button asChild className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/20">
+                <Button asChild className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg">
                   <Link href="/cadastro">{t('home.signup')}</Link>
                 </Button>
               </>
@@ -295,9 +159,11 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         </div>
         <div className="container mx-auto px-4 relative z-10 py-20">
           <div className="max-w-5xl mx-auto space-y-10 flex flex-col items-center">
-            <Badge className="bg-secondary text-white border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest w-fit flex items-center gap-2 animate-bounce">
-              <Zap className="w-3.5 h-3.5 fill-current" /> {t('home.badge')}
-            </Badge>
+            <Link href="/copa-do-mundo">
+              <Badge className="bg-[#ffdf00] text-[#002776] border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest w-fit flex items-center gap-2 animate-pulse cursor-pointer">
+                <Trophy className="w-3.5 h-3.5 fill-current" /> Onde assistir à Copa do Mundo 2026
+              </Badge>
+            </Link>
             <h1 className="text-6xl md:text-9xl font-black uppercase italic tracking-tighter leading-[0.8]">
               {t('home.hero_title_1')} <span className="text-secondary">{t('home.hero_title_2')}</span>
             </h1>
@@ -316,52 +182,20 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
                     onChange={(e) => setSearchName(e.target.value)}
                   />
                 </div>
-                
-                {hasMounted && (
-                  <>
-                    <div className="md:col-span-3">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("bg-white/5 border-white/10 h-14 w-full rounded-2xl text-white justify-start font-normal", !customDate && dateFilter === 'all' && "text-white/60")}>
-                            <CalendarIcon className="mr-2 h-4 w-4 text-secondary" />
-                            {dateFilter === 'today' ? t('home.today') : dateFilter === 'tomorrow' ? t('home.tomorrow') : dateFilter === 'week' ? t('home.week') : customDate ? format(customDate, "dd/MM") : t('home.when_label')}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
-                          <div className="p-3 border-b grid grid-cols-3 gap-2">
-                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>{t('home.today')}</Button>
-                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>{t('home.tomorrow')}</Button>
-                              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase" onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>{t('home.week')}</Button>
-                          </div>
-                          <Calendar mode="single" selected={customDate} onSelect={(d) => { if(d) { setCustomDate(d); setDateFilter('custom'); } }} locale={ptBR} />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="md:col-span-3 relative">
-                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
-                      <Input 
-                        placeholder={t('home.where_placeholder')} 
-                        className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"
-                        value={searchCity}
-                        onChange={(e) => setSearchCity(e.target.value)}
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Select value={radiusKm} onValueChange={setRadiusKm}>
-                        <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white px-2">
-                            <Navigation className="w-4 h-4 text-secondary mr-1" />
-                            <SelectValue placeholder={t('home.radius_label')} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10">10km</SelectItem>
-                          <SelectItem value="30">30km</SelectItem>
-                          <SelectItem value="100">100km</SelectItem>
-                          <SelectItem value="unlimited">{t('home.unlimited')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
+                <div className="md:col-span-4 relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
+                  <Input 
+                    placeholder={t('home.where_placeholder')} 
+                    className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"
+                    value={searchCity}
+                    onChange={(e) => setSearchCity(e.target.value)}
+                  />
+                </div>
+                <div className="md:col-span-4">
+                   <Button onClick={() => window.scrollTo({top: 800, behavior:'smooth'})} className="w-full h-14 bg-secondary text-white font-black uppercase italic rounded-2xl shadow-xl">
+                      Explorar Agora
+                   </Button>
+                </div>
               </div>
             </Card>
           </div>
@@ -369,13 +203,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
       </section>
 
       <section className="py-20 container mx-auto px-4 flex-1">
-        {processedEvents.isFallback && (
-          <div className="mb-10 p-4 bg-orange-50 rounded-2xl border border-orange-100 flex items-center gap-3 text-orange-800 animate-in slide-in-from-top-2">
-             <AlertTriangle className="w-5 h-5 shrink-0" />
-             <p className="text-xs font-black uppercase tracking-tight">Não encontramos eventos próximos. Mostrando opções em outras regiões.</p>
-          </div>
-        )}
-
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
           <div className="space-y-2">
             <h2 className="text-5xl font-black uppercase italic tracking-tighter text-primary">{t('home.upcoming_title')}</h2>
@@ -386,52 +213,13 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         {isInitialLoad ? (
           <div className="py-32 flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{t('common.loading')}</p>
           </div>
         ) : (
-          <>
-            {unifiedFeed.length === 0 && !isFetching && (
-              <div className="py-20 text-center bg-white rounded-[4rem] border-2 border-dashed border-border shadow-inner mb-20">
-                <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Inbox className="w-10 h-10 text-muted-foreground opacity-20" />
-                </div>
-                <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">{t('home.no_events')}</h3>
-                <Button variant="link" className="mt-6 text-secondary font-black uppercase italic" onClick={() => { setSearchName(""); setSearchCity(""); setSelectedCategory("all"); setRadiusKm("30"); setDateFilter("all"); }}>{t('home.clear_filters')}</Button>
-              </div>
-            )}
-
-            {unifiedFeed.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {unifiedFeed.map((item: any, idx: number) => (
-                  item.type === 'ad' ? (
-                    <AdsRenderer 
-                      key={`ad-slot-${item.adIndex}-${idx}`} 
-                      location="feed" 
-                      index={item.adIndex} 
-                      googleSlotId="home-feed-slot" 
-                    />
-                  ) : (
-                    <EventCard 
-                      key={`event-${item.data.id}-${idx}`} 
-                      event={item.data} 
-                      userLocation={userLocation} 
-                      isSponsored={item.data.isSponsored} 
-                    />
-                  )
-                ))}
-              </div>
-            )}
-
-            {isFetching && (
-              <div className="py-10 flex justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-              </div>
-            )}
-
-            {!isFetching && hasMore && (
-              <div ref={observerTarget} className="h-20" />
-            )}
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {processedEvents.events.map((event, idx) => (
+              <EventCard key={event.id} event={event} userLocation={userLocation} />
+            ))}
+          </div>
         )}
       </section>
       <Footer />
