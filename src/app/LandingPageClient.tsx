@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -166,14 +167,14 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
                <Link href="/copa-do-mundo"><Trophy className="w-3.5 h-3.5" /> Copa 2026</Link>
             </Button>
             {user ? <UserNav /> : (
-              <>
-                <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest">
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest px-2 sm:px-4">
                   <Link href="/login">{t('home.login')}</Link>
                 </Button>
-                <Button asChild className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg">
+                <Button asChild className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-4 sm:px-6 shadow-lg">
                   <Link href="/cadastro">{t('home.signup')}</Link>
                 </Button>
-              </>
+              </div>
             )}
           </div>
         </div>

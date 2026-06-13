@@ -4,6 +4,9 @@ import { Metadata } from "next"
 import { getAdminDb } from "@/lib/firebase/admin"
 import CopaMundoClient from "./CopaMundoClient"
 import { COPA_TAGS } from "@/lib/constants"
+import Link from "next/link"
+import Image from "next/image"
+import { Trophy } from "lucide-react"
 
 export const metadata: Metadata = {
   title: 'Onde Assistir à Copa do Mundo 2026 | Viby',
@@ -18,14 +21,22 @@ export const metadata: Metadata = {
   }
 }
 
+async function getBranding() {
+  try {
+    const db = getAdminDb();
+    const snap = await db.collection('settings').doc('site').get();
+    return snap.exists ? snap.data() : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
   if (typeof data.toDate === 'function') return data.toDate().toISOString();
   if (data instanceof Date) return data.toISOString();
   if (Array.isArray(data)) return data.map(item => serializeData(item));
   if (typeof data === 'object') {
-    const proto = Object.getPrototypeOf(data);
-    if (proto !== null && proto !== Object.prototype) return String(data);
     const serialized: any = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -40,7 +51,6 @@ function serializeData(data: any): any {
 async function getCopaEvents() {
   try {
     const db = getAdminDb();
-    
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .where('tags', 'array-contains-any', COPA_TAGS)
@@ -51,32 +61,42 @@ async function getCopaEvents() {
     const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     return serializeData(events);
   } catch (e) {
-    console.error("[Copa SSR Fetch Error]", e);
     return [];
   }
 }
 
 export default async function CopaMundoPage() {
   const initialEvents = await getCopaEvents();
-
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    "name": "Onde Assistir à Copa do Mundo 2026",
-    "description": "Lista de locais e eventos transmitindo a Copa do Mundo 2026.",
-    "breadcrumb": {
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        { "@type": "ListItem", "position": 1, "name": "Início", "item": "https://viby.club/" },
-        { "@type": "ListItem", "position": 2, "name": "Copa do Mundo", "item": "https://viby.club/copa-do-mundo" }
-      ]
-    }
-  };
+  const settings = await getBranding();
+  const siteName = settings?.siteName || "Viby";
 
   return (
-    <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-[#009c3b] selection:text-white">
+      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 group">
+            {settings?.logoUrl ? (
+              <Image 
+                src={settings.logoUrl} 
+                alt={siteName} 
+                width={120} 
+                height={40} 
+                style={{ height: 'auto' }}
+                className="h-10 w-auto object-contain transition-transform group-hover:scale-105" 
+                priority 
+                unoptimized 
+              />
+            ) : (
+              <span className="text-xl font-black italic uppercase text-primary ml-1">{siteName}</span>
+            )}
+          </Link>
+          <div className="flex items-center gap-4">
+             <Link href="/copa-do-mundo/tabela" className="text-[10px] font-black uppercase tracking-widest text-primary hover:text-secondary transition-colors">Tabela Completa</Link>
+          </div>
+        </div>
+      </nav>
       <CopaMundoClient initialEvents={initialEvents} />
-    </>
+      <Footer />
+    </div>
   );
 }

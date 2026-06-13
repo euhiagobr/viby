@@ -34,7 +34,8 @@ import {
   ChevronRight,
   EyeOff,
   Lock,
-  MoreVertical
+  MoreVertical,
+  Trophy
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -162,20 +163,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const dStart = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : new Date();
   let dEnd = effectiveEventData.endDate ? (effectiveEventData.endDate.toDate ? effectiveEventData.endDate.toDate() : new Date(effectiveEventData.endDate)) : null;
   
-  // Para eventos recorrentes que foram atualizados automaticamente,
-  // se o endDate original for anterior ao novo dStart, ele é ignorado
-  // para evitar o status 'Encerrado' indevido.
   if (event.isRecurring && dEnd && dEnd < dStart) {
     dEnd = null;
   }
 
   const isEnded = dEnd ? (dEnd < new Date()) : false;
   
-  const isExternalSale = event.type === 'externo' && event.externalUrl;
-  const isVibySale = event.type === 'interno' && event.ticketMode !== 'none';
-
-  const isRecurringHub = event.isRecurring === true && upcomingOccurrences.length > 0;
-
   return (
     <div className="min-h-screen bg-[#f8fafc] h-full flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
       <EventSEO event={effectiveEventData} username={username} />
@@ -195,16 +188,19 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     width={120} 
                     height={40} 
                     style={{ height: 'auto' }}
-                    className="h-8 sm:h-10 w-auto object-contain" 
+                    className="h-10 w-auto object-contain" 
                     priority 
                     unoptimized 
                   />
                 ) : (
-                  <span className="text-lg sm:text-xl font-black tracking-tight italic uppercase text-primary truncate">{siteName}</span>
+                  <span className="text-lg sm:text-xl font-black tracking-tight italic uppercase text-primary truncate ml-1">{siteName}</span>
                 )}
              </Link>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+             <Button asChild variant="outline" className="hidden md:flex rounded-full h-9 border-[#ffdf00] bg-[#ffdf00]/10 text-[#002776] font-black uppercase text-[9px] gap-2">
+               <Link href="/copa-do-mundo"><Trophy className="w-3.5 h-3.5" /> Copa 2026</Link>
+             </Button>
              <Button 
                 variant="ghost" 
                 size="icon" 
@@ -218,7 +214,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                   <Button variant="ghost" asChild className="font-bold uppercase text-[9px] sm:text-[10px] tracking-widest px-2 sm:px-4">
                     <Link href="/login">Entrar</Link>
                   </Button>
-                  <Button asChild className="bg-secondary text-white font-black uppercase italic text-[9px] sm:text-[10px] tracking-widest rounded-full px-4 sm:px-6 shadow-lg">
+                  <Button asChild className="bg-primary text-white font-black uppercase italic text-[9px] sm:text-[10px] tracking-widest rounded-full px-4 sm:px-6 shadow-lg">
                     <Link href="/cadastro">Criar Conta</Link>
                   </Button>
                 </div>

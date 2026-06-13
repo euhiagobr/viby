@@ -4,7 +4,7 @@
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
 import { doc, getDoc, collection, query, where, getDocs, collectionGroup, orderBy, limit } from "firebase/firestore";
-import { Loader2, Lock, ArrowLeft, Home, ShieldAlert, Share2, Inbox } from "lucide-react";
+import { Loader2, Lock, ArrowLeft, Home, ShieldAlert, Share2, Inbox, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdsRenderer } from "@/components/ads/AdsRenderer";
 import { EventCard } from "@/components/events/EventCard";
@@ -344,7 +344,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
                 width={120} 
                 height={40} 
                 style={{ height: 'auto' }}
-                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
+                className="h-10 w-auto object-contain transition-transform group-hover:scale-105" 
                 priority 
                 unoptimized 
               />
@@ -353,16 +353,26 @@ export default function ProfilePageClient({ username }: { username: string }) {
             )}
           </Link>
           <div className="flex items-center gap-4">
+            <Button asChild variant="outline" className="hidden md:flex rounded-full h-9 border-[#ffdf00] bg-[#ffdf00]/10 text-[#002776] font-black uppercase text-[9px] gap-2">
+               <Link href="/copa-do-mundo"><Trophy className="w-3.5 h-3.5" /> Copa 2026</Link>
+            </Button>
             {profileType === 'organization' && (
               <Button 
                 onClick={() => setIsShareModalOpen(true)}
-                className="bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/10 gap-2"
+                className="hidden sm:flex bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/10 gap-2"
               >
                 <Share2 className="w-3.5 h-3.5" /> Compartilhar Agenda
               </Button>
             )}
             {loggedUser ? <UserNav /> : (
-              <Button asChild className="bg-primary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6"><Link href="/login">Acessar Clube</Link></Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest px-2 sm:px-4">
+                  <Link href="/login">Entrar</Link>
+                </Button>
+                <Button asChild className="bg-primary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-4 sm:px-6 shadow-lg">
+                  <Link href="/cadastro">Criar Conta</Link>
+                </Button>
+              </div>
             )}
           </div>
         </div>

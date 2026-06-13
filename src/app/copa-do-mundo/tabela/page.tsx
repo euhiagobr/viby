@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import TabelaClient from './TabelaClient';
@@ -10,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Globe, Trophy } from 'lucide-react';
 import { getAdminDb } from '@/lib/firebase/admin';
 
-export const revalidate = 3600; // Cache de 1 hora para dados da Copa
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: 'Tabela da Copa do Mundo 2026 | Classificação e Jogos | Viby',
@@ -55,12 +56,12 @@ export default async function TabelaCopaPage() {
                    width={120} 
                    height={40} 
                    style={{ height: 'auto' }}
-                   className="h-8 w-auto object-contain" 
+                   className="h-10 w-auto object-contain" 
                    priority 
                    unoptimized 
                  />
                ) : (
-                 <span className="text-xl font-black italic uppercase text-primary">{siteName}</span>
+                 <span className="text-xl font-black italic uppercase text-primary ml-1">{siteName}</span>
                )}
              </Link>
           </div>
