@@ -18,8 +18,8 @@ interface PublicHeaderProps {
 }
 
 /**
- * Header unificado para todas as páginas públicas da Viby.
- * Centraliza o branding, autenticação e navegação temática.
+ * @fileOverview Componente centralizado de cabeçalho para todas as páginas públicas da Viby.
+ * Unifica o branding, autenticação e navegação temática da Copa 2026.
  */
 export function PublicHeader({ showBack, hideCopa, children }: PublicHeaderProps) {
   const { t } = useTranslation()
@@ -73,7 +73,7 @@ export function PublicHeader({ showBack, hideCopa, children }: PublicHeaderProps
               <Button variant="ghost" asChild className="font-bold uppercase text-[9px] sm:text-[10px] tracking-widest px-2 sm:px-4">
                 <Link href="/login">{t('home.login')}</Link>
               </Button>
-              <Button asChild className="bg-secondary text-white font-black uppercase italic text-[9px] sm:text-[10px] tracking-widest rounded-full px-4 sm:px-6 shadow-lg">
+              <Button asChild className="bg-primary text-white font-black uppercase italic text-[9px] sm:text-[10px] tracking-widest rounded-full px-4 sm:px-6 shadow-lg">
                 <Link href="/cadastro">{t('home.signup')}</Link>
               </Button>
             </div>
