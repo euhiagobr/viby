@@ -1,29 +1,56 @@
-
 "use client"
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where } from "firebase/firestore"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { collection, query, where, orderBy, limit } from "firebase/firestore"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { 
-  Tag, 
-  Users, 
-  Loader2, 
-  LayoutDashboard, 
-  BarChart3, 
-  AlertTriangle, 
-  EyeOff, 
-  Wallet,
-  Building2,
+  TrendingUp, 
+  ArrowUpRight, 
+  ArrowDownRight, 
+  DollarSign, 
+  Wallet, 
+  Coins, 
+  Receipt,
+  Loader2,
+  Calendar,
+  Percent,
+  CheckCircle2,
+  AlertTriangle,
+  Scale,
+  Clock,
+  BarChart3,
+  PieChart as PieChartIcon,
   Globe,
-  Clock
-} from "lucide-react"
+  ShieldCheck
+} from 'lucide-react';
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Cell
+} from 'recharts';
+import { cn } from '@/lib/utils';
+import { ERPMetrics, calculateRealProfit } from '@/lib/financial-erp-utils';
+import { Separator } from '@/components/ui/separator';
+
+/**
+ * Metadata for SEO protection in administrative areas.
+ */
+export const robots = {
+  index: false,
+  follow: false,
+};
 
 export default function AdminDashboardPage() {
-  const db = useFirestore()
-  const { formatPrice, convertValue } = useCurrency()
+  const db = useFirestore();
+  const { formatPrice, convertValue } = useCurrency();
   
   const eventsQuery = useMemoFirebase(() => db ? collection(db, "events") : null, [db])
   const usersQuery = useMemoFirebase(() => db ? collection(db, "users") : null, [db])
@@ -40,10 +67,8 @@ export default function AdminDashboardPage() {
   const stats = React.useMemo(() => {
     const hiddenOrgs = orgs?.filter((o: any) => o.status === 'Desativado' || o.status === 'Exclusão Programada').length || 0;
     
-    // Consolidação Ponderada para Repasse Global - Utilizando BRL fixado se disponível
     const totalToPayBRL = regs?.reduce((acc: number, r: any) => {
       if (['Pago', 'Disponível'].includes(r.paymentStatus)) {
-        // Prioriza o valor BRL fixado no ato da venda para auditoria correta
         if (r.priceBRL) {
            const netRate = (r.producerNetAmount || 0) / (r.price || 1);
            return acc + (r.priceBRL * netRate);

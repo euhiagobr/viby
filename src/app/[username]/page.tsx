@@ -6,12 +6,13 @@ import { notFound } from 'next/navigation';
 
 const RESERVED_ROUTES = [
   'dashboard', 'admin', 'login', 'cadastro', 'redefinir-senha', 
-  'checkout', 'privacidade', 'termos', 'api', 'suporte', 
+  'checkout', 'privacidade', 'termos', 'api', 'suporte', 'explorar',
   'support', 'help', 'onboarding', 'faq', 'recorrente', 'ganhe-dinheiro',
   'marketing', 'afiliados', 'anuncios', 'imposto', 'extrato', 'transferencias',
   'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
-  'novo', 'new', 'projeto', 'auth', 'para-organizadores'
+  'novo', 'new', 'projeto', 'auth', 'para-organizadores', 'search', 'settings',
+  'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.webmanifest', 'og'
 ];
 
 const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
@@ -61,8 +62,13 @@ async function getProfileData(usernameParam: string) {
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
   const { username } = await params;
+  
+  if (RESERVED_ROUTES.includes(username.toLowerCase())) {
+    return {};
+  }
+
   const profile = await getProfileData(username);
-  if (!profile) return { title: 'Perfil | Viby' };
+  if (!profile) return { title: 'Perfil Não Encontrado | Viby', robots: { index: false } };
 
   const name = profile.type === 'organization' ? profile.name : (profile.name || profile.displayName || username);
   const title = `${name} | @${username} | Viby`;
@@ -95,10 +101,15 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 
 export default async function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
+  const usernameLower = username.toLowerCase();
+
+  if (RESERVED_ROUTES.includes(usernameLower)) {
+    return null;
+  }
+
   const profile = await getProfileData(username);
   
   if (!profile) {
-    if (RESERVED_ROUTES.includes(username.toLowerCase())) return null;
     notFound();
   }
 

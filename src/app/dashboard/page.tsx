@@ -6,6 +6,10 @@ import { getAdminDb } from "@/lib/firebase/admin"
 export const metadata: Metadata = {
   title: 'Explorar Eventos | Viby',
   description: 'Descubra as melhores experiências culturais perto de você.',
+  robots: {
+    index: false,
+    follow: false
+  }
 }
 
 function serializeData(data: any): any {
