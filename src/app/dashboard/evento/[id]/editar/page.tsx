@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -64,6 +65,28 @@ export default function EditarEventoPage() {
   const [batches, setBatches] = useState<any[]>([])
   const [totalCapacity, setTotalCapacity] = useState(100)
 
+  const formatDateForInput = (dateValue: any) => {
+    if (!dateValue) return "";
+    try {
+      let d: Date;
+      if (dateValue.toDate) d = dateValue.toDate();
+      else d = new Date(dateValue);
+      
+      if (isNaN(d.getTime())) return "";
+      
+      // Ajuste para timezone local preservando o formato esperado pelo input datetime-local (YYYY-MM-DDTHH:mm)
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch (e) {
+      return "";
+    }
+  };
+
   useEffect(() => {
     if (event) {
       const legacyAddress = event.address || {};
@@ -91,8 +114,8 @@ export default function EditarEventoPage() {
         startingPrice: event.startingPrice || 0,
         disclosurePrices: event.disclosurePrices || [],
         categoryId: event.categoryId || "",
-        startDate: event.date || "",
-        endDate: event.endDate || "",
+        startDate: formatDateForInput(event.date || event.startDate),
+        endDate: formatDateForInput(event.endDate),
         description: event.description || "",
         status: event.status || "Ativo",
         tags: event.tags || [],

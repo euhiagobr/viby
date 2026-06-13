@@ -25,3 +25,12 @@ export const EVENT_TYPES = [
   { value: "externo", label: "Externo (Link Terceiro)" },
   { value: "divulgacao", label: "Divulgação (Sem Venda)" }
 ];
+
+export const COPA_TAGS = [
+  "copa do mundo",
+  "copa",
+  "world cup",
+  "fifa world cup",
+  "assistir copa",
+  "transmissão copa"
+];

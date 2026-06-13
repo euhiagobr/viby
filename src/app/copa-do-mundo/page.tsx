@@ -3,6 +3,7 @@ import * as React from "react"
 import { Metadata } from "next"
 import { getAdminDb } from "@/lib/firebase/admin"
 import CopaMundoClient from "./CopaMundoClient"
+import { COPA_TAGS } from "@/lib/constants"
 
 export const metadata: Metadata = {
   title: 'Onde Assistir à Copa do Mundo 2026 | Viby',
@@ -39,11 +40,10 @@ function serializeData(data: any): any {
 async function getCopaEvents() {
   try {
     const db = getAdminDb();
-    const tags = ["copa do mundo", "copa", "world cup", "fifa world cup", "assistir copa", "transmissão copa"];
     
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
-      .where('tags', 'array-contains-any', tags)
+      .where('tags', 'array-contains-any', COPA_TAGS)
       .orderBy('date', 'asc')
       .limit(12)
       .get();

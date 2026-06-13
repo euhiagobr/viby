@@ -36,8 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
-const COPA_TAGS = ["copa do mundo", "copa", "world cup", "fifa world cup", "assistir copa", "transmissão copa"];
+import { COPA_TAGS } from "@/lib/constants"
 
 export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?: any[] }) {
   const db = useFirestore()
@@ -136,6 +135,10 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
     setDateFilter("all");
   };
 
+  const handleGlobalSearchManual = () => {
+    window.scrollTo({ top: 800, behavior: 'smooth' });
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-[#009c3b] selection:text-white">
       {/* THEMED HERO */}
@@ -153,7 +156,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
             <h1 className="text-6xl md:text-9xl font-black uppercase italic tracking-tighter leading-[0.8]">
               SAIBA ONDE ASSISTIR À <span className="text-[#009c3b]">COPA</span> DO <span className="text-[#ffdf00]">MUNDO</span>
             </h1>
-            <p className="text-lg md:text-2xl font-medium opacity-80 max-w-2xl leading-relaxed">
+            <p className="text-lg md:text-2xl font-medium opacity-80 max-w-2xl mx-auto leading-relaxed">
               Encontre bares, festas, telões, restaurantes e eventos transmitindo os jogos da Copa do Mundo perto de você.
             </p>
 
@@ -267,8 +270,4 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       <Footer />
     </div>
   )
-}
-
-function handleGlobalSearchManual() {
-  window.scrollTo({ top: 800, behavior: 'smooth' });
 }

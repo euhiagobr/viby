@@ -7,6 +7,7 @@ import Footer from '@/components/layout/Footer';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Globe, Trophy } from 'lucide-react';
 import { getAdminDb } from '@/lib/firebase/admin';
 
