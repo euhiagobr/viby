@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Metadata } from 'next';
 import TabelaClient from './TabelaClient';
@@ -56,7 +55,7 @@ export default async function TabelaCopaPage() {
                    width={120} 
                    height={40} 
                    style={{ height: 'auto' }}
-                   className="h-10 w-auto object-contain" 
+                   className="h-8 w-auto object-contain" 
                    priority 
                    unoptimized 
                  />

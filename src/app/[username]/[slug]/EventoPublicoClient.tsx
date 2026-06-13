@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -188,7 +187,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     width={120} 
                     height={40} 
                     style={{ height: 'auto' }}
-                    className="h-10 w-auto object-contain" 
+                    className="h-8 w-auto object-contain" 
                     priority 
                     unoptimized 
                   />

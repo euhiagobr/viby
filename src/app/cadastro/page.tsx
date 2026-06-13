@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -113,7 +112,7 @@ export default function CadastroPage() {
                 width={120} 
                 height={40} 
                 style={{ height: 'auto' }}
-                className="h-9 w-auto object-contain transition-transform group-hover:scale-105" 
+                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
                 priority 
                 unoptimized 
               />
@@ -133,7 +132,68 @@ export default function CadastroPage() {
           </div>
         </div>
       </nav>
-      {/* REST OF COMPONENT OMITTED FOR BREVITY */}
+
+      <main className="flex-1 flex items-center justify-center p-6 md:p-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-secondary/5 rounded-full blur-[120px] -mr-64 -mt-64" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -ml-64 -mb-64" />
+
+        <Card className="w-full max-w-xl border-none shadow-2xl rounded-[3rem] overflow-hidden bg-white/80 backdrop-blur-sm relative z-10">
+          <CardHeader className="p-10 pb-6 text-center space-y-4">
+             <div className="w-16 h-16 bg-primary text-white rounded-2xl flex items-center justify-center mx-auto shadow-xl rotate-3">
+                <Sparkles className="w-8 h-8" />
+             </div>
+             <div>
+                <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Criar Conta</CardTitle>
+                <CardDescription className="text-sm font-medium uppercase tracking-widest text-muted-foreground mt-1">O seu passaporte para o agora.</CardDescription>
+             </div>
+          </CardHeader>
+          
+          <CardContent className="p-10 pt-0 space-y-8">
+            {refCode && (
+              <div className={cn(
+                "p-5 rounded-2xl border-2 border-dashed flex items-center gap-4 transition-all duration-500",
+                validating ? "bg-muted border-border animate-pulse" : 
+                isValidCode ? "bg-secondary/5 border-secondary/20" : "bg-red-50 border-red-100"
+              )}>
+                <div className={cn(
+                  "w-12 h-12 rounded-xl flex items-center justify-center shrink-0",
+                  isValidCode ? "bg-secondary text-white" : "bg-muted text-muted-foreground"
+                )}>
+                  {validating ? <Loader2 className="w-6 h-6 animate-spin" /> : <Handshake className="w-6 h-6" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Convite Especial</p>
+                  <p className="text-sm font-bold text-primary truncate">
+                    {validating ? "Validando convite..." : 
+                     isValidCode ? `Indicado por: ${affiliateInfo?.name}` : "Código de convite inválido ou expirado."}
+                  </p>
+                </div>
+                {isValidCode && <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />}
+              </div>
+            )}
+
+            <SignUpForm referredBy={isValidCode ? affiliateInfo?.userId : undefined} />
+          </CardContent>
+
+          <CardFooter className="p-10 pt-0 flex flex-col gap-6">
+             <Separator className="border-dashed" />
+             <div className="text-center space-y-4">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Já possui uma conta no clube?
+                </p>
+                <Button variant="outline" asChild className="w-full h-14 rounded-2xl font-black uppercase italic border-2 hover:bg-primary hover:text-white transition-all">
+                  <Link href="/login">Fazer Login agora</Link>
+                </Button>
+             </div>
+
+             <div className="flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-40">
+                <Info className="w-3 h-3" />
+                <span>Ambiente Seguro 256-bit SSL</span>
+             </div>
+          </CardFooter>
+        </Card>
+      </main>
+      <Footer />
     </div>
   );
 }

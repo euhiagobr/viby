@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -344,7 +343,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
                 width={120} 
                 height={40} 
                 style={{ height: 'auto' }}
-                className="h-10 w-auto object-contain transition-transform group-hover:scale-105" 
+                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
                 priority 
                 unoptimized 
               />
@@ -393,7 +392,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
               <div className="container mx-auto px-4 mt-12 max-w-6xl">
                 <Tabs defaultValue="upcoming" className="w-full">
                   <div className="flex justify-center mb-12">
-                    <TabsList className="bg-muted/50 p-1 rounded-2xl h-14 overflow-x-auto flex-nowrap scrollbar-hide">
+                    <TabsList className="bg-muted/50 p-1 rounded-xl h-14 overflow-x-auto flex-nowrap scrollbar-hide">
                       <TabsTrigger value="upcoming" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Agenda</TabsTrigger>
                       <TabsTrigger value="partnerships" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Co-organizadores</TabsTrigger>
                       <TabsTrigger value="past" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Histórico</TabsTrigger>
