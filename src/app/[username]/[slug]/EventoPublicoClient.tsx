@@ -18,7 +18,8 @@ import {
   Tag,
   Users,
   ShieldAlert,
-  Clock
+  Clock,
+  Navigation
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -174,6 +175,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                         event.curatorProfile === 'viby' || 
                         (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
 
+    const locationQuery = encodeURIComponent(`${event.location} ${event.city}`);
+
     return (
       <div className="animate-in fade-in duration-700">
         <div className="relative h-[40vh] md:h-[60vh] w-full overflow-hidden">
@@ -232,9 +235,18 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                         <h4 className="font-black text-xl uppercase italic tracking-tighter text-primary">{event.location}</h4>
                         <p className="text-xs font-medium text-muted-foreground uppercase">{event.city} - {event.state}</p>
                      </div>
-                     <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.location} ${event.city}`)}`} target="_blank"><MapPin className="w-4 h-4" /> Ver no Mapa</a>
-                     </Button>
+                     <div className="flex flex-col sm:flex-row gap-3">
+                        <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
+                           <a href={`https://www.google.com/maps/search/?api=1&query=${locationQuery}`} target="_blank">
+                              <MapPin className="w-4 h-4" /> Google Maps
+                           </a>
+                        </Button>
+                        <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
+                           <a href={`https://www.waze.com/ul?q=${locationQuery}&navigate=yes`} target="_blank">
+                              <Navigation className="w-4 h-4" /> Waze
+                           </a>
+                        </Button>
+                     </div>
                   </CardContent>
                </Card>
             </section>
