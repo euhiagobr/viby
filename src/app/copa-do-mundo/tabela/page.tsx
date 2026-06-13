@@ -30,7 +30,7 @@ export default function TabelaCopaPage() {
          </div>
          <div className="container mx-auto px-4 py-16 md:py-24 relative z-10 text-center space-y-6">
             <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.85] text-primary">TABELA <span className="text-[#009c3b]">COMPLETA</span></h1>
-            <p className="text-lg md:text-xl font-medium text-muted-foreground max-w-xl mx-auto uppercase tracking-wide">Dados oficiais integrados via Football Data API.</p>
+            <p className="text-lg md:text-xl font-medium text-muted-foreground max-w-xl mx-auto uppercase tracking-wide">Dados atualizados em tempo real!</p>
          </div>
       </header>
 
