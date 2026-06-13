@@ -52,6 +52,8 @@ function serializeData(data: any): any {
   if (Array.isArray(data)) return data.map(item => serializeData(item));
   
   if (typeof data === 'object') {
+    const serialized: any = {};
+    
     // Tratamento para datas de fim em dados legados que cruzam a madrugada
     if (data.date && data.endDate && typeof data.date === 'string' && typeof data.endDate === 'string') {
       const dStart = new Date(data.date);
@@ -66,9 +68,6 @@ function serializeData(data: any): any {
       }
     }
 
-    const proto = Object.getPrototypeOf(data);
-    if (proto !== null && proto !== Object.prototype) return String(data);
-    const serialized: any = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
         serialized[key] = serializeData(data[key]);

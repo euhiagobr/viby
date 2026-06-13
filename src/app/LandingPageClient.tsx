@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -48,7 +47,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const [searchCity, setSearchCity] = React.useState("")
   const [selectedCategory, setSelectedCategory] = React.useState("all")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
-  const [radiusKm, setRadiusKm] = React.useState("30")
   
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
@@ -61,6 +59,13 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
+
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db) return null
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
+    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
+  }, [db])
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
   const fetchEvents = React.useCallback(async (isInitial = false) => {
     if (!db || isFetching || (!isInitial && !hasMore)) return
@@ -97,13 +102,35 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
     setHasMounted(true);
     if (initialEvents.length === 0) {
       fetchEvents(true);
+    } else {
+      setIsInitialLoad(false);
     }
     getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {})
   }, [db, initialEvents.length, fetchEvents])
 
   const processedEvents = React.useMemo(() => {
     const now = new Date();
-    const baseFiltered = rawEvents.filter(e => {
+    const baseFiltered = rawEvents.map(e => {
+      let effectiveDate = e.date;
+      if (e.isRecurring) {
+        const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
+        if (myOccs.length > 0) {
+          const sorted = [...myOccs]
+            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+          
+          const nextValid = sorted.find(o => {
+            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+            return now < endThreshold;
+          });
+
+          if (nextValid) {
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+          }
+        }
+      }
+      return { ...e, date: effectiveDate };
+    }).filter(e => {
       if (!isEventVisible(e)) return false;
       const nameNorm = normalizeText(searchName);
       if (searchName && !normalizeText(e.title || "").includes(nameNorm)) return false;
@@ -120,7 +147,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
 
     baseFiltered.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
     return { events: baseFiltered, isFallback: false };
-  }, [rawEvents, searchName, searchCity, selectedCategory, userLocation])
+  }, [rawEvents, allOccurrences, searchName, searchCity, selectedCategory, userLocation])
 
   const siteName = settings?.siteName || "Viby"
 
@@ -213,6 +240,11 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         {isInitialLoad ? (
           <div className="py-32 flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-12 h-12 animate-spin text-secondary" />
+          </div>
+        ) : processedEvents.events.length === 0 ? (
+          <div className="py-32 text-center bg-white rounded-[3rem] border-2 border-dashed border-border flex flex-col items-center gap-4 opacity-40">
+             <Inbox className="w-12 h-12" />
+             <p className="text-sm font-black uppercase tracking-widest">Nenhum evento ativo localizado.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
