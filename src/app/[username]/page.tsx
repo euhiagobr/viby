@@ -11,7 +11,7 @@ const RESERVED_ROUTES = [
   'marketing', 'afiliados', 'anuncios', 'imposto', 'extrato', 'transferencias',
   'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
-  'novo', 'new', 'projeto', 'auth', 'para-organizadores', 'search', 'settings',
+  'projeto', 'auth', 'para-organizadores', 'search', 'settings',
   'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.webmanifest', 'og'
 ];
 
@@ -39,23 +39,41 @@ function serializeData(data: any): any {
 async function getProfileData(usernameParam: string) {
   try {
     const username = decodeURIComponent(usernameParam).toLowerCase().trim();
-    if (RESERVED_ROUTES.includes(username)) return null;
+    console.log(`[DEBUG-SERVER] Fetching profile: ${username}`);
+
+    if (RESERVED_ROUTES.includes(username)) {
+      console.log(`[DEBUG-SERVER] Profile ${username} is a reserved route.`);
+      return null;
+    }
 
     const db = getAdminDb();
     const usernameSnap = await db.collection("usernames").doc(username).get();
-    if (!usernameSnap.exists) return null;
+    
+    if (!usernameSnap.exists) {
+      console.log(`[DEBUG-SERVER] Profile document '${username}' NOT FOUND in 'usernames' collection.`);
+      return null;
+    }
     
     const { uid, type } = usernameSnap.data()!;
+    console.log(`[DEBUG-SERVER] Profile index found. Type: ${type}, UID: ${uid}`);
+
     const targetColl = type === 'user' ? 'users' : 'organizations';
     const dataSnap = await db.collection(targetColl).doc(uid).get();
     
-    if (!dataSnap.exists) return null;
+    if (!dataSnap.exists) {
+      console.log(`[DEBUG-SERVER] Profile data NOT FOUND in collection '${targetColl}' for UID: ${uid}`);
+      return null;
+    }
+
     const profile = dataSnap.data()!;
-    
-    if (['Bloqueado', 'Excluído', 'Desativado'].includes(profile.status)) return null;
+    if (['Bloqueado', 'Excluído', 'Desativado'].includes(profile.status)) {
+      console.log(`[DEBUG-SERVER] Profile ${username} is unavailable due to status: ${profile.status}`);
+      return null;
+    }
 
     return serializeData({ id: dataSnap.id, type, ...profile });
-  } catch (e) {
+  } catch (e: any) {
+    console.error(`[DEBUG-SERVER] Error in getProfileData for ${usernameParam}:`, e.message);
     return null;
   }
 }

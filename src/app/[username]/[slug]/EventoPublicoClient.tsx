@@ -57,7 +57,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = React.useState(false)
-  const [now, setNow] = React.useState<Date>(new Date())
+  const [now, setNow] = React.useState<Date | null>(null)
 
   // Atualiza o relógio a cada minuto para manter sincronia de visibilidade
   React.useEffect(() => {
@@ -95,7 +95,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const { data: rawOccurrences } = useCollection<any>(occurrencesQuery);
 
   const upcomingOccurrences = React.useMemo(() => {
-    if (!rawOccurrences) return [];
+    if (!rawOccurrences || !now) return [];
     
     return rawOccurrences
       .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
@@ -119,6 +119,21 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
       _isAutoUpdated: true
     };
   }, [event, upcomingOccurrences]);
+
+  // Log de Depuração no Cliente
+  React.useEffect(() => {
+    if (id) {
+       console.log(`[DEBUG-CLIENT] EventoPublicoClient mounted. ID: ${id}, Username: ${username}`);
+    }
+  }, [id, username]);
+
+  React.useEffect(() => {
+    if (event) {
+       console.log(`[DEBUG-CLIENT] Event data loaded successfully:`, event.title);
+    } else if (!eventLoading && id) {
+       console.warn(`[DEBUG-CLIENT] Event document ${id} exists but data is null or empty.`);
+    }
+  }, [event, eventLoading, id]);
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";

@@ -11,7 +11,7 @@ const RESERVED_ROUTES = [
   'marketing', 'afiliados', 'anuncios', 'imposto', 'extrato', 'transferencias',
   'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
-  'novo', 'new', 'projeto', 'auth', 'para-organizadores', 'search', 'settings',
+  'projeto', 'auth', 'para-organizadores', 'search', 'settings',
   'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.webmanifest', 'og'
 ];
 
@@ -44,32 +44,71 @@ function stripHtml(text: string): string {
 async function getEventData(usernameParam: string, slugParam: string) {
   try {
     const username = decodeURIComponent(usernameParam).toLowerCase().trim();
-    if (RESERVED_ROUTES.includes(username)) return null;
-
-    const db = getAdminDb();
     const slug = decodeURIComponent(slugParam).trim();
 
-    const usernameSnap = await db.collection("usernames").doc(username).get();
-    if (!usernameSnap.exists) return null;
-    const targetUid = usernameSnap.data()!.uid;
+    console.log(`[DEBUG-SERVER] Fetching event. Username: ${username}, Slug: ${slug}`);
 
-    let eventDoc = null;
-    const eventByIdSnap = await db.collection("events").doc(slug).get();
-    if (eventByIdSnap.exists && eventByIdSnap.data()!.status !== 'Excluído') {
-      const ownerId = eventByIdSnap.data()!.organizationId || eventByIdSnap.data()!.organizerId;
-      if (ownerId === targetUid) eventDoc = { id: eventByIdSnap.id, ...eventByIdSnap.data() };
+    if (RESERVED_ROUTES.includes(username)) {
+      console.log(`[DEBUG-SERVER] Username '${username}' is a reserved route.`);
+      return null;
     }
 
+    const db = getAdminDb();
+
+    // 1. Buscar UID pelo username
+    const usernameSnap = await db.collection("usernames").doc(username).get();
+    if (!usernameSnap.exists) {
+      console.log(`[DEBUG-SERVER] Username document '${username}' not found in 'usernames' collection.`);
+      return null;
+    }
+    
+    const targetUid = usernameSnap.data()!.uid;
+    console.log(`[DEBUG-SERVER] Found targetUid: ${targetUid} for username: ${username}`);
+
+    let eventDoc = null;
+
+    // 2. Tentar buscar por ID direto
+    const eventByIdSnap = await db.collection("events").doc(slug).get();
+    if (eventByIdSnap.exists && eventByIdSnap.data()!.status !== 'Excluído') {
+      const data = eventByIdSnap.data()!;
+      const ownerId = data.organizationId || data.organizerId;
+      if (ownerId === targetUid) {
+        console.log(`[DEBUG-SERVER] Event found by direct ID: ${slug}`);
+        eventDoc = { id: eventByIdSnap.id, ...data };
+      }
+    }
+
+    // 3. Tentar buscar por campo 'slug'
     if (!eventDoc) {
+      console.log(`[DEBUG-SERVER] Searching for event by slug field: ${slug.toLowerCase()}`);
       const queryBySlug = await db.collection("events")
         .where("organizationId", "==", targetUid)
         .where("slug", "==", slug.toLowerCase())
         .limit(1).get();
-      if (!queryBySlug.empty) eventDoc = { id: queryBySlug.docs[0].id, ...queryBySlug.docs[0].data() };
+      
+      if (!queryBySlug.empty) {
+        console.log(`[DEBUG-SERVER] Event found by slug field.`);
+        eventDoc = { id: queryBySlug.docs[0].id, ...queryBySlug.docs[0].data() };
+      } else {
+        // Fallback para organizerId legado
+        const queryByOrganizer = await db.collection("events")
+          .where("organizerId", "==", targetUid)
+          .where("slug", "==", slug.toLowerCase())
+          .limit(1).get();
+          
+        if (!queryByOrganizer.empty) {
+          console.log(`[DEBUG-SERVER] Event found by slug field (Legacy organizerId).`);
+          eventDoc = { id: queryByOrganizer.docs[0].id, ...queryByOrganizer.docs[0].data() };
+        }
+      }
     }
 
-    if (!eventDoc) return null;
+    if (!eventDoc) {
+      console.log(`[DEBUG-SERVER] Event NOT FOUND for slug: ${slug}`);
+      return null;
+    }
 
+    // Processar recorrência se necessário
     if (eventDoc.isRecurring) {
       const todayStr = new Date().toISOString().split('T')[0];
       const occSnap = await db.collection('recurring_occurrences')
@@ -86,7 +125,8 @@ async function getEventData(usernameParam: string, slugParam: string) {
     }
 
     return serializeData(eventDoc);
-  } catch (e) {
+  } catch (e: any) {
+    console.error(`[DEBUG-SERVER] Error in getEventData:`, e.message);
     return null;
   }
 }
