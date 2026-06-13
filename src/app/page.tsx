@@ -54,25 +54,9 @@ function serializeData(data: any): any {
   
   if (typeof data === 'object') {
     const serialized: any = {};
-    
-    // Normalização de datas para evitar inconsistências cronológicas
-    if (data.date && data.endDate && typeof data.date === 'string' && typeof data.endDate === 'string') {
-      const dStart = new Date(data.date);
-      let dEnd = new Date(data.endDate);
-      if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime()) && dEnd <= dStart) {
-        const startDay = dStart.toISOString().split('T')[0];
-        const endDay = dEnd.toISOString().split('T')[0];
-        if (startDay === endDay) {
-          dEnd.setDate(dEnd.getDate() + 1);
-          data.endDate = dEnd.toISOString();
-        }
-      }
-    }
-
     Object.keys(data).forEach(key => {
       serialized[key] = serializeData(data[key]);
     });
-    
     return serialized;
   }
   return data;
@@ -81,7 +65,7 @@ function serializeData(data: any): any {
 async function getInitialEvents() {
   try {
     const db = getAdminDb();
-    // BUSCA GLOBAL: Remove filtro restritivo de tags da Copa para a Home
+    // Busca os primeiros 12 eventos ativos
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .orderBy('date', 'asc')

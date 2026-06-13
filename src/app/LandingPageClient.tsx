@@ -41,7 +41,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
-  // Ocorrências para eventos recorrentes (Otimizado)
+  // Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
@@ -115,7 +115,8 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
-      // Visibilidade básica
+      // Visibilidade básica: se for recorrente e ainda não carregou ocorrências, mantemos visível para evitar o sumiço
+      if (e.isRecurring && (!allOccurrences || allOccurrences.length === 0)) return true;
       if (!isEventVisible(e)) return false;
       
       // Filtros de busca

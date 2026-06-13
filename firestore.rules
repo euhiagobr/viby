@@ -151,7 +151,7 @@ service cloud.firestore {
       allow update: if isAdmin() || (isSignedIn() && (get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId == request.auth.uid));
 
       match /members/{memberId} {
-        allow read: if isAdmin() || isSignedIn();
+        allow read: if isSignedIn() || isAdmin();
         allow create, update, delete: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId == request.auth.uid);
       }
     }
