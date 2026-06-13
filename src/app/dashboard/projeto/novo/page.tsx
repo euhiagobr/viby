@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -58,6 +59,7 @@ export default function NovoEventoPage() {
     startingPrice: 0,
     disclosurePrices: [] as { price: number; untilTime: string }[],
     categoryId: "",
+    categoryName: "",
     ageRatingCode: "free",
     startDate: "",
     endDate: "",
@@ -233,7 +235,13 @@ export default function NovoEventoPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
                    <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
-                   <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v})}>
+                   <Select 
+                    value={formData.categoryId} 
+                    onValueChange={v => {
+                      const cat = categories?.find(c => c.id === v);
+                      setFormData({...formData, categoryId: v, categoryName: cat?.name || ""})
+                    }}
+                   >
                       <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent className="rounded-xl">
                          {categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}

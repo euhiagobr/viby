@@ -74,7 +74,6 @@ export default function EditarEventoPage() {
       
       if (isNaN(d.getTime())) return "";
       
-      // Ajuste para timezone local preservando o formato esperado pelo input datetime-local (YYYY-MM-DDTHH:mm)
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
@@ -114,6 +113,7 @@ export default function EditarEventoPage() {
         startingPrice: event.startingPrice || 0,
         disclosurePrices: event.disclosurePrices || [],
         categoryId: event.categoryId || "",
+        categoryName: event.categoryName || "",
         startDate: formatDateForInput(event.date || event.startDate),
         endDate: formatDateForInput(event.endDate),
         description: event.description || "",
@@ -304,7 +304,13 @@ export default function EditarEventoPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
-                      <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v})}>
+                      <Select 
+                        value={formData.categoryId} 
+                        onValueChange={v => {
+                          const cat = categories?.find(c => c.id === v);
+                          setFormData({...formData, categoryId: v, categoryName: cat?.name || ""})
+                        }}
+                      >
                           <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                           <SelectContent className="rounded-xl">{categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                       </Select>

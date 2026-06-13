@@ -68,6 +68,18 @@
         "usuarioResponsavel": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "Category": {
+      "title": "Categoria de Evento",
+      "description": "Classificação temática para eventos.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "icon": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "slug"]
     }
   },
   "auth": {
@@ -85,6 +97,10 @@
     "/crm_lead_history/{historyId}": {
       "schema": "LeadHistory",
       "description": "Timeline de eventos do CRM."
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Lista global de categorias de eventos."
     }
   }
 }

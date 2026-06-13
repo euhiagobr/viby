@@ -65,6 +65,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /organizer_leads/{leadId} {
       allow create: if true;
       allow read, write: if isAdmin();
