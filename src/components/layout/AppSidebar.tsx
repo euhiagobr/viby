@@ -19,7 +19,10 @@ import {
   Bell,
   Handshake,
   Star,
-  Trophy
+  Trophy,
+  Megaphone,
+  Coins,
+  RefreshCw
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -89,6 +92,15 @@ export function AppSidebar() {
     { title: t('nav.support'), url: "/suporte", icon: LifeBuoy, badge: unreadSupportCount || null },
   ];
 
+  const orgItems = currentOrg ? [
+    { title: "Dashboard da Marca", url: `/dashboard/organizacoes/${currentOrg.username}`, icon: LayoutGrid, exact: true },
+    { title: "Eventos da Marca", url: `/dashboard/organizacoes/${currentOrg.username}/events`, icon: Megaphone },
+    { title: "Financeiro", url: `/dashboard/organizacoes/${currentOrg.username}/finance`, icon: Wallet, roles: ['owner', 'admin', 'finance'] },
+    { title: "Anúncios", url: `/dashboard/organizacoes/${currentOrg.username}/anuncios`, icon: Coins, roles: ['owner', 'admin', 'editor', 'marketing'] },
+    { title: "Equipe", url: `/dashboard/organizacoes/${currentOrg.username}/equipe`, icon: Users, roles: ['owner', 'admin'] },
+    { title: "Configurações", url: `/dashboard/organizacoes/${currentOrg.username}/settings`, icon: Settings, roles: ['owner', 'admin'] },
+  ].filter(item => !item.roles || item.roles.includes(userRole || '')) : [];
+
   return (
     <Sidebar className="border-r border-border">
       <SidebarHeader className="p-6">
@@ -101,6 +113,36 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
+        {/* Gestão da Organização Ativa */}
+        {currentOrg && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="px-6 text-[10px] font-black uppercase tracking-widest text-secondary mb-2 flex items-center gap-2">
+              <Building2 className="w-3 h-3" /> Gestão: {currentOrg.name}
+            </SidebarGroupLabel>
+            <SidebarGroupContent className="px-3">
+              <SidebarMenu>
+                {orgItems.map((item) => {
+                  const isActive = item.exact ? pathname === item.url : pathname?.startsWith(item.url);
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <Link href={item.url} className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-semibold text-sm",
+                          isActive ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "hover:bg-secondary/5 text-muted-foreground hover:text-secondary"
+                        )}>
+                          <item.icon className="w-4 h-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Navegação Pessoal */}
         <SidebarGroup>
           <SidebarGroupLabel className="px-6 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
             Navegação Principal
