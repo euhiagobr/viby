@@ -26,7 +26,8 @@ import {
   ArrowRight,
   Map as MapIcon,
   History,
-  Inbox
+  Inbox,
+  RefreshCw
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -52,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { format, startOfToday, addDays } from "date-fns";
 
 export default function OrganizationEventsPage() {
   const { currentOrg, userRole } = useCurrentOrganization();
@@ -67,7 +69,6 @@ export default function OrganizationEventsPage() {
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
-    // Removido orderBy para evitar erros de índice ausente em organizações novas
     return query(
       collection(db, 'events'), 
       where('organizationId', '==', currentOrg.id)
@@ -76,9 +77,21 @@ export default function OrganizationEventsPage() {
 
   const { data: rawEvents, loading } = useCollection<any>(eventsQuery);
 
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db || !currentOrg) return null;
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd');
+    return query(
+      collection(db, "recurring_occurrences"), 
+      where("organizationId", "==", currentOrg.id),
+      where("status", "==", "active"),
+      where("date", ">=", yesterdayStr)
+    );
+  }, [db, currentOrg?.id]);
+
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery);
+
   const allEvents = React.useMemo(() => {
     if (!rawEvents) return [];
-    // Incluir todos os status no painel de gestão para transparência total
     return [...rawEvents].filter(e => e.status !== 'Excluído');
   }, [rawEvents]);
 
@@ -90,25 +103,62 @@ export default function OrganizationEventsPage() {
 
   const upcomingEvents = React.useMemo(() => {
     return filteredEvents
+      .map(e => {
+        let effectiveDate = e.date || e.startDate;
+        if (e.isRecurring) {
+          const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
+          if (myOccs.length > 0) {
+            const sorted = [...myOccs]
+              .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+              .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+            
+            const nextValid = sorted.find(o => {
+              const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+              return now < endThreshold;
+            });
+
+            if (nextValid) {
+              effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '00:00') + ':00';
+            }
+          }
+        }
+        return { ...e, _effectiveDate: effectiveDate };
+      })
       .filter(e => {
-        const dateVal = e.date || e.startDate;
-        if (!dateVal) return true; // Mostra na agenda se não tiver data definida para permitir gestão
+        const dateVal = e._effectiveDate;
+        if (!dateVal) return true;
+        
+        // Se for recorrente, forçamos ficar no upcoming se houver qualquer data futura ativa
+        if (e.isRecurring) {
+           const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
+           if (myOccs.length > 0) {
+              return myOccs.some((o: any) => {
+                const oDate = new Date(o.date + 'T' + (o.startTime || '00:00') + ':00');
+                const oEnd = new Date(oDate.getTime() + 6 * 60 * 60 * 1000);
+                return oEnd >= now;
+              });
+           }
+        }
+
         const start = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
         const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
         return end >= now;
       })
       .sort((a, b) => {
-        const dA = a.date || a.startDate;
-        const dB = b.date || b.startDate;
-        const tA = dA?.toDate ? dA.toDate().getTime() : (dA ? new Date(dA).getTime() : 0);
-        const tB = dB?.toDate ? dB.toDate().getTime() : (dB ? new Date(dB).getTime() : 0);
+        const tA = a._effectiveDate?.toDate ? a._effectiveDate.toDate().getTime() : (a._effectiveDate ? new Date(a._effectiveDate).getTime() : 0);
+        const tB = b._effectiveDate?.toDate ? b._effectiveDate.toDate().getTime() : (b._effectiveDate ? new Date(b._effectiveDate).getTime() : 0);
         return tA - tB;
       });
-  }, [filteredEvents, now]);
+  }, [filteredEvents, now, allOccurrences]);
 
   const pastEvents = React.useMemo(() => {
     return filteredEvents
       .filter(e => {
+        // Se for recorrente, só é passado se não estiver na lista de upcoming
+        if (e.isRecurring) {
+          return !upcomingEvents.some(u => u.id === e.id);
+        }
+
         const dateVal = e.date || e.startDate;
         if (!dateVal) return false;
         const start = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
@@ -122,7 +172,7 @@ export default function OrganizationEventsPage() {
         const tB = dB?.toDate ? dB.toDate().getTime() : (dB ? new Date(dB).getTime() : 0);
         return tB - tA;
       });
-  }, [filteredEvents, now]);
+  }, [filteredEvents, now, upcomingEvents]);
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
   const canCheckIn = ['owner', 'admin', 'editor', 'checkin'].includes(userRole || '');
@@ -321,9 +371,7 @@ function EventRow({
   setEventToDelete,
   isPast = false 
 }: any) {
-  const dateValue = event.date || event.startDate;
-  const eventDate = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : null;
-  const isToday = eventDate && eventDate.toDateString() === new Date().toDateString();
+  const dateValue = event._effectiveDate || event.date || event.startDate;
   const time = formatTime(dateValue);
   const eventLink = `/${currentOrg?.username}/${event.id}`;
 
@@ -349,7 +397,10 @@ function EventRow({
       </div>
       <div className="p-5 space-y-4">
         <div className="flex justify-between items-start gap-2">
-          <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
+          <div className="space-y-1">
+             <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
+             {event.isRecurring && <Badge className="bg-secondary text-white text-[7px] font-black uppercase h-3.5"><RefreshCw className="w-2 h-2 mr-1 animate-spin-slow" /> Série Recorrente</Badge>}
+          </div>
           {isAtLeastEditor && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -393,7 +444,7 @@ function EventRow({
         <div className="space-y-1.5 pt-3 border-t border-dashed">
           <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
             <Calendar className="w-3.5 h-3.5 text-secondary" />
-            <span>{formatDate(dateValue)}</span>
+            <span>{event.isRecurring && !isPast ? "Próxima: " : ""}{formatDate(dateValue)}</span>
             {time && (
               <><span className="mx-1 opacity-30">|</span><Clock className="w-3.5 h-3.5 text-secondary" /><span>{time}</span></>
             )}
@@ -409,18 +460,14 @@ function EventRow({
             <Link href={eventLink} target="_blank">Visualizar</Link>
           </Button>
           <Button 
-            variant={isToday ? "default" : "secondary"} 
+            variant="secondary" 
             size="sm" 
             disabled={!canCheckIn}
-            className={cn(
-              "text-[10px] font-black uppercase h-9 rounded-xl gap-1.5",
-              isToday && canCheckIn && "bg-green-600 text-white hover:bg-green-700 shadow-md animate-pulse"
-            )} 
+            className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5" 
             asChild
           >
             <Link href={`/dashboard/evento/${event.id}/publico`}>
-              {isToday ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Users className="w-3.5 h-3.5" />}
-              {isToday ? "Portaria Aberta" : "Público"}
+               <Users className="w-3.5 h-3.5" /> Público
             </Link>
           </Button>
         </div>
