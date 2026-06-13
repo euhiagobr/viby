@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -176,15 +177,25 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
+      // Normalização de Datas para UTC (Prevenção de desvio de horário)
+      const toISO = (dStr: string) => {
+        if (!dStr) return null;
+        const d = new Date(dStr);
+        return isNaN(d.getTime()) ? dStr : d.toISOString();
+      };
+
       const eventPayload: any = {
         ...formData,
+        startDate: toISO(formData.startDate),
+        endDate: toISO(formData.endDate),
+        date: toISO(formData.startDate),
+        recurringEndDate: toISO(formData.recurringEndDate),
         organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "" },
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         capacidadeTotal: totalCapacity,
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
-        date: formData.startDate,
         city: formData.address.city,
         location: formData.address.neighborhood || formData.address.venueName,
         latitude: formData.address.latitude,

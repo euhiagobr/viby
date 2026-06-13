@@ -150,6 +150,13 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
+      // Normalização de Datas para UTC (Prevenção de desvio de horário)
+      const toISO = (dStr: string) => {
+        if (!dStr) return null;
+        const d = new Date(dStr);
+        return isNaN(d.getTime()) ? dStr : d.toISOString();
+      };
+
       const eventData: any = {
         ...formData,
         organizationId: currentOrg.id,
@@ -160,7 +167,10 @@ export default function NovoEventoPage() {
         capacidadeTotal: totalCapacity,
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
-        date: formData.startDate,
+        date: toISO(formData.startDate),
+        startDate: toISO(formData.startDate),
+        endDate: toISO(formData.endDate),
+        recurringEndDate: toISO(formData.recurringEndDate),
         city: formData.address.city,
         location: formData.address.neighborhood || formData.address.venueName,
         latitude: formData.address.latitude,

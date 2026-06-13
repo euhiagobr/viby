@@ -171,9 +171,19 @@ export default function EditarEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
+      // Normalização de Datas para UTC (Prevenção de desvio de horário)
+      const toISO = (dStr: string) => {
+        if (!dStr) return null;
+        const d = new Date(dStr);
+        return isNaN(d.getTime()) ? dStr : d.toISOString();
+      };
+
       const updateData = {
         ...formData,
-        date: formData.startDate,
+        date: toISO(formData.startDate),
+        startDate: toISO(formData.startDate),
+        endDate: toISO(formData.endDate),
+        recurringEndDate: toISO(formData.recurringEndDate),
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         capacidadeTotal: totalCapacity,
