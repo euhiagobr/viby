@@ -35,31 +35,33 @@ export function PublicHeader({ showBack, hideCopa = false, children }: PublicHea
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
+        <div className="flex items-center gap-2 sm:gap-4 overflow-hidden h-full">
           {showBack && (
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           )}
-          <Link href="/" className="flex items-center gap-2 group overflow-hidden">
+          <Link href="/" className="flex items-center h-full group overflow-hidden py-2">
             {settings?.logoUrl ? (
-              <Image 
-                src={settings.logoUrl} 
-                alt={siteName} 
-                width={120} 
-                height={32} 
-                style={{ height: 'auto' }}
-                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
-                priority 
-                unoptimized 
-              />
+              <div className="relative flex items-center h-8 w-auto">
+                <Image 
+                  src={settings.logoUrl} 
+                  alt={siteName} 
+                  width={140} 
+                  height={32} 
+                  style={{ height: '32px', width: 'auto' }}
+                  className="object-contain" 
+                  priority 
+                  unoptimized 
+                />
+              </div>
             ) : (
-              <span className="text-lg sm:text-xl font-black italic uppercase text-primary ml-1 truncate">{siteName}</span>
+              <span className="text-lg sm:text-xl font-black italic uppercase text-primary truncate ml-1">{siteName}</span>
             )}
           </Link>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0 h-full">
           {!hideCopa && (
             <Button asChild variant="outline" className="hidden md:flex rounded-full h-9 border-[#ffdf00] bg-[#ffdf00]/10 text-[#002776] font-black uppercase text-[9px] gap-2">
                <Link href="/copa-do-mundo"><Trophy className="w-3.5 h-3.5" /> Copa 2026</Link>
