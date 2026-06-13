@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react";
@@ -8,7 +7,7 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useAuth, useFirestore } from "@/firebase";
+import { useAuth, useUser, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Check, X, AtSign, Fingerprint, Lock as LockIcon, User, Mail } from "lucide-react";
@@ -123,12 +122,8 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
   }, [watchCPF, db]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (usernameStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Username inválido ou ocupado" });
-      return;
-    }
-    if (cpfStatus !== 'valid') {
-      toast({ variant: "destructive", title: "CPF Inválido" });
+    if (usernameStatus !== 'valid' || cpfStatus !== 'valid') {
+      toast({ variant: "destructive", title: "Verifique os dados", description: "Username ou CPF inválidos." });
       return;
     }
 
@@ -139,7 +134,6 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Chama a Server Action atômica para criar o perfil completo
       const registrationRes = await finalizeUserRegistration({
         uid: user.uid,
         email: values.email,
@@ -186,7 +180,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
                 <FormControl>
-                  <Input placeholder="Como no seu documento" className="h-14 rounded-2xl pl-12 border-dashed border-primary/20 focus-visible:ring-secondary/30" {...field} />
+                  <Input placeholder="Como no seu documento" className="h-14 rounded-2xl pl-12 border-dashed border-primary/20" {...field} />
                 </FormControl>
               </div>
               <FormMessage />
@@ -200,7 +194,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
             name="username"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</Label>
+                <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</FormLabel>
                 <div className="relative">
                   <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground opacity-40" />
                   <FormControl>
