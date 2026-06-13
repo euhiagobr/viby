@@ -1,9 +1,10 @@
+
 "use client";
 
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
 import { doc, getDoc, collection, query, where, getDocs, collectionGroup, orderBy, limit } from "firebase/firestore";
-import { Loader2, Lock, ArrowLeft, Home, ShieldAlert, Share2, Inbox, Trophy } from "lucide-react";
+import { Loader2, Lock as LockIcon, ArrowLeft, Home, ShieldAlert, Share2, Inbox, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdsRenderer } from "@/components/ads/AdsRenderer";
 import { EventCard } from "@/components/events/EventCard";
@@ -482,7 +483,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
                       <UserGamification gamification={gamification} />
                     ) : (
                       <div className="p-12 border-2 border-dashed rounded-[3rem] text-center bg-muted/10">
-                        <Lock className="w-10 h-10 text-muted-foreground opacity-20 mx-auto mb-2" />
+                        <LockIcon className="w-10 h-10 text-muted-foreground opacity-20 mx-auto mb-2" />
                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">O progresso cultural deste membro é privado.</p>
                       </div>
                     )}

@@ -12,7 +12,7 @@ import {
   Building2, 
   Ticket, 
   CheckCircle2, 
-  Lock, 
+  Lock as LockIcon, 
   EyeOff,
   Globe,
   Instagram,
@@ -112,7 +112,7 @@ export function UserSocialContent({ profile, stats, activities, isOwner = false 
         </section>
       ) : (
         <Card className="border-none shadow-sm rounded-[2rem] bg-white p-12 text-center flex flex-col items-center gap-4">
-           <Lock className="w-8 h-8 text-muted-foreground opacity-20" />
+           <LockIcon className="w-8 h-8 text-muted-foreground opacity-20" />
            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-60">As estatísticas deste perfil são privadas</p>
         </Card>
       )}

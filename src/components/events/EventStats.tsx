@@ -2,7 +2,7 @@
 "use client"
 
 import * as React from "react"
-import { Eye, Heart, Users, Share2, Lock } from "lucide-react"
+import { Eye, Heart, Users, Share2, Lock as LockIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface EventStatsProps {
@@ -22,7 +22,7 @@ export function EventStats({ views, interested, going, shares, isOwner, classNam
          <StatItem icon={Eye} label="Views" value={views} />
        ) : (
          <div className="flex items-center gap-2 opacity-30 cursor-help" title="Visualizações visíveis apenas para o organizador">
-            <div className="p-1.5 bg-muted rounded-lg text-muted-foreground"><Lock className="w-3 h-3" /></div>
+            <div className="p-1.5 bg-muted rounded-lg text-muted-foreground"><LockIcon className="w-3 h-3" /></div>
             <div className="flex flex-col">
                <span className="text-xs font-black text-primary leading-none">***</span>
                <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-tight">Views</span>

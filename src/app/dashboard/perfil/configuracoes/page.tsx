@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label"
 import { 
   Loader2, 
   ArrowLeft, 
-  Lock, 
+  Lock as LockIcon, 
   ShieldAlert, 
   EyeOff, 
   Trash2, 
@@ -198,7 +198,7 @@ export default function ConfiguraçõesContaPage() {
           <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
             <CardHeader className="bg-muted/30 p-8">
                <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-                 <Lock className="w-5 h-5 text-secondary" /> Alterar Senha
+                 <LockIcon className="w-5 h-5 text-secondary" /> Alterar Senha
                </CardTitle>
                <CardDescription className="font-medium">Mantenha sua conta protegida com uma senha forte.</CardDescription>
             </CardHeader>
@@ -292,7 +292,7 @@ export default function ConfiguraçõesContaPage() {
            </DialogHeader>
            <div className="space-y-6 py-4">
               <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><Lock className="w-3 h-3" /> Sua Senha Atual</Label>
+                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2"><LockIcon className="w-3 h-3" /> Sua Senha Atual</Label>
                  <Input 
                     type="password" 
                     placeholder="••••••••" 

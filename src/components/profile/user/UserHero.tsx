@@ -10,7 +10,7 @@ import {
   Heart, 
   MessageCircle, 
   Edit, 
-  Lock, 
+  Lock as LockIcon, 
   EyeOff,
   Instagram,
   Facebook,

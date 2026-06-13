@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react";
@@ -10,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Check, X, AtSign, Fingerprint, Lock, User, Mail } from "lucide-react";
+import { Loader2, Check, X, AtSign, Fingerprint, Lock as LockIcon, User, Mail } from "lucide-react";
 import { FirebaseError } from "firebase/app";
 import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { useRouter } from "next/navigation";
@@ -199,7 +200,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
             name="username"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</FormLabel>
+                <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Username (@)</Label>
                 <div className="relative">
                   <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground opacity-40" />
                   <FormControl>
@@ -292,7 +293,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
             <FormItem>
               <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Senha de Acesso</FormLabel>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                <LockIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
                 <FormControl>
                   <Input type="password" placeholder="Mínimo 6 caracteres" className="h-14 rounded-2xl pl-12 border-dashed border-primary/20" {...field} />
                 </FormControl>

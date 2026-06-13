@@ -1,10 +1,11 @@
+
 "use client";
 
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, CheckCircle2, Lock, Sparkles } from "lucide-react";
+import { Calendar, MapPin, CheckCircle2, Lock as LockIcon, Sparkles } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -59,7 +60,7 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
           </div>
           <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8 text-center space-y-4">
              <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto text-orange-500">
-                <Lock className="w-6 h-6" />
+                <LockIcon className="w-6 h-6" />
              </div>
              <div className="space-y-1">
                 <p className="text-xs font-black uppercase italic tracking-tighter text-primary">Agenda Privada</p>

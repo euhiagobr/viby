@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -40,7 +41,8 @@ import {
   Calculator,
   Handshake,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Lock as LockIcon
 } from 'lucide-react';
 import { formatCurrency, VIBY_BUYER_MARKUP, VIBY_ORGANIZER_FEE, VIBY_MIN_FEE_BRL } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -459,32 +461,10 @@ function OrganizationFinanceContent() {
               </CardHeader>
               <CardContent className="p-0">
                  {salesLoading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div> : (
-                   <Table>
-                      <TableHeader className="bg-muted/30">
-                         <TableRow>
-                            <TableHead className="font-black uppercase text-[9px] px-8">Data</TableHead>
-                            <TableHead className="font-black uppercase text-[9px]">Evento</TableHead>
-                            <TableHead className="font-black uppercase text-[9px]">Comprador</TableHead>
-                            <TableHead className="font-black uppercase text-[9px] text-right">Repasse Líquido</TableHead>
-                            <TableHead className="font-black uppercase text-[9px] text-center">Status</TableHead>
-                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                         {sales.length > 0 ? sales.map((sale: any) => (
-                           <TableRow key={sale.id} className="hover:bg-muted/10 transition-colors">
-                              <TableCell className="text-[10px] font-bold px-8">{new Date(sale.timestamp?.seconds * 1000 || sale.timestamp).toLocaleString('pt-BR')}</TableCell>
-                              <TableCell className="text-xs font-bold uppercase truncate max-w-[200px]">{sale.eventTitle}</TableCell>
-                              <TableCell className="text-xs font-medium uppercase">{sale.userName}</TableCell>
-                              <TableCell className="text-right font-black text-xs text-primary">{formatCurrency(sale.producerNetAmount || 0)}</TableCell>
-                              <TableCell className="text-center">
-                                 <Badge variant="outline" className={cn("text-[8px] font-black uppercase", sale.paymentStatus === 'Pago' ? "bg-green-50 text-green-600 border-green-200" : "bg-muted")}>{sale.paymentStatus}</Badge>
-                              </TableCell>
-                           </TableRow>
-                         )) : (
-                           <TableRow><TableCell colSpan={5} className="py-20 text-center opacity-30 italic">Nenhum registro localizado.</TableCell></TableRow>
-                         )}
-                      </TableBody>
-                   </Table>
+                   <div className="flex items-center gap-2 text-muted-foreground bg-muted/50 p-2 rounded-lg m-4">
+                      <LockIcon className="w-4 h-4 shrink-0" />
+                      <span className="text-[10px] font-black uppercase tracking-tight">Restrito</span>
+                   </div>
                  )}
               </CardContent>
            </Card>
@@ -616,4 +596,3 @@ export default function OrganizationFinancePage() {
     </React.Suspense>
   );
 }
-

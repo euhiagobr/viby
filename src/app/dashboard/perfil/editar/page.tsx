@@ -24,7 +24,7 @@ import {
   Loader2, 
   ArrowLeft, 
   Save, 
-  Lock, 
+  Lock as LockIcon, 
   ShieldCheck, 
   Fingerprint,
   Camera,
@@ -312,7 +312,7 @@ export default function EditarPerfilPage() {
                         required={!skipCPF && !hasValidCPF}
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        {hasValidCPF ? <Lock className="w-4 h-4 text-muted-foreground opacity-30" /> : <ShieldCheck className="w-4 h-4 text-secondary" />}
+                        {hasValidCPF ? <LockIcon className="w-4 h-4 text-muted-foreground opacity-30" /> : <ShieldCheck className="w-4 h-4 text-secondary" />}
                       </div>
                     </div>
                   </div>
@@ -468,7 +468,7 @@ export default function EditarPerfilPage() {
                       value={addressSearch}
                       onChange={e => setAddressSearch(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddressSearch())}
-                      className="rounded-xl h-12 border-dashed border-secondary/30"
+                      className="rounded-xl h-12 border-dashed border-secondary/30 bg-white"
                     />
                     <Button type="button" onClick={handleAddressSearch} disabled={isSearchingAddress} className="h-12 px-6 rounded-xl bg-secondary text-white font-bold">
                        {isSearchingAddress ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buscar"}

@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react";
@@ -10,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Check, X, ShieldCheck, Fingerprint, Lock, AtSign } from "lucide-react";
+import { Loader2, Check, X, ShieldCheck, Fingerprint, Lock as LockIcon, AtSign } from "lucide-react";
 import { cn, validateCPF, validateUsername } from "@/lib/utils";
 import { hashCPF } from "@/lib/crypto-utils";
 import { updateUserCPF } from "@/app/actions/user";
@@ -235,7 +236,7 @@ export default function OnboardingPage() {
         </CardContent>
         <CardFooter className="bg-muted/20 border-t p-6 text-center">
            <div className="flex items-center justify-center gap-3 text-muted-foreground">
-              <Lock className="w-5 h-5 text-secondary" />
+              <LockIcon className="w-5 h-5 text-secondary" />
               <span className="text-[10px] font-black uppercase tracking-widest">LGPD Compliance: Dados Criptografados</span>
            </div>
         </CardFooter>

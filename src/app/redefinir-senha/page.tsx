@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { ArrowLeft, Loader2, Mail, ShieldCheck, Lock } from "lucide-react"
+import { ArrowLeft, Loader2, Mail, ShieldCheck, Lock as LockIcon } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { requestPasswordRecovery, verifyRecoveryCode, resetPasswordWithCode } from "@/app/actions/password-recovery"
@@ -125,7 +126,7 @@ function RedefinirSenhaContent() {
         <Card className="w-full max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden bg-white">
           <CardHeader className="space-y-1 flex flex-col items-center pt-10 pb-6 text-center">
             <div className="w-16 h-16 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4 text-secondary shadow-inner">
-               {step === 1 ? <Mail className="w-8 h-8" /> : step === 2 ? <ShieldCheck className="w-8 h-8" /> : <Lock className="w-8 h-8" />}
+               {step === 1 ? <Mail className="w-8 h-8" /> : step === 2 ? <ShieldCheck className="w-8 h-8" /> : <LockIcon className="w-8 h-8" />}
             </div>
             <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">
               {step === 1 ? "Recuperar Acesso" : step === 2 ? "Validar Código" : "Nova Senha"}

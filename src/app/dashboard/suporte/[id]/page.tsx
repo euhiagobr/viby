@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -23,7 +24,8 @@ import {
   Paperclip,
   X,
   FileText,
-  History
+  History,
+  Lock as LockIcon
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -163,7 +165,7 @@ export default function TicketDetailsPage() {
         </div>
       </div>
 
-      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+      <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
         <CardHeader className="bg-muted/30 border-b p-8">
            <div className="flex justify-between items-start">
               <CardTitle className="text-xl font-bold tracking-tight">{ticket.subject}</CardTitle>
