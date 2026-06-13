@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Metadata } from 'next';
 import TabelaClient from './TabelaClient';
@@ -7,15 +6,37 @@ import { CopaHeader } from '@/components/layout/CopaHeader';
 import { Globe } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Tabela da Copa do Mundo 2026',
-  description: 'Classificação dos grupos, resultados e próximos jogos da Copa do Mundo 2026.',
-  alternates: { canonical: 'https://viby.club/copa-do-mundo/tabela' },
+  title: "Qual a sua Viby na Copa? | Viby Brasil",
+  description:
+    "Juntos rumo ao Hexa! Descubra locais e experiências para viver a Copa do Mundo 2026.",
+  alternates: {
+    canonical: "https://viby.club/copa-do-mundo/tabela",
+  },
   openGraph: {
-    title: 'Tabela da Copa do Mundo 2026 | Viby',
-    description: 'Acompanhe grupos, jogos e resultados da Copa do Mundo 2026 em tempo real.',
-    url: 'https://viby.club/copa-do-mundo/tabela',
-    images: [{ url: 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417' }],
-    type: 'website',
+    title: "Qual a sua Viby na Copa?",
+    description:
+      "Juntos rumo ao Hexa! Descubra locais e experiências para viver a Copa do Mundo 2026.",
+    url: "https://viby.club/copa-do-mundo/tabela",
+    siteName: "Viby",
+    type: "website",
+    locale: "pt_BR",
+    images: [
+      {
+        url: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fcopaviby.png?alt=media&token=250b69d7-8f77-41b9-a2fc-e6a74dfeb082",
+        width: 1200,
+        height: 630,
+        alt: "Qual a sua Viby na Copa?"
+      }
+    ]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Qual a sua Viby na Copa?",
+    description:
+      "Juntos rumo ao Hexa! Descubra locais e experiências para viver a Copa do Mundo 2026.",
+    images: [
+      "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fcopaviby.png?alt=media&token=250b69d7-8f77-41b9-a2fc-e6a74dfeb082"
+    ]
   }
 };
 

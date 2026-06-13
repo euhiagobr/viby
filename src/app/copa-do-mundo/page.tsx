@@ -7,17 +7,39 @@ import Footer from '@/components/layout/Footer';
 import { getAdminDb } from "@/lib/firebase/admin"
 
 export const metadata: Metadata = {
-  title: 'Onde Assistir à Copa do Mundo 2026 | Viby',
-  description: 'Descubra bares, telões, festas e eventos para assistir aos jogos da Copa do Mundo 2026 perto de você.',
-  alternates: { canonical: 'https://viby.club/copa-do-mundo' },
+  title: "Qual a sua Viby na Copa? | Viby Brasil",
+  description:
+    "Juntos rumo ao Hexa! Descubra locais e experiências para viver a Copa do Mundo 2026.",
+  alternates: {
+    canonical: "https://viby.club/copa-do-mundo",
+  },
   openGraph: {
-    title: 'Onde Assistir à Copa do Mundo 2026 | Viby',
-    description: 'Encontre os melhores locais para torcer pelo Brasil na Copa do Mundo 2026.',
-    url: 'https://viby.club/copa-do-mundo',
-    images: [{ url: 'https://picsum.photos/seed/copa2026/1200/630' }],
-    type: 'website',
+    title: "Qual a sua Viby na Copa?",
+    description:
+      "Juntos rumo ao Hexa! Descubra locais e experiências para viver a Copa do Mundo 2026.",
+    url: "https://viby.club/copa-do-mundo",
+    siteName: "Viby",
+    type: "website",
+    locale: "pt_BR",
+    images: [
+      {
+        url: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fcopaviby.png?alt=media&token=250b69d7-8f77-41b9-a2fc-e6a74dfeb082",
+        width: 1200,
+        height: 630,
+        alt: "Qual a sua Viby na Copa?"
+      }
+    ]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Qual a sua Viby na Copa?",
+    description:
+      "Juntos rumo ao Hexa! Descubra locais e experiências para viver a Copa do Mundo 2026.",
+    images: [
+      "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fcopaviby.png?alt=media&token=250b69d7-8f77-41b9-a2fc-e6a74dfeb082"
+    ]
   }
-}
+};
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
