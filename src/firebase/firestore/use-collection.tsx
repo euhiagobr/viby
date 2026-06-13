@@ -9,8 +9,6 @@ import {
   FirestoreError,
   Unsubscribe,
 } from 'firebase/firestore';
-import { errorEmitter } from '../error-emitter';
-import { FirestorePermissionError } from '../errors';
 
 /**
  * Hook resiliente para escutar coleções.
@@ -58,13 +56,15 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
         (serverError: FirestoreError) => {
           if (!isMounted.current) return;
 
-          if (serverError.code === 'permission-denied') {
-            console.warn("[useCollection] Permission denied for query");
-            setData([]);
-          } else {
-            setError(serverError);
-          }
+          console.error(`[useCollection] Firestore Error: ${serverError.code}`, serverError.message);
+          
+          // Mantém os dados antigos se for apenas um erro de transição, 
+          // ou limpa se for permissão/erro fatal
+          setError(serverError);
           setLoading(false);
+          if (serverError.code === 'permission-denied') {
+            setData([]);
+          }
         }
       );
     } catch (e) {

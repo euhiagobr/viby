@@ -34,7 +34,8 @@ import {
   Tag,
   Ticket,
   MapPin,
-  ChevronRight
+  ChevronRight,
+  Database
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -55,6 +56,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
@@ -84,7 +90,8 @@ const PRIORITIES = ["baixa", "media", "alta", "urgente"];
 const POTENTIALS = ["baixo", "medio", "alto"];
 
 export default function LeadDetailPage() {
-  const { id } = useParams<{ id: string }>()
+  const params = useParams()
+  const id = params?.id as string
   const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
@@ -97,7 +104,7 @@ export default function LeadDetailPage() {
     (db && id) ? query(collection(db, "crm_lead_history"), where("leadId", "==", id), orderBy("createdAt", "desc")) : null, 
     [db, id]
   )
-  const { data: history, loading: loadingHistory } = useCollection<any>(historyQuery)
+  const { data: history, loading: loadingHistory, error: historyError } = useCollection<any>(historyQuery)
 
   const adminsQuery = useMemoFirebase(() => db ? query(collection(db, "system_admins"), where("status", "==", "Ativo")) : null, [db]);
   const { data: admins } = useCollection<any>(adminsQuery);
@@ -209,6 +216,16 @@ export default function LeadDetailPage() {
            )}
         </div>
       </div>
+
+      {historyError && (
+        <Alert variant="destructive" className="rounded-2xl border-2 shadow-lg bg-red-50">
+           <Database className="h-5 w-5" />
+           <AlertTitle className="font-black uppercase italic">Erro de Sincronização</AlertTitle>
+           <AlertDescription className="text-xs font-bold uppercase leading-relaxed">
+              Não foi possível carregar o histórico. {historyError.code === 'failed-precondition' ? "O índice do Firestore está sendo criado. Aguarde alguns minutos." : historyError.message}
+           </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-10">
