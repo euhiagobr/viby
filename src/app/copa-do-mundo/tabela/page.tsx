@@ -1,30 +1,25 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import TabelaClient from './TabelaClient';
-import { getWorldCupData, getBrazilStats } from '@/services/world-cup-service';
 import Footer from '@/components/layout/Footer';
 import { CopaHeader } from '@/components/layout/CopaHeader';
 import { Globe } from 'lucide-react';
 
-export const revalidate = 3600;
-
 export const metadata: Metadata = {
-  title: 'Tabela da Copa do Mundo 2026 | Classificação e Jogos | Viby',
-  description: 'Acompanhe em tempo real a classificação dos grupos, resultados, próximos jogos e chaveamento do mata-mata da Copa do Mundo 2026.',
+  title: 'Tabela da Copa do Mundo 2026',
+  description: 'Classificação dos grupos, resultados e próximos jogos da Copa do Mundo 2026.',
   alternates: { canonical: 'https://viby.club/copa-do-mundo/tabela' },
   openGraph: {
     title: 'Tabela da Copa do Mundo 2026 | Viby',
-    description: 'Acompanhe grupos, jogos e resultados da Copa do Mundo 2026.',
+    description: 'Acompanhe grupos, jogos e resultados da Copa do Mundo 2026 em tempo real.',
     url: 'https://viby.club/copa-do-mundo/tabela',
-    images: [{ url: 'https://picsum.photos/seed/copatabela/1200/630' }],
+    images: [{ url: 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417' }],
     type: 'website',
   }
 };
 
-export default async function TabelaCopaPage() {
-  const data = await getWorldCupData();
-  const brazilStats = getBrazilStats(data.groups, data.matches);
-
+export default function TabelaCopaPage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-[#009c3b] selection:text-white">
       <CopaHeader />
@@ -35,12 +30,12 @@ export default async function TabelaCopaPage() {
          </div>
          <div className="container mx-auto px-4 py-16 md:py-24 relative z-10 text-center space-y-6">
             <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.85] text-primary">TABELA <span className="text-[#009c3b]">COMPLETA</span></h1>
-            <p className="text-lg md:text-xl font-medium text-muted-foreground max-w-xl mx-auto uppercase tracking-wide">Acompanhe a jornada rumo à glória eterna.</p>
+            <p className="text-lg md:text-xl font-medium text-muted-foreground max-w-xl mx-auto uppercase tracking-wide">Dados oficiais integrados via Football Data API.</p>
          </div>
       </header>
 
       <main className="container mx-auto px-4 py-12 md:py-20 flex-1">
-         <TabelaClient data={data} brazilStats={brazilStats} />
+         <TabelaClient />
       </main>
 
       <Footer />
