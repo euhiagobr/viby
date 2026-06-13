@@ -24,7 +24,6 @@ import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
 import { isEventVisible, calculateDistanceMeters } from "@/lib/event-scoring-utils"
 import Footer from "@/components/layout/Footer"
 import Image from "next/image"
-import { PlaceHolderImages } from "@/lib/placeholder-images"
 import { UserNav } from "@/components/layout/UserNav"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -32,22 +31,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useTranslation } from "@/i18n/i18n-context"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { AnimatePresence, motion } from "framer-motion"
 import { useState, useEffect } from "react"
 
-export default function LandingPageClient() {
+export default function LandingPageClient({ initialEvents = [] }: { initialEvents?: any[] }) {
   const { t } = useTranslation()
   const db = useFirestore()
   const auth = useAuth()
@@ -63,12 +52,12 @@ export default function LandingPageClient() {
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
 
-  // Pagination State
-  const [rawEvents, setRawEvents] = useState<any[]>([])
+  // Pagination State - Inicializado com dados do servidor
+  const [rawEvents, setRawEvents] = useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null)
   const [hasMore, setHasMore] = useState(true)
   const [isFetching, setIsFetching] = useState(false)
-  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -119,11 +108,15 @@ export default function LandingPageClient() {
 
   useEffect(() => {
     setHasMounted(true);
-    fetchEvents(true);
+    // Se não tivermos dados do servidor, buscamos no cliente
+    if (initialEvents.length === 0) {
+      fetchEvents(true);
+    }
+    
     getCurrentLocation()
       .then(loc => { if (loc) setUserLocation(loc); })
       .catch(() => {})
-  }, [db])
+  }, [db, initialEvents.length, fetchEvents])
 
   const processedEvents = React.useMemo(() => {
     if (!rawEvents) return { events: [], isFallback: false }

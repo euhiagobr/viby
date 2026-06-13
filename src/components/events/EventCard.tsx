@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -18,6 +17,7 @@ import { EventInterest } from "./EventInterest"
 import { getVersionedImageUrl } from "@/lib/image-utils"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useTranslation } from "@/i18n/i18n-context"
+import Link from "next/link"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
@@ -180,93 +180,95 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const slugOrId = event.slug || event.id;
 
   return (
-    <Card 
+    <Link 
+      href={`/${username}/${slugOrId}`}
       className={cn(
         "group flex flex-col h-full overflow-hidden border-none shadow-md bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-2xl cursor-pointer relative",
         isSponsored && "ring-1 ring-secondary/20",
         isEnded && "opacity-60 grayscale"
       )}
-      onClick={() => router.push(`/${username}/${slugOrId}`)}
     >
-      {isSponsored && !isEnded && (
-        <div className="absolute top-0 right-0 z-20">
-          <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg">
-            <Megaphone className="w-2.5 h-2.5 text-secondary fill-secondary" /> {t('event.sponsored')}
-          </Badge>
-        </div>
-      )}
-
-      {event.underReview && !isEnded && (
-        <div className="absolute top-0 left-0 z-20">
-          <Badge className="bg-orange-500 text-white rounded-none rounded-br-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg animate-pulse">
-            <ShieldAlert className="w-2.5 h-2.5" /> Evento em Revisão
-          </Badge>
-        </div>
-      )}
-
-      <div className="relative aspect-[16/10] w-full bg-muted overflow-hidden shrink-0">
-        <Image src={versionedImageUrl || `https://picsum.photos/seed/${event.id}/600/400`} alt={event.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 group-hover:scale-105" unoptimized />
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-          {liveStatus && (
-            <Badge className={cn("border-none shadow-md px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5", liveStatus.colorClass)}>
-              {liveStatus.icon && <liveStatus.icon className="w-3 h-3" />} {liveStatus.label}
+      <Card className="flex flex-col h-full border-none shadow-none bg-transparent">
+        {isSponsored && !isEnded && (
+          <div className="absolute top-0 right-0 z-20">
+            <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg">
+              <Megaphone className="w-2.5 h-2.5 text-secondary fill-secondary" /> {t('event.sponsored')}
             </Badge>
-          )}
+          </div>
+        )}
+
+        {event.underReview && !isEnded && (
+          <div className="absolute top-0 left-0 z-20">
+            <Badge className="bg-orange-500 text-white rounded-none rounded-br-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg animate-pulse">
+              <ShieldAlert className="w-2.5 h-2.5" /> Evento em Revisão
+            </Badge>
+          </div>
+        )}
+
+        <div className="relative aspect-[16/10] w-full bg-muted overflow-hidden shrink-0">
+          <Image src={versionedImageUrl || `https://picsum.photos/seed/${event.id}/600/400`} alt={event.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 group-hover:scale-105" unoptimized />
+          <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+            {liveStatus && (
+              <Badge className={cn("border-none shadow-md px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5", liveStatus.colorClass)}>
+                {liveStatus.icon && <liveStatus.icon className="w-3 h-3" />} {liveStatus.label}
+              </Badge>
+            )}
+            {!isEnded && (
+              <div className="flex items-center gap-1.5">
+                 <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-lg shadow-md" />
+              </div>
+            )}
+          </div>
+          
           {!isEnded && (
-            <div className="flex items-center gap-1.5">
-               <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-lg shadow-md" />
+            <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
+              {displayCategory && (
+                <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1.5 text-[9px] font-black uppercase flex items-center gap-1">
+                  <Tag className="w-2.5 h-2.5" /> {displayCategory}
+                </Badge>
+              )}
+              {distanceMeters !== null && (
+                <Badge className="bg-white/95 text-secondary border-none shadow-md px-3 py-1.5 text-[10px] font-black uppercase flex items-center gap-1">
+                  <Navigation className="w-3 h-3 fill-secondary" /> {distanceMeters < 1000 ? `${distanceMeters} m de você` : `${(distanceMeters/1000).toFixed(1)} km de você`}
+                </Badge>
+              )}
             </div>
           )}
         </div>
-        
-        {!isEnded && (
-          <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
-            {displayCategory && (
-              <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1.5 text-[9px] font-black uppercase flex items-center gap-1">
-                <Tag className="w-2.5 h-2.5" /> {displayCategory}
-              </Badge>
-            )}
-            {distanceMeters !== null && (
-              <Badge className="bg-white/95 text-secondary border-none shadow-md px-3 py-1.5 text-[10px] font-black uppercase flex items-center gap-1">
-                <Navigation className="w-3 h-3 fill-secondary" /> {distanceMeters < 1000 ? `${distanceMeters} m de você` : `${(distanceMeters/1000).toFixed(1)} km de você`}
-              </Badge>
-            )}
-          </div>
-        )}
-      </div>
 
-      <CardContent className="p-5 flex flex-col flex-1 gap-4">
-        <div className="space-y-1">
-          <div className="flex justify-between items-start gap-2">
-            <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title}</h3>
-            <EventInterest event={event} showButton={false} variant="compact" />
+        <CardContent className="p-5 flex flex-col flex-1 gap-4">
+          <div className="space-y-1">
+            <div className="flex justify-between items-start gap-2">
+              <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title}</h3>
+              <EventInterest event={event} showButton={false} variant="compact" />
+            </div>
+            <div className="flex flex-col">
+               <p className="text-[7px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none mb-0.5">{curationLabel}</p>
+               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
+            </div>
           </div>
-          <div className="flex flex-col">
-             <p className="text-[7px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none mb-0.5">{curationLabel}</p>
-             <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
+
+          <div className="flex items-center justify-between pt-3 mt-auto border-t border-dashed border-border/60">
+             <div className="flex flex-col gap-0.5">
+                <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{t('event.when')}</p>
+                <div className="flex items-center gap-1 text-[11px] font-black text-primary">
+                   <Calendar className="w-3 h-3 text-secondary" />
+                   {eventDates.start.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
+                   <span className="mx-0.5 opacity-20">|</span>
+                   <Clock className="w-3 h-3 text-secondary/80" />
+                   {eventDates.start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                </div>
+             </div>
+             <div className="text-right">
+                {pricingDisplay}
+             </div>
           </div>
-        </div>
 
-        <div className="flex items-center justify-between pt-3 mt-auto border-t border-dashed border-border/60">
-           <div className="flex flex-col gap-0.5">
-              <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{t('event.when')}</p>
-              <div className="flex items-center gap-1 text-[11px] font-black text-primary">
-                 <Calendar className="w-3 h-3 text-secondary" />
-                 {eventDates.start.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
-                 <span className="mx-0.5 opacity-20">|</span>
-                 <Clock className="w-3 h-3 text-secondary/80" />
-                 {eventDates.start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-              </div>
-           </div>
-           <div className="text-right">
-              {pricingDisplay}
-           </div>
-        </div>
-
-        <button className="w-full h-10 bg-primary text-white font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
-           {isCuradoria ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
-        </button>
-      </CardContent>
-    </Card>
+          <div className="w-full h-10 bg-primary text-white flex items-center justify-center font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
+             {isCuradoria ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   )
 }
