@@ -15,17 +15,11 @@ import {
   Users,
   Building2,
   UserCheck,
-  CalendarDays,
-  Bell,
-  Handshake,
-  Star,
   Trophy,
   Megaphone,
   Coins,
-  RefreshCw,
-  Plus,
-  CheckCircle2,
-  ChevronRight
+  Bell,
+  RefreshCw
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -47,7 +41,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
@@ -62,8 +55,6 @@ export function AppSidebar() {
   const { user } = useUser(auth)
   const { 
     currentOrg, 
-    organizations,
-    setCurrentOrg,
     userRole, 
     pendingInvitations, 
     pendingPartnerships, 
@@ -88,7 +79,7 @@ export function AppSidebar() {
 
   const personalItems = [
     { title: t('nav.discovery'), url: "/dashboard", icon: Globe, exact: true },
-    { title: "Copa 2026", url: "/copa-do-mundo", icon: Trophy, special: true },
+    { title: "Copa 2026", url: "/copa-do-mundo", icon: Trophy },
     { title: t('nav.tickets'), url: "/dashboard/ingressos", icon: Ticket },
     { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
     { title: t('nav.organizations'), url: "/dashboard/organizacoes", icon: Building2 },
@@ -166,47 +157,6 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup className="mt-6">
-          <SidebarGroupLabel className="px-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-50 mb-2">
-            Minhas Marcas
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {organizations.map((org) => {
-                const isActive = currentOrg?.id === org.id;
-                return (
-                  <SidebarMenuItem key={org.id}>
-                    <SidebarMenuButton 
-                      onClick={() => setCurrentOrg(org)}
-                      className={cn(
-                        "h-11 px-3 rounded-xl transition-all font-bold",
-                        isActive ? "bg-secondary/10 text-primary border border-secondary/20" : "hover:bg-muted"
-                      )}
-                    >
-                      <div className="flex items-center gap-3 w-full overflow-hidden">
-                        <Avatar className="h-6 w-6 shrink-0 border border-muted shadow-sm">
-                          <AvatarImage src={org.avatar} className="object-cover" />
-                          <AvatarFallback className="text-[10px] font-bold bg-muted">{org.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm uppercase tracking-tight italic truncate">{org.name}</span>
-                        {isActive && <CheckCircle2 className="w-3 h-3 text-secondary ml-auto" />}
-                      </div>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="h-10 px-3 rounded-xl text-secondary font-black gap-3 mt-2 border border-dashed border-secondary/30 hover:bg-secondary/5">
-                  <Link href="/dashboard/organizacoes/new">
-                    <Plus className="w-4 h-4" />
-                    <span className="text-[10px] uppercase italic">Nova Marca</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
