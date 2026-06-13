@@ -21,7 +21,7 @@ interface PublicHeaderProps {
  * @fileOverview Componente centralizado de cabeçalho para todas as páginas públicas da Viby.
  * Unifica o branding, autenticação e navegação temática da Copa 2026.
  */
-export function PublicHeader({ showBack, hideCopa, children }: PublicHeaderProps) {
+export function PublicHeader({ showBack, hideCopa = false, children }: PublicHeaderProps) {
   const { t } = useTranslation()
   const router = useRouter()
   const db = useFirestore()
@@ -33,7 +33,7 @@ export function PublicHeader({ showBack, hideCopa, children }: PublicHeaderProps
   const siteName = settings?.siteName || "Viby"
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
+    <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
           {showBack && (
@@ -71,10 +71,10 @@ export function PublicHeader({ showBack, hideCopa, children }: PublicHeaderProps
           {user ? <UserNav /> : (
             <div className="flex items-center gap-1 sm:gap-2">
               <Button variant="ghost" asChild className="font-bold uppercase text-[9px] sm:text-[10px] tracking-widest px-2 sm:px-4">
-                <Link href="/login">{t('home.login')}</Link>
+                <Link href="/login">Entrar</Link>
               </Button>
               <Button asChild className="bg-primary text-white font-black uppercase italic text-[9px] sm:text-[10px] tracking-widest rounded-full px-4 sm:px-6 shadow-lg">
-                <Link href="/cadastro">{t('home.signup')}</Link>
+                <Link href="/cadastro">Criar Conta</Link>
               </Button>
             </div>
           )}

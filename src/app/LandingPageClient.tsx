@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
-import { collection, query, limit, doc, where, orderBy, getDocs, startAfter, DocumentSnapshot } from "firebase/firestore"
+import { useCollection, useFirestore, useAuth, useUser } from "@/firebase"
+import { collection, query, limit, where, orderBy, getDocs, startAfter, DocumentSnapshot } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,7 +24,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const { t } = useTranslation()
   const db = useFirestore()
   const auth = useAuth()
-  const { user } = useUser(auth)
 
   const [searchName, setSearchName] = React.useState("")
   const [searchCity, setSearchCity] = React.useState("")
