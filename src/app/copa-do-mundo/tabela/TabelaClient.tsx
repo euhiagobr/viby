@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -17,7 +16,8 @@ import {
   MapPin,
   Clock,
   LayoutGrid,
-  Info
+  Info,
+  ArrowRight
 } from 'lucide-react';
 import Image from "next/image";
 import Link from "next/link";
@@ -150,7 +150,7 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
 
            <section className="space-y-6">
               <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary flex items-center gap-3 px-2 opacity-60">
-                 <History className="w-5 h-5" /> Resultados Recentes
+                 <HistoryIcon className="w-5 h-5" /> Resultados Recentes
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  {results.map(match => (
@@ -232,7 +232,7 @@ function MatchCard({ match }: { match: Match }) {
   );
 }
 
-function History({ className }: { className?: string }) {
+function HistoryIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 8V12L15 15" /><circle cx="12" cy="12" r="9" />
