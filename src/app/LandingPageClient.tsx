@@ -115,7 +115,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
-      // Visibilidade básica: se for recorrente e ainda não carregou ocorrências, mantemos visível para evitar o sumiço
+      // Visibilidade básica
       if (e.isRecurring && (!allOccurrences || allOccurrences.length === 0)) return true;
       if (!isEventVisible(e)) return false;
       
@@ -148,7 +148,16 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
             {settings?.logoUrl ? (
-              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-10 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
+              <Image 
+                src={settings.logoUrl} 
+                alt={siteName} 
+                width={120} 
+                height={40} 
+                style={{ height: 'auto' }}
+                className="h-10 w-auto object-contain transition-transform group-hover:scale-105" 
+                priority 
+                unoptimized 
+              />
             ) : (
               <span className="text-xl font-black italic uppercase text-primary ml-1">{siteName}</span>
             )}
@@ -201,7 +210,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
                   />
                 </div>
                 <div className="md:col-span-4 relative">
-                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
                   <Input 
                     placeholder={t('home.where_placeholder')} 
                     className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"

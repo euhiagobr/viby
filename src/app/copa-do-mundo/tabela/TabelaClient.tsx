@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -23,7 +24,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Group, Match, TeamStats } from "@/services/world-cup-service";
+import { Group, Match } from "@/services/world-cup-service";
 
 interface TabelaClientProps {
   data: {

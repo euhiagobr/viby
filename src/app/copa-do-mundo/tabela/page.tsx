@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import TabelaClient from './TabelaClient';
@@ -49,7 +50,16 @@ export default async function TabelaCopaPage() {
              <Button variant="ghost" size="icon" asChild className="rounded-full"><Link href="/copa-do-mundo"><ArrowLeft className="w-5 h-5" /></Link></Button>
              <Link href="/" className="flex items-center gap-2 group">
                {settings?.logoUrl ? (
-                 <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-8 w-auto object-contain" priority unoptimized />
+                 <Image 
+                   src={settings.logoUrl} 
+                   alt={siteName} 
+                   width={120} 
+                   height={40} 
+                   style={{ height: 'auto' }}
+                   className="h-8 w-auto object-contain" 
+                   priority 
+                   unoptimized 
+                 />
                ) : (
                  <span className="text-xl font-black italic uppercase text-primary">{siteName}</span>
                )}

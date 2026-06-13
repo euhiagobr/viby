@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -10,7 +11,7 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { type Coordinates } from "@/lib/location-utils"
-import { calculateDistanceMeters } from "@/lib/event-scoring-utils"
+import { calculateDistanceMeters, isEventVisible } from "@/lib/event-scoring-utils"
 import { useAuth, useUser } from "@/firebase"
 import { AgeRatingBadge } from "@/lib/age-rating"
 import { EventInterest } from "./EventInterest"
@@ -31,10 +32,15 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const router = useRouter()
   const { user } = useUser(useAuth())
   const { formatPriceWithOriginal } = useCurrency()
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
 
+  const [mounted, setMounted] = React.useState(false);
   const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string; icon?: any } | null>(null);
   const [currentDisplayPrice, setCurrentDisplayPrice] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const eventDates = React.useMemo(() => {
     const parseDate = (val: any) => {
@@ -47,7 +53,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     const start = parseDate(event.date) || new Date();
     let end = parseDate(event.endDate);
     
-    // Normalização de Madrugada: se o fim for menor que o início na mesma data, interpretamos como dia seguinte
+    // Normalização de Madrugada
     if (end && end <= start) {
       if (start.toISOString().split('T')[0] === end.toISOString().split('T')[0]) {
         end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
@@ -71,6 +77,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
                       (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
 
   React.useEffect(() => {
+    if (!mounted) return;
     const update = () => {
       const now = new Date();
       const { start, end } = eventDates;
@@ -116,7 +123,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     update();
     const interval = setInterval(update, 10000); 
     return () => clearInterval(interval);
-  }, [eventDates, t, event.disclosurePrices, event.type]);
+  }, [eventDates, t, event.disclosurePrices, event.type, mounted]);
 
   const distanceMeters = React.useMemo(() => {
     if (userLocation && typeof event.latitude === 'number' && typeof event.longitude === 'number') {
@@ -204,18 +211,10 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
           </div>
         )}
 
-        {event.underReview && !isEnded && (
-          <div className="absolute top-0 left-0 z-20">
-            <Badge className="bg-orange-50 text-white rounded-none rounded-br-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg animate-pulse">
-              <ShieldAlert className="w-2.5 h-2.5" /> Evento em Revisão
-            </Badge>
-          </div>
-        )}
-
         <div className="relative aspect-[16/10] w-full bg-muted overflow-hidden shrink-0">
           <Image src={versionedImageUrl || `https://picsum.photos/seed/${event.id}/600/400`} alt={event.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 group-hover:scale-105" unoptimized />
           <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-            {liveStatus && (
+            {mounted && liveStatus && (
               <Badge className={cn("border-none shadow-md px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5", liveStatus.colorClass)}>
                 {liveStatus.icon && <liveStatus.icon className="w-3 h-3" />} {liveStatus.label}
               </Badge>
@@ -261,12 +260,16 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
                 <div className="flex items-center gap-1 text-[11px] font-black text-primary">
                    <Calendar className="w-3 h-3 text-secondary" />
                    <span>
-                      {eventDates.start.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
-                      {isOvernight && ` → ${eventDates.end.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}`}
+                      {mounted ? (
+                        <>
+                          {eventDates.start.toLocaleDateString(language, { day: '2-digit', month: 'short' })}
+                          {isOvernight && ` → ${eventDates.end.toLocaleDateString(language, { day: '2-digit', month: 'short' })}`}
+                        </>
+                      ) : "..."}
                    </span>
                    <span className="mx-0.5 opacity-20">|</span>
                    <Clock className="w-3 h-3 text-secondary/80" />
-                   {eventDates.start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                   {mounted ? eventDates.start.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' }) : "..."}
                 </div>
              </div>
              <div className="text-right">

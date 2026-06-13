@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -337,7 +338,16 @@ export default function ProfilePageClient({ username }: { username: string }) {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
             {settings?.logoUrl ? (
-              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-8 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
+              <Image 
+                src={settings.logoUrl} 
+                alt={siteName} 
+                width={120} 
+                height={40} 
+                style={{ height: 'auto' }}
+                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
+                priority 
+                unoptimized 
+              />
             ) : (
               <span className="text-xl font-bold tracking-tight italic uppercase">{siteName}</span>
             )}
