@@ -65,9 +65,16 @@ function serializeData(data: any): any {
 async function getInitialEvents() {
   try {
     const db = getAdminDb();
-    // Busca os primeiros 12 eventos ativos
+    
+    // REGRA DE NEGÓCIO: Buscar eventos que começaram há no máximo 12 horas ou que ainda vão começar
+    // Isso garante que peguemos eventos "em andamento" sem poluir com eventos encerrados de dias atrás.
+    const yesterday = new Date();
+    yesterday.setHours(yesterday.getHours() - 12);
+    const dateThreshold = yesterday.toISOString();
+
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
+      .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
       .limit(12)
       .get();

@@ -21,27 +21,34 @@ export function calculateDistanceMeters(coords1: Coordinates, coords2: Coordinat
 export function isEventVisible(event: any): boolean {
   if (!event || event.status !== 'Ativo') return false;
   
-  const now = new Date();
-  const parseDate = (val: any) => {
+  // Garantir comparação em milissegundos absolutos para evitar problemas de fuso horário
+  const now = new Date().getTime();
+  
+  const parseDateToMs = (val: any) => {
     if (!val) return null;
-    if (val.toDate) return val.toDate();
+    if (val.toDate) return val.toDate().getTime();
     const d = new Date(val);
-    return isNaN(d.getTime()) ? null : d;
+    return isNaN(d.getTime()) ? null : d.getTime();
   };
 
-  const start = parseDate(event.date);
-  if (!start) return false;
+  const startMs = parseDateToMs(event.date);
+  if (!startMs) return false;
 
-  // Normalização de Madrugada: se o fim for menor que o início na mesma data, interpretamos como dia seguinte
-  let end = parseDate(event.endDate);
-  if (end && end <= start) {
-    if (start.toISOString().split('T')[0] === end.toISOString().split('T')[0]) {
-      end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+  let endMs = parseDateToMs(event.endDate);
+  
+  // Caso especial: Madrugada (ex: 22h às 04h)
+  // Se o fim é menor que o início mas no mesmo dia de calendário (ex: "2026-06-10T22:00" e "2026-06-10T04:00")
+  if (endMs && endMs <= startMs) {
+    const dStart = new Date(startMs);
+    const dEnd = new Date(endMs);
+    if (dStart.toDateString() === dEnd.toDateString()) {
+      endMs += 24 * 60 * 60 * 1000;
     }
   }
 
   // Se não houver data de fim, usamos um padrão de 6h após o início como threshold de visibilidade
-  const effectiveEnd = end || new Date(start.getTime() + 6 * 60 * 60 * 1000);
+  const effectiveEndMs = endMs || (startMs + 6 * 60 * 60 * 1000);
   
-  return now < effectiveEnd;
+  // O evento só é visível se o momento atual for anterior ao encerramento (ou 6h após o início se não houver fim)
+  return now < effectiveEndMs;
 }

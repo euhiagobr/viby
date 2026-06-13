@@ -48,9 +48,15 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
     
     setIsFetching(true)
     try {
+      // REGRA DE NEGÓCIO: Buscar apenas eventos relevantes (futuros ou em andamento recente)
+      const yesterday = new Date();
+      yesterday.setHours(yesterday.getHours() - 12);
+      const dateThreshold = yesterday.toISOString();
+
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
+        where("date", ">=", dateThreshold),
         orderBy("date", "asc"),
         ...(isInitial ? [limit(12)] : [startAfter(lastVisible), limit(6)])
       )
@@ -109,8 +115,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
-      // Visibilidade básica
-      if (e.isRecurring && (!allOccurrences || allOccurrences.length === 0)) return true;
+      // REGRA DE VISIBILIDADE CRÍTICA
       if (!isEventVisible(e)) return false;
       
       // Filtros de busca
