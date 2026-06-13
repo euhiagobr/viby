@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, AlertTriangle, ArrowRight } from "lucide-react"
 import { cn, normalizeEventDates } from "@/lib/utils"
 
