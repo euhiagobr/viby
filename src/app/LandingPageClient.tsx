@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -20,7 +19,7 @@ import Image from "next/image"
 import { UserNav } from "@/components/layout/UserNav"
 import { format, startOfToday, addDays } from "date-fns"
 import { useTranslation } from "@/i18n/i18n-context"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 
 export default function LandingPageClient({ initialEvents = [] }: { initialEvents?: any[] }) {
   const { t } = useTranslation()
@@ -49,7 +48,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   }, [db])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
-  const fetchEvents = React.useCallback(async (isInitial = false) => {
+  const fetchEvents = useCallback(async (isInitial = false) => {
     if (!db || isFetching || (!isInitial && !hasMore)) return
     
     setIsFetching(true)
