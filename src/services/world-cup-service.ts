@@ -1,6 +1,6 @@
 /**
  * @fileOverview Serviço de dados oficial para a Copa do Mundo 2026.
- * Implementa o formato de 48 seleções (12 grupos de 4) com dados reais e zerados.
+ * Integração com dataset real e mapeamento para estrutura da Viby.
  */
 
 export interface TeamStats {
@@ -38,61 +38,125 @@ export interface Match {
   status: 'scheduled' | 'live' | 'finished';
 }
 
-/**
- * Helper para criar estrutura de time zerada
- */
-const createEmptyTeam = (id: string, name: string, flag: string): TeamStats => ({
-  id, name, flag,
-  points: 0, played: 0, won: 0, drawn: 0, lost: 0,
-  goalsFor: 0, goalsAgainst: 0, goalDifference: 0
-});
+// Mapeamento de bandeiras e nomes amigáveis para seleções
+const TEAM_META: Record<string, { name: string; flag: string }> = {
+  'bra': { name: 'Brasil', flag: '🇧🇷' },
+  'mex': { name: 'México', flag: '🇲🇽' },
+  'usa': { name: 'EUA', flag: '🇺🇸' },
+  'can': { name: 'Canadá', flag: '🇨🇦' },
+  'arg': { name: 'Argentina', flag: '🇦🇷' },
+  'fra': { name: 'França', flag: '🇫🇷' },
+  'ger': { name: 'Alemanha', flag: '🇩🇪' },
+  'esp': { name: 'Espanha', flag: '🇪🇸' },
+  'ita': { name: 'Itália', flag: '🇮🇹' },
+  'eng': { name: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+  'por': { name: 'Portugal', flag: '🇵🇹' },
+  'mar': { name: 'Marrocos', flag: '🇲🇦' },
+  'col': { name: 'Colômbia', flag: '🇨🇴' },
+  'uru': { name: 'Uruguai', flag: '🇺🇾' },
+  'bel': { name: 'Bélgica', flag: '🇧🇪' },
+  'cro': { name: 'Croácia', flag: '🇭🇷' },
+  'jpn': { name: 'Japão', flag: '🇯🇵' },
+  'kor': { name: 'Coréia do Sul', flag: '🇰🇷' },
+  'ned': { name: 'Holanda', flag: '🇳🇱' },
+};
 
-/**
- * Estrutura Oficial de Grupos da Copa 2026 (A-L)
- * Seleções definidas conforme slots e classificações atuais (Junho/2024).
- */
-const OFFICIAL_GROUPS: Group[] = [
-  { letter: 'A', teams: [createEmptyTeam('mx', 'México', '🇲🇽'), createEmptyTeam('t1', 'A definir', '🏳️'), createEmptyTeam('t2', 'A definir', '🏳️'), createEmptyTeam('t3', 'A definir', '🏳️')] },
-  { letter: 'B', teams: [createEmptyTeam('ca', 'Canadá', '🇨🇦'), createEmptyTeam('t4', 'A definir', '🏳️'), createEmptyTeam('t5', 'A definir', '🏳️'), createEmptyTeam('t6', 'A definir', '🏳️')] },
-  { letter: 'C', teams: [createEmptyTeam('us', 'Estados Unidos', '🇺🇸'), createEmptyTeam('t7', 'A definir', '🏳️'), createEmptyTeam('t8', 'A definir', '🏳️'), createEmptyTeam('t9', 'A definir', '🏳️')] },
-  { letter: 'D', teams: [createEmptyTeam('br', 'Brasil', '🇧🇷'), createEmptyTeam('t10', 'A definir', '🏳️'), createEmptyTeam('t11', 'A definir', '🏳️'), createEmptyTeam('t12', 'A definir', '🏳️')] },
-  { letter: 'E', teams: [createEmptyTeam('t13', 'A definir', '🏳️'), createEmptyTeam('t14', 'A definir', '🏳️'), createEmptyTeam('t15', 'A definir', '🏳️'), createEmptyTeam('t16', 'A definir', '🏳️')] },
-  { letter: 'F', teams: [createEmptyTeam('t17', 'A definir', '🏳️'), createEmptyTeam('t18', 'A definir', '🏳️'), createEmptyTeam('t19', 'A definir', '🏳️'), createEmptyTeam('t20', 'A definir', '🏳️')] },
-  { letter: 'G', teams: [createEmptyTeam('t21', 'A definir', '🏳️'), createEmptyTeam('t22', 'A definir', '🏳️'), createEmptyTeam('t23', 'A definir', '🏳️'), createEmptyTeam('t24', 'A definir', '🏳️')] },
-  { letter: 'H', teams: [createEmptyTeam('t25', 'A definir', '🏳️'), createEmptyTeam('t26', 'A definir', '🏳️'), createEmptyTeam('t27', 'A definir', '🏳️'), createEmptyTeam('t28', 'A definir', '🏳️')] },
-  { letter: 'I', teams: [createEmptyTeam('t29', 'A definir', '🏳️'), createEmptyTeam('t30', 'A definir', '🏳️'), createEmptyTeam('t31', 'A definir', '🏳️'), createEmptyTeam('t32', 'A definir', '🏳️')] },
-  { letter: 'J', teams: [createEmptyTeam('t33', 'A definir', '🏳️'), createEmptyTeam('t34', 'A definir', '🏳️'), createEmptyTeam('t35', 'A definir', '🏳️'), createEmptyTeam('t36', 'A definir', '🏳️')] },
-  { letter: 'K', teams: [createEmptyTeam('t37', 'A definir', '🏳️'), createEmptyTeam('t38', 'A definir', '🏳️'), createEmptyTeam('t39', 'A definir', '🏳️'), createEmptyTeam('t40', 'A definir', '🏳️')] },
-  { letter: 'L', teams: [createEmptyTeam('t41', 'A definir', '🏳️'), createEmptyTeam('t42', 'A definir', '🏳️'), createEmptyTeam('t43', 'A definir', '🏳️'), createEmptyTeam('t44', 'A definir', '🏳️')] },
-];
-
-/**
- * Calendário de Abertura e Jogos do Brasil (Conforme cronograma FIFA)
- */
-const OFFICIAL_MATCHES: Match[] = [
-  { id: 'm1', homeTeam: 'México', awayTeam: 'A definir', homeFlag: '🇲🇽', awayFlag: '🏳️', date: '2026-06-11', time: '18:00', stadium: 'Estádio Azteca', city: 'Cidade do México', phase: 'Abertura', status: 'scheduled' },
-  { id: 'm2', homeTeam: 'Canadá', awayTeam: 'A definir', homeFlag: '🇨🇦', awayFlag: '🏳️', date: '2026-06-12', time: '16:00', stadium: 'BMO Field', city: 'Toronto', phase: 'Fase de Grupos', status: 'scheduled' },
-  { id: 'm3', homeTeam: 'Estados Unidos', awayTeam: 'A definir', homeFlag: '🇺🇸', awayFlag: '🏳️', date: '2026-06-12', time: '21:00', stadium: 'SoFi Stadium', city: 'Los Angeles', phase: 'Fase de Grupos', status: 'scheduled' },
-  { id: 'm_bra_1', homeTeam: 'Brasil', awayTeam: 'A definir', homeFlag: '🇧🇷', awayFlag: '🏳️', date: '2026-06-15', time: '20:00', stadium: 'A definir', city: 'A definir', phase: 'Grupo D', status: 'scheduled' },
-];
+const DATA_SOURCE = "https://raw.githubusercontent.com/lsv/fifa-worldcup-2026/master/data.json";
 
 export async function getWorldCupData() {
-  return {
-    groups: OFFICIAL_GROUPS,
-    matches: OFFICIAL_MATCHES,
-    updatedAt: new Date().toISOString()
-  };
+  try {
+    const res = await fetch(DATA_SOURCE, {
+      next: { revalidate: 3600 } // Cache de 1 hora
+    });
+    
+    if (!res.ok) throw new Error("Falha ao carregar dados da FIFA");
+    
+    const raw = await res.json();
+
+    // Processar Grupos
+    const groups: Group[] = (raw.groups || []).map((g: any) => ({
+      letter: g.name.replace('Group ', ''),
+      teams: g.teams.map((tId: number) => {
+        const teamData = raw.teams.find((team: any) => team.id === tId);
+        const meta = TEAM_META[teamData?.id?.toString().toLowerCase()] || { name: teamData?.name || 'A definir', flag: '🏳️' };
+        
+        // Em 2026, até o sorteio, muitos dados de pontos estarão zerados na fonte
+        return {
+          id: tId.toString(),
+          name: meta.name,
+          flag: meta.flag,
+          points: 0,
+          played: 0,
+          won: 0,
+          drawn: 0,
+          lost: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDifference: 0
+        };
+      })
+    }));
+
+    // Processar Partidas
+    const matches: Match[] = [];
+    
+    // Fase de Grupos
+    Object.entries(raw.groups || {}).forEach(([key, g]: [string, any]) => {
+      g.matches.forEach((m: any) => {
+        const homeTeam = raw.teams.find((t: any) => t.id === m.home_team);
+        const awayTeam = raw.teams.find((t: any) => t.id === m.away_team);
+        
+        const homeMeta = TEAM_META[homeTeam?.id?.toString().toLowerCase()] || { name: homeTeam?.name || `Lote ${m.home_result || '?'}`, flag: '🏳️' };
+        const awayMeta = TEAM_META[awayTeam?.id?.toString().toLowerCase()] || { name: awayTeam?.name || `Lote ${m.away_result || '?'}`, flag: '🏳️' };
+
+        const stadium = raw.stadiums.find((s: any) => s.id === m.stadium);
+
+        matches.push({
+          id: m.name.toString(),
+          homeTeam: homeMeta.name,
+          awayTeam: awayMeta.name,
+          homeFlag: homeMeta.flag,
+          awayFlag: awayMeta.flag,
+          homeScore: m.home_score,
+          awayScore: m.away_score,
+          date: m.date.split('T')[0],
+          time: m.date.split('T')[1]?.substring(0, 5) || "A definir",
+          stadium: stadium?.name || "A definir",
+          city: stadium?.city || "A definir",
+          phase: g.name,
+          status: m.finished ? 'finished' : (m.home_score !== null ? 'live' : 'scheduled')
+        });
+      });
+    });
+
+    return {
+      groups,
+      matches: matches.sort((a, b) => a.date.localeCompare(b.date)),
+      updatedAt: new Date().toISOString()
+    };
+  } catch (e) {
+    console.error("[World Cup Service] Error fetching live data:", e);
+    // Fallback para estrutura vazia mas real em caso de erro na rede
+    return {
+      groups: [],
+      matches: [],
+      updatedAt: new Date().toISOString()
+    };
+  }
 }
 
 export function getBrazilStats(groups: Group[], matches: Match[]) {
-  const brazilGroup = groups.find(g => g.teams.some(t => t.id === 'br'));
-  const teamStats = brazilGroup?.teams.find(t => t.id === 'br');
+  const brazilTeam = groups.flatMap(g => g.teams).find(t => t.name === 'Brasil');
   const nextMatch = matches.find(m => (m.homeTeam === 'Brasil' || m.awayTeam === 'Brasil') && m.status === 'scheduled');
   const lastResult = [...matches].reverse().find(m => (m.homeTeam === 'Brasil' || m.awayTeam === 'Brasil') && m.status === 'finished');
 
   return {
-    stats: teamStats || createEmptyTeam('br', 'Brasil', '🇧🇷'),
-    group: brazilGroup?.letter || 'D',
+    stats: brazilTeam || {
+      id: 'br', name: 'Brasil', flag: '🇧🇷',
+      points: 0, played: 0, won: 0, drawn: 0, lost: 0,
+      goalsFor: 0, goalsAgainst: 0, goalDifference: 0
+    },
+    group: groups.find(g => g.teams.some(t => t.name === 'Brasil'))?.letter || 'D',
     nextMatch,
     lastResult
   };

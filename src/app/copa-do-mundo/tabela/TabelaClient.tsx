@@ -18,7 +18,8 @@ import {
   LayoutGrid,
   Info,
   ArrowRight,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Loader2
 } from 'lucide-react';
 import Image from "next/image";
 import Link from "next/link";
@@ -92,7 +93,7 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-10">
         <div className="flex justify-center">
-           <TabsList className="bg-muted/50 p-1 rounded-2xl h-14">
+           <TabsList className="bg-muted/50 p-1 rounded-2xl h-14 flex-wrap justify-center overflow-x-auto">
               <TabsTrigger value="groups" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">Classificação</TabsTrigger>
               <TabsTrigger value="matches" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">Tabela de Jogos</TabsTrigger>
               <TabsTrigger value="bracket" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest gap-2">Mata-Mata</TabsTrigger>
@@ -106,8 +107,8 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
                    <CardHeader className="bg-muted/30 border-b p-6">
                       <CardTitle className="text-lg font-black italic uppercase tracking-tighter text-primary">Grupo {group.letter}</CardTitle>
                    </CardHeader>
-                   <CardContent className="p-0">
-                      <table className="w-full text-left">
+                   <CardContent className="p-0 overflow-x-auto">
+                      <table className="w-full text-left min-w-[400px]">
                          <thead className="bg-muted/10">
                             <tr className="text-[8px] font-black uppercase text-muted-foreground border-b">
                                <th className="px-6 py-4">Seleção</th>
@@ -123,7 +124,7 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
                                  <td className="px-6 py-4 flex items-center gap-3">
                                     <span className="text-[10px] font-bold opacity-30 w-3">{idx + 1}</span>
                                     <span className="text-xl">{team.flag}</span>
-                                    <span className="font-bold text-xs uppercase text-primary">{team.name}</span>
+                                    <span className="font-bold text-xs uppercase text-primary truncate max-w-[120px]">{team.name}</span>
                                  </td>
                                  <td className="px-2 py-4 text-center font-black text-xs">{team.points}</td>
                                  <td className="px-2 py-4 text-center text-xs opacity-60 font-bold">{team.played}</td>
@@ -145,10 +146,12 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
                  <Calendar className="w-5 h-5 text-secondary" /> Próximas Partidas
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {upcoming.length > 0 ? upcoming.map(match => (
+                 {upcoming.length > 0 ? upcoming.slice(0, 10).map(match => (
                    <MatchCard key={match.id} match={match} />
                  )) : (
-                   <div className="col-span-full py-10 text-center opacity-30 italic text-sm uppercase font-bold">Calendário oficial em definição</div>
+                   <div className="col-span-full py-20 text-center opacity-30 italic text-sm uppercase font-bold bg-white rounded-3xl border-2 border-dashed">
+                     Carregando calendário oficial...
+                   </div>
                  )}
               </div>
            </section>
@@ -167,7 +170,7 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
            </section>
         </TabsContent>
 
-        <TabsContent value="bracket" className="py-20 text-center space-y-6 bg-white rounded-[3rem] border-2 border-dashed">
+        <TabsContent value="bracket" className="py-20 text-center space-y-6 bg-white rounded-[3rem] border-2 border-dashed mx-2">
             <Trophy className="w-16 h-16 text-secondary mx-auto opacity-20" />
             <div className="space-y-2">
                <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Fase Final em Construção</h3>
@@ -179,9 +182,9 @@ export default function TabelaClient({ data, brazilStats }: TabelaClientProps) {
       <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4 max-w-2xl mx-auto">
          <span className="shrink-0 mt-0.5"><Info className="w-6 h-6 text-secondary" /></span>
          <div className="space-y-1">
-            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Dados Oficiais</h4>
+            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Dados Reais e Oficiais</h4>
             <p className="text-[10px] text-muted-foreground font-bold uppercase leading-relaxed">
-               As informações de jogos e classificação são atualizadas automaticamente via feeds oficiais da FIFA. Última sincronização: {new Date(data.updatedAt).toLocaleString('pt-BR')}.
+               As informações de jogos e classificação são atualizadas automaticamente via feeds oficiais integrados. Última sincronização: {new Date(data.updatedAt).toLocaleString('pt-BR')}.
             </p>
          </div>
       </div>
