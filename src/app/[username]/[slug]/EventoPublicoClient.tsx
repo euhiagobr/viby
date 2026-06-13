@@ -264,7 +264,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                      <FollowButton organizationId={event.organizationId} username={org?.username} className="flex-1" />
                      <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-2" onClick={() => setIsShareModalOpen(true)}><Share2 className="w-5 h-5" /></Button>
                   </div>
-               </aside>
+               </Card>
 
                <div className="flex items-center justify-center">
                   <Button variant="link" className="text-[9px] font-black uppercase text-muted-foreground opacity-30 hover:opacity-100" onClick={() => setIsActionModalOpen(true)}>Problemas com este evento?</Button>
