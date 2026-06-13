@@ -3,6 +3,7 @@
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { slugify } from '@/lib/slug-utils';
+import { normalizeEventDates } from '@/lib/utils';
 
 /**
  * @fileOverview Server Actions para gestão de eventos com geração de slug único e validação Stripe.
@@ -54,6 +55,12 @@ export async function createEventAction(params: {
   const db = getAdminDb();
   
   try {
+    // Normalização e Validação de Datas
+    const dateNormalization = normalizeEventDates(params.eventData.startDate, params.eventData.endDate);
+    if (!dateNormalization.isValid) {
+      throw new Error(dateNormalization.error);
+    }
+
     // Validação Condicional de Conta Connect
     await validateStripeAccount(db, params.orgId, params.eventData);
 
@@ -64,6 +71,9 @@ export async function createEventAction(params: {
       ...params.eventData,
       id: eventRef.id,
       slug,
+      date: dateNormalization.startDate, // Início normalizado
+      endDate: dateNormalization.endDate, // Fim normalizado
+      startDate: dateNormalization.startDate,
       organizationId: params.orgId,
       organizerId: params.userId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -87,6 +97,12 @@ export async function updateEventAction(params: {
   const db = getAdminDb();
   
   try {
+    // Normalização e Validação de Datas
+    const dateNormalization = normalizeEventDates(params.eventData.startDate, params.eventData.endDate);
+    if (!dateNormalization.isValid) {
+      throw new Error(dateNormalization.error);
+    }
+
     // Validação Condicional de Conta Connect (Mesmo para edições/ativações)
     await validateStripeAccount(db, params.orgId, params.eventData);
 
@@ -104,6 +120,9 @@ export async function updateEventAction(params: {
     const updatePayload = {
       ...params.eventData,
       slug,
+      date: dateNormalization.startDate,
+      endDate: dateNormalization.endDate,
+      startDate: dateNormalization.startDate,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 

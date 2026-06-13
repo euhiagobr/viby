@@ -42,10 +42,30 @@ export const metadata: Metadata = {
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
-  if (typeof data.toDate === 'function') return data.toDate().toISOString();
+  
+  if (typeof data.toDate === 'function') {
+    return data.toDate().toISOString();
+  }
+  
   if (data instanceof Date) return data.toISOString();
+  
   if (Array.isArray(data)) return data.map(item => serializeData(item));
+  
   if (typeof data === 'object') {
+    // Tratamento para datas de fim em dados legados que cruzam a madrugada
+    if (data.date && data.endDate && typeof data.date === 'string' && typeof data.endDate === 'string') {
+      const dStart = new Date(data.date);
+      let dEnd = new Date(data.endDate);
+      if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime()) && dEnd <= dStart) {
+        const startDay = dStart.toISOString().split('T')[0];
+        const endDay = dEnd.toISOString().split('T')[0];
+        if (startDay === endDay) {
+          dEnd.setDate(dEnd.getDate() + 1);
+          data.endDate = dEnd.toISOString();
+        }
+      }
+    }
+
     const proto = Object.getPrototypeOf(data);
     if (proto !== null && proto !== Object.prototype) return String(data);
     const serialized: any = {};

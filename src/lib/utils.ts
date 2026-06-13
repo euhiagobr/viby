@@ -1,4 +1,3 @@
-
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -20,6 +19,51 @@ export function isValidUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Normaliza e valida datas de eventos.
+ * Caso o horário final seja menor que o inicial na mesma data, 
+ * interpreta como encerramento no dia seguinte.
+ */
+export function normalizeEventDates(startDateStr: string, endDateStr: string): { startDate: string, endDate: string, isValid: boolean, error?: string } {
+  if (!startDateStr || !endDateStr) {
+    return { startDate: startDateStr, endDate: endDateStr, isValid: false, error: "Datas incompletas." };
+  }
+
+  let start = new Date(startDateStr);
+  let end = new Date(endDateStr);
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return { startDate: startDateStr, endDate: endDateStr, isValid: false, error: "Formato de data inválido." };
+  }
+
+  // Se o fim for menor ou igual ao início
+  if (end <= start) {
+    const startDay = start.toISOString().split('T')[0];
+    const endDay = end.toISOString().split('T')[0];
+
+    // Se estiverem no mesmo dia de calendário, interpretamos como virada de noite
+    if (startDay === endDay) {
+      end.setDate(end.getDate() + 1);
+    }
+  }
+
+  // Validação final após tentativa de normalização
+  if (end <= start) {
+    return { 
+      startDate: start.toISOString(), 
+      endDate: end.toISOString(), 
+      isValid: false, 
+      error: "O encerramento deve ser posterior ao início do evento." 
+    };
+  }
+
+  return { 
+    startDate: start.toISOString(), 
+    endDate: end.toISOString(), 
+    isValid: true 
+  };
 }
 
 /**

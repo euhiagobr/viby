@@ -15,7 +15,7 @@ export function calculateDistanceMeters(coords1: Coordinates, coords2: Coordinat
 
 /**
  * Define se um evento deve ser exibido nas vitrines públicas.
- * Regra: Eventos não encerrados (até 6h após o início) e ativos.
+ * Regra: Eventos ativos cujo horário de encerramento ainda não passou.
  * Para eventos recorrentes, a visibilidade depende da próxima ocorrência válida.
  */
 export function isEventVisible(event: any): boolean {
@@ -32,8 +32,16 @@ export function isEventVisible(event: any): boolean {
   const start = parseDate(event.date);
   if (!start) return false;
 
-  // Um evento permanece visível por até 6 horas após seu início
-  const endThreshold = new Date(start.getTime() + 6 * 60 * 60 * 1000);
+  // Normalização de Madrugada: se o fim for menor que o início na mesma data, interpretamos como dia seguinte
+  let end = parseDate(event.endDate);
+  if (end && end <= start) {
+    if (start.toISOString().split('T')[0] === end.toISOString().split('T')[0]) {
+      end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+    }
+  }
+
+  // Se não houver data de fim, usamos um padrão de 6h após o início como threshold de visibilidade
+  const effectiveEnd = end || new Date(start.getTime() + 6 * 60 * 60 * 1000);
   
-  return now < endThreshold;
+  return now < effectiveEnd;
 }

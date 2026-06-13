@@ -26,6 +26,18 @@ function serializeData(data: any): any {
   if (data instanceof Date) return data.toISOString();
   if (Array.isArray(data)) return data.map(item => serializeData(item));
   if (typeof data === 'object') {
+    // Correção de datas legadas
+    if (data.date && data.endDate && typeof data.date === 'string' && typeof data.endDate === 'string') {
+      const dStart = new Date(data.date);
+      let dEnd = new Date(data.endDate);
+      if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime()) && dEnd <= dStart) {
+        if (dStart.toISOString().split('T')[0] === dEnd.toISOString().split('T')[0]) {
+          dEnd.setDate(dEnd.getDate() + 1);
+          data.endDate = dEnd.toISOString();
+        }
+      }
+    }
+
     const proto = Object.getPrototypeOf(data);
     if (proto !== null && proto !== Object.prototype) return String(data);
     const serialized: any = {};

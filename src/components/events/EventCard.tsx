@@ -43,21 +43,28 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       const d = new Date(val);
       return isNaN(d.getTime()) ? null : d;
     };
+    
     const start = parseDate(event.date) || new Date();
+    let end = parseDate(event.endDate);
     
-    let rawEnd = parseDate(event.endDate);
-    
-    // Se o evento é recorrente e a data de fim original é anterior à data de início atual (próxima ocorrência),
-    // ignoramos a data de fim antiga para evitar que o card fique cinza.
-    if (event.isRecurring && rawEnd && rawEnd < start) {
-      rawEnd = null;
+    // Normalização de Madrugada: se o fim for menor que o início na mesma data, interpretamos como dia seguinte
+    if (end && end <= start) {
+      if (start.toISOString().split('T')[0] === end.toISOString().split('T')[0]) {
+        end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+      }
     }
 
-    const end = rawEnd || new Date(start.getTime() + 4 * 60 * 60 * 1000);
+    if (!end) {
+      end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+    }
+    
     return { start, end };
-  }, [event.date, event.endDate, event.isRecurring]);
+  }, [event.date, event.endDate]);
 
   const isEnded = React.useMemo(() => eventDates.end < new Date(), [eventDates.end]);
+  const isOvernight = React.useMemo(() => {
+    return eventDates.start.toDateString() !== eventDates.end.toDateString();
+  }, [eventDates]);
   
   const isCuradoria = event.curationType === 'curadoria' || 
                       event.curatorProfile === 'viby' || 
@@ -199,7 +206,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
         {event.underReview && !isEnded && (
           <div className="absolute top-0 left-0 z-20">
-            <Badge className="bg-orange-500 text-white rounded-none rounded-br-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg animate-pulse">
+            <Badge className="bg-orange-50 text-white rounded-none rounded-br-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg animate-pulse">
               <ShieldAlert className="w-2.5 h-2.5" /> Evento em Revisão
             </Badge>
           </div>
@@ -253,7 +260,10 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
                 <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{t('event.when')}</p>
                 <div className="flex items-center gap-1 text-[11px] font-black text-primary">
                    <Calendar className="w-3 h-3 text-secondary" />
-                   {eventDates.start.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
+                   <span>
+                      {eventDates.start.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
+                      {isOvernight && ` → ${eventDates.end.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}`}
+                   </span>
                    <span className="mx-0.5 opacity-20">|</span>
                    <Clock className="w-3 h-3 text-secondary/80" />
                    {eventDates.start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
