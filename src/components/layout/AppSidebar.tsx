@@ -22,7 +22,10 @@ import {
   Trophy,
   Megaphone,
   Coins,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  CheckCircle2,
+  ChevronRight
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -44,6 +47,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
 import { useTranslation } from "@/i18n/i18n-context"
@@ -54,9 +59,11 @@ export function AppSidebar() {
   const router = useRouter()
   const auth = useAuth()
   const db = useFirestore()
-  const { user, profile } = useUser(auth)
+  const { user } = useUser(auth)
   const { 
     currentOrg, 
+    organizations,
+    setCurrentOrg,
     userRole, 
     pendingInvitations, 
     pendingPartnerships, 
@@ -110,21 +117,149 @@ export function AppSidebar() {
               src={settings.logoUrl} 
               alt={siteName} 
               width={140} 
-              height={40} 
-              style={{ height: 'auto' }}
-              className="h-8 w-auto object-contain" 
+              height={32} 
+              style={{ height: '32px', width: 'auto' }}
+              className="object-contain" 
               priority 
               unoptimized 
             />
           ) : (
-            <span className="text-xl font-bold tracking-tight italic">{siteName}</span>
+            <span className="text-xl font-bold tracking-tight italic uppercase text-primary">{siteName}</span>
           )}
         </Link>
       </SidebarHeader>
-      <SidebarContent>
-        {/* REST OF COMPONENT OMITTED FOR BREVITY */}
+      
+      <SidebarContent className="px-4">
+        <SidebarGroup>
+          <SidebarGroupLabel className="px-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-50 mb-2">
+            Pessoal
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {personalItems.map((item) => {
+                const isActive = item.exact 
+                  ? pathname === item.url 
+                  : pathname?.startsWith(item.url);
+
+                return (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive}
+                      className={cn(
+                        "h-11 px-3 rounded-xl transition-all font-bold",
+                        isActive ? "bg-primary text-white shadow-lg" : "hover:bg-muted"
+                      )}
+                    >
+                      <Link href={item.url} className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-3">
+                          <item.icon className={cn("w-4 h-4", isActive ? "text-white" : "text-secondary")} />
+                          <span className="text-sm uppercase tracking-tight italic">{item.title}</span>
+                        </div>
+                        {item.badge ? (
+                          <Badge className="h-5 min-w-5 px-1 bg-secondary text-white border-none font-black text-[9px] flex items-center justify-center rounded-full">
+                            {item.badge}
+                          </Badge>
+                        ) : null}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup className="mt-6">
+          <SidebarGroupLabel className="px-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-50 mb-2">
+            Minhas Marcas
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {organizations.map((org) => {
+                const isActive = currentOrg?.id === org.id;
+                return (
+                  <SidebarMenuItem key={org.id}>
+                    <SidebarMenuButton 
+                      onClick={() => setCurrentOrg(org)}
+                      className={cn(
+                        "h-11 px-3 rounded-xl transition-all font-bold",
+                        isActive ? "bg-secondary/10 text-primary border border-secondary/20" : "hover:bg-muted"
+                      )}
+                    >
+                      <div className="flex items-center gap-3 w-full overflow-hidden">
+                        <Avatar className="h-6 w-6 shrink-0 border border-muted shadow-sm">
+                          <AvatarImage src={org.avatar} className="object-cover" />
+                          <AvatarFallback className="text-[10px] font-bold bg-muted">{org.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm uppercase tracking-tight italic truncate">{org.name}</span>
+                        {isActive && <CheckCircle2 className="w-3 h-3 text-secondary ml-auto" />}
+                      </div>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild className="h-10 px-3 rounded-xl text-secondary font-black gap-3 mt-2 border border-dashed border-secondary/30 hover:bg-secondary/5">
+                  <Link href="/dashboard/organizacoes/new">
+                    <Plus className="w-4 h-4" />
+                    <span className="text-[10px] uppercase italic">Nova Marca</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {currentOrg && (
+          <SidebarGroup className="mt-6">
+            <SidebarGroupLabel className="px-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-50 mb-2">
+              Gestão: {currentOrg.name}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {orgItems.map((item) => {
+                  const isActive = item.exact 
+                    ? pathname === item.url 
+                    : pathname?.startsWith(item.url);
+
+                  return (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton 
+                        asChild 
+                        isActive={isActive}
+                        className={cn(
+                          "h-11 px-3 rounded-xl transition-all font-bold",
+                          isActive ? "bg-primary text-white shadow-lg" : "hover:bg-muted"
+                        )}
+                      >
+                        <Link href={item.url} className="flex items-center gap-3">
+                          <item.icon className={cn("w-4 h-4", isActive ? "text-white" : "text-secondary")} />
+                          <span className="text-sm uppercase tracking-tight italic">{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
-      {/* ... */}
+
+      <SidebarFooter className="p-6 mt-auto border-t border-border/40">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              onClick={handleLogout}
+              className="h-11 px-3 rounded-xl text-destructive hover:bg-destructive/10 font-bold gap-3"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm uppercase tracking-tight italic">{t('nav.logout')}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   )
 }
