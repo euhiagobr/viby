@@ -2,10 +2,7 @@ import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 import EventoPublicoClient from './EventoPublicoClient';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Home, CalendarX, ArrowLeft } from 'lucide-react';
-import { redirect, notFound } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
 const RESERVED_ROUTES = [
   'dashboard', 'admin', 'login', 'cadastro', 'redefinir-senha', 
@@ -26,18 +23,6 @@ function serializeData(data: any): any {
   if (data instanceof Date) return data.toISOString();
   if (Array.isArray(data)) return data.map(item => serializeData(item));
   if (typeof data === 'object') {
-    // Correção de datas legadas
-    if (data.date && data.endDate && typeof data.date === 'string' && typeof data.endDate === 'string') {
-      const dStart = new Date(data.date);
-      let dEnd = new Date(data.endDate);
-      if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime()) && dEnd <= dStart) {
-        if (dStart.toISOString().split('T')[0] === dEnd.toISOString().split('T')[0]) {
-          dEnd.setDate(dEnd.getDate() + 1);
-          data.endDate = dEnd.toISOString();
-        }
-      }
-    }
-
     const proto = Object.getPrototypeOf(data);
     if (proto !== null && proto !== Object.prototype) return String(data);
     const serialized: any = {};
@@ -131,7 +116,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       url,
       siteName: 'Viby',
       images: [{ url: image, width: 1200, height: 630, alt: event.title }],
-      type: 'video.other',
+      type: 'website',
       locale: 'pt_BR',
     },
     twitter: {

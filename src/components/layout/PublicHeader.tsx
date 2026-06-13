@@ -33,28 +33,25 @@ export function PublicHeader({ showBack, hideCopa = false, children }: PublicHea
   const siteName = settings?.siteName || "Viby"
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+    <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md h-16">
+      <div className="container mx-auto px-4 h-full flex items-center justify-between">
         <div className="flex items-center gap-2 sm:gap-4 overflow-hidden h-full">
           {showBack && (
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           )}
-          <Link href="/" className="flex items-center h-full group overflow-hidden py-2">
+          <Link href="/" className="flex items-center h-full group overflow-hidden py-4">
             {settings?.logoUrl ? (
-              <div className="relative flex items-center h-8 w-auto">
-                <Image 
-                  src={settings.logoUrl} 
-                  alt={siteName} 
-                  width={140} 
-                  height={32} 
-                  style={{ height: '32px', width: 'auto' }}
-                  className="object-contain" 
-                  priority 
-                  unoptimized 
-                />
-              </div>
+              <Image 
+                src={settings.logoUrl} 
+                alt={siteName} 
+                width={140} 
+                height={32} 
+                className="h-8 w-auto object-contain max-h-full" 
+                priority 
+                unoptimized 
+              />
             ) : (
               <span className="text-lg sm:text-xl font-black italic uppercase text-primary truncate ml-1">{siteName}</span>
             )}

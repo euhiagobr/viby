@@ -2,12 +2,11 @@
 
 import * as React from "react"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, orderBy } from "firebase/firestore"
+import { doc, collection, query, where } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
 import { 
   Calendar, 
   MapPin, 
@@ -15,43 +14,26 @@ import {
   Info,
   BadgeCheck,
   Loader2,
-  CheckCircle2,
-  Clock,
-  ShieldCheck,
-  ArrowRight,
   Share2,
-  Map as MapIcon,
-  Navigation,
-  Globe,
-  ExternalLink,
-  Copy,
   Tag,
   Users,
   ShieldAlert,
-  InfoIcon,
-  RefreshCw,
-  ChevronRight,
-  EyeOff,
-  Lock,
-  MoreVertical,
-  Trophy
+  Clock
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { BilheteriaPublic, EventInterest, EventSEO, EventCoOrganizers } from "@/components/events"
+import { BilheteriaPublic, EventSEO, EventCoOrganizers } from "@/components/events"
 import { FollowButton } from "@/components/organizer/FollowButton"
 import Footer from "@/components/layout/Footer"
 import { AgeRatingBadge, AgeRatingWarning } from "@/lib/age-rating"
-import { useCurrency } from "@/contexts/CurrencyContext"
-import { UserNav } from "@/components/layout/UserNav"
+import { PublicHeader } from "@/components/layout/PublicHeader"
 import { ShareModal } from "@/components/sharing/ShareModal"
 import { RichText } from "@/components/ui/rich-text"
 import { toast } from "@/hooks/use-toast"
 import dynamic from "next/dynamic"
 import { format, startOfToday, addDays } from "date-fns"
-import { ptBR } from "date-fns/locale"
 import { EventActionModal } from "@/components/events/EventActionModal"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -78,6 +60,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   // Atualiza o relógio a cada minuto para manter sincronia de visibilidade
   React.useEffect(() => {
+    setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(timer)
   }, [])
@@ -91,14 +74,11 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   )
   const { data: org } = useDoc<any>(organizationRef)
 
-  const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db])
-  const { data: settings } = useDoc<any>(settingsRef)
-  
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db])
   const { data: globalFees } = useDoc<any>(feesRef)
 
   const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db])
-  const { data: promotions } = useDoc<any>( promosRef)
+  const { data: promotions } = useDoc<any>(promosRef)
 
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !id || !event?.isRecurring) return null;
@@ -111,7 +91,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     )
   }, [db, id, event?.isRecurring]);
 
-  const { data: rawOccurrences, loading: loadingOccurrences } = useCollection<any>(occurrencesQuery);
+  const { data: rawOccurrences } = useCollection<any>(occurrencesQuery);
 
   const upcomingOccurrences = React.useMemo(() => {
     if (!rawOccurrences) return [];
@@ -125,7 +105,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
       .sort((a: any, b: any) => a._dt.getTime() - b._dt.getTime());
   }, [rawOccurrences, now]);
 
-  // Lógica de Identificação de Próxima Data para Evento Recorrente
   const effectiveEventData = React.useMemo(() => {
     if (!event) return null;
     if (!event.isRecurring || upcomingOccurrences.length === 0) return event;
@@ -140,93 +119,195 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     };
   }, [event, upcomingOccurrences]);
 
-  const siteName = settings?.siteName || "Viby"
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return "A definir";
+    try {
+      let d: Date;
+      if (dateValue.toDate) d = dateValue.toDate();
+      else d = new Date(dateValue);
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    } catch (e) { return "---"; }
+  };
 
-  const handleCopyLink = () => {
-    if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href);
-      toast({ title: "Link copiado!", description: "Compartilhe com sua rede." });
+  const formatTime = (dateValue: any) => {
+    if (!dateValue) return "";
+    try {
+      let d: Date;
+      if (dateValue.toDate) d = dateValue.toDate();
+      else d = new Date(dateValue);
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ""; }
+  };
+
+  // UI Components
+  const content = React.useMemo(() => {
+    if (eventLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center py-32 gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando Experiência...</p>
+        </div>
+      );
     }
-  }
 
-  if (eventLoading) {
+    if (!event || !effectiveEventData) {
+      return (
+        <div className="flex flex-col items-center justify-center py-32 gap-6 text-center px-6">
+           <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
+           <div className="space-y-2">
+              <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Evento Indisponível</h2>
+              <p className="text-muted-foreground font-medium max-w-sm mx-auto uppercase text-xs leading-relaxed">
+                 O projeto que você procura não foi localizado ou não está mais ativo na rede Viby.
+              </p>
+           </div>
+           <Button asChild className="rounded-xl h-12 px-8 font-black uppercase italic">
+              <Link href="/dashboard">Ver Outros Eventos</Link>
+           </Button>
+        </div>
+      );
+    }
+
+    const start = { date: formatDate(effectiveEventData.date), time: formatTime(effectiveEventData.date) };
+    const end = effectiveEventData.endDate ? { date: formatDate(effectiveEventData.endDate), time: formatTime(effectiveEventData.endDate) } : null;
+
+    const isCuradoria = event.curationType === 'curadoria' || 
+                        event.curatorProfile === 'viby' || 
+                        (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
+
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-      </div>
-    )
-  }
-
-  if (!event || !effectiveEventData) return null;
-
-  // Lógica de Identificação de Curadoria
-  const isCuradoria = event.curationType === 'curadoria' || 
-                      event.curatorProfile === 'viby' || 
-                      (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
-
-  const dateValue = effectiveEventData.date || effectiveEventData.startDate;
-  const dStart = dateValue ? (dateValue.toDate ? dateValue.toDate() : new Date(dateValue)) : new Date();
-  let dEnd = effectiveEventData.endDate ? (effectiveEventData.endDate.toDate ? effectiveEventData.endDate.toDate() : new Date(effectiveEventData.endDate)) : null;
-  
-  if (event.isRecurring && dEnd && dEnd < dStart) {
-    dEnd = null;
-  }
-
-  const isEnded = dEnd ? (dEnd < now) : false;
-  
-  return (
-    <div className="min-h-screen bg-[#f8fafc] h-full flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
-      <EventSEO event={effectiveEventData} username={username} />
-      
-      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
-             <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full shrink-0">
-                <ArrowLeft className="w-5 h-5" />
-             </Button>
-             <Link href="/" className="flex items-center gap-2 group overflow-hidden">
-                {settings?.logoUrl ? (
-                  <Image 
-                    src={settings.logoUrl} 
-                    alt={siteName} 
-                    width={120} 
-                    height={40} 
-                    style={{ height: 'auto' }}
-                    className="h-8 w-auto object-contain" 
-                    priority 
-                    unoptimized 
-                  />
-                ) : (
-                  <span className="text-lg sm:text-xl font-black tracking-tight italic uppercase text-primary truncate ml-1">{siteName}</span>
-                )}
-             </Link>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-             <Button asChild variant="outline" className="hidden md:flex rounded-full h-9 border-[#ffdf00] bg-[#ffdf00]/10 text-[#002776] font-black uppercase text-[9px] gap-2">
-               <Link href="/copa-do-mundo"><Trophy className="w-3.5 h-3.5" /> Copa 2026</Link>
-             </Button>
-             <Button 
-                variant="ghost" 
-                size="icon" 
-                className="rounded-full hidden sm:flex"
-                onClick={() => setIsShareModalOpen(true)}
-             >
-                <Share2 className="w-5 h-5" />
-             </Button>
-             {user ? <UserNav /> : (
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <Button variant="ghost" asChild className="font-bold uppercase text-[9px] sm:text-[10px] tracking-widest px-2 sm:px-4">
-                    <Link href="/login">Entrar</Link>
-                  </Button>
-                  <Button asChild className="bg-primary text-white font-black uppercase italic text-[9px] sm:text-[10px] tracking-widest rounded-full px-4 sm:px-6 shadow-lg">
-                    <Link href="/cadastro">Criar Conta</Link>
-                  </Button>
-                </div>
-             )}
+      <div className="animate-in fade-in duration-700">
+        <div className="relative h-[40vh] md:h-[60vh] w-full overflow-hidden">
+          <Image 
+            src={event.image || "https://picsum.photos/seed/vibyevent/1200/800"} 
+            alt={event.title} 
+            fill 
+            className="object-cover"
+            priority
+            unoptimized 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#f8fafc] via-[#f8fafc]/30 to-transparent" />
+          <div className="absolute bottom-0 left-0 p-6 md:p-12 w-full">
+            <div className="container mx-auto max-w-6xl space-y-6">
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg">
+                  {event.categoryName || "Evento"}
+                </Badge>
+                {isCuradoria && <Badge className="bg-[#ffdf00] text-primary border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg">Curadoria Oficial</Badge>}
+              </div>
+              <h1 className="text-4xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-[0.85]">{event.title}</h1>
+            </div>
           </div>
         </div>
-      </nav>
-      {/* REST OF COMPONENT OMITTED FOR BREVITY */}
+
+        <div className="container mx-auto px-4 py-12 max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
+          <div className="lg:col-span-8 space-y-12">
+            <section className="space-y-6">
+               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Sobre a Experiência</h3>
+               <div className="prose prose-slate max-w-none">
+                 <RichText content={event.description} className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed" />
+               </div>
+            </section>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <Card className="border-none shadow-sm rounded-3xl bg-white p-6 flex items-center gap-4">
+                  <div className="p-3 bg-secondary/5 rounded-2xl text-secondary"><Calendar className="w-6 h-6" /></div>
+                  <div><p className="text-[9px] font-black uppercase text-muted-foreground">Data</p><p className="font-bold text-sm text-primary uppercase">{start.date}</p></div>
+               </Card>
+               <Card className="border-none shadow-sm rounded-3xl bg-white p-6 flex items-center gap-4">
+                  <div className="p-3 bg-secondary/5 rounded-2xl text-secondary"><Clock className="w-6 h-6" /></div>
+                  <div><p className="text-[9px] font-black uppercase text-muted-foreground">Horário</p><p className="font-bold text-sm text-primary uppercase">{start.time} {end && `às ${end.time}`}</p></div>
+               </Card>
+            </div>
+
+            <section className="space-y-6">
+               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Localização</h3>
+               <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+                  <div className="h-64 w-full"><LocationMap latitude={event.latitude} longitude={event.longitude} interactive={false} onChange={() => {}} /></div>
+                  <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
+                     <div className="space-y-1 text-center md:text-left">
+                        <h4 className="font-black text-xl uppercase italic tracking-tighter text-primary">{event.location}</h4>
+                        <p className="text-xs font-medium text-muted-foreground uppercase">{event.city} - {event.state}</p>
+                     </div>
+                     <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.location} ${event.city}`)}`} target="_blank"><MapPin className="w-4 h-4" /> Ver no Mapa</a>
+                     </Button>
+                  </CardContent>
+               </Card>
+            </section>
+            
+            <EventCoOrganizers eventId={id} currentOrgId={event.organizationId} isPublic className="mt-12" />
+          </div>
+
+          <aside className="lg:col-span-4 space-y-8">
+            <section className="sticky top-24 space-y-8">
+               <AgeRatingWarning code={event.ageRatingCode || "free"} />
+               
+               <BilheteriaPublic 
+                 event={effectiveEventData} 
+                 globalFees={globalFees} 
+                 promotions={promotions} 
+                 orgSettings={org} 
+               />
+
+               <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
+                  <div className="flex items-center gap-4">
+                     <Avatar className="h-16 w-16 border-2 border-secondary/10 p-0.5">
+                        <AvatarImage src={org?.avatar} className="rounded-full object-cover" />
+                        <AvatarFallback className="font-bold text-xl uppercase">{org?.name?.charAt(0)}</AvatarFallback>
+                     </Avatar>
+                     <div className="flex-1">
+                        <div className="flex items-center gap-1.5"><h4 className="font-bold text-base leading-none">{org?.name}</h4>{(org?.verified || org?.isVerified) && <BadgeCheck className="w-4 h-4 text-blue-500" />}</div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">@{org?.username}</p>
+                     </div>
+                  </div>
+                  <div className="flex gap-2">
+                     <FollowButton organizationId={event.organizationId} username={org?.username} className="flex-1" />
+                     <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-2" onClick={() => setIsShareModalOpen(true)}><Share2 className="w-5 h-5" /></Button>
+                  </div>
+               </aside>
+
+               <div className="flex items-center justify-center">
+                  <Button variant="link" className="text-[9px] font-black uppercase text-muted-foreground opacity-30 hover:opacity-100" onClick={() => setIsActionModalOpen(true)}>Problemas com este evento?</Button>
+               </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    );
+  }, [event, eventLoading, effectiveEventData, org, globalFees, promotions, id, username, isShareModalOpen, isActionModalOpen]);
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
+      <EventSEO event={effectiveEventData} username={username} />
+      <PublicHeader showBack />
+
+      <main className="flex-1">
+        {content}
+      </main>
+
+      <Footer />
+
+      {effectiveEventData && (
+        <ShareModal 
+          isOpen={isShareModalOpen} 
+          onOpenChange={setIsShareModalOpen} 
+          data={{
+            title: effectiveEventData.title,
+            username: username,
+            url: `/${username}/${effectiveEventData.slug || id}`,
+            logoUrl: effectiveEventData.image,
+            type: 'event',
+            organizationId: effectiveEventData.organizationId,
+            eventId: id
+          }}
+        />
+      )}
+
+      <EventActionModal 
+        isOpen={isActionModalOpen} 
+        onOpenChange={setIsActionModalOpen} 
+        event={effectiveEventData} 
+      />
     </div>
   )
 }
