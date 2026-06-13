@@ -1,10 +1,11 @@
+
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection, query, where, orderBy } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
-import { PublicHeader } from "@/components/layout/PublicHeader"
+import { PrideHeader } from "@/components/layout/PrideHeader"
 import Footer from "@/components/layout/Footer"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Inbox, Sparkles, FilterX } from "lucide-react"
@@ -55,7 +56,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
-      <PublicHeader />
+      <PrideHeader />
 
       <section className="relative h-[60vh] flex items-center justify-center overflow-hidden animate-rainbow-bg">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />

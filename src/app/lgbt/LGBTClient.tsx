@@ -1,10 +1,11 @@
+
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection, query, where, orderBy } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
-import { PublicHeader } from "@/components/layout/PublicHeader"
+import { PrideHeader } from "@/components/layout/PrideHeader"
 import Footer from "@/components/layout/Footer"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Inbox, Sparkles, FilterX } from "lucide-react"
@@ -55,7 +56,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
-      <PublicHeader />
+      <PrideHeader />
 
       <section className="relative h-[60vh] flex items-center justify-center overflow-hidden animate-rainbow-bg">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
@@ -93,6 +94,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {displayEvents.map((event) => (
               <div key={event.id} className="relative group/lgbt">
+                 {/* Borda Arco-Íris Sutil */}
                  <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 via-yellow-500 to-purple-500 rounded-3xl opacity-20 group-hover/lgbt:opacity-100 transition-opacity blur-[2px] group-hover/lgbt:blur-md" />
                  <div className="relative">
                     <EventCard event={event} />
