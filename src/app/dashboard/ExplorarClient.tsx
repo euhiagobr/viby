@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -78,10 +79,10 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
   
   const isAdmin = profile?.role === 'admin'
 
-  // Pagination State - Inicializado com dados do servidor
+  // Pagination State
   const [rawEvents, setRawEvents] = useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null)
-  const [hasMore, setHasMore] = useState(true)
+  const [hasMore, setHasMore] = useState(initialEvents.length >= 9)
   const [isFetching, setIsFetching] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
 
@@ -99,7 +100,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
   const fetchEvents = React.useCallback(async (isInitial = false) => {
-    if (!db || isFetching || ( !isInitial && !hasMore)) return
+    if (!db || isFetching || (!isInitial && !hasMore)) return
     
     setIsFetching(true)
     try {
@@ -107,7 +108,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
         collection(db, "events"),
         where("status", "==", "Ativo"),
         orderBy("date", "asc"),
-        ...(isInitial ? [limit(9)] : [startAfter(lastVisible), limit(3)])
+        ...(isInitial ? [limit(9)] : [startAfter(lastVisible), limit(6)])
       )
       
       const snapshot = await getDocs(q)
@@ -119,10 +120,12 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
         setRawEvents(prev => [...prev, ...fetchedDocs])
       }
       
-      setLastVisible(snapshot.docs[snapshot.docs.length - 1] || null)
-      setHasMore(snapshot.docs.length === (isInitial ? 9 : 3))
+      if (snapshot.docs.length > 0) {
+        setLastVisible(snapshot.docs[snapshot.docs.length - 1])
+      }
+      setHasMore(snapshot.docs.length >= (isInitial ? 9 : 6))
     } catch (e) {
-      console.error("[Pagination Error]", e)
+      console.error("[Explorar Pagination Error]", e)
     } finally {
       setIsFetching(false)
       setIsInitialLoad(false)
@@ -135,7 +138,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
     }
     getCurrentLocation()
       .then(loc => { if(loc) setUserLocation(loc); })
-      .catch(() => console.warn("GPS negado. Fallback ativado."));
+      .catch(() => {});
   }, [db, initialEvents.length, fetchEvents])
 
   const processedEvents = React.useMemo(() => {
@@ -158,7 +161,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
           });
 
           if (nextValid) {
-            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '00:00') + ':00';
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
           }
         }
       }

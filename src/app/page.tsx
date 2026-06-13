@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import LandingPageClient from "./LandingPageClient"
@@ -43,7 +44,6 @@ export const metadata: Metadata = {
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
   
-  // Trata Timestamps do Firestore
   if (typeof data.toDate === 'function') {
     return data.toDate().toISOString();
   }
@@ -69,7 +69,6 @@ function serializeData(data: any): any {
       }
     }
 
-    // Garante a serialização de todas as propriedades enumeráveis
     Object.keys(data).forEach(key => {
       serialized[key] = serializeData(data[key]);
     });
@@ -82,7 +81,7 @@ function serializeData(data: any): any {
 async function getInitialEvents() {
   try {
     const db = getAdminDb();
-    // Busca eventos ativos ordenados por data
+    // BUSCA GLOBAL: Remove filtro restritivo de tags da Copa para a Home
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .orderBy('date', 'asc')

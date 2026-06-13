@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -6,11 +7,11 @@ import { slugify } from '@/lib/slug-utils';
 import { normalizeEventDates } from '@/lib/utils';
 
 /**
- * @fileOverview Server Actions para gestão de eventos com geração de slug único e validação Stripe.
+ * @fileOverview Server Actions para gestão de eventos.
+ * Implementação cirúrgica para evitar alteração em documentos não relacionados.
  */
 
 async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string, eventData: any) {
-  // A regra de obrigatoriedade do Stripe aplica-se apenas a eventos com venda interna de ingressos pagos
   const isPaidOnViby = eventData.type === 'interno' && 
     eventData.batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
 
@@ -55,13 +56,11 @@ export async function createEventAction(params: {
   const db = getAdminDb();
   
   try {
-    // Normalização e Validação de Datas
     const dateNormalization = normalizeEventDates(params.eventData.startDate, params.eventData.endDate);
     if (!dateNormalization.isValid) {
       throw new Error(dateNormalization.error);
     }
 
-    // Validação Condicional de Conta Connect
     await validateStripeAccount(db, params.orgId, params.eventData);
 
     const slug = await generateUniqueSlug(db, params.orgId, params.eventData.title);
@@ -71,8 +70,8 @@ export async function createEventAction(params: {
       ...params.eventData,
       id: eventRef.id,
       slug,
-      date: dateNormalization.startDate, // Início normalizado
-      endDate: dateNormalization.endDate, // Fim normalizado
+      date: dateNormalization.startDate,
+      endDate: dateNormalization.endDate,
       startDate: dateNormalization.startDate,
       organizationId: params.orgId,
       organizerId: params.userId,
@@ -84,7 +83,6 @@ export async function createEventAction(params: {
 
     return { success: true, id: eventRef.id, slug };
   } catch (e: any) {
-    console.error("[Events Action] Create Failure:", e.message);
     return { success: false, error: e.message };
   }
 }
@@ -97,13 +95,13 @@ export async function updateEventAction(params: {
   const db = getAdminDb();
   
   try {
-    // Normalização e Validação de Datas
+    if (!params.eventId) throw new Error("ID do evento é obrigatório.");
+
     const dateNormalization = normalizeEventDates(params.eventData.startDate, params.eventData.endDate);
     if (!dateNormalization.isValid) {
       throw new Error(dateNormalization.error);
     }
 
-    // Validação Condicional de Conta Connect (Mesmo para edições/ativações)
     await validateStripeAccount(db, params.orgId, params.eventData);
 
     const eventRef = db.collection('events').doc(params.eventId);
@@ -117,6 +115,7 @@ export async function updateEventAction(params: {
       slug = await generateUniqueSlug(db, params.orgId, params.eventData.title, params.eventId);
     }
 
+    // ATUALIZAÇÃO RESTRITA: Apenas o documento do eventId fornecido é afetado
     const updatePayload = {
       ...params.eventData,
       slug,
@@ -130,7 +129,6 @@ export async function updateEventAction(params: {
 
     return { success: true, slug };
   } catch (e: any) {
-    console.error("[Events Action] Update Failure:", e.message);
     return { success: false, error: e.message };
   }
 }

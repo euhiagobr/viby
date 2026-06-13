@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -33,14 +34,14 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   
   const [rawEvents, setRawEvents] = useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null)
-  const [hasMore, setHasMore] = useState(initialEvents.length === 12)
+  const [hasMore, setHasMore] = useState(initialEvents.length >= 12)
   const [isFetching, setIsFetching] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
 
-  // Ocorrências para eventos recorrentes
+  // Ocorrências para eventos recorrentes (Otimizado)
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
@@ -72,7 +73,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
       if (snapshot.docs.length > 0) {
         setLastVisible(snapshot.docs[snapshot.docs.length - 1])
       }
-      setHasMore(snapshot.docs.length === (isInitial ? 12 : 6))
+      setHasMore(snapshot.docs.length >= (isInitial ? 12 : 6))
     } catch (e) {
       console.error("[Landing Pagination Error]", e)
     } finally {
@@ -95,7 +96,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
     
     const baseFiltered = rawEvents.map(e => {
       let effectiveDate = e.date;
-      // Lógica de próxima data para recorrentes
       if (e.isRecurring && allOccurrences) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
@@ -104,7 +104,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
           const nextValid = sorted.find(o => {
-            // Threshold de 6h para manter visível após início
             const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
             return now < endThreshold;
           });

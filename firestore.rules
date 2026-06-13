@@ -201,6 +201,11 @@ service cloud.firestore {
       allow delete: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
     }
 
+    match /usernames/{username} {
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
+    }
+
     match /user_gamification/{uid} {
       allow read: if true;
       allow write: if isAdmin() || isOwner(uid);
@@ -221,7 +226,7 @@ service cloud.firestore {
 
     // Regras globais para Collection Groups (necessário wildcards)
     match /{path=**}/members/{memberId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() || isAdmin();
     }
     match /{path=**}/partners/{partnerId} {
       allow read: if true;
