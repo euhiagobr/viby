@@ -203,9 +203,13 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
           <div className="lg:col-span-8 space-y-12">
             <section className="space-y-6">
                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Sobre a Experiência</h3>
-               <div className="prose prose-slate max-w-none">
-                 <RichText content={event.description} className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed" />
-               </div>
+               <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+                  <CardContent className="p-8 md:p-10">
+                    <div className="prose prose-slate max-w-none">
+                      <RichText content={event.description} className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed" />
+                    </div>
+                  </CardContent>
+               </Card>
             </section>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
