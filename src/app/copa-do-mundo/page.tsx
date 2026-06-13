@@ -2,9 +2,7 @@ import * as React from "react"
 import { Metadata } from "next"
 import CopaMundoClient from "./CopaMundoClient"
 import { COPA_TAGS } from "@/lib/constants"
-import Link from "next/link"
-import Image from "next/image"
-import { Trophy } from "lucide-react"
+import { CopaHeader } from "@/components/layout/CopaHeader"
 import Footer from '@/components/layout/Footer';
 import { getAdminDb } from "@/lib/firebase/admin"
 
@@ -18,16 +16,6 @@ export const metadata: Metadata = {
     url: 'https://viby.club/copa-do-mundo',
     images: [{ url: 'https://picsum.photos/seed/copa2026/1200/630' }],
     type: 'website',
-  }
-}
-
-async function getBranding() {
-  try {
-    const db = getAdminDb();
-    const snap = await db.collection('settings').doc('site').get();
-    return snap.exists ? snap.data() : null;
-  } catch (e) {
-    return null;
   }
 }
 
@@ -67,34 +55,10 @@ async function getCopaEvents() {
 
 export default async function CopaMundoPage() {
   const initialEvents = await getCopaEvents();
-  const settings = await getBranding();
-  const siteName = settings?.siteName || "Viby";
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-[#009c3b] selection:text-white">
-      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            {settings?.logoUrl ? (
-              <Image 
-                src={settings.logoUrl} 
-                alt={siteName} 
-                width={120} 
-                height={40} 
-                style={{ height: 'auto' }}
-                className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" 
-                priority 
-                unoptimized 
-              />
-            ) : (
-              <span className="text-xl font-black italic uppercase text-primary ml-1">{siteName}</span>
-            )}
-          </Link>
-          <div className="flex items-center gap-4">
-             <Link href="/copa-do-mundo/tabela" className="text-[10px] font-black uppercase tracking-widest text-primary hover:text-secondary transition-colors">Tabela Completa</Link>
-          </div>
-        </div>
-      </nav>
+      <CopaHeader />
       <CopaMundoClient initialEvents={initialEvents} />
       <Footer />
     </div>
