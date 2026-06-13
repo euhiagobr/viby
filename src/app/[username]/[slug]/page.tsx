@@ -58,7 +58,7 @@ async function getEventData(usernameParam: string, slugParam: string) {
     // 1. Buscar UID pelo username
     const usernameSnap = await db.collection("usernames").doc(username).get();
     if (!usernameSnap.exists) {
-      console.log(`[DEBUG-SERVER] Username document '${username}' not found in 'usernames' collection.`);
+      console.log(`[DEBUG-SERVER] Username document '${username}' not found.`);
       return null;
     }
     
@@ -90,14 +90,13 @@ async function getEventData(usernameParam: string, slugParam: string) {
         console.log(`[DEBUG-SERVER] Event found by slug field.`);
         eventDoc = { id: queryBySlug.docs[0].id, ...queryBySlug.docs[0].data() };
       } else {
-        // Fallback para organizerId legado
         const queryByOrganizer = await db.collection("events")
           .where("organizerId", "==", targetUid)
           .where("slug", "==", slug.toLowerCase())
           .limit(1).get();
           
         if (!queryByOrganizer.empty) {
-          console.log(`[DEBUG-SERVER] Event found by slug field (Legacy organizerId).`);
+          console.log(`[DEBUG-SERVER] Event found by slug field (Legacy).`);
           eventDoc = { id: queryByOrganizer.docs[0].id, ...queryByOrganizer.docs[0].data() };
         }
       }
@@ -108,25 +107,31 @@ async function getEventData(usernameParam: string, slugParam: string) {
       return null;
     }
 
-    // Processar recorrência se necessário
+    // Processar recorrência (Resiliente a falta de índices no servidor)
     if (eventDoc.isRecurring) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const occSnap = await db.collection('recurring_occurrences')
-        .where('parentId', '==', eventDoc.id)
-        .where('status', '==', 'active')
-        .where('date', '>=', todayStr)
-        .orderBy('date', 'asc').limit(1).get();
-      
-      if (!occSnap.empty) {
-        const nextOcc = occSnap.docs[0].data();
-        eventDoc.date = `${nextOcc.date}T${nextOcc.startTime || '00:00'}:00`;
-        if (nextOcc.endTime) eventDoc.endDate = `${nextOcc.date}T${nextOcc.endTime}:00`;
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const occSnap = await db.collection('recurring_occurrences')
+          .where('parentId', '==', eventDoc.id)
+          .where('status', '==', 'active')
+          .where('date', '>=', todayStr)
+          .orderBy('date', 'asc').limit(1).get();
+        
+        if (!occSnap.empty) {
+          const nextOcc = occSnap.docs[0].data();
+          eventDoc.date = `${nextOcc.date}T${nextOcc.startTime || '00:00'}:00`;
+          if (nextOcc.endTime) eventDoc.endDate = `${nextOcc.date}T${nextOcc.endTime}:00`;
+          console.log(`[DEBUG-SERVER] Recurrence updated for event.`);
+        }
+      } catch (occError: any) {
+        // Se falhar por falta de índice, não quebramos a página, apenas usamos a data base
+        console.warn(`[DEBUG-SERVER] Recurrence query failed (possibly missing index). Using base date.`, occError.message);
       }
     }
 
     return serializeData(eventDoc);
   } catch (e: any) {
-    console.error(`[DEBUG-SERVER] Error in getEventData:`, e.message);
+    console.error(`[DEBUG-SERVER] Fatal error in getEventData:`, e.message);
     return null;
   }
 }
