@@ -74,7 +74,7 @@ async function getInitialEvents() {
       .where('status', '==', 'Ativo')
       .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
-      .limit(7) // Limitado a 7 para a carga inicial conforme solicitado
+      .limit(10) // Busca um pouco mais para garantir 7 visíveis após merge/filter
       .get();
       
     if (snap.empty) return [];

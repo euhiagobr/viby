@@ -9,7 +9,6 @@ export function useAds() {
 
   const adsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    // CORREÇÃO: Implementação da consulta real de anúncios ativos
     return query(
       collection(db, "ads"), 
       where("status", "==", "Ativo"),

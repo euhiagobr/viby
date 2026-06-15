@@ -22,7 +22,9 @@ export function useLandingEvents(initialEvents: any[] = []) {
       thresholdDate.setDate(thresholdDate.getDate() - 30);
       const dateThreshold = thresholdDate.toISOString();
 
-      const fetchLimit = isInitial ? 7 : 3;
+      // Ajustado para os limites solicitados: 7 inicial, depois 3 em 3
+      // Buscamos um pouco mais para compensar possíveis eventos filtrados em memória
+      const fetchLimit = isInitial ? 10 : 5;
 
       const q = query(
         collection(db, "events"),

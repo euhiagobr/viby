@@ -24,6 +24,7 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
   const visibleEvents = useVisibleEvents(resolvedEvents, { ...filters, now });
   
   const featuredEvents = useFeaturedEvents(visibleEvents);
+  
   const sponsoredEvents = useMemo(() => 
     visibleEvents.filter(e => e.isSponsored === true), 
     [visibleEvents]
@@ -55,14 +56,18 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
     // 3. Intercala Standard com Slots de Ads (Lógica 4-7-13-19...)
     standardEvents.forEach((ev, i) => {
       feed.push({ type: 'event', data: ev });
-      const count = i + 1;
+      const count = feed.filter(f => f.type === 'event').length;
       
-      // Primeiro ad após 4 eventos
+      // Primeiro anúncio após 4 eventos
       if (count === 4) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       } 
-      // Segundo ad após mais 3 (total 7) e depois a cada 6
-      else if (count >= 7 && (count - 7) % 6 === 0) {
+      // Segundo anúncio após 7 eventos (conforme solicitado: 7 eventos + 2 anúncios inicialmente)
+      else if (count === 7) {
+        feed.push({ type: 'ad', adIndex: adIndex++ });
+      }
+      // Demais anúncios a cada 6 eventos subsequentes (13, 19, 25...)
+      else if (count > 7 && (count - 7) % 6 === 0) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       }
     });
