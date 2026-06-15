@@ -62,14 +62,15 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
     return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
   }, [db])
-  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
+  const { data: allOccurrences, loading: loadingOccs } = useCollection<any>(occurrencesQuery)
 
   const fetchMore = React.useCallback(async (isInitial = false) => {
     if (!db || isFetching || (!isInitial && !hasMore)) return
     setIsFetching(true)
     try {
+      // Threshold de 60 dias para garantir captura de pais de séries longas
       const thresholdDate = new Date();
-      thresholdDate.setDate(thresholdDate.getDate() - 30);
+      thresholdDate.setDate(thresholdDate.getDate() - 60);
       
       let q;
       if (isInitial) {
@@ -77,9 +78,9 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
           collection(db, "events"),
           where("status", "==", "Ativo"),
           where("tags", "array-contains-any", COPA_TAGS),
-          where("date", ">=", thresholdDate), // Firebase converte Date p/ Timestamp automaticamente
+          where("date", ">=", thresholdDate),
           orderBy("date", "asc"),
-          limit(12)
+          limit(20)
         );
       } else {
         const cursor = lastVisible || (rawEvents.length > 0 ? rawEvents[rawEvents.length - 1].date : null);
@@ -108,7 +109,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       }
 
       setLastVisible(snap.docs[snap.docs.length - 1] || null)
-      setHasMore(snap.docs.length === 12)
+      setHasMore(snap.docs.length >= 12)
     } catch (e) {
       console.error("[Copa Search Error]", e)
     } finally {
@@ -123,7 +124,6 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       .then(loc => { if (loc) setUserLocation(loc); })
       .catch(() => {});
     
-    // Se o SSR veio vazio, tentamos buscar no cliente imediatamente
     if (initialEvents.length === 0) {
       fetchMore(true);
     }
@@ -141,6 +141,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       let effectiveEndDate = e.endDate;
       let nextOccurrences: any[] = [];
 
+      // Só tenta o merge se as ocorrências já tiverem carregado (evita sumiço temporário)
       if (e.isRecurring && allOccurrences && allOccurrences.length > 0) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
@@ -173,12 +174,12 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       }
       return { ...e, date: effectiveDate, endDate: effectiveEndDate, _nextOccurrences: nextOccurrences };
     }).filter(e => {
-      if (!isEventVisible(e, refTime)) return false;
+      // Regra de Visibilidade: Eventos recorrentes não somem enquanto carregamos ocorrências
+      if (!isEventVisible(e, refTime) && (!e.isRecurring || !loadingOccs)) return false;
       
       if (search && !normalizeText(e.title || "").includes(searchNorm)) return false;
       if (searchCity && !normalizeText(e.city || "").includes(cityNorm)) return false;
 
-      // Filtro de Preço
       if (priceFilter !== 'all') {
         const minPrice = e.startingPrice ?? 0;
         if (priceFilter === 'free' && minPrice > 0) return false;
@@ -187,8 +188,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
         if (priceFilter === '100' && minPrice > 100) return false;
       }
 
-      // Filtro de Data
-      if (refTime) {
+      if (refTime && dateFilter !== 'all') {
         const dateStr = e.date?.toDate ? e.date.toDate().toISOString() : e.date;
         const eventDate = new Date(dateStr);
         if (dateFilter === 'today' && eventDate.toDateString() !== refTime.toDateString()) return false;
@@ -213,7 +213,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       if (timeDiff !== 0) return timeDiff;
       return a._distanceMeters - b._distanceMeters;
     });
-  }, [rawEvents, allOccurrences, search, searchCity, priceFilter, dateFilter, userLocation, now]);
+  }, [rawEvents, allOccurrences, loadingOccs, search, searchCity, priceFilter, dateFilter, userLocation, now]);
 
   const clearFilters = () => {
     setSearch("");

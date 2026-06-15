@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore } from "@/firebase"
-import { collection, query, where, orderBy } from "firebase/firestore"
+import { collection, query, where, orderBy, getDocs, startAfter, DocumentSnapshot } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { PrideHeader } from "@/components/layout/PrideHeader"
 import Footer from "@/components/layout/Footer"
@@ -37,18 +38,16 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
   const [now, setNow] = React.useState<Date | null>(null)
 
+  const [rawEvents, setRawEvents] = React.useState<any[]>(initialEvents)
+  const [lastVisible, setLastVisible] = React.useState<DocumentSnapshot | null>(null)
+  const [hasMore, setHasMore] = React.useState(initialEvents.length >= 12)
+  const [isFetching, setIsFetching] = React.useState(false)
+
   React.useEffect(() => {
     setNow(new Date())
     const timer = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(timer)
   }, [])
-
-  const eventsQuery = React.useMemo(() => {
-    if (!db) return null
-    return query(collection(db, "events"), where("status", "==", "Ativo"), orderBy("date", "asc"))
-  }, [db])
-
-  const { data: rawEvents, loading } = useCollection<any>(eventsQuery)
 
   // Pipeline de Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
@@ -56,16 +55,65 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
     return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
   }, [db])
-  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
+  const { data: allOccurrences, loading: loadingOccs } = useCollection<any>(occurrencesQuery)
+
+  const fetchEvents = React.useCallback(async (isInitial = false) => {
+    if (!db || isFetching) return
+    setIsFetching(true)
+    try {
+      const thresholdDate = new Date();
+      thresholdDate.setDate(thresholdDate.getDate() - 60);
+
+      let q;
+      if (isInitial) {
+        q = query(
+          collection(db, "events"), 
+          where("status", "==", "Ativo"), 
+          where("date", ">=", thresholdDate),
+          orderBy("date", "asc"),
+          limit(30)
+        );
+      } else {
+        const cursor = lastVisible || (rawEvents.length > 0 ? rawEvents[rawEvents.length - 1].date : null);
+        q = query(
+          collection(db, "events"), 
+          where("status", "==", "Ativo"), 
+          where("date", ">=", thresholdDate),
+          orderBy("date", "asc"),
+          startAfter(cursor),
+          limit(12)
+        );
+      }
+
+      const snap = await getDocs(q);
+      const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      if (isInitial) {
+        setRawEvents(newDocs);
+      } else {
+        setRawEvents(prev => [...prev, ...newDocs]);
+      }
+
+      if (snap.docs.length > 0) setLastVisible(snap.docs[snap.docs.length - 1]);
+      setHasMore(snap.docs.length >= 12);
+    } catch (e) {
+      console.error("[LGBT Fetch Error]", e);
+    } finally {
+      setIsFetching(false);
+    }
+  }, [db, isFetching, lastVisible, rawEvents]);
+
+  React.useEffect(() => {
+    if (initialEvents.length === 0) fetchEvents(true);
+  }, [initialEvents.length, fetchEvents]);
   
   const displayEvents = React.useMemo(() => {
-    const source = rawEvents?.length > 0 ? rawEvents : initialEvents;
     const today = startOfToday();
     const refTime = now || new Date();
     
-    return source.map(e => {
+    return rawEvents.map(e => {
       let effectiveDate = e.date;
-      if (e.isRecurring && allOccurrences) {
+      if (e.isRecurring && allOccurrences && allOccurrences.length > 0) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
@@ -84,10 +132,9 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
       }
       return { ...e, date: effectiveDate };
     }).filter(event => {
-      // Filtro de visibilidade (Remove encerrados com base na hora real)
-      if (!isEventVisible(event, refTime)) return false;
+      // Regra de Visibilidade Resiliente à Recorrência
+      if (!isEventVisible(event, refTime) && (!event.isRecurring || !loadingOccs)) return false;
 
-      // Base Filter (LGBT)
       const byCategory = LGBT_CATEGORY_IDS.includes(event.categoryId)
       const byTags = event.tags?.some((tag: string) => 
         LGBT_TAGS.includes(tag.toLowerCase())
@@ -95,14 +142,12 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
       
       if (!(byCategory || byTags)) return false;
 
-      // City Filter
       if (searchCity) {
         const cityNorm = normalizeText(searchCity);
         const eventLoc = normalizeText(`${event.city || ""} ${event.state || ""}`);
         if (!eventLoc.includes(cityNorm)) return false;
       }
 
-      // Date Filter
       if (dateFilter !== 'all') {
         const parseDate = (val: any) => {
           if (!val) return null;
@@ -132,7 +177,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
       const tB = new Date(b.date?.toDate ? b.date.toDate().toISOString() : b.date).getTime();
       return tA - tB;
     });
-  }, [rawEvents, initialEvents, allOccurrences, searchCity, dateFilter, customDate, now])
+  }, [rawEvents, allOccurrences, loadingOccs, searchCity, dateFilter, customDate, now])
 
   const clearFilters = () => {
     setSearchCity("");
@@ -213,7 +258,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
             </div>
           </div>
 
-          {loading && (!rawEvents || rawEvents.length === 0) ? (
+          {isFetching && rawEvents.length === 0 ? (
             <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-white" /></div>
           ) : displayEvents.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
