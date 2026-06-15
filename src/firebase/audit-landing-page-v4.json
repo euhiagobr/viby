@@ -1,0 +1,78 @@
+
+{
+  "audit": "LandingPageClient.tsx",
+  "timestamp": "2024-06-13T22:30:00Z",
+  "status": "GA_IDENTIFIED",
+  "summary": {
+    "recurring_events": "FAIL - Filtro de visibilidade bloqueia o evento antes da resolução da próxima data.",
+    "ads": "MISSING - Lógica de renderização de anúncios não implementada neste componente.",
+    "featured_events": "MISSING - Filtro de destaques ausente no código.",
+    "sponsored_events": "MISSING - Tag de patrocínio não verificada no mapeamento."
+  },
+  "pipeline_flow": [
+    {
+      "step": "Firestore (rawEvents)",
+      "quantity": "N",
+      "status": "OK",
+      "details": "Retorna eventos onde status == 'Ativo' e date >= threshold."
+    },
+    {
+      "step": "Firestore (allOccurrences)",
+      "quantity": "M",
+      "status": "OK",
+      "details": "Retorna ocorrências ativas de amanhã em diante."
+    },
+    {
+      "step": "Transformation (map)",
+      "quantity": "N",
+      "status": "PARTIAL_FAIL",
+      "details": "O bloco 'if (e.isRecurring && allOccurrences && now)' falha na inicialização porque 'now' é null (prevenção de hidratação). O evento mantém a data base (passada)."
+    },
+    {
+      "step": "Visibility Filter (isEventVisible)",
+      "quantity": "0",
+      "status": "BLOCK",
+      "details": "A função isEventVisible usa a hora real do sistema. Se a data base do evento pai já passou, o evento é removido do array final."
+    },
+    {
+      "step": "Render",
+      "quantity": "0",
+      "status": "EMPTY"
+    }
+  ],
+  "bottlenecks": [
+    {
+      "file": "src/app/LandingPageClient.tsx",
+      "function": "processedEvents (useMemo)",
+      "approximate_line": 103,
+      "condition": "if (e.isRecurring && allOccurrences && now)",
+      "reason": "Dependência de 'now' para atualizar a data. Como 'now' inicia como null para evitar erro #418, a primeira execução do memo utiliza datas expiradas."
+    },
+    {
+      "file": "src/app/LandingPageClient.tsx",
+      "function": "processedEvents.filter",
+      "approximate_line": 125,
+      "condition": "if (!isEventVisible(e)) return false;",
+      "reason": "Ponto de desaparecimento real. Eventos recorrentes são descartados porque sua 'data base' (13/06) é anterior a 'agora' (14/06), e a próxima ocorrência (19/06) ainda não foi injetada no objeto."
+    }
+  ],
+  "missing_logic": {
+    "ads": {
+      "status": "Não implementado",
+      "reason": "Falta o array unifiedFeed e a chamada ao AdsRenderer presentes no ExplorarClient.tsx"
+    },
+    "featured_sponsored": {
+      "status": "Não implementado",
+      "reason": "O componente renderiza o array 'events' bruto; não há lógica de separação de destaques ou patrocínios no arquivo."
+    }
+  },
+  "validation_metrics": {
+    "allOccurrences.length": "> 0",
+    "processedEvents.length": "0 (Init) -> N (Post-mount)",
+    "visibleEvents.length": "0",
+    "featuredEvents.length": "0",
+    "sponsoredEvents.length": "0",
+    "ads.length": "0"
+  },
+  "recommendation": "Remover a trava '&& now' da resolução de data e passar o estado 'now' como argumento para o isEventVisible para garantir consistência no ciclo de renderização."
+}
