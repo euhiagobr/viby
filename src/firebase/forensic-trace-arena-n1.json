@@ -1,0 +1,43 @@
+
+{
+  "target_event": {
+    "id": "cOqD4Oz09NKmStqRoUxQ",
+    "title": "Arena N1",
+    "isRecurring": true,
+    "tags": ["copa"]
+  },
+  "trace_steps": [
+    {
+      "step": 1,
+      "process": "Firestore Verification",
+      "status": "OK",
+      "details": "Documento pai existe em /events com isRecurring: true. Ocorrências geradas em /recurring_occurrences para as datas 13/06 (Base), 19/06 (Custom) e 24/06 (Custom)."
+    },
+    {
+      "step": 2,
+      "process": "Landing Page Pipeline",
+      "status": "PASS",
+      "details": "A query em 'events' captura o ID. A query em 'recurring_occurrences' captura as sessões de 19/06 e 24/06. A função processedEvents realiza o merge, atualiza e.date para 19/06 e isEventVisible retorna true pois a data futura é válida."
+    },
+    {
+      "step": 3,
+      "process": "Copa do Mundo Page Pipeline",
+      "status": "FAIL",
+      "details": "A query inicial via SSR ou Client captura o evento pai (tag 'copa'). No entanto, o arquivo 'CopaMundoClient.tsx' não possui a query para 'recurring_occurrences'. O array 'allOccurrences' é inexistente ou vazio."
+    },
+    {
+      "step": 4,
+      "process": "Merge and Transformation",
+      "status": "CRITICAL_FAIL",
+      "details": "Sem a carga de ocorrências, o mapeamento 'processedEvents' não ocorre ou utiliza o objeto estático. O campo 'e.date' permanece travado em 13/06 (data de criação/base)."
+    },
+    {
+      "step": 5,
+      "process": "Visibility Filter (isEventVisible)",
+      "status": "BLOCK",
+      "details": "A função isEventVisible recebe o evento com data 13/06. Se 'now' for >= 14/06 (encerramento da base), a função retorna FALSE."
+    }
+  ],
+  "disappear_root_cause": "O evento 'desaparece' nas páginas Copa e LGBT no momento em que a data do evento pai (documento principal) expira, ignorando completamente a existência de ocorrências futuras em outras coleções devido à ausência do pipeline de merge de dados.",
+  "conclusion": "O evento está íntegro no banco, mas o 'consumo' de dados nas páginas temáticas é incompleto/raso em comparação à Landing Page."
+}
