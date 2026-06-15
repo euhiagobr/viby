@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -10,7 +9,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Building2, MapPin, Landmark, Star, ShieldAlert } from "lucide-react"
+import { Loader2, ArrowLeft, Building2, MapPin, Landmark, Star, ShieldAlert, Save } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -33,10 +32,6 @@ import { createEventAction } from "@/app/actions/events"
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
-/**
- * @fileOverview Rota oficial de criação de novos eventos.
- * Consolidada como a única implementação para evitar duplicação arquitetural.
- */
 export default function NovoEventoPage() {
   const router = useRouter()
   const db = useFirestore()
@@ -114,7 +109,7 @@ export default function NovoEventoPage() {
         state: orgAddr.stateRegion || prev.address.state
       }
     }));
-    toast({ title: "Local importado!", description: "Dados da sede preenchidos com sucesso." });
+    toast({ title: "Local importado!" });
   }
 
   const handleImageUpload = async (file: File) => {
@@ -138,15 +133,7 @@ export default function NovoEventoPage() {
     if (!db || !user) return
 
     if (!currentOrg) {
-      toast({ variant: "destructive", title: "Marca não selecionada", description: "Por favor, selecione ou crie uma organização antes de publicar." });
-      return;
-    }
-
-    const isPaid = formData.type === 'interno' && 
-      batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
-
-    if (isPaid && !currentOrg.stripeAccountId) {
-      toast({ variant: "destructive", title: "Ação Bloqueada", description: "Para vender ingressos é necessário configurar sua conta de recebimento Stripe." });
+      toast({ variant: "destructive", title: "Marca não selecionada", description: "Selecione uma organização antes de publicar." });
       return;
     }
 
@@ -159,40 +146,26 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
-      const toISO = (dStr: string) => {
-        if (!dStr) return null;
-        const d = new Date(dStr);
-        return isNaN(d.getTime()) ? dStr : d.toISOString();
-      };
+      // Limpeza profunda para evitar erro de serialização na Server Action
+      const { organizer, ...cleanBaseData } = formData;
 
-      const eventData: any = {
-        ...formData,
-        organizationId: currentOrg.id,
-        organizerId: user.uid,
-        organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "" },
+      const eventPayload = {
+        ...cleanBaseData,
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         capacidadeTotal: totalCapacity,
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
-        date: toISO(formData.startDate),
-        startDate: toISO(formData.startDate),
-        endDate: toISO(formData.endDate),
-        recurringEndDate: toISO(formData.recurringEndDate),
         city: formData.address.city,
         location: formData.address.neighborhood || formData.address.venueName,
         latitude: formData.address.latitude,
         longitude: formData.address.longitude,
-      }
-
-      const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => 
-        value === undefined ? null : value
-      ));
+      };
 
       const result = await createEventAction({
         orgId: currentOrg.id,
         userId: user.uid,
-        eventData: cleanData
+        eventData: eventPayload
       });
 
       if (!result.success) throw new Error(result.error);
@@ -213,12 +186,12 @@ export default function NovoEventoPage() {
         });
       }
 
-      toast({ title: "Evento Publicado!", description: "Seu projeto já está disponível na rede." });
-      router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
+      toast({ title: "Evento Publicado!" });
+      router.push(`/dashboard/organizacoes/${currentOrg.username}/events`);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao publicar", description: error.message })
+      toast({ variant: "destructive", title: "Erro ao publicar", description: error.message });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -228,11 +201,13 @@ export default function NovoEventoPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
-        <div>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Novo Evento</h1>
-          <p className="text-muted-foreground font-medium">Preencha os detalhes para publicar sua experiência.</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild><Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link></Button>
+          <div>
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Novo Evento</h1>
+            <p className="text-muted-foreground font-medium">Preencha os detalhes para publicar sua experiência.</p>
+          </div>
         </div>
       </div>
 
@@ -243,7 +218,7 @@ export default function NovoEventoPage() {
               <div className="space-y-1">
                  <h2 className="text-xl font-black uppercase italic tracking-tighter text-orange-800">Ação Necessária</h2>
                  <p className="text-sm font-medium text-orange-700 leading-relaxed">
-                    Você precisa selecionar ou criar uma **Organização** antes de publicar um evento. Use o seletor na barra lateral esquerda.
+                    Você precisa selecionar ou criar uma **Organização** antes de publicar um evento.
                  </p>
                  <Button asChild className="mt-4 bg-orange-600 text-white font-black rounded-xl h-10 px-6 uppercase italic text-[10px]">
                     <Link href="/dashboard/organizacoes/new">Criar minha Marca</Link>
@@ -281,7 +256,7 @@ export default function NovoEventoPage() {
               </div>
 
               {isVibyOfficial && (
-                <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-3 animate-in zoom-in-95 duration-300">
+                <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-3">
                    <Label className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
                       <Star className="w-4 h-4 fill-secondary" /> Tipo de Vínculo (Exclusivo Viby)
                    </Label>
@@ -367,7 +342,7 @@ export default function NovoEventoPage() {
                 type="button" 
                 variant="outline" 
                 onClick={handleUseOrgLocation}
-                className="rounded-xl h-10 px-4 gap-2 font-black uppercase text-[10px] border-secondary text-secondary hover:bg-secondary/5 shadow-sm"
+                className="rounded-xl h-10 px-4 gap-2 font-black uppercase text-[10px] border-secondary text-secondary hover:bg-secondary/5"
                >
                  <Building2 className="w-3.5 h-3.5" /> Usar Local da Sede
                </Button>
@@ -391,7 +366,7 @@ export default function NovoEventoPage() {
                       </div>
                       <div className="space-y-0.5">
                          <h2 className="text-lg font-black uppercase italic tracking-tighter">Recebimentos Bloqueados</h2>
-                         <p className="text-xs font-medium opacity-90">Sua marca não possui conta Stripe vinculada para processar pagamentos.</p>
+                         <p className="text-xs font-medium opacity-90">Sua marca não possui conta Stripe vinculada.</p>
                       </div>
                    </div>
                    <CardContent className="p-8 flex flex-col sm:flex-row items-center justify-between gap-6">

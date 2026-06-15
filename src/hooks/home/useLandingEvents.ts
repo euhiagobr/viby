@@ -6,8 +6,8 @@ import { collection, query, where, orderBy, limit, getDocs, startAfter, Document
 
 /**
  * Hook de busca de eventos para a Landing Page.
- * Removido o filtro rígido de data na query para garantir compatibilidade com dados legados (String vs Timestamp).
- * O filtro de visibilidade real acontece no cliente via useVisibleEvents.
+ * Removido o filtro rígido de data na query para garantir compatibilidade com dados legados.
+ * Aumentado o limite de busca inicial para acomodar filtragem de visibilidade no cliente.
  */
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
@@ -22,8 +22,9 @@ export function useLandingEvents(initialEvents: any[] = []) {
     
     setIsFetching(true);
     try {
-      // Carregamos uma massa maior inicialmente para permitir filtros de visibilidade e recorrência no cliente
-      const fetchLimit = isInitial ? 35 : 15;
+      // Carregamos uma massa maior (45) inicialmente para permitir filtros de visibilidade
+      // e resolução de recorrências no cliente sem esvaziar o feed.
+      const fetchLimit = isInitial ? 45 : 20;
 
       let q;
       if (isInitial) {
@@ -35,7 +36,7 @@ export function useLandingEvents(initialEvents: any[] = []) {
         );
       } else {
         const lastEvent = rawEvents[rawEvents.length - 1];
-        // Resiliência para cursor: Prioriza snapshot, fallback para valor bruto da data
+        // Resiliência para cursor: Snapshot é ideal, data bruta é fallback
         const cursor = lastVisible || (lastEvent ? lastEvent.date : null);
         
         q = query(

@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -57,31 +56,30 @@ export async function createEventAction(params: {
   const db = getAdminDb();
   
   try {
-    console.log(`[createEventAction] Initing for Org: ${params.orgId} by User: ${params.userId}`);
-    
     const { eventData } = params;
-    const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
     
-    if (!dateNormalization.isValid) {
-      throw new Error(dateNormalization.error);
-    }
+    // Normalização rigorosa de datas antes da conversão para Timestamp
+    const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
+    if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
 
     await validateStripeAccount(db, params.orgId, eventData);
 
     const slug = await generateUniqueSlug(db, params.orgId, eventData.title);
     const eventRef = db.collection('events').doc();
     
+    // Conversão explícita para o tipo Date do motor V8 para que o Admin SDK crie Timestamps perfeitos
     const startDate = new Date(dateNormalization.startDate);
     const endDate = new Date(dateNormalization.endDate);
 
-    // Removemos campos que podem causar erro de serialização se vierem do client
+    // Sanitização final do payload
     const { 
       id: _id, 
       createdAt: _ca, 
       updatedAt: _ua, 
       date: _d, 
       startDate: _sd, 
-      endDate: _ed, 
+      endDate: _ed,
+      organizer: _org,
       ...sanitizedData 
     } = eventData;
 
@@ -89,21 +87,23 @@ export async function createEventAction(params: {
       ...sanitizedData,
       id: eventRef.id,
       slug,
+      // O campo 'date' é a chave principal de ordenação nas vitrines
       date: admin.firestore.Timestamp.fromDate(startDate),
       startDate: admin.firestore.Timestamp.fromDate(startDate),
       endDate: admin.firestore.Timestamp.fromDate(endDate),
       organizationId: params.orgId,
       organizerId: params.userId,
+      interestedCount: 0,
+      ingressosVendidos: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
     await eventRef.set(finalData);
-    console.log(`[createEventAction] Success! Event ID: ${eventRef.id}`);
 
     return { success: true, id: eventRef.id, slug };
   } catch (e: any) {
-    console.error(`[createEventAction] Error:`, e.message);
+    console.error(`[createEventAction] Critical Failure:`, e.message);
     return { success: false, error: e.message };
   }
 }
@@ -120,17 +120,14 @@ export async function updateEventAction(params: {
 
     const { eventData } = params;
     const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
-    
-    if (!dateNormalization.isValid) {
-      throw new Error(dateNormalization.error);
-    }
+    if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
 
     await validateStripeAccount(db, params.orgId, eventData);
 
     const eventRef = db.collection('events').doc(params.eventId);
     const eventSnap = await eventRef.get();
-    
     if (!eventSnap.exists) throw new Error("Evento não localizado.");
+    
     const oldData = eventSnap.data()!;
 
     let slug = oldData.slug;
@@ -148,6 +145,7 @@ export async function updateEventAction(params: {
       date: _d, 
       startDate: _sd, 
       endDate: _ed, 
+      organizer: _org,
       ...sanitizedData 
     } = eventData;
 
@@ -164,7 +162,6 @@ export async function updateEventAction(params: {
 
     return { success: true, slug };
   } catch (e: any) {
-    console.error(`[updateEventAction] Error:`, e.message);
     return { success: false, error: e.message };
   }
 }
