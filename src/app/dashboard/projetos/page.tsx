@@ -106,7 +106,6 @@ export default function MeusEventosPage() {
       return { ...e, date: effectiveDate };
     }).filter((e: any) => e.status !== 'Excluído')
       .sort((a, b) => {
-        // CORREÇÃO: Trata createdAt nulo (recém-criado) como o item mais recente
         const tA = a.createdAt?.seconds || Date.now() / 1000;
         const tB = b.createdAt?.seconds || Date.now() / 1000;
         return tB - tA;
@@ -124,8 +123,6 @@ export default function MeusEventosPage() {
       let d: Date;
       if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
         d = dateValue.toDate();
-      } else if (dateValue instanceof Date) {
-        d = dateValue;
       } else {
         d = new Date(dateValue);
       }
@@ -141,8 +138,6 @@ export default function MeusEventosPage() {
       let d: Date;
       if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
         d = dateValue.toDate();
-      } else if (dateValue instanceof Date) {
-        d = dateValue;
       } else {
         d = new Date(dateValue);
       }

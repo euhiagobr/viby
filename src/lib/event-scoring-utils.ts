@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Lógica de filtragem e normalização de eventos Viby.
  * Foco em: "Perto de você" (Filtro) e "No tempo certo" (Ordenação).
@@ -32,12 +33,13 @@ export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   };
 
   const startMs = parseDateToMs(event.date);
-  if (!startMs) return false;
+  
+  // Se não houver data de início (recém criado), assume visibilidade para não sumir do dashboard
+  if (!startMs) return true;
 
   let endMs = parseDateToMs(event.endDate);
   
   // Caso especial: Madrugada (ex: 22h às 04h)
-  // Se o fim é menor que o início mas no mesmo dia de calendário (ex: "2026-06-10T22:00" e "2026-06-10T04:00")
   if (endMs && endMs <= startMs) {
     const dStart = new Date(startMs);
     const dEnd = new Date(endMs);
@@ -49,6 +51,5 @@ export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   // Se não houver data de fim, usamos um padrão de 6h após o início como threshold de visibilidade
   const effectiveEndMs = endMs || (startMs + 6 * 60 * 60 * 1000);
   
-  // O evento só é visível se o momento atual for anterior ao encerramento (ou 6h após o início se não houver fim)
   return now < effectiveEndMs;
 }

@@ -64,7 +64,6 @@ export default function OrganizationEventsPage() {
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [now, setNow] = React.useState<Date>(new Date());
 
-  // Atualiza o relógio a cada minuto para manter sincronia de visibilidade
   React.useEffect(() => {
     setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 60000);
@@ -128,14 +127,23 @@ export default function OrganizationEventsPage() {
             isEventPast = true;
           }
         } else {
-          const start = effectiveDate?.toDate ? effectiveDate.toDate() : new Date(effectiveDate);
-          const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-          isEventPast = end < now;
+          // Se não houver ocorrências futuras e a data base estiver no passado, é passado
+          const dateToTest = effectiveDate?.toDate ? effectiveDate.toDate() : new Date(effectiveDate);
+          if (!effectiveDate || isNaN(dateToTest.getTime())) {
+             isEventPast = false; // Recém criado ou sem data assume como Próximo
+          } else {
+             const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(dateToTest.getTime() + 4 * 60 * 60 * 1000));
+             isEventPast = end < now;
+          }
         }
       } else {
-        const start = effectiveDate?.toDate ? effectiveDate.toDate() : new Date(effectiveDate);
-        const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
-        isEventPast = end < now;
+        const dateToTest = effectiveDate?.toDate ? effectiveDate.toDate() : new Date(effectiveDate);
+        if (!effectiveDate || isNaN(dateToTest.getTime())) {
+           isEventPast = false;
+        } else {
+           const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(dateToTest.getTime() + 4 * 60 * 60 * 1000));
+           isEventPast = end < now;
+        }
       }
 
       const enrichedEvent = { ...e, _effectiveDate: effectiveDate };

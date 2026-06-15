@@ -37,7 +37,8 @@ export function useLandingEvents(initialEvents: any[] = []) {
       } else {
         // Se temos o snapshot (client-side), usamos ele. 
         // Se viemos de SSR (lastVisible é null), usamos o valor da data do último item.
-        const cursor = lastVisible || (rawEvents.length > 0 ? rawEvents[rawEvents.length - 1].date : null);
+        const lastEvent = rawEvents[rawEvents.length - 1];
+        const cursor = lastVisible || (lastEvent ? lastEvent.date : null);
         
         q = query(
           collection(db, "events"),
