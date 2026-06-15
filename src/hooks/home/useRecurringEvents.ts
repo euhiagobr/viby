@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { format, startOfToday, addDays } from "date-fns";
+import { safeParseDate } from '@/lib/utils';
 
 /**
  * Hook para resolver a próxima data válida de eventos recorrentes.
@@ -30,40 +31,47 @@ export function useRecurringEvents(events: any[], now: Date | null) {
     const refTime = now || new Date();
 
     return events.map(e => {
-      let effectiveDate = e.date;
-      let effectiveEndDate = e.endDate;
+      const baseDate = safeParseDate(e.date);
+      let effectiveDate = baseDate;
+      let effectiveEndDate = safeParseDate(e.endDate);
       let nextOccurrences: any[] = [];
       
       if (e.isRecurring && allOccurrences && allOccurrences.length > 0) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         
         if (myOccs.length > 0) {
-          // Ordena cronologicamente (Local para evitar desvios de GMT)
+          // Ordena cronologicamente
           const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '19:00'}:00`) }))
-            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+            .map(o => {
+              const d = safeParseDate(`${o.date}T${o.startTime || '19:00'}:00`);
+              return { ...o, _dt: d };
+            })
+            .filter(o => o._dt !== null)
+            .sort((a, b) => a._dt!.getTime() - b._dt!.getTime());
           
           const nextValid = sorted.find(o => {
-            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+            // Threshold de 6 horas após o início da sessão para manter visível
+            const endThreshold = new Date(o._dt!.getTime() + 6 * 60 * 60 * 1000);
             return refTime < endThreshold;
           });
 
           if (nextValid) {
-            effectiveDate = `${nextValid.date}T${nextValid.startTime || '19:00'}:00`;
+            effectiveDate = nextValid._dt;
             
             if (nextValid.endTime) {
-              effectiveEndDate = `${nextValid.date}T${nextValid.endTime}:00`;
-            } else {
-              const dStart = new Date(e.date || 0).getTime();
-              const dEnd = new Date(e.endDate || 0).getTime();
-              const duration = (!isNaN(dStart) && !isNaN(dEnd) && dEnd > dStart) 
-                ? (dEnd - dStart) 
-                : (4 * 60 * 60 * 1000);
-              effectiveEndDate = new Date(new Date(effectiveDate).getTime() + duration).toISOString();
+              effectiveEndDate = safeParseDate(`${nextValid.date}T${nextValid.endTime}:00`);
+            } else if (baseDate) {
+              const dStart = baseDate.getTime();
+              const dEnd = safeParseDate(e.endDate)?.getTime() || (dStart + 4 * 60 * 60 * 1000);
+              const duration = dEnd - dStart;
+              effectiveEndDate = new Date(effectiveDate!.getTime() + duration);
             }
 
             nextOccurrences = sorted
-              .filter(o => new Date(o._dt.getTime() + 6 * 60 * 60 * 1000) > refTime)
+              .filter(o => {
+                const endThreshold = new Date(o._dt!.getTime() + 6 * 60 * 60 * 1000);
+                return refTime < endThreshold;
+              })
               .slice(0, 3);
           }
         }

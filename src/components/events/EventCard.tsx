@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { cn } from "@/lib/utils"
+import { cn, safeParseDate } from "@/lib/utils"
 import { type Coordinates } from "@/lib/location-utils"
 import { calculateDistanceMeters, isEventVisible } from "@/lib/event-scoring-utils"
 import { useAuth, useUser } from "@/firebase"
@@ -41,32 +41,29 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, []);
 
   const eventDates = React.useMemo(() => {
-    const parseDate = (val: any) => {
-      if (!val) return null;
-      if (val.toDate) return val.toDate();
-      const d = new Date(val);
-      return isNaN(d.getTime()) ? null : d;
-    };
+    const start = safeParseDate(event.date) || (mounted ? new Date() : new Date(0));
+    let end = safeParseDate(event.endDate);
     
-    const start = parseDate(event.date) || (mounted ? new Date() : new Date(0));
-    let end = parseDate(event.endDate);
-    
-    if (end && end <= start) {
-      if (start.toISOString().split('T')[0] === end.toISOString().split('T')[0]) {
+    // Se o fim for menor ou igual ao início e for no mesmo dia, assume virada de noite
+    if (end && start && end <= start) {
+      if (start.toDateString() === end.toDateString()) {
         end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
       }
     }
 
-    if (!end) {
+    if (!end && start) {
+      // Default duration is 4 hours if not specified
       end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
     }
     
-    return { start, end };
+    return { start, end: end || start };
   }, [event.date, event.endDate, mounted]);
 
   const isEnded = React.useMemo(() => {
     if (!mounted) return false;
-    return eventDates.end < new Date();
+    // O evento é considerado encerrado 6 horas após o horário oficial de término para visibilidade residual
+    const threshold = new Date(eventDates.end.getTime() + 6 * 60 * 60 * 1000);
+    return new Date() > threshold;
   }, [eventDates.end, mounted]);
 
   const isOvernight = React.useMemo(() => {
@@ -82,6 +79,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     const update = () => {
       const now = new Date();
       const { start, end } = eventDates;
+      
+      if (!start || !end) return;
+
       const diffStart = start.getTime() - now.getTime();
       const isToday = now.toDateString() === start.toDateString();
 
@@ -288,7 +288,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               <span className="text-[8px] font-black uppercase opacity-30 w-full mb-1">Outras datas:</span>
               {event._nextOccurrences.slice(1, 3).map((occ: any, i: number) => (
                 <div key={i} className="px-2 py-0.5 bg-muted rounded-md text-[8px] font-bold text-muted-foreground uppercase">
-                  {new Date(`${occ.date}T12:00:00.000Z`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                  {safeParseDate(occ.date)?.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                 </div>
               ))}
             </div>

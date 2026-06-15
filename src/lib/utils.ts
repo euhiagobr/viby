@@ -5,7 +5,33 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Robust date parser that handles Firestore Timestamps (real and serialized), 
+ * ISO strings, and Date objects.
+ */
+export function safeParseDate(val: any): Date | null {
+  if (!val) return null;
+  
+  // 1. Client SDK Timestamp
+  if (typeof val.toDate === 'function') return val.toDate();
+  
+  // 2. Serialized Timestamp { seconds, nanoseconds }
+  if (typeof val === 'object' && typeof val.seconds === 'number') {
+    return new Date(val.seconds * 1000 + (val.nanoseconds || 0) / 1000000);
+  }
+  
+  // 3. Date instance
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? null : val;
+  }
+  
+  // 4. String or number
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 export function normalizeText(text: string): string {
+  if (!text) return "";
   return text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -31,10 +57,10 @@ export function normalizeEventDates(startDateStr: string, endDateStr: string): {
     return { startDate: startDateStr, endDate: endDateStr, isValid: false, error: "Datas incompletas." };
   }
 
-  let start = new Date(startDateStr);
-  let end = new Date(endDateStr);
+  let start = safeParseDate(startDateStr);
+  let end = safeParseDate(endDateStr);
 
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+  if (!start || !end) {
     return { startDate: startDateStr, endDate: endDateStr, isValid: false, error: "Formato de data inválido." };
   }
 
@@ -131,8 +157,8 @@ export function validateCNPJ(cnpj: string): boolean {
     if (pos < 2) pos = 9;
   }
 
-  result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
-  if (result !== parseInt(digits.charAt(1))) return false;
+  let resultFinal = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (resultFinal !== parseInt(digits.charAt(1))) return false;
 
   return true;
 }

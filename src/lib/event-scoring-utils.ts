@@ -4,6 +4,7 @@
  */
 
 import { calculateDistance, type Coordinates } from "./location-utils";
+import { safeParseDate } from "./utils";
 
 /**
  * Calcula a distância exata em metros entre dois pontos.
@@ -23,32 +24,19 @@ export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   if (!event || event.status === 'Excluído') return false;
   
   // Status 'Oculto' permite visualização via link direto mas remove das vitrines se não for admin
-  // Aqui na lógica de visibilidade geral de feed, só mostramos 'Ativo'
   if (event.status !== 'Ativo') return false;
   
   const now = nowOverride ? nowOverride.getTime() : new Date().getTime();
   
-  const parseDateToMs = (val: any) => {
-    if (!val) return null;
-    // 1. Objeto Timestamp do Client SDK (.toDate)
-    if (typeof val.toDate === 'function') return val.toDate().getTime();
-    
-    // 2. Objeto Timestamp serializado (Admin SDK ou Cache)
-    if (typeof val === 'object' && 'seconds' in val) return val.seconds * 1000;
-    
-    // 3. String ISO ou data nativa
-    const d = new Date(val);
-    return isNaN(d.getTime()) ? null : d.getTime();
-  };
+  const startDate = safeParseDate(event.date);
+  if (!startDate) return true; // Se não houver data válida, assume visibilidade para evitar descarte indevido
 
-  const startMs = parseDateToMs(event.date);
-  
-  // Se não houver data de início (recém criado), assume visibilidade
-  if (!startMs) return true;
+  const startMs = startDate.getTime();
 
   // Tolerância para eventos que estão acontecendo AGORA: 
   // Mostramos até 6 horas após o início caso não haja data de término definida.
-  let endMs = parseDateToMs(event.endDate);
+  const endDate = safeParseDate(event.endDate);
+  let endMs = endDate ? endDate.getTime() : null;
   
   if (endMs && endMs <= startMs) {
     // Tratamento de virada de noite (ex: 22h às 04h)
