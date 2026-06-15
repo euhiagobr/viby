@@ -99,7 +99,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isAdmin() || isOwner(userId);
+      allow update: if isAdmin() || isOwner(userId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount', 'totalXp', 'level', 'updatedAt']));
       
       match /private/sensitive {
         allow read, write: if isAdmin() || isOwner(userId);
@@ -109,6 +109,24 @@ service cloud.firestore {
     match /usernames/{username} {
       allow read: if true;
       allow write: if isSignedIn() || isAdmin();
+    }
+
+    // Relacionamentos de Seguimento
+    match /follows/{followId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.followerId;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.followerId;
+    }
+
+    // Gamificação
+    match /user_gamification/{uid} {
+      allow read: if true;
+      allow write: if isAdmin() || isOwner(uid);
+    }
+
+    match /xp_logs/{logId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == request.resource.data.userId);
     }
 
     // Financeiro Pessoal (Carteira)
@@ -175,7 +193,7 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if isAdmin() || isOrgMember(orgId);
+      allow update: if isAdmin() || isOrgMember(orgId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount', 'updatedAt']));
 
       match /members/{memberId} {
         allow read: if isSignedIn() || isAdmin();
@@ -187,7 +205,7 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if true;
       allow create: if isAdmin() || (isSignedIn() && isOrgMember(request.resource.data.organizationId));
-      allow update: if isAdmin() || (isSignedIn() && isOrgMember(resource.data.organizationId));
+      allow update: if isAdmin() || (isSignedIn() && isOrgMember(request.resource.data.organizationId));
       allow delete: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.ownerId == request.auth.uid);
 
       match /interests/{userId} {
@@ -197,7 +215,7 @@ service cloud.firestore {
       
       match /partners/{partnerId} {
         allow read: if true;
-        allow write: if isAdmin() || (isSignedIn() && isOrgMember(resource.data.organizationId));
+        allow write: if isAdmin() || (isSignedIn() && isOrgMember(request.resource.data.organizationId));
       }
 
       match /comments/{commentId} {
@@ -219,13 +237,13 @@ service cloud.firestore {
 
     match /recurring_occurrences/{occId} {
       allow read: if true;
-      allow write: if isAdmin() || (isSignedIn() && isOrgMember(resource.data.organizationId));
+      allow write: if isAdmin() || (isSignedIn() && isOrgMember(request.resource.data.organizationId));
     }
 
     // Marketing e Anúncios
     match /ads/{adId} {
       allow read: if true;
-      allow write: if isAdmin() || (isSignedIn() && isOrgMember(resource.data.organizationId));
+      allow write: if isAdmin() || (isSignedIn() && isOrgMember(request.resource.data.organizationId));
     }
 
     match /ad_coupons/{couponId} {
@@ -235,7 +253,7 @@ service cloud.firestore {
 
     match /qr_scans/{scanId} {
       allow create: if true;
-      allow read: if isAdmin() || (isSignedIn() && isOrgMember(resource.data.organizationId));
+      allow read: if isAdmin() || (isSignedIn() && isOrgMember(request.resource.data.organizationId));
     }
 
     // Suporte e Notificações
@@ -253,11 +271,6 @@ service cloud.firestore {
     }
 
     // Gamificação e Logs
-    match /user_gamification/{uid} {
-      allow read: if true;
-      allow write: if isAdmin() || isOwner(uid);
-    }
-
     match /xp_logs/{logId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow write: if isAdmin();
