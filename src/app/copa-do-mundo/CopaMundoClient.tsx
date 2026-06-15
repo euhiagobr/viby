@@ -105,8 +105,9 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       if (e.isRecurring && allOccurrences && now) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
+          // Ordenação local para resolver próxima data
           const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '00:00'}:00`) }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
           const nextValid = sorted.find(o => {
@@ -115,13 +116,14 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
           });
 
           if (nextValid) {
-            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+            effectiveDate = `${nextValid.date}T${nextValid.startTime || '19:00'}:00`;
           }
         }
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
-      if (!isEventVisible(e)) return false;
+      // Filtro de encerramento (D+0 6h)
+      if (!isEventVisible(e, now)) return false;
       
       if (search && !normalizeText(e.title || "").includes(searchNorm)) return false;
       if (searchCity && !normalizeText(e.city || "").includes(cityNorm)) return false;
@@ -137,7 +139,8 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
 
       // Filtro de Data
       if (now) {
-        const eventDate = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+        const dateStr = e.date?.toDate ? e.date.toDate().toISOString() : e.date;
+        const eventDate = new Date(dateStr);
         if (dateFilter === 'today' && eventDate.toDateString() !== now.toDateString()) return false;
         if (dateFilter === 'week') {
           const nextWeek = new Date();
@@ -152,10 +155,14 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       if (userLocation && e.latitude && e.longitude) {
         dist = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
       }
-      const startDateTime = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const dateStr = e.date?.toDate ? e.date.toDate().toISOString() : e.date;
+      const startDateTime = new Date(dateStr);
       return { ...e, _distanceMeters: dist, _startDateTime: isNaN(startDateTime.getTime()) ? new Date() : startDateTime };
     }).sort((a, b) => {
-      return a._startDateTime.getTime() - b._startDateTime.getTime();
+      // Ordenação: Data (ASC) -> Distância (ASC)
+      const timeDiff = a._startDateTime.getTime() - b._startDateTime.getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return a._distanceMeters - b._distanceMeters;
     });
   }, [rawEvents, allOccurrences, search, searchCity, priceFilter, dateFilter, userLocation, now]);
 
@@ -206,7 +213,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
                   />
                 </div>
                 <div className="md:col-span-3 relative">
-                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#ffdf00]" />
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ffdf00]" />
                   <Input 
                     placeholder="Qual cidade?" 
                     className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"

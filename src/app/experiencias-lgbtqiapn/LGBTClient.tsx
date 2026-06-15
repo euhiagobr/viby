@@ -68,7 +68,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '00:00'}:00`) }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
           const nextValid = sorted.find(o => {
@@ -77,13 +77,14 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
           });
 
           if (nextValid) {
-            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+            effectiveDate = `${nextValid.date}T${nextValid.startTime || '19:00'}:00`;
           }
         }
       }
       return { ...e, date: effectiveDate };
     }).filter(event => {
-      if (!isEventVisible(event)) return false;
+      // Filtro de visibilidade (Remove encerrados)
+      if (!isEventVisible(event, now)) return false;
 
       // Base Filter (LGBT)
       const byCategory = LGBT_CATEGORY_IDS.includes(event.categoryId)
@@ -102,14 +103,8 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
 
       // Date Filter
       if (dateFilter !== 'all') {
-        const parseDate = (val: any) => {
-          if (!val) return null;
-          if (val.toDate) return val.toDate();
-          const d = new Date(val);
-          return isNaN(d.getTime()) ? null : d;
-        };
-
-        const eventDate = parseDate(event.date);
+        const dateStr = event.date?.toDate ? event.date.toDate().toISOString() : event.date;
+        const eventDate = new Date(dateStr);
         if (!eventDate) return false;
 
         if (dateFilter === 'today') {
@@ -126,8 +121,9 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
 
       return true;
     }).sort((a, b) => {
-      const tA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
-      const tB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+      // Ordenação Cronológica ASC
+      const tA = new Date(a.date?.toDate ? a.date.toDate().toISOString() : a.date).getTime();
+      const tB = new Date(b.date?.toDate ? b.date.toDate().toISOString() : b.date).getTime();
       return tA - tB;
     });
   }, [rawEvents, initialEvents, allOccurrences, searchCity, dateFilter, customDate, now])
