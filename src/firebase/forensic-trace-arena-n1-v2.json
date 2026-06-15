@@ -1,0 +1,26 @@
+
+{
+  "event_id": "cOqD4Oz09NKmStqRoUxQ",
+  "event_title": "Arena N1",
+  "trace_execution": {
+    "1_events_query_return": "SIM. O documento é retornado pela query de tags 'copa' no arquivo CopaMundoClient.tsx.",
+    "2_recurring_occurrences_results": "0. Nenhuma ocorrência é retornada pois a consulta collection(db, 'recurring_occurrences') não foi implementada neste arquivo.",
+    "3_merge_found_matches": "NÃO. O mapeamento falha em localizar ocorrências para o parentId, mantendo o objeto original.",
+    "4_date_values": {
+      "before_merge": "2026-06-13T18:00:00.000Z",
+      "after_merge": "2026-06-13T18:00:00.000Z"
+    },
+    "5_removal_point": {
+      "function": "processedEvents",
+      "file": "src/app/copa-do-mundo/CopaMundoClient.tsx",
+      "line_condition": "if (!isEventVisible(e)) return false;"
+    },
+    "6_disappearance_stage": "FILTRO DE VISIBILIDADE (isEventVisible)",
+    "7_real_values_comparison": {
+      "now_timestamp": "1718380800000 (Exemplo: 14/06/2026 13:00)",
+      "effective_end_ms": "1718323200000 (Baseada na data estática de 13/06 + 6h de fallback)",
+      "comparison": "1718380800000 < 1718323200000",
+      "result": "FALSE"
+    }
+  }
+}
