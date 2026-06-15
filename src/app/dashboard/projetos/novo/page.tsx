@@ -4,7 +4,7 @@
 import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useUser, useFirestore, useFirebaseApp, useMemoFirebase, useCollection, useDoc } from "@/firebase"
+import { useAuth, useUser, useDoc, useFirestore, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
 import { collection, doc, query, orderBy } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent } from "@/components/ui/card"
@@ -39,14 +39,14 @@ import { generateOccurrences } from "@/services/recurring-event-service"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { createEventAction } from "@/app/actions/events"
 
-const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
+const DEFAULT_EVENT_IMAGE = "https://picsum.photos/seed/event/1200/800";
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 export default function NovoEventoPage() {
   const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
-  const { user } = useUser(auth)
+  const { user, profile } = useUser(auth)
   const app = useFirebaseApp()
   const { currentOrg } = useCurrentOrganization()
   const { currency: dashboardCurrency } = useCurrency();
@@ -157,7 +157,7 @@ export default function NovoEventoPage() {
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
       // Limpeza profunda para evitar erro de serialização na Server Action
-      const { organizer, ...cleanBaseData } = formData;
+      const { organizer, ...cleanBaseData } = formData as any;
 
       const eventPayload = {
         ...cleanBaseData,
@@ -197,7 +197,8 @@ export default function NovoEventoPage() {
       }
 
       toast({ title: "Evento Publicado!" });
-      router.push(`/dashboard/organizacoes/${currentOrg.username}/events`);
+      // Redireciona para a página pública do evento recém-criado
+      router.push(`/${currentOrg.username}/${result.slug || result.id}`);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao publicar", description: error.message });
     } finally {
