@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -20,7 +19,8 @@ import {
   Users,
   Trash2,
   TicketPercent,
-  Megaphone
+  Megaphone,
+  RefreshCw
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -46,10 +46,19 @@ import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
+import { format, startOfToday, addDays } from "date-fns"
+import { cn } from "@/lib/utils"
 
 export default function MeusEventosPage() {
   const db = useFirestore()
   const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization()
+  const [now, setNow] = React.useState<Date | null>(null)
+
+  React.useEffect(() => {
+    setNow(new Date())
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
+  }, [])
 
   const myEventsQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null
@@ -58,16 +67,49 @@ export default function MeusEventosPage() {
 
   const { data: rawEvents, loading: eventsLoading } = useCollection<any>(myEventsQuery)
 
+  // Pipeline de Ocorrências para eventos recorrentes
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db || !currentOrg) return null
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
+    return query(
+      collection(db, "recurring_occurrences"), 
+      where("organizationId", "==", currentOrg.id),
+      where("status", "==", "active"),
+      where("date", ">=", yesterdayStr)
+    )
+  }, [db, currentOrg?.id])
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
+
   const events = React.useMemo(() => {
     if (!rawEvents) return [];
-    return [...rawEvents]
-      .filter((e: any) => e.status !== 'Excluído')
+    
+    return rawEvents.map(e => {
+      let effectiveDate = e.date;
+      if (e.isRecurring && allOccurrences && now) {
+        const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
+        if (myOccs.length > 0) {
+          const sorted = [...myOccs]
+            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+          
+          const nextValid = sorted.find(o => {
+            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+            return now < endThreshold;
+          });
+
+          if (nextValid) {
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+          }
+        }
+      }
+      return { ...e, date: effectiveDate };
+    }).filter((e: any) => e.status !== 'Excluído')
       .sort((a, b) => {
         const tA = a.createdAt?.seconds || 0;
         const tB = b.createdAt?.seconds || 0;
         return tB - tA;
       });
-  }, [rawEvents]);
+  }, [rawEvents, allOccurrences, now]);
 
   const [eventToDelete, setEventToDelete] = React.useState<{id: string, title: string} | null>(null)
   const [isDeleting, setIsDeleting] = React.useState(false)
@@ -114,7 +156,6 @@ export default function MeusEventosPage() {
 
     setIsDeleting(true)
     try {
-      // 1. Verificar se existem ingressos pagos ou disponíveis
       const salesQuery = query(
         collection(db, "registrations"),
         where("eventId", "==", eventToDelete.id),
@@ -125,7 +166,6 @@ export default function MeusEventosPage() {
       const eventRef = doc(db, "events", eventToDelete.id);
 
       if (!salesSnap.empty) {
-        // EXISTEM VENDAS: APENAS OCULTAR
         await updateDoc(eventRef, { 
           status: "Oculto", 
           updatedAt: serverTimestamp() 
@@ -135,7 +175,6 @@ export default function MeusEventosPage() {
           description: "Como já existem ingressos vendidos, o evento foi ocultado em vez de excluído para preservar os vouchers." 
         });
       } else {
-        // NÃO EXISTEM VENDAS: EXCLUSÃO SOFT TOTAL
         const batch = writeBatch(db);
         batch.update(eventRef, { status: "Excluído", updatedAt: serverTimestamp() });
         
@@ -236,7 +275,10 @@ export default function MeusEventosPage() {
                 </div>
                 <div className="p-5 space-y-4">
                   <div className="flex justify-between items-start gap-2">
-                    <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
+                    <div className="space-y-1">
+                       <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
+                       {event.isRecurring && <Badge className="bg-secondary text-white text-[7px] font-black uppercase h-3.5"><RefreshCw className="w-2 h-2 mr-1 animate-spin-slow" /> Série Recorrente</Badge>}
+                    </div>
                     {isAtLeastEditor && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

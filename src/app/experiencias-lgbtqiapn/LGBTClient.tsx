@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button"
 import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { cn, normalizeText } from "@/lib/utils"
+import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
+import { isEventVisible } from "@/lib/event-scoring-utils"
 
 const LGBT_CATEGORY_IDS = [
   "bNr5g766mc0vGskU1RBq",
@@ -33,6 +35,13 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
   const [searchCity, setSearchCity] = React.useState("")
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all")
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined)
+  const [now, setNow] = React.useState<Date | null>(null)
+
+  React.useEffect(() => {
+    setNow(new Date())
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
+  }, [])
 
   const eventsQuery = React.useMemo(() => {
     if (!db) return null
@@ -40,12 +49,42 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
   }, [db])
 
   const { data: rawEvents, loading } = useCollection<any>(eventsQuery)
+
+  // Pipeline de Ocorrências para eventos recorrentes
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db) return null
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
+    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
+  }, [db])
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
   
   const displayEvents = React.useMemo(() => {
     const source = rawEvents?.length > 0 ? rawEvents : initialEvents;
-    const now = startOfToday();
+    const today = startOfToday();
     
-    return source.filter(event => {
+    return source.map(e => {
+      let effectiveDate = e.date;
+      if (e.isRecurring && allOccurrences && now) {
+        const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
+        if (myOccs.length > 0) {
+          const sorted = [...myOccs]
+            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+          
+          const nextValid = sorted.find(o => {
+            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+            return now < endThreshold;
+          });
+
+          if (nextValid) {
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+          }
+        }
+      }
+      return { ...e, date: effectiveDate };
+    }).filter(event => {
+      if (!isEventVisible(event)) return false;
+
       // Base Filter (LGBT)
       const byCategory = LGBT_CATEGORY_IDS.includes(event.categoryId)
       const byTags = event.tags?.some((tag: string) => 
@@ -74,20 +113,24 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
         if (!eventDate) return false;
 
         if (dateFilter === 'today') {
-          if (!isSameDay(eventDate, now)) return false;
+          if (!isSameDay(eventDate, today)) return false;
         } else if (dateFilter === 'tomorrow') {
-          if (!isSameDay(eventDate, addDays(now, 1))) return false;
+          if (!isSameDay(eventDate, addDays(today, 1))) return false;
         } else if (dateFilter === 'week') {
-          const endWeek = endOfWeek(now);
-          if (eventDate < now || eventDate > endWeek) return false;
+          const endWeek = endOfWeek(today);
+          if (eventDate < today || eventDate > endWeek) return false;
         } else if (dateFilter === 'custom' && customDate) {
           if (!isSameDay(eventDate, customDate)) return false;
         }
       }
 
       return true;
-    })
-  }, [rawEvents, initialEvents, searchCity, dateFilter, customDate])
+    }).sort((a, b) => {
+      const tA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
+      const tB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+      return tA - tB;
+    });
+  }, [rawEvents, initialEvents, allOccurrences, searchCity, dateFilter, customDate, now])
 
   const clearFilters = () => {
     setSearchCity("");
@@ -168,7 +211,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
             </div>
           </div>
 
-          {loading && rawEvents.length === 0 ? (
+          {loading && (!rawEvents || rawEvents.length === 0) ? (
             <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-white" /></div>
           ) : displayEvents.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

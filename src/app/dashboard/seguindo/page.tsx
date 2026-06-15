@@ -7,11 +7,20 @@ import { EventTimelineCard } from "@/components/events/EventTimelineCard"
 import { Loader2, Heart, Users, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { format, startOfToday, addDays } from "date-fns"
+import { isEventVisible } from "@/lib/event-scoring-utils"
 
 export default function TenhoInteressePage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const [now, setNow] = React.useState<Date | null>(null)
+
+  React.useEffect(() => {
+    setNow(new Date())
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
+  }, [])
 
   // 1. Buscar quem o usuário segue
   const followsQuery = useMemoFirebase(() => {
@@ -26,7 +35,15 @@ export default function TenhoInteressePage() {
     return follows.map((f: any) => f.followingId)
   }, [follows])
 
-  // 2. Buscar eventos dessas organizações
+  // 2. Pipeline de Ocorrências para eventos recorrentes
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db) return null
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
+    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
+  }, [db])
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
+
+  // 3. Buscar eventos dessas organizações
   const eventsQuery = useMemoFirebase(() => {
     if (!db || followedIds.length === 0) return null
     
@@ -45,12 +62,35 @@ export default function TenhoInteressePage() {
 
   const events = React.useMemo(() => {
     if (!rawEvents) return []
-    return [...rawEvents].sort((a, b) => {
-      const dateA = a.createdAt?.seconds || new Date(a.createdAt).getTime() / 1000 || 0
-      const dateB = b.createdAt?.seconds || new Date(b.createdAt).getTime() / 1000 || 0
-      return dateB - dateA
-    })
-  }, [rawEvents])
+    
+    return rawEvents.map(e => {
+      let effectiveDate = e.date;
+      if (e.isRecurring && allOccurrences && now) {
+        const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
+        if (myOccs.length > 0) {
+          const sorted = [...myOccs]
+            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+          
+          const nextValid = sorted.find(o => {
+            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+            return now < endThreshold;
+          });
+
+          if (nextValid) {
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+          }
+        }
+      }
+      return { ...e, date: effectiveDate };
+    }).filter(e => {
+      return isEventVisible(e);
+    }).sort((a, b) => {
+      const tA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
+      const tB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
+      return tB - tA;
+    });
+  }, [rawEvents, allOccurrences, now])
 
   if (followsLoading) {
     return (

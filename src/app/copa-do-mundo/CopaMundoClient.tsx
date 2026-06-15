@@ -1,8 +1,7 @@
-
 "use client"
 
 import * as React from "react"
-import { useFirestore, useUser, useAuth } from "@/firebase"
+import { useCollection, useFirestore, useUser, useAuth } from "@/firebase"
 import { collection, query, where, limit, orderBy, getDocs, startAfter, DocumentSnapshot } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
 import { Button } from "@/components/ui/button"
@@ -28,6 +27,8 @@ import Link from "next/link"
 import { cn, normalizeText } from "@/lib/utils"
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
 import { isEventVisible, calculateDistanceMeters } from "@/lib/event-scoring-utils"
+import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
+import { format, startOfToday, addDays } from "date-fns"
 import {
   Select,
   SelectContent,
@@ -47,6 +48,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   const [priceFilter, setPriceFilter] = React.useState("all")
   const [dateFilter, setDateFilter] = React.useState("all")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
+  const [now, setNow] = React.useState<Date | null>(null)
 
   const [rawEvents, setRawEvents] = React.useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = React.useState<DocumentSnapshot | null>(null)
@@ -54,10 +56,21 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   const [isFetching, setIsFetching] = React.useState(false)
 
   React.useEffect(() => {
+    setNow(new Date())
+    const timer = setInterval(() => setNow(new Date()), 60000)
     getCurrentLocation()
       .then(loc => { if (loc) setUserLocation(loc); })
       .catch(() => {});
+    return () => clearInterval(timer)
   }, []);
+
+  // Pipeline de Ocorrências para eventos recorrentes
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db) return null
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
+    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
+  }, [db])
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
   const fetchMore = async () => {
     if (!db || isFetching || !hasMore) return
@@ -84,11 +97,30 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   }
 
   const processedEvents = React.useMemo(() => {
-    const now = new Date();
     const cityNorm = normalizeText(searchCity);
     const searchNorm = normalizeText(search);
 
-    return rawEvents.filter(e => {
+    return rawEvents.map(e => {
+      let effectiveDate = e.date;
+      if (e.isRecurring && allOccurrences && now) {
+        const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
+        if (myOccs.length > 0) {
+          const sorted = [...myOccs]
+            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+          
+          const nextValid = sorted.find(o => {
+            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+            return now < endThreshold;
+          });
+
+          if (nextValid) {
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+          }
+        }
+      }
+      return { ...e, date: effectiveDate };
+    }).filter(e => {
       if (!isEventVisible(e)) return false;
       
       if (search && !normalizeText(e.title || "").includes(searchNorm)) return false;
@@ -104,12 +136,14 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       }
 
       // Filtro de Data
-      const eventDate = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-      if (dateFilter === 'today' && eventDate.toDateString() !== now.toDateString()) return false;
-      if (dateFilter === 'week') {
-        const nextWeek = new Date();
-        nextWeek.setDate(now.getDate() + 7);
-        if (eventDate > nextWeek) return false;
+      if (now) {
+        const eventDate = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+        if (dateFilter === 'today' && eventDate.toDateString() !== now.toDateString()) return false;
+        if (dateFilter === 'week') {
+          const nextWeek = new Date();
+          nextWeek.setDate(now.getDate() + 7);
+          if (eventDate > nextWeek) return false;
+        }
       }
 
       return true;
@@ -118,12 +152,12 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       if (userLocation && e.latitude && e.longitude) {
         dist = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
       }
-      return { ...e, _distanceMeters: dist };
+      const startDateTime = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      return { ...e, _distanceMeters: dist, _startDateTime: isNaN(startDateTime.getTime()) ? new Date() : startDateTime };
     }).sort((a, b) => {
-      if (a._distanceMeters !== b._distanceMeters) return a._distanceMeters - b._distanceMeters;
-      return new Date(a.date).getTime() - new Date(b.date).getTime();
+      return a._startDateTime.getTime() - b._startDateTime.getTime();
     });
-  }, [rawEvents, search, searchCity, priceFilter, dateFilter, userLocation]);
+  }, [rawEvents, allOccurrences, search, searchCity, priceFilter, dateFilter, userLocation, now]);
 
   const clearFilters = () => {
     setSearch("");
