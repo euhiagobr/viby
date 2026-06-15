@@ -5,6 +5,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useFirestore } from '@/firebase';
 import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentSnapshot } from 'firebase/firestore';
 
+/**
+ * Hook de busca de eventos para a Landing Page.
+ * Corrigido para utilizar comparação nativa de data do Firestore.
+ */
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
   const [rawEvents, setRawEvents] = useState<any[]>(initialEvents);
@@ -21,8 +25,6 @@ export function useLandingEvents(initialEvents: any[] = []) {
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - 30);
       
-      // Buscamos blocos maiores no banco para garantir que, após o filtro de recorrência,
-      // tenhamos eventos visíveis suficientes para a UI.
       const fetchLimit = isInitial ? 35 : 15;
 
       let q;
@@ -30,20 +32,20 @@ export function useLandingEvents(initialEvents: any[] = []) {
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
-          where("date", ">=", thresholdDate.toISOString()),
+          // O Firestore aceita objetos Date diretamente para comparação com Timestamps
+          where("date", ">=", thresholdDate),
           orderBy("date", "asc"),
           limit(fetchLimit)
         );
       } else {
-        // Se temos o snapshot (client-side), usamos ele. 
-        // Se viemos de SSR (lastVisible é null), usamos o valor da data do último item.
         const lastEvent = rawEvents[rawEvents.length - 1];
+        // Resiliência para cursor: Prioriza snapshot, fallback para valor bruto
         const cursor = lastVisible || (lastEvent ? lastEvent.date : null);
         
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
-          where("date", ">=", thresholdDate.toISOString()),
+          where("date", ">=", thresholdDate),
           orderBy("date", "asc"),
           startAfter(cursor),
           limit(fetchLimit)
@@ -67,7 +69,6 @@ export function useLandingEvents(initialEvents: any[] = []) {
         setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
       }
       
-      // Define se há mais páginas no banco
       setHasMore(snapshot.docs.length === fetchLimit);
     } catch (e) {
       console.error("[useLandingEvents Error]", e);

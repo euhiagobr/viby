@@ -12,7 +12,6 @@ import {
   Megaphone, 
   Plus, 
   Search, 
-  Filter, 
   Loader2, 
   Calendar,
   MapPin,
@@ -22,13 +21,9 @@ import {
   Trash2,
   TicketPercent,
   Users,
-  CheckCircle2,
-  Clock,
-  ArrowRight,
-  Map as MapIcon,
+  RefreshCw,
   History,
-  Inbox,
-  RefreshCw
+  Inbox
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -127,10 +122,9 @@ export default function OrganizationEventsPage() {
             isEventPast = true;
           }
         } else {
-          // Se não houver ocorrências futuras e a data base estiver no passado, é passado
           const dateToTest = effectiveDate?.toDate ? effectiveDate.toDate() : new Date(effectiveDate);
           if (!effectiveDate || isNaN(dateToTest.getTime())) {
-             isEventPast = false; // Recém criado ou sem data assume como Próximo
+             isEventPast = false;
           } else {
              const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(dateToTest.getTime() + 4 * 60 * 60 * 1000));
              isEventPast = end < now;
@@ -154,19 +148,17 @@ export default function OrganizationEventsPage() {
       }
     });
 
-    upcoming.sort((a, b) => {
-      const tA = a.createdAt?.seconds || Date.now() / 1000;
-      const tB = b.createdAt?.seconds || Date.now() / 1000;
-      return tB - tA;
-    });
+    // Ordenação Resiliente: Trata createdAt nulo (recém-criado) como "agora"
+    const sortByCreation = (a: any, b: any) => {
+      const getTime = (val: any) => {
+        if (!val) return Date.now();
+        return val.toDate ? val.toDate().getTime() : new Date(val).getTime();
+      };
+      return getTime(b.createdAt) - getTime(a.createdAt);
+    };
 
-    past.sort((a, b) => {
-      const dA = a.date || a.startDate;
-      const dB = b.date || b.startDate;
-      const tA = dA?.toDate ? dA.toDate().getTime() : new Date(dA).getTime();
-      const tB = dB?.toDate ? dB.toDate().getTime() : new Date(dB).getTime();
-      return tB - tA;
-    });
+    upcoming.sort(sortByCreation);
+    past.sort(sortByCreation);
 
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [rawEvents, allOccurrences, search, now]);
@@ -196,7 +188,8 @@ export default function OrganizationEventsPage() {
       } else {
         d = new Date(dateValue);
       }
-      return isNaN(d.getTime()) ? "" : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) { return ""; }
   };
 
@@ -409,11 +402,6 @@ function EventRow({
                 <DropdownMenuItem asChild>
                    <Link href={`/dashboard/evento/${event.id}/editar`} className="flex items-center gap-2 py-2 cursor-pointer">
                       <Edit className="w-4 h-4" /> Editar Evento
-                   </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                   <Link href={`/dashboard/evento/${event.id}/mapa`} className="flex items-center gap-2 py-2 cursor-pointer text-secondary">
-                      <MapIcon className="w-4 h-4" /> Mapa de Ingressos
                    </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

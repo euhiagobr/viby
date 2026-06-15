@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -11,6 +12,7 @@ import {
   getDoc,
   onSnapshot
 } from 'firebase/firestore';
+import { useParams } from 'next/navigation';
 
 interface Organization {
   id: string;
@@ -58,6 +60,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const auth = useAuth();
   const { user, isInitialized } = useUser(auth);
   const db = useFirestore();
+  const params = useParams();
   
   const [currentOrg, setCurrentOrgState] = useState<Organization | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -67,6 +70,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
+
+  const orgUsernameInUrl = params?.username as string;
 
   // Função para mudar a organização com persistência
   const setCurrentOrg = useCallback((org: Organization | null) => {
@@ -95,7 +100,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
       setOrganizations(prev => {
         const others = prev.filter(p => !ownedOrgs.some(o => o.id === p.id));
-        return [...ownedOrgs, ...others];
+        const combined = [...ownedOrgs, ...others];
+        return combined;
       });
       setLoading(false);
     });
@@ -174,9 +180,20 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     };
   }, [db, user, isInitialized]);
 
+  // Efeito para sincronizar context com a URL [username]
+  useEffect(() => {
+    if (orgUsernameInUrl && organizations.length > 0) {
+      const matched = organizations.find(o => o.username === orgUsernameInUrl);
+      if (matched && matched.id !== currentOrg?.id) {
+        console.log(`[OrgContext] Auto-switching to match URL: @${orgUsernameInUrl}`);
+        setCurrentOrgState(matched);
+      }
+    }
+  }, [orgUsernameInUrl, organizations, currentOrg?.id]);
+
   // Efeito para auto-seleção inicial baseada em localStorage
   useEffect(() => {
-    if (organizations.length > 0 && !currentOrg && !loading) {
+    if (organizations.length > 0 && !currentOrg && !loading && !orgUsernameInUrl) {
       const savedOrgId = typeof window !== 'undefined' ? localStorage.getItem('viby_current_org') : null;
       const toSelect = organizations.find(o => o.id === savedOrgId) || organizations[0];
       
@@ -184,7 +201,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         setCurrentOrgState(toSelect);
       }
     }
-  }, [organizations, currentOrg, loading]);
+  }, [organizations, currentOrg, loading, orgUsernameInUrl]);
 
   // Efeito para atualizar o Cargo (Role) sempre que a organização mudar
   useEffect(() => {
@@ -202,7 +219,6 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     if (orgSnap.exists()) {
       const data = orgSnap.data();
       const updated = { id: orgSnap.id, ...data } as Organization;
-      // Preservar metadados de membro da lista atual
       const existing = organizations.find(o => o.id === orgSnap.id);
       if (existing?._memberData) {
         updated._memberData = existing._memberData;

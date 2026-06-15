@@ -69,13 +69,13 @@ async function getInitialEvents() {
     // Janela de 30 dias para capturar pais de recorrências ativas
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - 30);
-    const dateThreshold = thresholdDate.toISOString();
 
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
-      .where('date', '>=', dateThreshold)
+      // O Admin SDK aceita objetos Date e os trata como Timestamps nativos
+      .where('date', '>=', thresholdDate)
       .orderBy('date', 'asc')
-      .limit(30) // Aumentado para garantir que alcancemos eventos futuros normais após os pais de recorrência
+      .limit(35)
       .get();
       
     if (snap.empty) return [];

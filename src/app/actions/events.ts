@@ -8,7 +8,7 @@ import { normalizeEventDates } from '@/lib/utils';
 
 /**
  * @fileOverview Server Actions para gestão de eventos.
- * Implementação cirúrgica para evitar alteração em documentos não relacionados.
+ * Implementação utilizando Timestamps nativos para consistência de consulta e ordenação.
  */
 
 async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string, eventData: any) {
@@ -66,13 +66,18 @@ export async function createEventAction(params: {
     const slug = await generateUniqueSlug(db, params.orgId, params.eventData.title);
     
     const eventRef = db.collection('events').doc();
+    
+    // Converte strings para Timestamps reais do Firestore
+    const startDate = new Date(dateNormalization.startDate);
+    const endDate = new Date(dateNormalization.endDate);
+
     const finalData = {
       ...params.eventData,
       id: eventRef.id,
       slug,
-      date: dateNormalization.startDate,
-      endDate: dateNormalization.endDate,
-      startDate: dateNormalization.startDate,
+      date: admin.firestore.Timestamp.fromDate(startDate),
+      startDate: admin.firestore.Timestamp.fromDate(startDate),
+      endDate: admin.firestore.Timestamp.fromDate(endDate),
       organizationId: params.orgId,
       organizerId: params.userId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -115,13 +120,15 @@ export async function updateEventAction(params: {
       slug = await generateUniqueSlug(db, params.orgId, params.eventData.title, params.eventId);
     }
 
-    // ATUALIZAÇÃO RESTRITA: Apenas o documento do eventId fornecido é afetado
+    const startDate = new Date(dateNormalization.startDate);
+    const endDate = new Date(dateNormalization.endDate);
+
     const updatePayload = {
       ...params.eventData,
       slug,
-      date: dateNormalization.startDate,
-      endDate: dateNormalization.endDate,
-      startDate: dateNormalization.startDate,
+      date: admin.firestore.Timestamp.fromDate(startDate),
+      startDate: admin.firestore.Timestamp.fromDate(startDate),
+      endDate: admin.firestore.Timestamp.fromDate(endDate),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
