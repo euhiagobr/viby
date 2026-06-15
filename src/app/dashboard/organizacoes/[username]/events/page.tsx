@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -23,7 +22,8 @@ import {
   Users,
   RefreshCw,
   History,
-  Inbox
+  Inbox,
+  Clock
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -148,7 +148,6 @@ export default function OrganizationEventsPage() {
       }
     });
 
-    // Ordenação Resiliente: Trata createdAt nulo (recém-criado) como "agora"
     const sortByCreation = (a: any, b: any) => {
       const getTime = (val: any) => {
         if (!val) return Date.now();
