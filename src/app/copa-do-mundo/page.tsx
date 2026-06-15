@@ -6,6 +6,7 @@ import { COPA_TAGS } from "@/lib/constants"
 import { CopaHeader } from "@/components/layout/CopaHeader"
 import Footer from '@/components/layout/Footer';
 import { getAdminDb } from "@/lib/firebase/admin"
+import * as admin from 'firebase-admin';
 
 export const metadata: Metadata = {
   title: "Qual a sua Viby na Copa? | Viby Brasil",
@@ -66,7 +67,9 @@ async function getCopaEvents() {
     // Janela de 30 dias para capturar pais de recorrências ativas
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - 30);
-    const dateThreshold = thresholdDate.toISOString();
+    
+    // IMPORTANTE: Consulta deve usar admin.firestore.Timestamp para bater com o tipo do campo no banco
+    const dateThreshold = admin.firestore.Timestamp.fromDate(thresholdDate);
 
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')

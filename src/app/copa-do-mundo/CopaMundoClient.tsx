@@ -56,15 +56,6 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   const [hasMore, setHasMore] = React.useState(initialEvents.length >= 12)
   const [isFetching, setIsFetching] = React.useState(false)
 
-  React.useEffect(() => {
-    setNow(new Date())
-    const timer = setInterval(() => setNow(new Date()), 60000)
-    getCurrentLocation()
-      .then(loc => { if (loc) setUserLocation(loc); })
-      .catch(() => {});
-    return () => clearInterval(timer)
-  }, []);
-
   // Pipeline de Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -73,41 +64,72 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   }, [db])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
-  const fetchMore = async () => {
-    if (!db || isFetching || !hasMore) return
+  const fetchMore = React.useCallback(async (isInitial = false) => {
+    if (!db || isFetching || (!isInitial && !hasMore)) return
     setIsFetching(true)
     try {
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - 30);
       
-      const cursor = lastVisible || (rawEvents.length > 0 ? rawEvents[rawEvents.length - 1].date : null);
+      let q;
+      if (isInitial) {
+        q = query(
+          collection(db, "events"),
+          where("status", "==", "Ativo"),
+          where("tags", "array-contains-any", COPA_TAGS),
+          where("date", ">=", thresholdDate), // Firebase converte Date p/ Timestamp automaticamente
+          orderBy("date", "asc"),
+          limit(12)
+        );
+      } else {
+        const cursor = lastVisible || (rawEvents.length > 0 ? rawEvents[rawEvents.length - 1].date : null);
+        q = query(
+          collection(db, "events"),
+          where("status", "==", "Ativo"),
+          where("tags", "array-contains-any", COPA_TAGS),
+          where("date", ">=", thresholdDate),
+          orderBy("date", "asc"),
+          startAfter(cursor),
+          limit(12)
+        );
+      }
 
-      const q = query(
-        collection(db, "events"),
-        where("status", "==", "Ativo"),
-        where("tags", "array-contains-any", COPA_TAGS),
-        where("date", ">=", thresholdDate.toISOString()),
-        orderBy("date", "asc"),
-        startAfter(cursor),
-        limit(12)
-      )
       const snap = await getDocs(q)
       const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       
-      setRawEvents(prev => {
-        const existingIds = new Set(prev.map(i => i.id));
-        const filtered = newDocs.filter(f => !existingIds.has(f.id));
-        return [...prev, ...filtered];
-      });
+      if (isInitial) {
+        setRawEvents(newDocs);
+      } else {
+        setRawEvents(prev => {
+          const existingIds = new Set(prev.map(i => i.id));
+          const filtered = newDocs.filter(f => !existingIds.has(f.id));
+          return [...prev, ...filtered];
+        });
+      }
 
       setLastVisible(snap.docs[snap.docs.length - 1] || null)
       setHasMore(snap.docs.length === 12)
     } catch (e) {
-      console.error(e)
+      console.error("[Copa Search Error]", e)
     } finally {
       setIsFetching(false)
     }
-  }
+  }, [db, isFetching, hasMore, lastVisible, rawEvents]);
+
+  React.useEffect(() => {
+    setNow(new Date())
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    getCurrentLocation()
+      .then(loc => { if (loc) setUserLocation(loc); })
+      .catch(() => {});
+    
+    // Se o SSR veio vazio, tentamos buscar no cliente imediatamente
+    if (initialEvents.length === 0) {
+      fetchMore(true);
+    }
+
+    return () => clearInterval(timer)
+  }, [initialEvents.length, fetchMore]);
 
   const processedEvents = React.useMemo(() => {
     const cityNorm = normalizeText(searchCity);
@@ -323,7 +345,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
         {hasMore && (
            <div className="mt-20 flex justify-center">
               <Button 
-                onClick={fetchMore} 
+                onClick={() => fetchMore(false)} 
                 disabled={isFetching}
                 className="h-14 px-12 bg-white text-primary font-black border-2 rounded-2xl hover:bg-muted transition-all"
               >

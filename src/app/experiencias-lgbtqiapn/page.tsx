@@ -3,6 +3,7 @@ import * as React from "react"
 import { Metadata } from "next"
 import { getAdminDb } from "@/lib/firebase/admin"
 import LGBTClient from "./LGBTClient"
+import * as admin from 'firebase-admin'
 
 export const metadata: Metadata = {
   title: "Viby celebrando a Diversidade",
@@ -54,7 +55,7 @@ async function getInitialEvents() {
     // Janela de 30 dias para capturar pais de recorrências ativas
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - 30);
-    const dateThreshold = thresholdDate.toISOString();
+    const dateThreshold = admin.firestore.Timestamp.fromDate(thresholdDate);
 
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
