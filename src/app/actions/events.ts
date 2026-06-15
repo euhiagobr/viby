@@ -76,8 +76,13 @@ export async function createEventAction(params: {
       date: _d, 
       startDate: _sd, 
       endDate: _ed,
+      organizer: _orgInput,
       ...sanitizedData 
     } = eventData;
+
+    // Buscar dados atualizados da organização para desnormalização garantida
+    const orgSnap = await db.collection('organizations').doc(params.orgId).get();
+    const orgData = orgSnap.data();
 
     const finalData = {
       ...sanitizedData,
@@ -88,6 +93,12 @@ export async function createEventAction(params: {
       endDate: admin.firestore.Timestamp.fromDate(endDate),
       organizationId: params.orgId,
       organizerId: params.userId,
+      organizer: {
+        id: params.orgId,
+        name: orgData?.name || eventData.organizer?.name || "Organizador",
+        username: orgData?.username || eventData.organizer?.username || "evento",
+        avatar: orgData?.avatar || eventData.organizer?.avatar || ""
+      },
       interestedCount: 0,
       ingressosVendidos: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -141,8 +152,13 @@ export async function updateEventAction(params: {
       date: _d, 
       startDate: _sd, 
       endDate: _ed, 
+      organizer: _orgInput,
       ...sanitizedData 
     } = eventData;
+
+    // Atualizar organizer data se necessário
+    const orgSnap = await db.collection('organizations').doc(params.orgId).get();
+    const orgData = orgSnap.data();
 
     const updatePayload = {
       ...sanitizedData,
@@ -150,6 +166,12 @@ export async function updateEventAction(params: {
       date: admin.firestore.Timestamp.fromDate(startDate),
       startDate: admin.firestore.Timestamp.fromDate(startDate),
       endDate: admin.firestore.Timestamp.fromDate(endDate),
+      organizer: {
+        id: params.orgId,
+        name: orgData?.name || oldData.organizer?.name,
+        username: orgData?.username || oldData.organizer?.username,
+        avatar: orgData?.avatar || oldData.organizer?.avatar
+      },
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 

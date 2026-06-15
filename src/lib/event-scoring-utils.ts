@@ -41,7 +41,8 @@ export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   if (!startMs) return true;
 
   // Se o evento é futuro (mesmo que um pouco no futuro próximo), ele é visível
-  if (startMs > now - 60000) return true;
+  // Threshold de tolerância de 2 minutos para eventos recém-criados
+  if (startMs > now - 120000) return true;
 
   let endMs = parseDateToMs(event.endDate);
   

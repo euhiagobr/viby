@@ -155,7 +155,7 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
-      // Sanitização profunda para envio estável à Server Action
+      // Sanitização profunda e desnormalização de organizador
       const cleanBaseData = JSON.parse(JSON.stringify(formData));
 
       const eventPayload = {
@@ -321,7 +321,7 @@ export default function NovoEventoPage() {
            </CardContent>
         </Card>
 
-        <div className="space-y-6">
+        <div className="space-y-10">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 px-2">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-secondary/10 rounded-lg text-secondary">

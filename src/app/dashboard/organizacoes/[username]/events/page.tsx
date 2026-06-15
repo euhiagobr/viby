@@ -393,7 +393,7 @@ function EventRow({
         <div className="flex justify-between items-start gap-2">
           <div className="space-y-1">
              <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
-             {event.isRecurring && <Badge className="bg-secondary text-white text-[7px] font-black uppercase h-3.5"><RefreshCw className="w-2 h-2 mr-1 animate-spin-slow" /> Série Recorrente</Badge>}
+             {event.isRecurring && <Badge className="bg-secondary text-white text-[7px] font-black uppercase h-3.5"><RefreshCw className="w-2   mr-1 animate-spin-slow" /> Série Recorrente</Badge>}
           </div>
           {isAtLeastEditor && (
             <DropdownMenu>
@@ -467,7 +467,7 @@ function EventRow({
 
 function NoEventsPlaceholder({ message, isAtLeastEditor, icon: Icon = Megaphone }: any) {
   return (
-    <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 shadow-inner w-full">
+    <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-border flex flex-col items-center justify-center gap-4 shadow-inner w-full">
        <Icon className="w-12 h-12 text-muted-foreground opacity-10" />
        <p className="text-muted-foreground font-bold italic">{message}</p>
        {isAtLeastEditor && (
