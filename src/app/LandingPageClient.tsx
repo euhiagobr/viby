@@ -1,10 +1,10 @@
-
 "use client"
 
 import * as React from "react"
-import { useCollection, useFirestore, useAuth, useUser } from "@/firebase"
+import { useCollection, useFirestore, useAuth } from "@/firebase"
 import { collection, query, limit, where, orderBy, getDocs, startAfter, DocumentSnapshot } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
+import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Search, MapPin, Loader2, Inbox, Trophy } from "lucide-react"
@@ -14,7 +14,7 @@ import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
-import { isEventVisible, calculateDistanceMeters } from "@/lib/event-scoring-utils"
+import { calculateDistanceMeters } from "@/lib/event-scoring-utils"
 import Footer from "@/components/layout/Footer"
 import { format, startOfToday, addDays } from "date-fns"
 import { useTranslation } from "@/i18n/i18n-context"
@@ -26,30 +26,34 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const db = useFirestore()
   const auth = useAuth()
 
-  // Hooks de Estado (Ordem garantida)
+  // --- ESTADOS ---
   const [searchName, setSearchName] = useState("")
   const [searchCity, setSearchCity] = useState("")
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
   const [now, setNow] = useState<Date | null>(null)
-  
   const [rawEvents, setRawEvents] = useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null)
   const [hasMore, setHasMore] = useState(initialEvents.length >= 12)
   const [isFetching, setIsFetching] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
 
-  // Atualiza o relógio a cada minuto para manter o threshold de visibilidade preciso
+  // --- CICLO DE VIDA ---
   useEffect(() => {
     setNow(new Date())
     const timer = setInterval(() => setNow(new Date()), 60000)
+    getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {})
     return () => clearInterval(timer)
   }, [])
 
-  // Ocorrências para eventos recorrentes
+  // --- QUERIES ---
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
-    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
+    return query(
+      collection(db, "recurring_occurrences"), 
+      where("status", "==", "active"), 
+      where("date", ">=", yesterdayStr)
+    )
   }, [db])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
@@ -97,13 +101,20 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
     } else {
       setIsInitialLoad(false);
     }
-    getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {})
   }, [initialEvents.length, fetchEvents])
 
-  const processedEvents = React.useMemo(() => {
-    const baseFiltered = rawEvents.map(e => {
+  // --- PIPELINE DE PROCESSAMENTO ---
+  
+  const processedData = React.useMemo(() => {
+    // 1. Log de Entrada
+    console.log("[PIPELINE-LANDING] Input:", { rawEvents: rawEvents.length, occurrences: allOccurrences?.length || 0 });
+
+    const refTime = now || new Date();
+
+    // 2. Resolução de Recorrência (Eager Resolution)
+    const merged = rawEvents.map(e => {
       let effectiveDate = e.date;
-      if (e.isRecurring && allOccurrences && now) {
+      if (e.isRecurring && allOccurrences) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
@@ -112,7 +123,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
           
           const nextValid = sorted.find(o => {
             const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
-            return now < endThreshold;
+            return refTime < endThreshold;
           });
 
           if (nextValid) {
@@ -121,9 +132,21 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         }
       }
       return { ...e, date: effectiveDate };
-    }).filter(e => {
-      if (!isEventVisible(e)) return false;
+    });
+
+    console.log("[PIPELINE-LANDING] Post-Merge:", merged.length);
+
+    // 3. Filtros (Busca e Visibilidade)
+    const filtered = merged.filter(e => {
+      // Regra de Visibilidade Viby (Unificada)
+      const startMs = new Date(e.date).getTime();
+      if (isNaN(startMs)) return false;
+      const endMs = e.endDate ? new Date(e.endDate).getTime() : (startMs + 6 * 60 * 60 * 1000);
       
+      // Durante hidratação (now == null), permitimos ver o evento se o endMs for futuro em relação ao servidor
+      if (now && now.getTime() >= endMs) return false;
+
+      // Filtros de busca
       const nameNorm = normalizeText(searchName);
       if (searchName && !normalizeText(e.title || "").includes(nameNorm)) return false;
       
@@ -136,18 +159,49 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
       if (userLocation && e.latitude && e.longitude) {
         distMeters = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
       }
-      const startDateTime = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const startDateTime = new Date(e.date);
       return { ...e, _distanceMeters: distMeters, _startDateTime: isNaN(startDateTime.getTime()) ? new Date() : startDateTime };
     });
 
-    baseFiltered.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
-    return { events: baseFiltered, isFallback: false };
+    console.log("[PIPELINE-LANDING] Post-Filter:", filtered.length);
+
+    // 4. Separação de Destaques e Patrocínios
+    const featured = filtered.filter(e => e.isFeatured === true);
+    const sponsored = filtered.filter(e => e.isSponsored === true || e.curationType === 'curadoria');
+    const standard = filtered.filter(e => !e.isFeatured && !e.isSponsored && e.curationType !== 'curadoria');
+
+    // 5. Ordenação (Próximos Primeiro)
+    standard.sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
+
+    // 6. Construção do Feed Unificado
+    const finalFeed: any[] = [];
+    let eventCounter = 0;
+    let adIndex = 0;
+
+    // Adiciona Patrocinados no Topo
+    sponsored.forEach(ev => finalFeed.push({ type: 'event', data: ev }));
+
+    // Intercala Standard com Ads
+    standard.forEach(ev => {
+      finalFeed.push({ type: 'event', data: ev });
+      eventCounter++;
+      if (eventCounter % 6 === 0) {
+        finalFeed.push({ type: 'ad', adIndex: adIndex++ });
+      }
+    });
+
+    return { 
+      feed: finalFeed, 
+      featuredCount: featured.length, 
+      totalVisible: filtered.length 
+    };
   }, [rawEvents, allOccurrences, searchName, searchCity, userLocation, now])
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
       <PublicHeader />
 
+      {/* HERO SECTION */}
       <section className="relative min-h-[85vh] flex items-center justify-center overflow-hidden bg-primary text-white text-center">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-b from-primary/60 via-primary/40 to-primary" />
@@ -197,6 +251,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         </div>
       </section>
 
+      {/* FEED PRINCIPAL */}
       <section className="py-20 container mx-auto px-4 flex-1">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
           <div className="space-y-2">
@@ -210,16 +265,31 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
             <Loader2 className="w-12 h-12 animate-spin text-secondary" />
             <p className="text-[10px] font-black uppercase tracking-widest animate-pulse opacity-40">Sincronizando experiências...</p>
           </div>
-        ) : processedEvents.events.length === 0 ? (
+        ) : processedData.feed.length === 0 ? (
           <div className="py-32 text-center bg-white rounded-[3rem] border-2 border-dashed border-border flex flex-col items-center gap-4 opacity-40">
              <Inbox className="w-12 h-12" />
-             <p className="text-sm font-black uppercase tracking-widest">Nenhum evento ativo localizado.</p>
+             <p className="text-sm font-black uppercase tracking-widest">Nenhum evento localizado para estes filtros.</p>
+             <Button variant="link" onClick={() => { setSearchName(""); setSearchCity(""); }} className="font-bold uppercase text-xs">Limpar busca</Button>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {processedEvents.events.map((event) => (
-                <EventCard key={event.id} event={event} userLocation={userLocation} />
+              {processedData.feed.map((item: any, idx: number) => (
+                item.type === 'ad' ? (
+                  <AdsRenderer 
+                    key={`ad-${idx}`} 
+                    location="home" 
+                    index={item.adIndex} 
+                    googleSlotId="home-feed-slot" 
+                  />
+                ) : (
+                  <EventCard 
+                    key={item.data.id} 
+                    event={item.data} 
+                    userLocation={userLocation} 
+                    isSponsored={item.data.isSponsored || item.data.curationType === 'curadoria'}
+                  />
+                )
               ))}
             </div>
             {hasMore && (
