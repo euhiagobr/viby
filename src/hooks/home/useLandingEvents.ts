@@ -9,7 +9,7 @@ export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
   const [rawEvents, setRawEvents] = useState<any[]>(initialEvents);
   const [lastVisible, setLastVisible] = useState<DocumentSnapshot | null>(null);
-  const [hasMore, setHasMore] = useState(initialEvents.length >= 12);
+  const [hasMore, setHasMore] = useState(initialEvents.length >= 7);
   const [isFetching, setIsFetching] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0);
 
@@ -18,18 +18,18 @@ export function useLandingEvents(initialEvents: any[] = []) {
     
     setIsFetching(true);
     try {
-      // Threshold de 30 dias no cliente para evitar carregar lixo histórico 
-      // mas permitir eventos recorrentes ativos.
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - 30);
       const dateThreshold = thresholdDate.toISOString();
+
+      const fetchLimit = isInitial ? 7 : 3;
 
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
         where("date", ">=", dateThreshold),
         orderBy("date", "asc"),
-        ...(isInitial ? [limit(15)] : [startAfter(lastVisible), limit(8)])
+        ...(isInitial ? [limit(fetchLimit)] : [startAfter(lastVisible), limit(fetchLimit)])
       );
       
       const snapshot = await getDocs(q);
@@ -39,7 +39,6 @@ export function useLandingEvents(initialEvents: any[] = []) {
         setRawEvents(fetchedDocs);
       } else {
         setRawEvents(prev => {
-          // Evita duplicatas se o SSR e o Client carregarem o mesmo evento
           const existingIds = new Set(prev.map(i => i.id));
           const filtered = fetchedDocs.filter(f => !existingIds.has(f.id));
           return [...prev, ...filtered];
@@ -49,7 +48,7 @@ export function useLandingEvents(initialEvents: any[] = []) {
       if (snapshot.docs.length > 0) {
         setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
       }
-      setHasMore(snapshot.docs.length >= (isInitial ? 15 : 8));
+      setHasMore(snapshot.docs.length >= fetchLimit);
     } catch (e) {
       console.error("[useLandingEvents Error]", e);
     } finally {
