@@ -155,8 +155,8 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
-      // Limpeza e Desnormalização para permitir renderização imediata nas vitrines
-      const { organizer, ...cleanBaseData } = formData as any;
+      // Limpeza de campos para garantir que o objeto seja serializável para a Server Action
+      const { ...cleanBaseData } = formData as any;
 
       const eventPayload = {
         ...cleanBaseData,
@@ -351,25 +351,6 @@ export default function NovoEventoPage() {
 
         {formData.type === 'interno' && (
           <div className="space-y-6">
-             {isCurrentEventPaid && !currentOrg?.stripeAccountId && (
-                <Card className="border-none shadow-xl rounded-[2rem] bg-white overflow-hidden animate-in zoom-in-95">
-                   <div className="bg-orange-50 p-8 flex items-center text-white gap-4">
-                      <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-xl border border-white/20">
-                         <Landmark className="w-6 h-6" />
-                      </div>
-                      <div className="space-y-0.5">
-                         <h2 className="text-lg font-black uppercase italic tracking-tighter">Recebimentos Bloqueados</h2>
-                         <p className="text-xs font-medium opacity-90">Sua marca não possui conta Stripe vinculada.</p>
-                      </div>
-                   </div>
-                   <CardContent className="p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-                      <p className="text-[11px] font-bold text-muted-foreground uppercase leading-relaxed max-w-sm">Para vender ingressos é necessário configurar sua conta de recebimento Stripe.</p>
-                      <Button asChild className="bg-secondary text-white font-black rounded-xl h-11 px-8 shadow-lg uppercase italic text-[10px]">
-                         <Link href={`/dashboard/organizacoes/${currentOrg.username}/finance`}>Configurar recebimentos</Link>
-                      </Button>
-                   </CardContent>
-                </Card>
-             )}
              <BilheteriaAdmin 
                mode={ticketMode} 
                onModeChange={setTicketMode}

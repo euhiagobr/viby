@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Lógica de filtragem e normalização de eventos Viby.
  * Foco em: "Perto de você" (Filtro) e "No tempo certo" (Ordenação).
@@ -28,6 +27,10 @@ export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   const parseDateToMs = (val: any) => {
     if (!val) return null;
     if (val.toDate) return val.toDate().getTime();
+    
+    // Tratamento resiliente para objetos serializados {seconds, nanoseconds}
+    if (typeof val === 'object' && 'seconds' in val) return val.seconds * 1000;
+    
     const d = new Date(val);
     return isNaN(d.getTime()) ? null : d.getTime();
   };
@@ -36,6 +39,9 @@ export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   
   // Se não houver data de início (recém criado), assume visibilidade para não sumir do dashboard
   if (!startMs) return true;
+
+  // Se o evento é futuro (mesmo que um pouco no futuro próximo), ele é visível
+  if (startMs > now - 60000) return true;
 
   let endMs = parseDateToMs(event.endDate);
   

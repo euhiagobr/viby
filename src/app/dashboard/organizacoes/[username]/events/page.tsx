@@ -151,6 +151,7 @@ export default function OrganizationEventsPage() {
     const sortByCreation = (a: any, b: any) => {
       const getTime = (val: any) => {
         if (!val) return Date.now();
+        if (val.seconds) return val.seconds * 1000;
         return val.toDate ? val.toDate().getTime() : new Date(val).getTime();
       };
       return getTime(b.createdAt) - getTime(a.createdAt);
@@ -171,6 +172,8 @@ export default function OrganizationEventsPage() {
       let d: Date;
       if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
         d = dateValue.toDate();
+      } else if (dateValue && typeof dateValue === 'object' && 'seconds' in dateValue) {
+        d = new Date(dateValue.seconds * 1000);
       } else {
         d = new Date(dateValue);
       }
@@ -184,6 +187,8 @@ export default function OrganizationEventsPage() {
       let d: Date;
       if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
         d = dateValue.toDate();
+      } else if (dateValue && typeof dateValue === 'object' && 'seconds' in dateValue) {
+        d = new Date(dateValue.seconds * 1000);
       } else {
         d = new Date(dateValue);
       }
