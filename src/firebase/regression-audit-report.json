@@ -1,0 +1,67 @@
+
+{
+  "audit_id": "VIBY-REGRESSION-2024-06-15",
+  "status": "REGRESSIONS_IDENTIFIED",
+  "summary": {
+    "recurring_events": "REGRESSÃO CRÍTICA - Query no Firestore descarta eventos recorrentes com data base antiga.",
+    "ads": "REGRESSÃO - Hook useAds.ts retorna array vazio, impedindo a unificação no feed.",
+    "sponsored_logic": "MANTIDA - Lógica de separação preservada, mas afetada pela categorização de 'curadoria'.",
+    "ongoing_events": "MANTIDA - Fallback de 6h de visibilidade operando corretamente."
+  },
+  "detailed_analysis": {
+    "1_recurring_events": {
+      "before": "Eventos carregados via query sem filtro de data rígido ou com threshold generoso; merge acontecia no cliente.",
+      "after": "Hook useLandingEvents.ts aplica 'where(date, >=, dateThreshold)'.",
+      "regression_point": "src/hooks/home/useLandingEvents.ts L31",
+      "reason": "Se um evento recorrente (ex: Arena N1) iniciou há 4 dias, sua 'date' base no documento pai é antiga. A query do Firestore o descarta antes que useRecurringEvents.ts possa resolver a ocorrência de hoje/amanhã."
+    },
+    "2_ads": {
+      "before": "Inseridos no unifiedFeed se existissem campanhas ativas.",
+      "after": "Hook useAds.ts inicializado com retorno estático de array vazio.",
+      "regression_point": "src/hooks/home/useAds.ts L9",
+      "reason": "O hook não executa a consulta na coleção 'ads', resultando em zero anúncios inseridos no feed unificado."
+    },
+    "3_sponsored_curadoria": {
+      "finding": "Todos os eventos aparecem como patrocinados.",
+      "cause": "useHomeFeed.ts utiliza o critério 'e.isSponsored || e.curationType === curadoria'.",
+      "logic": "Como os eventos iniciais são majoritariamente de curadoria oficial, eles são movidos para 'sponsoredEvents'. O filtro de 'standardEvents' os exclui, deixando a seção principal vazia."
+    }
+  },
+  "pipeline_metrics_trace": {
+    "rawEvents": "12 (limitado pela query)",
+    "resolvedEvents": "12 (sem acréscimo de pais descartados pela query)",
+    "visibleEvents": "12",
+    "featuredEvents": "0 (nenhum match)",
+    "sponsoredEvents": "12 (todos eram 'curadoria')",
+    "standardEvents": "0 (todos filtrados por serem 'curadoria')",
+    "ads": "0 (hook vazio)",
+    "unifiedFeed": "12 (apenas os patrocinados/curadoria)"
+  },
+  "audit_table": [
+    {
+      "Funcionalidade": "Resolução de Recorrência",
+      "Antes": "Funcional (In-memory)",
+      "Depois": "Bloqueada por Query",
+      "Status": "Regressão"
+    },
+    {
+      "Funcionalidade": "Intercalação de Ads",
+      "Antes": "Funcional",
+      "Depois": "Inexistente (Hook Vazio)",
+      "Status": "Regressão"
+    },
+    {
+      "Funcionalidade": "Visibilidade (6h)",
+      "Antes": "Funcional",
+      "Depois": "Funcional",
+      "Status": "Mantida"
+    },
+    {
+      "Funcionalidade": "Destaques (Featured)",
+      "Antes": "Funcional",
+      "Depois": "Funcional",
+      "Status": "Mantida"
+    }
+  ],
+  "technical_conclusion": "A arquitetura de componentes e hooks está correta, porém a implementação dos hooks individuais introduziu filtros prematuros (useLandingEvents) e omissões de dados (useAds) que quebraram a entrega final do feed comparado à versão anterior."
+}
