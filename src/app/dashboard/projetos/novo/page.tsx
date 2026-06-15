@@ -33,13 +33,12 @@ import {
   BilheteriaAdmin,
   EventRecurrence
 } from "@/components/events"
-import { getAgeRatingConfig } from "@/lib/age-rating"
+import { getAgeRatingConfig } from "@/lib/rating-utils"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { createEventAction } from "@/app/actions/events"
 
 const DEFAULT_EVENT_IMAGE = "https://picsum.photos/seed/event/1200/800";
-const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 export default function NovoEventoPage() {
   const router = useRouter()
@@ -154,8 +153,6 @@ export default function NovoEventoPage() {
       ]
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
-
-      // Sanitização profunda e desnormalização de organizador
       const cleanBaseData = JSON.parse(JSON.stringify(formData));
 
       const eventPayload = {

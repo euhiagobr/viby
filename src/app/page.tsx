@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import { Metadata } from "next"
 import LandingPageClient from "./LandingPageClient"
@@ -61,9 +60,9 @@ async function getInitialEvents() {
   try {
     const db = getAdminDb();
     
-    // Threshold generoso para garantir que eventos recorrentes ativos não sejam filtrados antes do merge
+    // Usamos um threshold de 30 dias para garantir que pais de recorrências ativas não sumam
     const thresholdDate = new Date();
-    thresholdDate.setHours(thresholdDate.getHours() - 48);
+    thresholdDate.setDate(thresholdDate.getDate() - 30);
     const dateThreshold = admin.firestore.Timestamp.fromDate(thresholdDate);
 
     const snap = await db.collection('events')

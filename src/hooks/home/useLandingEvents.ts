@@ -6,7 +6,7 @@ import { collection, query, where, orderBy, limit, getDocs, startAfter, Document
 
 /**
  * Hook de busca de eventos para a Landing Page.
- * Corrigido para utilizar Timestamp na query, evitando conflitos de tipo com String.
+ * Threshold de 30 dias para capturar pais de recorrências ativas.
  */
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
@@ -23,10 +23,9 @@ export function useLandingEvents(initialEvents: any[] = []) {
     try {
       const fetchLimit = isInitial ? 45 : 20;
 
-      // Filtro de data usando Timestamp nativo para compatibilidade com o banco
-      // Usamos um threshold generoso de 24h atrás para não descartar eventos que estão no ar
+      // Threshold de 30 dias para resiliência de recorrência
       const thresholdDate = new Date();
-      thresholdDate.setHours(thresholdDate.getHours() - 24); 
+      thresholdDate.setDate(thresholdDate.getDate() - 30); 
       const dateThreshold = Timestamp.fromDate(thresholdDate);
 
       let q;
@@ -40,7 +39,8 @@ export function useLandingEvents(initialEvents: any[] = []) {
         );
       } else {
         const lastEvent = rawEvents[rawEvents.length - 1];
-        const cursor = lastVisible || (lastEvent ? lastEvent.date : null);
+        // Se a data for string (vinda do SSR), criamos um Date temporário para o cursor
+        const cursor = lastVisible || (lastEvent?.date?.seconds ? lastEvent.date : (lastEvent?.date ? new Date(lastEvent.date) : null));
         
         q = query(
           collection(db, "events"),
