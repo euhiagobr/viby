@@ -1,0 +1,96 @@
+
+{
+  "audit_version": "2.0.0",
+  "description": "Mapeamento completo de arquivos que exibem listas de eventos e status da implementação de lógica de recorrência.",
+  "audit_table": [
+    {
+      "arquivo": "src/app/LandingPageClient.tsx",
+      "consulta_events": "SIM (status: Ativo, date >= threshold)",
+      "consulta_occurrences": "SIM (status: active, date >= yesterday)",
+      "possui_merge": "SIM",
+      "possui_resolucao": "SIM"
+    },
+    {
+      "arquivo": "src/app/dashboard/ExplorarClient.tsx",
+      "consulta_events": "SIM (status: Ativo)",
+      "consulta_occurrences": "SIM (status: active, date >= yesterday)",
+      "possui_merge": "SIM",
+      "possui_resolucao": "SIM"
+    },
+    {
+      "arquivo": "src/app/copa-do-mundo/CopaMundoClient.tsx",
+      "consulta_events": "SIM (tags: COPA_TAGS)",
+      "consulta_occurrences": "NÃO",
+      "possui_merge": "NÃO",
+      "possui_resolucao": "NÃO"
+    },
+    {
+      "arquivo": "src/app/experiencias-lgbtqiapn/LGBTClient.tsx",
+      "consulta_events": "SIM (status: Ativo)",
+      "consulta_occurrences": "NÃO",
+      "possui_merge": "NÃO",
+      "possui_resolucao": "NÃO"
+    },
+    {
+      "arquivo": "src/app/[username]/ProfilePageClient.tsx",
+      "consulta_events": "SIM (organizationId, status: Ativo)",
+      "consulta_occurrences": "SIM (organizationId, status: active)",
+      "possui_merge": "SIM",
+      "possui_resolucao": "SIM"
+    },
+    {
+      "arquivo": "src/app/dashboard/seguindo/page.tsx",
+      "consulta_events": "SIM (organizationId in followedIds)",
+      "consulta_occurrences": "NÃO",
+      "possui_merge": "NÃO",
+      "possui_resolucao": "NÃO"
+    },
+    {
+      "arquivo": "src/app/dashboard/organizacoes/[username]/events/page.tsx",
+      "consulta_events": "SIM (organizationId)",
+      "consulta_occurrences": "SIM (organizationId, status: active)",
+      "possui_merge": "SIM",
+      "possui_resolucao": "SIM"
+    },
+    {
+      "arquivo": "src/app/dashboard/projetos/page.tsx",
+      "consulta_events": "SIM (organizationId)",
+      "consulta_occurrences": "NÃO",
+      "possui_merge": "NÃO",
+      "possui_resolucao": "NÃO"
+    },
+    {
+      "arquivo": "src/app/admin/eventos/page.tsx",
+      "consulta_events": "SIM (all events)",
+      "consulta_occurrences": "NÃO",
+      "possui_merge": "NÃO",
+      "possui_resolucao": "NÃO"
+    },
+    {
+      "arquivo": "src/app/admin/ingressos/page.tsx",
+      "consulta_events": "SIM (Ativo/Oculto)",
+      "consulta_occurrences": "NÃO",
+      "possui_merge": "NÃO",
+      "possui_resolucao": "NÃO"
+    }
+  ],
+  "paginas_inconsistentes": [
+    {
+      "arquivo": "src/app/copa-do-mundo/CopaMundoClient.tsx",
+      "impacto": "Exibe apenas data de criação do evento pai; ignora agenda futura."
+    },
+    {
+      "arquivo": "src/app/experiencias-lgbtqiapn/LGBTClient.tsx",
+      "impacto": "Exibe apenas data de criação do evento pai; ignora agenda futura."
+    },
+    {
+      "arquivo": "src/app/dashboard/seguindo/page.tsx",
+      "impacto": "Timeline social exibe datas estáticas do evento pai."
+    },
+    {
+      "arquivo": "src/app/dashboard/projetos/page.tsx",
+      "impacto": "Listagem do dashboard do organizador não resolve a próxima data."
+    }
+  ],
+  "pipeline_referencia": "src/app/LandingPageClient.tsx"
+}
