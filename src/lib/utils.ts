@@ -40,8 +40,7 @@ export function normalizeText(text: string): string {
 
 /**
  * Normaliza e valida datas de eventos.
- * Caso o horário final seja menor que o inicial na mesma data, 
- * interpreta como encerramento no dia seguinte (virada de noite).
+ * Impede o uso de datas passadas e ajusta viradas de noite.
  */
 export function normalizeEventDates(startDateStr: string, endDateStr: string): { startDate: string, endDate: string, isValid: boolean, error?: string } {
   if (!startDateStr || !endDateStr) {
@@ -53,6 +52,19 @@ export function normalizeEventDates(startDateStr: string, endDateStr: string): {
 
   if (!start || !end) {
     return { startDate: startDateStr, endDate: endDateStr, isValid: false, error: "Formato de data inválido." };
+  }
+
+  const now = new Date();
+  // Buffer de 10 minutos para evitar falso-positivo durante o processo de envio
+  const nowWithBuffer = new Date(now.getTime() - 10 * 60 * 1000);
+
+  if (start < nowWithBuffer) {
+    return { 
+      startDate: start.toISOString(), 
+      endDate: end.toISOString(), 
+      isValid: false, 
+      error: "A data de início não pode estar no passado." 
+    };
   }
 
   if (end <= start) {

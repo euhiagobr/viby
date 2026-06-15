@@ -21,7 +21,7 @@ import {
 import { toast } from "@/hooks/use-toast"
 import { Loader2, ArrowLeft, Building2, MapPin, Landmark, Star, ShieldAlert, Save } from "lucide-react"
 import Link from "next/link"
-import { normalizeText } from "@/lib/utils"
+import { normalizeText, normalizeEventDates } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -130,8 +130,8 @@ export default function NovoEventoPage() {
       (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
       () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) }, 
       async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref)
-        setFormData(prev => ({ ...prev, image: url }))
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+        setFormData(prev => ({ ...prev, image: downloadURL }))
         setUploadProgress(null)
       }
     )
@@ -146,6 +146,22 @@ export default function NovoEventoPage() {
       return;
     }
 
+    // Validação de Data Futura
+    const dateCheck = normalizeEventDates(formData.startDate, formData.endDate);
+    if (!dateCheck.isValid) {
+      toast({ variant: "destructive", title: "Erro na agenda", description: dateCheck.error });
+      return;
+    }
+
+    if (formData.isRecurring) {
+      const now = new Date();
+      const seriesEnd = new Date(formData.recurringEndDate);
+      if (seriesEnd < now) {
+        toast({ variant: "destructive", title: "Série Expirada", description: "A data final da série recorrente não pode estar no passado." });
+        return;
+      }
+    }
+
     setLoading(true)
     try {
       const searchKeywords = [
@@ -158,6 +174,9 @@ export default function NovoEventoPage() {
 
       const eventPayload = {
         ...cleanBaseData,
+        startDate: dateCheck.startDate,
+        endDate: dateCheck.endDate,
+        date: dateCheck.startDate,
         organizer: {
           id: currentOrg.id,
           name: currentOrg.name,
