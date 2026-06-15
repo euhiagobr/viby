@@ -27,7 +27,7 @@ export function HomeEventsGrid({ feed, userLocation }: HomeEventsGridProps) {
             key={item.data.id} 
             event={item.data} 
             userLocation={userLocation} 
-            isSponsored={item.data.isSponsored || item.data.curationType === 'curadoria'}
+            isSponsored={item.data.isSponsored}
           />
         )
       ))}
