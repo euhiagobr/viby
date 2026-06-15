@@ -8,7 +8,6 @@ import { safeParseDate } from '@/lib/utils';
 
 /**
  * Hook para resolver a próxima data válida de eventos recorrentes.
- * Injeta a data da ocorrência mais próxima e mantém uma lista das próximas sessões.
  */
 export function useRecurringEvents(events: any[], now: Date | null) {
   const db = useFirestore();
@@ -40,17 +39,12 @@ export function useRecurringEvents(events: any[], now: Date | null) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         
         if (myOccs.length > 0) {
-          // Ordena cronologicamente
           const sorted = [...myOccs]
-            .map(o => {
-              const d = safeParseDate(`${o.date}T${o.startTime || '19:00'}:00`);
-              return { ...o, _dt: d };
-            })
+            .map(o => ({ ...o, _dt: safeParseDate(`${o.date}T${o.startTime || '19:00'}:00`) }))
             .filter(o => o._dt !== null)
             .sort((a, b) => a._dt!.getTime() - b._dt!.getTime());
           
           const nextValid = sorted.find(o => {
-            // Threshold de 6 horas após o início da sessão para manter visível
             const endThreshold = new Date(o._dt!.getTime() + 6 * 60 * 60 * 1000);
             return refTime < endThreshold;
           });
@@ -63,15 +57,11 @@ export function useRecurringEvents(events: any[], now: Date | null) {
             } else if (baseDate) {
               const dStart = baseDate.getTime();
               const dEnd = safeParseDate(e.endDate)?.getTime() || (dStart + 4 * 60 * 60 * 1000);
-              const duration = dEnd - dStart;
-              effectiveEndDate = new Date(effectiveDate!.getTime() + duration);
+              effectiveEndDate = new Date(effectiveDate!.getTime() + (dEnd - dStart));
             }
 
             nextOccurrences = sorted
-              .filter(o => {
-                const endThreshold = new Date(o._dt!.getTime() + 6 * 60 * 60 * 1000);
-                return refTime < endThreshold;
-              })
+              .filter(o => new Date(o._dt!.getTime() + 6 * 60 * 60 * 1000) > refTime)
               .slice(0, 3);
           }
         }
@@ -86,5 +76,5 @@ export function useRecurringEvents(events: any[], now: Date | null) {
     });
   }, [events, allOccurrences, now]);
 
-  return { resolvedEvents, allOccurrences: allOccurrences || [] };
+  return { resolvedEvents };
 }

@@ -41,10 +41,9 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   }, []);
 
   const eventDates = React.useMemo(() => {
-    const start = safeParseDate(event.date) || (mounted ? new Date() : new Date(0));
+    const start = safeParseDate(event.date) || new Date();
     let end = safeParseDate(event.endDate);
     
-    // Se o fim for menor ou igual ao início e for no mesmo dia, assume virada de noite
     if (end && start && end <= start) {
       if (start.toDateString() === end.toDateString()) {
         end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
@@ -52,24 +51,18 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     }
 
     if (!end && start) {
-      // Default duration is 4 hours if not specified
       end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
     }
     
     return { start, end: end || start };
-  }, [event.date, event.endDate, mounted]);
+  }, [event.date, event.endDate]);
 
   const isEnded = React.useMemo(() => {
     if (!mounted) return false;
-    // O evento é considerado encerrado 6 horas após o horário oficial de término para visibilidade residual
     const threshold = new Date(eventDates.end.getTime() + 6 * 60 * 60 * 1000);
     return new Date() > threshold;
   }, [eventDates.end, mounted]);
 
-  const isOvernight = React.useMemo(() => {
-    return eventDates.start.toDateString() !== eventDates.end.toDateString();
-  }, [eventDates]);
-  
   const isCuradoria = event.curationType === 'curadoria' || 
                       event.curatorProfile === 'viby' || 
                       (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
@@ -80,8 +73,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       const now = new Date();
       const { start, end } = eventDates;
       
-      if (!start || !end) return;
-
       const diffStart = start.getTime() - now.getTime();
       const isToday = now.toDateString() === start.toDateString();
 
@@ -96,35 +87,12 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       } else {
         setLiveStatus(null);
       }
-
-      if ((event.type === 'divulgacao' || event.type === 'externo') && event.disclosurePrices?.length > 0) {
-        let activePrice = null;
-        let lastLimit = new Date(start.getTime());
-
-        for (const p of event.disclosurePrices) {
-          const [h, m] = p.untilTime.split(':').map(Number);
-          let limitDate = new Date(lastLimit.getTime());
-          limitDate.setHours(h, m, 0, 0);
-
-          if (limitDate <= lastLimit) {
-            limitDate.setDate(limitDate.getDate() + 1);
-          }
-
-          if (now < limitDate) {
-            activePrice = p;
-            break;
-          }
-          lastLimit = limitDate;
-        }
-
-        setCurrentDisplayPrice(activePrice || event.disclosurePrices[event.disclosurePrices.length - 1]);
-      }
     };
     
     update();
-    const interval = setInterval(update, 10000); 
+    const interval = setInterval(update, 30000); 
     return () => clearInterval(interval);
-  }, [eventDates, t, event.disclosurePrices, event.type, mounted]);
+  }, [eventDates, t, mounted]);
 
   const distanceMeters = React.useMemo(() => {
     if (userLocation && typeof event.latitude === 'number' && typeof event.longitude === 'number') {
@@ -151,20 +119,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       } else if (event.startingPrice === 0) {
         return <span className="text-green-600 font-black italic uppercase text-[10px]">{t('event.free')}</span>;
       }
-
-      if (currentDisplayPrice) {
-        return (
-          <div className="flex flex-col items-end">
-            <div className="flex items-center gap-1">
-               {formatPriceWithOriginal(currentDisplayPrice.price, currency)}
-            </div>
-            <div className="flex items-center gap-1 text-[8px] font-black uppercase text-muted-foreground opacity-60">
-               <Clock className="w-2.5 h-2.5" /> Até {currentDisplayPrice.untilTime}
-            </div>
-          </div>
-        );
-      }
-
       return <span className="text-green-600 font-black italic uppercase text-[10px]">{t('event.free')}</span>;
     }
 
@@ -185,12 +139,10 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         {formatPriceWithOriginal(min, currency)}
       </div>
     );
-  }, [event, t, formatPriceWithOriginal, currentDisplayPrice, isCuradoria]);
+  }, [event, t, formatPriceWithOriginal, isCuradoria]);
 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
-
-  const curationLabel = isCuradoria ? 'Curadoria' : 'Realização';
   const username = event.organizer?.username || "evento";
   const slugOrId = event.slug || event.id;
 
@@ -215,16 +167,16 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         <div className="relative aspect-[16/10] w-full bg-muted overflow-hidden shrink-0">
           <Image src={versionedImageUrl || `https://picsum.photos/seed/${event.id}/600/400`} alt={event.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 group-hover:scale-105" unoptimized />
           <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-            {mounted && liveStatus && (
+            {liveStatus && (
               <Badge className={cn("border-none shadow-md px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5", liveStatus.colorClass)}>
                 {liveStatus.icon && <liveStatus.icon className="w-3 h-3" />} {liveStatus.label}
               </Badge>
             )}
-            {mounted && !isEnded && (
+            {!isEnded && (
               <div className="flex items-center gap-1.5">
-                 <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-lg shadow-md" />
+                 <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/90 p-1.5 rounded-lg shadow-md" />
                  {event.isRecurring && (
-                   <Badge className="bg-secondary text-white border-none shadow-md px-1.5 h-5 flex items-center justify-center">
+                   <Badge className="bg-secondary text-white border-none shadow-md px-1.5 h-5">
                       <RefreshCw className="w-2.5 h-2.5 animate-spin-slow" />
                    </Badge>
                  )}
@@ -232,7 +184,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
             )}
           </div>
           
-          {mounted && !isEnded && (
+          {!isEnded && (
             <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
               {displayCategory && (
                 <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1.5 text-[9px] font-black uppercase flex items-center gap-1">
@@ -254,10 +206,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title}</h3>
               <EventInterest event={event} showButton={false} variant="compact" />
             </div>
-            <div className="flex flex-col">
-               <p className="text-[7px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none mb-0.5">{curationLabel}</p>
-               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
-            </div>
+            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
           </div>
 
           <div className="flex items-center justify-between pt-3 mt-auto border-t border-dashed border-border/60">
@@ -265,34 +214,16 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
                 <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{t('event.when')}</p>
                 <div className="flex items-center gap-1 text-[11px] font-black text-primary">
                    <Calendar className="w-3 h-3 text-secondary" />
-                   <span className="whitespace-nowrap">
-                      {mounted ? (
-                        <>
-                          {eventDates.start.toLocaleDateString(language, { day: '2-digit', month: 'short' })}
-                          {isOvernight && ` → ${eventDates.end.toLocaleDateString(language, { day: '2-digit', month: 'short' })}`}
-                        </>
-                      ) : "..."}
-                   </span>
+                   <span className="whitespace-nowrap">{eventDates.start.toLocaleDateString(language, { day: '2-digit', month: 'short' })}</span>
                    <span className="mx-0.5 opacity-20">|</span>
                    <Clock className="w-3 h-3 text-secondary/80" />
-                   {mounted ? eventDates.start.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' }) : "..."}
+                   {eventDates.start.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
                 </div>
              </div>
              <div className="text-right">
                 {pricingDisplay}
              </div>
           </div>
-
-          {event.isRecurring && event._nextOccurrences?.length > 1 && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              <span className="text-[8px] font-black uppercase opacity-30 w-full mb-1">Outras datas:</span>
-              {event._nextOccurrences.slice(1, 3).map((occ: any, i: number) => (
-                <div key={i} className="px-2 py-0.5 bg-muted rounded-md text-[8px] font-bold text-muted-foreground uppercase">
-                  {safeParseDate(occ.date)?.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                </div>
-              ))}
-            </div>
-          )}
 
           <div className="w-full h-10 bg-primary text-white flex items-center justify-center font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
              {isCuradoria ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
