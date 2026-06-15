@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Link as LinkIcon, Loader2, Zap, Globe, Info, ShieldCheck } from 'lucide-react';
+import { Link as LinkIcon, Loader2, Zap, Globe, Info, ShieldCheck, AlertCircle } from 'lucide-react';
 import { fetchEventDataFromUrl } from '@/app/actions/event-import';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase';
@@ -25,50 +25,41 @@ export function EventImportModal({ onImport }: EventImportModalProps) {
   const [url, setUrl] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const auth = useAuth();
 
   const handleImport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url || !auth?.currentUser) {
-      return;
-    }
+    setErrorMsg(null);
+    if (!url || !auth?.currentUser) return;
 
     const cleanUrl = url.trim();
     if (!cleanUrl.startsWith('http')) {
-      toast({ variant: "destructive", title: "URL Inválida", description: "O link deve começar com http ou https." });
+      setErrorMsg("O link deve começar com http:// ou https://");
       return;
     }
 
-    console.log(`[Viby Import] Solicitando importação da URL: ${cleanUrl}`);
     setLoading(true);
-    
     try {
       const result = await fetchEventDataFromUrl(cleanUrl, auth.currentUser.uid);
       
       if (result.success) {
-        console.log("[Viby Import] Dados recebidos com sucesso:", result.data);
         onImport(result.data);
-        toast({ title: "Importação concluída!", description: "Revise os campos preenchidos automaticamente." });
+        toast({ title: "Importação concluída!" });
         setIsOpen(false);
         setUrl("");
       } else {
-        console.error("[Viby Import] O servidor retornou um erro:", result.error);
-        toast({ 
-          variant: "destructive", 
-          title: "Erro na importação", 
-          description: result.error || "O site de origem pode estar bloqueando a conexão." 
-        });
+        setErrorMsg(result.error || "Ocorreu um erro desconhecido.");
       }
     } catch (e: any) {
-      console.error("[Viby Import] Erro capturado no frontend:", e.message);
-      toast({ variant: "destructive", title: "Falha de rede", description: "Não foi possível completar a requisição ao servidor." });
+      setErrorMsg("Falha crítica na comunicação com o servidor.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(v) => { setIsOpen(v); if(!v) setErrorMsg(null); }}>
       <DialogTrigger asChild>
         <Button variant="outline" className="rounded-xl h-11 border-dashed gap-2 font-bold text-xs uppercase border-secondary text-secondary hover:bg-secondary/5">
           <LinkIcon className="w-4 h-4" /> Importar por Link
@@ -88,27 +79,33 @@ export function EventImportModal({ onImport }: EventImportModalProps) {
         <form onSubmit={handleImport} className="p-8 space-y-6">
           <div className="space-y-4">
              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Cole a URL do evento original</Label>
+                <Label className="text-[10px] font-black uppercase opacity-60 ml-1">URL do evento</Label>
                 <div className="relative">
                    <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 text-secondary" />
                    <Input 
-                     placeholder="https://sympla.com.br/evento-exemplo" 
+                     placeholder="Cole o link aqui..." 
                      value={url}
                      onChange={e => setUrl(e.target.value)}
-                     required
+                     disabled={loading}
                      className="pl-10 h-12 rounded-xl border-dashed border-secondary/30"
                    />
                 </div>
              </div>
 
+             {errorMsg && (
+               <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-3 animate-in shake duration-300">
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-red-700 font-bold uppercase leading-relaxed">
+                     {errorMsg}
+                  </p>
+               </div>
+             )}
+
              <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
                 <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                   <p className="text-[10px] text-secondary font-bold uppercase leading-tight italic">
-                     Plataformas Suportadas
-                   </p>
-                   <p className="text-[9px] text-muted-foreground font-medium uppercase">
-                     Sympla, Ingresse, Shotgun, Eventbrite, Fever, Ticket360 e outros domínios via OpenGraph.
+                   <p className="text-[9px] text-muted-foreground font-medium uppercase leading-tight">
+                     Sites protegidos ou com bloqueio de IP podem falhar. Nesses casos, a cópia manual do texto para a descrição é recomendada.
                    </p>
                 </div>
              </div>
@@ -121,7 +118,7 @@ export function EventImportModal({ onImport }: EventImportModalProps) {
 
         <div className="p-4 bg-orange-50 border-t flex items-center justify-center gap-2">
            <ShieldCheck className="w-4 h-4 text-orange-600 opacity-60" />
-           <p className="text-[8px] font-black uppercase text-orange-800">Acesso restrito à curadoria oficial Viby.</p>
+           <p className="text-[8px] font-black uppercase text-orange-800">Ação auditada pela curadoria Viby.</p>
         </div>
       </DialogContent>
     </Dialog>
