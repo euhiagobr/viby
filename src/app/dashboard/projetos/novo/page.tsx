@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Building2, MapPin, Landmark, Star, ShieldAlert, Save } from "lucide-react"
+import { Loader2, ArrowLeft, Building2, MapPin, Landmark, Star, ShieldAlert, Save, Zap, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { normalizeText, normalizeEventDates } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -38,8 +38,11 @@ import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { createEventAction } from "@/app/actions/events"
+import { EventImportModal } from "@/components/events/EventImportModal"
+import { useAdminPermissions } from "@/hooks/use-admin-permissions"
 
 const DEFAULT_EVENT_IMAGE = "https://picsum.photos/seed/event/1200/800";
+const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 export default function NovoEventoPage() {
   const router = useRouter()
@@ -49,6 +52,7 @@ export default function NovoEventoPage() {
   const app = useFirebaseApp()
   const { currentOrg } = useCurrentOrganization()
   const { currency: dashboardCurrency } = useCurrency();
+  const { adminProfile } = useAdminPermissions();
   const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
@@ -59,6 +63,7 @@ export default function NovoEventoPage() {
 
   const [loading, setLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [isImported, setIsImported] = useState(false)
   
   const [formData, setFormData] = useState({
     title: "",
@@ -95,12 +100,40 @@ export default function NovoEventoPage() {
     recurringEndDate: "",
     customOccurrences: [] as any[],
     currency: dashboardCurrency || "BRL",
-    curationType: "realização"
+    curationType: "realização",
+    importSourceUrl: null,
+    importMethod: null
   })
 
   const [ticketMode, setTicketMode] = useState<any>('free')
   const [batches, setBatches] = useState<any[]>([])
   const [totalCapacity, setTotalCapacity] = useState(100)
+
+  const isVibyAdmin = currentOrg?.id === VIBY_OFFICIAL_UID || adminProfile !== null;
+
+  const handleImportedData = (data: any) => {
+    setIsImported(true);
+    setFormData(prev => ({
+      ...prev,
+      title: data.titulo || prev.title,
+      description: data.descricao || prev.description,
+      image: data.imagem || prev.image,
+      startDate: data.dataInicio?.slice(0, 16) || prev.startDate,
+      endDate: data.dataFim?.slice(0, 16) || prev.endDate,
+      startingPrice: data.precoMinimo || prev.startingPrice,
+      externalUrl: data.urlOriginal || prev.externalUrl,
+      type: 'externo',
+      importSourceUrl: data.urlOriginal,
+      importMethod: data.method,
+      address: {
+        ...prev.address,
+        venueName: data.local || prev.address.venueName,
+        city: data.cidade || prev.address.city,
+        state: data.estado || prev.address.state,
+        formattedAddress: `${data.local || ''} ${data.cidade || ''}`.trim()
+      }
+    }));
+  };
 
   const handleUseOrgLocation = () => {
     if (!currentOrg?.address) {
@@ -128,7 +161,7 @@ export default function NovoEventoPage() {
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', 
       (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
-      () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) }, 
+      () => setUploadProgress(null), 
       async () => {
         const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
         setFormData(prev => ({ ...prev, image: downloadURL }))
@@ -146,20 +179,10 @@ export default function NovoEventoPage() {
       return;
     }
 
-    // Validação de Data Futura
     const dateCheck = normalizeEventDates(formData.startDate, formData.endDate);
     if (!dateCheck.isValid) {
       toast({ variant: "destructive", title: "Erro na agenda", description: dateCheck.error });
       return;
-    }
-
-    if (formData.isRecurring) {
-      const now = new Date();
-      const seriesEnd = new Date(formData.recurringEndDate);
-      if (seriesEnd < now) {
-        toast({ variant: "destructive", title: "Série Expirada", description: "A data final da série recorrente não pode estar no passado." });
-        return;
-      }
     }
 
     setLoading(true)
@@ -183,6 +206,9 @@ export default function NovoEventoPage() {
           username: currentOrg.username,
           avatar: currentOrg.avatar || ""
         },
+        isImported: !!formData.importSourceUrl,
+        importDate: formData.importSourceUrl ? serverTimestamp() : null,
+        importedBy: formData.importSourceUrl ? user.uid : null,
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         capacidadeTotal: totalCapacity,
@@ -237,7 +263,22 @@ export default function NovoEventoPage() {
             <p className="text-muted-foreground font-medium">Preencha os detalhes para publicar sua experiência.</p>
           </div>
         </div>
+        <div className="flex gap-2">
+           {isVibyAdmin && <EventImportModal onImport={handleImportedData} />}
+        </div>
       </div>
+
+      {isImported && (
+        <div className="p-6 bg-secondary/5 border-2 border-dashed border-secondary/20 rounded-[2rem] flex items-start gap-4 animate-in slide-in-from-top-4">
+           <Zap className="w-6 h-6 text-secondary shrink-0 mt-1" />
+           <div className="space-y-1">
+              <h4 className="font-black uppercase text-xs italic text-primary">Modo Importação Ativo</h4>
+              <p className="text-[10px] text-secondary font-black uppercase leading-relaxed">
+                 Os dados foram importados automaticamente e devem ser revisados antes da publicação.
+              </p>
+           </div>
+        </div>
+      )}
 
       {!currentOrg && (
         <Card className="border-none shadow-xl rounded-[2rem] bg-orange-50 border-l-8 border-orange-500 animate-in zoom-in-95">
@@ -382,7 +423,8 @@ export default function NovoEventoPage() {
         )}
 
         <Button type="submit" disabled={loading || !currentOrg} className="w-full h-20 bg-secondary text-white font-black text-xl rounded-[2.5rem] shadow-xl uppercase italic transition-all active:scale-95">
-          {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Experiência"}
+          {loading ? <Loader2 className="animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+          Publicar Experiência
         </Button>
       </form>
     </div>

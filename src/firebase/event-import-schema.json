@@ -1,0 +1,26 @@
+
+{
+  "collections": {
+    "events": {
+      "metadata_fields": {
+        "isImported": "boolean",
+        "importSourceUrl": "string",
+        "importDate": "timestamp",
+        "importedBy": "string (UID)",
+        "importMethod": "string (og | json-ld | fallback)"
+      }
+    },
+    "event_import_audit": {
+      "description": "Log de auditoria para importações de URLs de terceiros.",
+      "fields": {
+        "url": "string",
+        "domain": "string",
+        "userId": "string",
+        "userName": "string",
+        "timestamp": "timestamp",
+        "method": "string",
+        "success": "boolean"
+      }
+    }
+  }
+}
