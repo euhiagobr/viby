@@ -29,20 +29,29 @@ export function EventImportModal({ onImport }: EventImportModalProps) {
 
   const handleImport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url || !auth?.currentUser) return;
+    if (!url || !auth?.currentUser) {
+      console.warn("[Viby Import] Usuário não autenticado ou URL vazia.");
+      return;
+    }
 
+    console.log(`[Viby Import] Solicitando importação da URL: ${url}`);
     setLoading(true);
+    
     try {
       const result = await fetchEventDataFromUrl(url, auth.currentUser.uid);
+      
       if (result.success) {
+        console.log("[Viby Import] Dados recebidos com sucesso:", result.data);
         onImport(result.data);
         toast({ title: "Importação concluída!", description: "Revise os campos preenchidos automaticamente." });
         setIsOpen(false);
         setUrl("");
       } else {
+        console.error("[Viby Import] O servidor retornou um erro:", result.error);
         throw new Error(result.error);
       }
     } catch (e: any) {
+      console.error("[Viby Import] Erro capturado no frontend:", e.message);
       toast({ variant: "destructive", title: "Erro na importação", description: e.message });
     } finally {
       setLoading(false);

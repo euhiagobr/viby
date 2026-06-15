@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as cheerio from 'cheerio';
@@ -14,7 +13,10 @@ async function validateVibyAdmin(userId: string) {
   
   if (!memberSnap.exists) {
     const userSnap = await db.collection('users').doc(userId).get();
-    if (userSnap.exists && userSnap.data()?.role === 'admin') return true;
+    const userData = userSnap.data();
+    if (userSnap.exists && userData?.role === 'admin') return true;
+    
+    console.error(`[Event Import] Acesso negado para o usuário ${userId}. Não é admin nem membro da Org Oficial.`);
     throw new Error("Acesso negado: Funcionalidade exclusiva da organização Viby.");
   }
   return true;
@@ -33,26 +35,37 @@ function isSafeUrl(url: string): boolean {
 }
 
 export async function fetchEventDataFromUrl(url: string, userId: string) {
+  console.log(`[Event Import] Iniciando importação da URL: ${url} por Usuário: ${userId}`);
+  
   try {
     await validateVibyAdmin(userId);
 
     if (!isSafeUrl(url)) {
+      console.error(`[Event Import] URL considerada insegura ou inválida: ${url}`);
       throw new Error("URL inválida ou insegura.");
     }
 
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (VibyCrawler; +https://viby.club/support)',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
       },
-      next: { revalidate: 0 }
+      next: { revalidate: 0 },
+      cache: 'no-store'
     });
 
     if (!response.ok) {
+      console.error(`[Event Import] Falha no fetch. Status: ${response.status} ${response.statusText}`);
       throw new Error(`Falha ao carregar a página: ${response.status}`);
     }
 
     const html = await response.text();
+    if (!html || html.length < 100) {
+      console.error(`[Event Import] HTML retornado vazio ou muito curto.`);
+      throw new Error("O conteúdo da página não pôde ser lido.");
+    }
+
     const $ = cheerio.load(html);
     
     const data: any = {
@@ -67,6 +80,7 @@ export async function fetchEventDataFromUrl(url: string, userId: string) {
         const event = Array.isArray(json) ? json.find(j => j['@type'] === 'Event') : (json['@type'] === 'Event' ? json : null);
         
         if (event) {
+          console.log(`[Event Import] JSON-LD Event localizado.`);
           data.titulo = event.name || data.titulo;
           data.descricao = event.description || data.descricao;
           data.dataInicio = event.startDate || data.dataInicio;
@@ -87,7 +101,9 @@ export async function fetchEventDataFromUrl(url: string, userId: string) {
           }
           data.method = 'json-ld';
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error(`[Event Import] Erro ao dar parse no JSON-LD:`, e);
+      }
     });
 
     // 2. Open Graph
@@ -115,10 +131,11 @@ export async function fetchEventDataFromUrl(url: string, userId: string) {
       success: !!data.titulo
     });
 
+    console.log(`[Event Import] Importação finalizada com sucesso via método: ${data.method}`);
     return { success: true, data };
 
   } catch (error: any) {
-    console.error("[Event Import] Error:", error.message);
+    console.error("[Event Import] Erro Crítico:", error.message);
     return { success: false, error: error.message };
   }
 }
