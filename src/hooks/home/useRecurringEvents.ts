@@ -14,7 +14,6 @@ export function useRecurringEvents(events: any[], now: Date | null) {
 
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    // Buscamos todas as ocorrências ativas desde ontem para garantir cobertura de fuso horário
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd');
     return query(
       collection(db, "recurring_occurrences"), 
@@ -36,30 +35,25 @@ export function useRecurringEvents(events: any[], now: Date | null) {
       let nextOccurrences: any[] = [];
       
       if (e.isRecurring && allOccurrences && allOccurrences.length > 0) {
-        // Filtra ocorrências pertencentes a este evento pai
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         
         if (myOccs.length > 0) {
-          // Ordena cronologicamente
+          // Ordena cronologicamente (Local para evitar desvios de GMT)
           const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '19:00'}:00.000Z`) }))
+            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '19:00'}:00`) }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
-          // Localiza a primeira ocorrência que termina no futuro (threshold de 6h de tolerância)
           const nextValid = sorted.find(o => {
             const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
             return refTime < endThreshold;
           });
 
           if (nextValid) {
-            // Normaliza para string ISO UTC para consistência no sorting global
-            effectiveDate = `${nextValid.date}T${nextValid.startTime || '19:00'}:00.000Z`;
+            effectiveDate = `${nextValid.date}T${nextValid.startTime || '19:00'}:00`;
             
-            // Resolvemos o término baseado na ocorrência
             if (nextValid.endTime) {
-              effectiveEndDate = `${nextValid.date}T${nextValid.endTime}:00.000Z`;
+              effectiveEndDate = `${nextValid.date}T${nextValid.endTime}:00`;
             } else {
-              // Fallback: mantém a duração original ou 4h
               const dStart = new Date(e.date || 0).getTime();
               const dEnd = new Date(e.endDate || 0).getTime();
               const duration = (!isNaN(dStart) && !isNaN(dEnd) && dEnd > dStart) 
@@ -68,7 +62,6 @@ export function useRecurringEvents(events: any[], now: Date | null) {
               effectiveEndDate = new Date(new Date(effectiveDate).getTime() + duration).toISOString();
             }
 
-            // Pega as 3 próximas datas para exibição no card
             nextOccurrences = sorted
               .filter(o => new Date(o._dt.getTime() + 6 * 60 * 60 * 1000) > refTime)
               .slice(0, 3);

@@ -8,11 +8,14 @@ import { useFeaturedEvents } from './useFeaturedEvents';
 import { useAds } from './useAds';
 import { type Coordinates } from '@/lib/location-utils';
 
+/**
+ * Orquestrador do feed da Landing Page.
+ * Mantém a cronologia global vinda do useVisibleEvents e intercala anúncios.
+ */
 export function useHomeFeed(initialEvents: any[], filters: { searchName: string, searchCity: string, userLocation: Coordinates | null }) {
-  const [now, setNow] = useState<Date | null>(null);
+  const [now, setNow] = useState<Date>(new Date());
 
   useEffect(() => {
-    setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
@@ -22,55 +25,33 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
   const visibleEvents = useVisibleEvents(resolvedEvents, { ...filters, now });
   
   const featuredEvents = useFeaturedEvents(visibleEvents);
-  
-  const sponsoredEvents = useMemo(() => 
-    visibleEvents.filter(e => e.isSponsored === true)
-      .sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime()), 
-    [visibleEvents]
-  );
-  
-  const curatedEvents = useMemo(() => 
-    visibleEvents.filter(e => e.curationType === 'curadoria' && !e.isSponsored)
-      .sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime()), 
-    [visibleEvents]
-  );
-
-  const standardEvents = useMemo(() => 
-    visibleEvents.filter(e => !e.isFeatured && !e.isSponsored && e.curationType !== 'curadoria')
-      .sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime()), 
-    [visibleEvents]
-  );
-
   const { ads } = useAds();
 
   const unifiedFeed = useMemo(() => {
     const feed: any[] = [];
     let adIndex = 0;
 
-    // 1. Patrocinados no topo (Já ordenados internamente)
-    sponsoredEvents.forEach(ev => feed.push({ type: 'event', data: ev }));
-
-    // 2. Curadoria (Já ordenados internamente)
-    curatedEvents.forEach(ev => feed.push({ type: 'event', data: ev }));
-
-    // 3. Intercala Standard com Slots de Ads (Lógica 4-7-13-19...)
-    standardEvents.forEach((ev) => {
+    // Diferente da versão anterior, não segregamos por buckets.
+    // Mantemos a ordem cronológica vinda de 'visibleEvents'.
+    visibleEvents.forEach((ev) => {
       feed.push({ type: 'event', data: ev });
+      
       const eventCount = feed.filter(f => f.type === 'event').length;
       
-      if (eventCount === 4) {
+      // Lógica de injeção de anúncios baseada em posições fixas/móveis
+      if (eventCount === 4 && ads.length > 0) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       } 
-      else if (eventCount === 7) {
+      else if (eventCount === 7 && ads.length > 1) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       }
-      else if (eventCount > 7 && (eventCount - 7) % 6 === 0) {
+      else if (eventCount > 7 && (eventCount - 7) % 6 === 0 && ads.length > adIndex) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       }
     });
 
     return feed;
-  }, [sponsoredEvents, curatedEvents, standardEvents]);
+  }, [visibleEvents, ads]);
 
   return { 
     feed: unifiedFeed, 
