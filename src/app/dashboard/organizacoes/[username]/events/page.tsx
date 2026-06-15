@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -51,8 +52,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 import { format, startOfToday, addDays } from "date-fns";
 
 export default function OrganizationEventsPage() {
@@ -146,9 +147,9 @@ export default function OrganizationEventsPage() {
     });
 
     upcoming.sort((a, b) => {
-      const tA = a._effectiveDate?.toDate ? a._effectiveDate.toDate().getTime() : new Date(a._effectiveDate).getTime();
-      const tB = b._effectiveDate?.toDate ? b._effectiveDate.toDate().getTime() : new Date(b._effectiveDate).getTime();
-      return tA - tB;
+      const tA = a.createdAt?.seconds || Date.now() / 1000;
+      const tB = b.createdAt?.seconds || Date.now() / 1000;
+      return tB - tA;
     });
 
     past.sort((a, b) => {

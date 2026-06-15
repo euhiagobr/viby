@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -105,8 +106,9 @@ export default function MeusEventosPage() {
       return { ...e, date: effectiveDate };
     }).filter((e: any) => e.status !== 'Excluído')
       .sort((a, b) => {
-        const tA = a.createdAt?.seconds || 0;
-        const tB = b.createdAt?.seconds || 0;
+        // CORREÇÃO: Trata createdAt nulo (recém-criado) como o item mais recente
+        const tA = a.createdAt?.seconds || Date.now() / 1000;
+        const tB = b.createdAt?.seconds || Date.now() / 1000;
         return tB - tA;
       });
   }, [rawEvents, allOccurrences, now]);

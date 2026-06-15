@@ -10,7 +10,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, AlertTriangle, Building2, MapPin } from "lucide-react"
+import { Loader2, ArrowLeft, AlertTriangle, Building2, MapPin, Landmark } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+import { createEventAction } from "@/app/actions/events"
 
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
 
@@ -40,6 +41,7 @@ export default function NovoEventoPage() {
   const { user } = useUser(auth)
   const app = useFirebaseApp()
   const { currentOrg } = useCurrentOrganization()
+  const { currency: dashboardCurrency } = useCurrency();
   const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
@@ -68,12 +70,12 @@ export default function NovoEventoPage() {
     tags: [] as string[],
     address: { 
       venueName: "",
-      addressLine1: "", 
-      addressLine2: "",
-      streetNumber: "",
+      street: "", 
+      number: "", 
+      complement: "", 
       neighborhood: "", 
       city: "", 
-      stateRegion: "", 
+      state: "", 
       country: "Brasil", 
       countryCode: "BR",
       postalCode: "", 
@@ -86,6 +88,8 @@ export default function NovoEventoPage() {
     isRecurring: false,
     frequency: "weekly",
     recurringEndDate: "",
+    customOccurrences: [] as any[],
+    currency: dashboardCurrency || "BRL",
     curationType: "realização"
   })
 
@@ -98,11 +102,15 @@ export default function NovoEventoPage() {
       toast({ variant: "destructive", title: "Endereço não configurado", description: "Vá nas configurações da marca para definir o endereço da sede." });
       return;
     }
+    const orgAddr = currentOrg.address;
     setFormData(prev => ({
       ...prev,
       address: {
         ...prev.address,
-        ...currentOrg.address
+        ...orgAddr,
+        street: orgAddr.addressLine1 || prev.address.street,
+        number: orgAddr.streetNumber || prev.address.number,
+        state: orgAddr.stateRegion || prev.address.state
       }
     }));
     toast({ title: "Local importado!", description: "Dados da sede preenchidos com sucesso." });
@@ -128,17 +136,12 @@ export default function NovoEventoPage() {
     e.preventDefault()
     if (!db || !user || !currentOrg) return
 
-    const isPublic = formData.status === 'Ativo';
-    if (isPublic) {
-      const { address } = formData;
-      if (!address.countryCode || !address.city || !address.addressLine1 || !address.latitude || !address.longitude) {
-        toast({ 
-          variant: "destructive", 
-          title: "Localização Incompleta", 
-          description: "Eventos ativos exigem endereço completo e coordenadas no mapa." 
-        });
-        return;
-      }
+    const isPaid = formData.type === 'interno' && 
+      batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
+
+    if (isPaid && !currentOrg.stripeAccountId) {
+      toast({ variant: "destructive", title: "Ação Bloqueada", description: "Para vender ingressos é necessário configurar sua conta de recebimento Stripe." });
+      return;
     }
 
     setLoading(true)
@@ -150,7 +153,6 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
-      // Normalização de Datas para UTC (Prevenção de desvio de horário)
       const toISO = (dStr: string) => {
         if (!dStr) return null;
         const d = new Date(dStr);
@@ -175,15 +177,20 @@ export default function NovoEventoPage() {
         location: formData.address.neighborhood || formData.address.venueName,
         latitude: formData.address.latitude,
         longitude: formData.address.longitude,
-        createdAt: serverTimestamp()
       }
 
       const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => value === undefined ? null : value));
 
-      const docRef = await addDoc(collection(db, "events"), cleanData)
+      const result = await createEventAction({
+        orgId: currentOrg.id,
+        userId: user.uid,
+        eventData: cleanData
+      });
+
+      if (!result.success) throw new Error(result.error);
 
       if (formData.isRecurring && formData.recurringEndDate) {
-        await generateOccurrences(docRef.id, {
+        await generateOccurrences(result.id!, {
           name: formData.title,
           description: formData.description,
           organizationId: currentOrg.id,
@@ -193,12 +200,13 @@ export default function NovoEventoPage() {
           endDate: formData.recurringEndDate,
           startTime: formData.startDate.split('T')[1] || "19:00",
           endTime: formData.endDate.split('T')[1] || "22:00",
-          capacidadeMaxima: totalCapacity
+          capacidadeMaxima: totalCapacity,
+          customOccurrences: formData.customOccurrences
         });
       }
 
       toast({ title: "Evento Publicado!" })
-      router.push("/dashboard/organizacoes")
+      router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao publicar", description: error.message })
     } finally {
@@ -289,6 +297,8 @@ export default function NovoEventoPage() {
                 onFrequencyChange={v => setFormData({...formData, frequency: v})}
                 recurringEndDate={formData.recurringEndDate}
                 onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})}
+                customOccurrences={formData.customOccurrences}
+                onCustomOccurrencesChange={v => setFormData({...formData, customOccurrences: v})}
               />
 
               <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
@@ -324,16 +334,16 @@ export default function NovoEventoPage() {
           />
         </div>
 
-        {formData.type === 'interno' && (
-          <BilheteriaAdmin 
-            mode={ticketMode} 
-            onModeChange={setTicketMode}
-            batches={batches}
-            onBatchesChange={setBatches}
-            totalCapacity={totalCapacity}
-            onTotalCapacityChange={setTotalCapacity}
-          />
-        )}
+        <BilheteriaAdmin 
+          mode={ticketMode} 
+          onModeChange={setTicketMode}
+          batches={batches}
+          onBatchesChange={setBatches}
+          totalCapacity={totalCapacity}
+          onTotalCapacityChange={setTotalCapacity}
+          eventCurrency={formData.currency as CurrencyCode}
+          onCurrencyChange={v => setFormData({...formData, currency: v})}
+        />
 
         <Button type="submit" disabled={loading} className="w-full h-20 bg-secondary text-white font-black text-xl rounded-[2.5rem] shadow-xl uppercase italic hover:scale-102 transition-all">
           {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Experiência"}

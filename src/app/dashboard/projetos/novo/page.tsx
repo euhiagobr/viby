@@ -177,7 +177,6 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
-      // Normalização de Datas para UTC (Prevenção de desvio de horário)
       const toISO = (dStr: string) => {
         if (!dStr) return null;
         const d = new Date(dStr);
@@ -214,7 +213,7 @@ export default function NovoEventoPage() {
 
       if (!result.success) throw new Error(result.error);
 
-      if (formData.isRecurring) {
+      if (formData.isRecurring && formData.recurringEndDate) {
         await generateOccurrences(result.id!, {
           name: formData.title,
           description: formData.description,
