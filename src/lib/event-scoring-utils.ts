@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Lógica de filtragem e normalização de eventos Viby.
  * Foco em: "Perto de você" (Filtro) e "No tempo certo" (Ordenação).
@@ -21,41 +22,41 @@ export function calculateDistanceMeters(coords1: Coordinates, coords2: Coordinat
 export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   if (!event || event.status !== 'Ativo') return false;
   
-  // Garantir comparação em milissegundos absolutos para evitar problemas de fuso horário
   const now = nowOverride ? nowOverride.getTime() : new Date().getTime();
   
   const parseDateToMs = (val: any) => {
     if (!val) return null;
-    if (val.toDate) return val.toDate().getTime();
+    // 1. Objeto Timestamp do Client SDK (.toDate)
+    if (typeof val.toDate === 'function') return val.toDate().getTime();
     
-    // Tratamento resiliente para objetos serializados {seconds, nanoseconds}
+    // 2. Objeto Timestamp serializado (Admin SDK ou Cache)
     if (typeof val === 'object' && 'seconds' in val) return val.seconds * 1000;
     
+    // 3. String ISO ou data nativa
     const d = new Date(val);
     return isNaN(d.getTime()) ? null : d.getTime();
   };
 
   const startMs = parseDateToMs(event.date);
   
-  // Se não houver data de início (recém criado), assume visibilidade para não sumir do dashboard
+  // Se não houver data de início (recém criado), assume visibilidade
   if (!startMs) return true;
 
-  // Se o evento é futuro (mesmo que um pouco no futuro próximo), ele é visível
-  // Threshold de tolerância de 2 minutos para eventos recém-criados
+  // Threshold de tolerância de 2 minutos para eventos recém-criados no servidor
   if (startMs > now - 120000) return true;
 
   let endMs = parseDateToMs(event.endDate);
   
-  // Caso especial: Madrugada (ex: 22h às 04h)
+  // Tratamento de virada de noite (ex: 22h às 04h)
   if (endMs && endMs <= startMs) {
     const dStart = new Date(startMs);
     const dEnd = new Date(endMs);
-    if (dStart.toDateString() === dEnd.toDateString()) {
+    if (dStart.toISOString().split('T')[0] === dEnd.toISOString().split('T')[0]) {
       endMs += 24 * 60 * 60 * 1000;
     }
   }
 
-  // Se não houver data de fim, usamos um padrão de 6h após o início como threshold de visibilidade
+  // Fallback: Se não houver data de fim, usamos um padrão de 6h após o início
   const effectiveEndMs = endMs || (startMs + 6 * 60 * 60 * 1000);
   
   return now < effectiveEndMs;

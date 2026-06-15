@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -6,7 +7,7 @@ import { slugify } from '@/lib/slug-utils';
 import { normalizeEventDates } from '@/lib/utils';
 
 /**
- * @fileOverview Server Actions para gestão de eventos com logs de auditoria.
+ * @fileOverview Server Actions para gestão de eventos com logs de auditoria e persistência correta de tipos.
  */
 
 async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string, eventData: any) {
@@ -53,11 +54,11 @@ export async function createEventAction(params: {
   eventData: any;
 }) {
   const db = getAdminDb();
-  console.log(`[createEventAction] Starting for org: ${params.orgId}`);
   
   try {
     const { eventData } = params;
     
+    // Normalização rigorosa de datas para evitar erros de visibilidade
     const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
     if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
 
@@ -88,6 +89,7 @@ export async function createEventAction(params: {
       ...sanitizedData,
       id: eventRef.id,
       slug,
+      // Persistência EXPLICITA como Timestamp para garantir indexação correta
       date: admin.firestore.Timestamp.fromDate(startDate),
       startDate: admin.firestore.Timestamp.fromDate(startDate),
       endDate: admin.firestore.Timestamp.fromDate(endDate),
@@ -106,8 +108,6 @@ export async function createEventAction(params: {
     };
 
     await eventRef.set(finalData);
-    console.log(`[createEventAction] Success! ID: ${eventRef.id}, Slug: ${slug}`);
-
     return { success: true, id: eventRef.id, slug };
   } catch (e: any) {
     console.error(`[createEventAction] Critical Failure:`, e.message);
@@ -156,7 +156,6 @@ export async function updateEventAction(params: {
       ...sanitizedData 
     } = eventData;
 
-    // Atualizar organizer data se necessário
     const orgSnap = await db.collection('organizations').doc(params.orgId).get();
     const orgData = orgSnap.data();
 
@@ -176,7 +175,6 @@ export async function updateEventAction(params: {
     };
 
     await eventRef.update(updatePayload);
-
     return { success: true, slug };
   } catch (e: any) {
     return { success: false, error: e.message };

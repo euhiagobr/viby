@@ -1,12 +1,13 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useFirestore } from '@/firebase';
-import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentSnapshot, Timestamp } from 'firebase/firestore';
 
 /**
  * Hook de busca de eventos para a Landing Page.
- * Aumentado o limite de busca inicial para acomodar filtragem de visibilidade no cliente.
+ * Corrigido para utilizar Timestamp na query, evitando conflitos de tipo com String.
  */
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
@@ -21,15 +22,19 @@ export function useLandingEvents(initialEvents: any[] = []) {
     
     setIsFetching(true);
     try {
-      // Carregamos uma massa maior (45) inicialmente para permitir filtros de visibilidade
-      // e resolução de recorrências no cliente sem esvaziar o feed.
       const fetchLimit = isInitial ? 45 : 20;
+
+      // Filtro de data usando Timestamp nativo para compatibilidade com o banco
+      const thresholdDate = new Date();
+      thresholdDate.setHours(thresholdDate.getHours() - 12); // Janela generosa de visibilidade
+      const dateThreshold = Timestamp.fromDate(thresholdDate);
 
       let q;
       if (isInitial) {
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
+          where("date", ">=", dateThreshold),
           orderBy("date", "asc"),
           limit(fetchLimit)
         );
@@ -40,6 +45,7 @@ export function useLandingEvents(initialEvents: any[] = []) {
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
+          where("date", ">=", dateThreshold),
           orderBy("date", "asc"),
           startAfter(cursor),
           limit(fetchLimit)

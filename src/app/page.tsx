@@ -1,7 +1,9 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import LandingPageClient from "./LandingPageClient"
 import { getAdminDb } from "@/lib/firebase/admin"
+import * as admin from 'firebase-admin';
 
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
@@ -42,15 +44,9 @@ export const metadata: Metadata = {
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
-  
-  if (typeof data.toDate === 'function') {
-    return data.toDate().toISOString();
-  }
-  
+  if (typeof data.toDate === 'function') return data.toDate().toISOString();
   if (data instanceof Date) return data.toISOString();
-  
   if (Array.isArray(data)) return data.map(item => serializeData(item));
-  
   if (typeof data === 'object') {
     const serialized: any = {};
     Object.keys(data).forEach(key => {
@@ -65,12 +61,16 @@ async function getInitialEvents() {
   try {
     const db = getAdminDb();
     
-    // Buscamos apenas pelo status para evitar problemas de compatibilidade entre tipos de dados (String vs Timestamp)
-    // A filtragem fina de data acontece no cliente
+    // Threshold generoso para garantir que eventos recorrentes ativos não sejam filtrados antes do merge
+    const thresholdDate = new Date();
+    thresholdDate.setHours(thresholdDate.getHours() - 48);
+    const dateThreshold = admin.firestore.Timestamp.fromDate(thresholdDate);
+
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
+      .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
-      .limit(35)
+      .limit(45)
       .get();
       
     if (snap.empty) return [];
