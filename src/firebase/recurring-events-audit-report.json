@@ -1,0 +1,70 @@
+{
+  "audit_version": "1.0.0",
+  "system_overview": {
+    "storage_model": "Arquitetura de 'Eager Expansion'. O evento pai reside em 'events' e as instâncias individuais em 'recurring_occurrences'.",
+    "generation_flow": "Acionado via 'generateOccurrences' no momento da criação ou edição do projeto. Gera documentos físicos com datas fixas (YYYY-MM-DD).",
+    "expansion_logic": "A expansão ocorre na escrita (banco de dados) e a resolução da 'data efetiva' ocorre no cliente durante a renderização (in-memory mapping)."
+  },
+  "involved_files": [
+    "src/services/recurring-event-service.ts",
+    "src/app/LandingPageClient.tsx",
+    "src/app/dashboard/ExplorarClient.tsx",
+    "src/app/[username]/ProfilePageClient.tsx",
+    "src/app/[username]/[slug]/EventoPublicoClient.tsx",
+    "src/app/copa-do-mundo/CopaMundoClient.tsx",
+    "src/app/experiencias-lgbtqiapn/LGBTClient.tsx",
+    "src/lib/event-scoring-utils.ts"
+  ],
+  "involved_functions": [
+    "generateOccurrences",
+    "fetchEvents (Landing/Explorar)",
+    "isEventVisible",
+    "processedEvents (Memoized Logic)"
+  ],
+  "page_status": {
+    "correct_logic": [
+      "LandingPageClient.tsx",
+      "ExplorarClient.tsx",
+      "ProfilePageClient.tsx",
+      "EventoPublicoClient.tsx"
+    ],
+    "incorrect_logic": [
+      "CopaMundoClient.tsx",
+      "LGBTClient.tsx",
+      "Categorias (Geral)"
+    ]
+  },
+  "identified_issues": {
+    "bugs": [
+      "Filtros de 'Copa do Mundo' e 'LGBT' ignoram a coleção de ocorrências, exibindo apenas a data base do evento pai.",
+      "Erro de índice composto (FAILED_PRECONDITION) em consultas SSR para eventos específicos."
+    ],
+    "bottlenecks": [
+      "Ocorrências globais são baixadas em massa (fetch all from yesterday) no Landing/Explorar, gerando alto consumo de memória e dados no cliente conforme o volume cresce."
+    ],
+    "duplications": [
+      "A lógica de mapeamento 'processedEvents' para encontrar a próxima data válida está duplicada e divergente em 4 arquivos diferentes."
+    ],
+    "timezone": [
+      "Concatenação de strings 'YYYY-MM-DD' + 'T' + 'HH:mm' sem offset explícito pode causar desvios em dispositivos com timezones configurados fora de GMT-3."
+    ]
+  },
+  "recommended_corrections": [
+    {
+      "action": "Unificar lógica de resolução de data efetiva em um hook ou utilitário centralizado.",
+      "impact": "Alto"
+    },
+    {
+      "action": "Implementar paginação real para ocorrências ou filtragem por limite de data no servidor.",
+      "impact": "Crítico"
+    },
+    {
+      "action": "Atualizar CopaMundoClient e LGBTClient para incluírem o pipeline de ocorrências.",
+      "impact": "Alto"
+    },
+    {
+      "action": "Definir índices compostos obrigatórios no firestore.indexes.json.",
+      "impact": "Crítico"
+    }
+  ]
+}
