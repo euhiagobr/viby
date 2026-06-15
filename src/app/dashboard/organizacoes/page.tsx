@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -14,10 +15,17 @@ import {
   Globe
 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 export default function MinhasOrganizacoesPage() {
   const { organizations, currentOrg, setCurrentOrg, loading } = useCurrentOrganization()
+  const router = useRouter()
+
+  const handleActivate = (org: any) => {
+    setCurrentOrg(org);
+    router.push(`/dashboard/organizacoes/${org.username}`);
+  };
 
   return (
     <div className="space-y-8 pb-20">
@@ -78,12 +86,11 @@ export default function MinhasOrganizacoesPage() {
                 <CardContent className="space-y-4">
                   <div className="flex gap-2">
                     <Button 
-                      onClick={() => setCurrentOrg(org)}
-                      disabled={isActive}
+                      onClick={() => handleActivate(org)}
                       variant={isActive ? "secondary" : "outline"} 
                       className="flex-1 rounded-xl font-bold text-xs h-10"
                     >
-                      {isActive ? "Selecionada" : "Ativar no Painel"}
+                      {isActive ? "Painel Ativo" : "Ativar no Painel"}
                     </Button>
                     <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10" asChild>
                       <Link href={`/dashboard/organizacoes/${org.username}`}>

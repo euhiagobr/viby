@@ -5,7 +5,7 @@ import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Loader2, ShoppingCart, AlertTriangle } from "lucide-react"
+import { Loader2, ShoppingCart, AlertTriangle, Plus, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser } from "@/firebase"
 import { OrganizationProvider, useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -18,7 +18,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Plus, Building2 } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { UserNav } from "@/components/layout/UserNav"
@@ -54,6 +53,15 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     }
   }, [user, profile, isInitialized, authLoading, pathname, router]);
 
+  const handleSwitchOrg = (org: any) => {
+    setCurrentOrg(org);
+    
+    // Se estivermos em uma rota específica de organização, navegamos para o dashboard da nova
+    if (pathname.includes('/dashboard/organizacoes/')) {
+      router.push(`/dashboard/organizacoes/${org.username}`);
+    }
+  };
+
   if (!isInitialized || authLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
@@ -88,7 +96,11 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                   <DropdownMenuSeparator />
                   {organizations.length > 0 ? (
                     organizations.map((org) => (
-                      <DropdownMenuItem key={org.id} onClick={() => setCurrentOrg(org)} className={currentOrg?.id === org.id ? "bg-secondary/10 font-bold" : ""}>
+                      <DropdownMenuItem 
+                        key={org.id} 
+                        onSelect={() => handleSwitchOrg(org)} 
+                        className={cn("cursor-pointer", currentOrg?.id === org.id ? "bg-secondary/10 font-bold" : "")}
+                      >
                         {org.name}
                       </DropdownMenuItem>
                     ))

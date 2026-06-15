@@ -75,8 +75,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   // Função para mudar a organização com persistência
   const setCurrentOrg = useCallback((org: Organization | null) => {
+    if (!org) {
+      setCurrentOrgState(null);
+      if (typeof window !== 'undefined') localStorage.removeItem('viby_current_org');
+      return;
+    }
+
     setCurrentOrgState(org);
-    if (org && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       localStorage.setItem('viby_current_org', org.id);
     }
   }, []);
@@ -181,11 +187,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }, [db, user, isInitialized]);
 
   // Efeito para sincronizar context com a URL [username]
+  // AGORA: Só sincroniza se for realmente diferente, para evitar loops
   useEffect(() => {
     if (orgUsernameInUrl && organizations.length > 0) {
       const matched = organizations.find(o => o.username === orgUsernameInUrl);
       if (matched && matched.id !== currentOrg?.id) {
-        console.log(`[OrgContext] Auto-switching to match URL: @${orgUsernameInUrl}`);
         setCurrentOrgState(matched);
       }
     }
