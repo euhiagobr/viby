@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import { Metadata } from "next"
 import LandingPageClient from "./LandingPageClient"
@@ -66,14 +65,10 @@ async function getInitialEvents() {
   try {
     const db = getAdminDb();
     
-    // Janela de 30 dias para capturar pais de recorrências ativas
-    const thresholdDate = new Date();
-    thresholdDate.setDate(thresholdDate.getDate() - 30);
-
+    // Buscamos apenas pelo status para evitar problemas de compatibilidade entre tipos de dados (String vs Timestamp)
+    // A filtragem fina de data acontece no cliente
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
-      // O Admin SDK aceita objetos Date e os trata como Timestamps nativos
-      .where('date', '>=', thresholdDate)
       .orderBy('date', 'asc')
       .limit(35)
       .get();

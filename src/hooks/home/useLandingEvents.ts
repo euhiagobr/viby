@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -7,7 +6,8 @@ import { collection, query, where, orderBy, limit, getDocs, startAfter, Document
 
 /**
  * Hook de busca de eventos para a Landing Page.
- * Corrigido para utilizar comparação nativa de data do Firestore.
+ * Removido o filtro rígido de data na query para garantir compatibilidade com dados legados (String vs Timestamp).
+ * O filtro de visibilidade real acontece no cliente via useVisibleEvents.
  */
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
@@ -22,9 +22,7 @@ export function useLandingEvents(initialEvents: any[] = []) {
     
     setIsFetching(true);
     try {
-      const thresholdDate = new Date();
-      thresholdDate.setDate(thresholdDate.getDate() - 30);
-      
+      // Carregamos uma massa maior inicialmente para permitir filtros de visibilidade e recorrência no cliente
       const fetchLimit = isInitial ? 35 : 15;
 
       let q;
@@ -32,20 +30,17 @@ export function useLandingEvents(initialEvents: any[] = []) {
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
-          // O Firestore aceita objetos Date diretamente para comparação com Timestamps
-          where("date", ">=", thresholdDate),
           orderBy("date", "asc"),
           limit(fetchLimit)
         );
       } else {
         const lastEvent = rawEvents[rawEvents.length - 1];
-        // Resiliência para cursor: Prioriza snapshot, fallback para valor bruto
+        // Resiliência para cursor: Prioriza snapshot, fallback para valor bruto da data
         const cursor = lastVisible || (lastEvent ? lastEvent.date : null);
         
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
-          where("date", ">=", thresholdDate),
           orderBy("date", "asc"),
           startAfter(cursor),
           limit(fetchLimit)
@@ -86,5 +81,11 @@ export function useLandingEvents(initialEvents: any[] = []) {
     }
   }, [initialEvents.length, fetchEvents]);
 
-  return { rawEvents, isFetching, isInitialLoad, hasMore, fetchMore: () => fetchEvents(false) };
+  return { 
+    rawEvents, 
+    isFetching, 
+    isInitialLoad, 
+    hasMore, 
+    fetchMore: () => fetchEvents(false) 
+  };
 }

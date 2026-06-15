@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
@@ -9,7 +8,8 @@ import { useAds } from './useAds';
 import { type Coordinates } from '@/lib/location-utils';
 
 /**
- * Orquestrador do feed da Landing Page com paginação controlada (7 inicial + 3 por clique).
+ * Orquestrador do feed da Landing Page.
+ * Unifica eventos, resolve recorrências e intercala anúncios.
  */
 export function useHomeFeed(initialEvents: any[], filters: { searchName: string, searchCity: string, userLocation: Coordinates | null }) {
   const [now, setNow] = useState<Date | null>(null);
@@ -41,7 +41,7 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
     const feed: any[] = [];
     let adIndex = 0;
 
-    // Aplicamos o limite de exibição (7 inicial, depois +3)
+    // Utilizamos a lista completa de eventos visíveis para a paginação
     const paginatedEvents = visibleEvents.slice(0, displayLimit);
 
     paginatedEvents.forEach((ev, idx) => {
@@ -54,7 +54,7 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
       if (eventCount === 4 && ads.length > 0) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       } 
-      // 2º Ad: após 7 eventos (Total: 7 eventos + 2 ads)
+      // 2º Ad: após 7 eventos
       else if (eventCount === 7 && ads.length > 1) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       }
@@ -67,7 +67,6 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
     return feed;
   }, [visibleEvents, displayLimit, ads]);
 
-  // hasMore é verdadeiro se houver dados no banco ou se ainda houver eventos carregados no buffer do cliente
   const hasMoreUI = dbHasMore || visibleEvents.length > displayLimit;
 
   return { 
