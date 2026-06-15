@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -12,7 +13,8 @@ const RESERVED_ROUTES = [
   'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
   'projeto', 'auth', 'para-organizadores', 'search', 'settings',
-  'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.webmanifest', 'og'
+  'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.webmanifest', 'og',
+  'experiencias-lgbtqiapn', 'copa-do-mundo'
 ];
 
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
@@ -59,7 +61,6 @@ async function getEventData(usernameParam: string, slugParam: string) {
     }
     
     const targetUid = usernameSnap.data()!.uid;
-
     let eventDoc = null;
 
     // 2. Tentar buscar por ID direto

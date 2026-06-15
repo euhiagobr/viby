@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -12,7 +13,8 @@ const RESERVED_ROUTES = [
   'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
   'projeto', 'auth', 'para-organizadores', 'search', 'settings',
-  'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.webmanifest', 'og'
+  'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.webmanifest', 'og',
+  'experiencias-lgbtqiapn', 'copa-do-mundo'
 ];
 
 const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
@@ -39,10 +41,8 @@ function serializeData(data: any): any {
 async function getProfileData(usernameParam: string) {
   try {
     const username = decodeURIComponent(usernameParam).toLowerCase().trim();
-    console.log(`[DEBUG-SERVER] Fetching profile: ${username}`);
 
     if (RESERVED_ROUTES.includes(username)) {
-      console.log(`[DEBUG-SERVER] Profile ${username} is a reserved route.`);
       return null;
     }
 
@@ -50,38 +50,33 @@ async function getProfileData(usernameParam: string) {
     const usernameSnap = await db.collection("usernames").doc(username).get();
     
     if (!usernameSnap.exists) {
-      console.log(`[DEBUG-SERVER] Profile document '${username}' NOT FOUND in 'usernames' collection.`);
       return null;
     }
     
     const { uid, type } = usernameSnap.data()!;
-    console.log(`[DEBUG-SERVER] Profile index found. Type: ${type}, UID: ${uid}`);
-
     const targetColl = type === 'user' ? 'users' : 'organizations';
     const dataSnap = await db.collection(targetColl).doc(uid).get();
     
     if (!dataSnap.exists) {
-      console.log(`[DEBUG-SERVER] Profile data NOT FOUND in collection '${targetColl}' for UID: ${uid}`);
       return null;
     }
 
     const profile = dataSnap.data()!;
     if (['Bloqueado', 'Excluído', 'Desativado'].includes(profile.status)) {
-      console.log(`[DEBUG-SERVER] Profile ${username} is unavailable due to status: ${profile.status}`);
       return null;
     }
 
     return serializeData({ id: dataSnap.id, type, ...profile });
   } catch (e: any) {
-    console.error(`[DEBUG-SERVER] Error in getProfileData for ${usernameParam}:`, e.message);
     return null;
   }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
   const { username } = await params;
+  const usernameLower = username.toLowerCase();
   
-  if (RESERVED_ROUTES.includes(username.toLowerCase())) {
+  if (RESERVED_ROUTES.includes(usernameLower)) {
     return {};
   }
 

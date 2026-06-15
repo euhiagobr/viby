@@ -18,14 +18,12 @@ export function useLandingEvents(initialEvents: any[] = []) {
     
     setIsFetching(true);
     try {
-      const yesterday = new Date();
-      yesterday.setHours(yesterday.getHours() - 12);
-      const dateThreshold = yesterday.toISOString();
-
+      // REGRESSÃO FIX: Removemos o threshold de data na query do Firestore.
+      // Isso permite que eventos recorrentes cujas datas base estão no passado,
+      // mas que possuem ocorrências futuras, sejam carregados e processados.
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
-        where("date", ">=", dateThreshold),
         orderBy("date", "asc"),
         ...(isInitial ? [limit(12)] : [startAfter(lastVisible), limit(6)])
       );

@@ -25,6 +25,13 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
   
   const featuredEvents = useFeaturedEvents(visibleEvents);
   const sponsoredEvents = useSponsoredEvents(visibleEvents);
+  
+  // CORREÇÃO: Separação explícita de Curadoria e Eventos Padrão
+  const curatedEvents = useMemo(() => 
+    visibleEvents.filter(e => e.curationType === 'curadoria' && !e.isSponsored), 
+    [visibleEvents]
+  );
+
   const standardEvents = useMemo(() => 
     visibleEvents.filter(e => !e.isFeatured && !e.isSponsored && e.curationType !== 'curadoria')
       .sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime()), 
@@ -38,34 +45,39 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
     let eventCounter = 0;
     let adIndex = 0;
 
-    // Patrocinados no topo
+    // 1. Patrocinados no topo (Regra: isSponsored == true)
     sponsoredEvents.forEach(ev => feed.push({ type: 'event', data: ev }));
 
-    // Intercala Standard com Slots de Ads
+    // 2. Curadoria (Regra: curationType == 'curadoria')
+    curatedEvents.forEach(ev => feed.push({ type: 'event', data: ev }));
+
+    // 3. Intercala Standard com Slots de Ads
     standardEvents.forEach(ev => {
       feed.push({ type: 'event', data: ev });
       eventCounter++;
-      if (eventCounter % 6 === 0) {
+      
+      // Insere um Ad a cada 6 eventos padrão
+      if (eventCounter > 0 && eventCounter % 6 === 0) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       }
     });
 
     return feed;
-  }, [sponsoredEvents, standardEvents]);
+  }, [sponsoredEvents, curatedEvents, standardEvents]);
 
-  // LOGS TEMPORÁRIOS DE DESENVOLVIMENTO
+  // LOGS DE AUDITORIA
   useEffect(() => {
-    console.log("[HOME-FEED-AUDIT]", {
+    console.log("[HOME-FEED-DIAGNOSTIC]", {
       rawEvents: rawEvents.length,
-      allOccurrences: allOccurrences.length,
-      resolvedEvents: resolvedEvents.length,
-      visibleEvents: visibleEvents.length,
-      featuredEvents: featuredEvents.length,
-      sponsoredEvents: sponsoredEvents.length,
-      ads: ads.length,
-      unifiedFeed: unifiedFeed.length
+      resolvedWithRecurrence: resolvedEvents.length,
+      visibleAfterFilters: visibleEvents.length,
+      sponsored: sponsoredEvents.length,
+      curated: curatedEvents.length,
+      standard: standardEvents.length,
+      activeAds: ads.length,
+      finalFeedSize: unifiedFeed.length
     });
-  }, [rawEvents, allOccurrences, resolvedEvents, visibleEvents, featuredEvents, sponsoredEvents, ads, unifiedFeed]);
+  }, [rawEvents, resolvedEvents, visibleEvents, sponsoredEvents, curatedEvents, standardEvents, ads, unifiedFeed]);
 
   return { 
     feed: unifiedFeed, 

@@ -1,10 +1,23 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, limit } from 'firebase/firestore';
 
 export function useAds() {
-  // Atualmente o AdsRenderer busca os anúncios diretamente. 
-  // Este hook serve para placeholder caso precisemos injetar dados de Ads no unifiedFeed.
-  return { ads: [] }; 
+  const db = useFirestore();
+
+  const adsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    // CORREÇÃO: Implementação da consulta real de anúncios ativos
+    return query(
+      collection(db, "ads"), 
+      where("status", "==", "Ativo"),
+      limit(10)
+    );
+  }, [db]);
+
+  const { data: ads, loading } = useCollection<any>(adsQuery);
+
+  return { ads: ads || [], loading }; 
 }
