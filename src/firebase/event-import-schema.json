@@ -1,4 +1,3 @@
-
 {
   "collections": {
     "events": {
@@ -7,7 +6,7 @@
         "importSourceUrl": "string",
         "importDate": "timestamp",
         "importedBy": "string (UID)",
-        "importMethod": "string (og | json-ld | fallback)"
+        "importMethod": "string (og | json-ld | meta | heuristica)"
       }
     },
     "event_import_audit": {
@@ -16,7 +15,6 @@
         "url": "string",
         "domain": "string",
         "userId": "string",
-        "userName": "string",
         "timestamp": "timestamp",
         "method": "string",
         "success": "boolean"
