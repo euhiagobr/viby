@@ -225,8 +225,8 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               <div className="flex items-center gap-1.5">
                  <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-lg shadow-md" />
                  {event.isRecurring && (
-                   <Badge className="bg-secondary text-white border-none shadow-md px-2 h-5 text-[7px] font-black uppercase flex items-center gap-1">
-                      <RefreshCw className="w-2 h-2 animate-spin-slow" /> {t('event.recurring_series', 'Série Recorrente')}
+                   <Badge className="bg-secondary text-white border-none shadow-md px-1.5 h-5 flex items-center justify-center">
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin-slow" />
                    </Badge>
                  )}
               </div>

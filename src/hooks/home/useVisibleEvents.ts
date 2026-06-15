@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -32,7 +33,7 @@ export function useVisibleEvents(events: any[], filters: { searchName: string, s
         _distanceMeters: distMeters, 
         _startDateTime: isNaN(startDateTime.getTime()) ? new Date() : startDateTime 
       };
-    });
+    }).sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime()); // Ordenação cronológica rigorosa
   }, [events, filters]);
 
   return visibleEvents;
