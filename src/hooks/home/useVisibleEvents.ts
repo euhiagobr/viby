@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -27,13 +26,17 @@ export function useVisibleEvents(events: any[], filters: { searchName: string, s
       if (userLocation && e.latitude && e.longitude) {
         distMeters = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
       }
-      const startDateTime = new Date(e.date);
+      
+      // Garante que a data seja um objeto Date válido para o sort
+      const dateStr = e.date?.toDate ? e.date.toDate().toISOString() : e.date;
+      const startDateTime = new Date(dateStr);
+      
       return { 
         ...e, 
         _distanceMeters: distMeters, 
         _startDateTime: isNaN(startDateTime.getTime()) ? new Date() : startDateTime 
       };
-    }).sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime()); // Ordenação cronológica rigorosa
+    }).sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
   }, [events, filters]);
 
   return visibleEvents;

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -289,7 +288,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               <span className="text-[8px] font-black uppercase opacity-30 w-full mb-1">Outras datas:</span>
               {event._nextOccurrences.slice(1, 3).map((occ: any, i: number) => (
                 <div key={i} className="px-2 py-0.5 bg-muted rounded-md text-[8px] font-bold text-muted-foreground uppercase">
-                  {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                  {new Date(`${occ.date}T12:00:00.000Z`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                 </div>
               ))}
             </div>

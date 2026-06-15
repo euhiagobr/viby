@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -43,7 +42,7 @@ export function useRecurringEvents(events: any[], now: Date | null) {
         if (myOccs.length > 0) {
           // Ordena cronologicamente
           const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
+            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '19:00'}:00.000Z`) }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
           // Localiza a primeira ocorrência que termina no futuro (threshold de 6h de tolerância)
@@ -53,11 +52,12 @@ export function useRecurringEvents(events: any[], now: Date | null) {
           });
 
           if (nextValid) {
-            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+            // Normaliza para string ISO UTC para consistência no sorting global
+            effectiveDate = `${nextValid.date}T${nextValid.startTime || '19:00'}:00.000Z`;
             
-            // Resolvemos o término baseado na ocorrência para evitar que o endDate antigo do pai esconda o evento
+            // Resolvemos o término baseado na ocorrência
             if (nextValid.endTime) {
-              effectiveEndDate = nextValid.date + 'T' + nextValid.endTime + ':00';
+              effectiveEndDate = `${nextValid.date}T${nextValid.endTime}:00.000Z`;
             } else {
               // Fallback: mantém a duração original ou 4h
               const dStart = new Date(e.date || 0).getTime();

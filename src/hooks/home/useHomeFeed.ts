@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
@@ -25,12 +24,14 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
   const featuredEvents = useFeaturedEvents(visibleEvents);
   
   const sponsoredEvents = useMemo(() => 
-    visibleEvents.filter(e => e.isSponsored === true), 
+    visibleEvents.filter(e => e.isSponsored === true)
+      .sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime()), 
     [visibleEvents]
   );
   
   const curatedEvents = useMemo(() => 
-    visibleEvents.filter(e => e.curationType === 'curadoria' && !e.isSponsored), 
+    visibleEvents.filter(e => e.curationType === 'curadoria' && !e.isSponsored)
+      .sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime()), 
     [visibleEvents]
   );
 
@@ -46,27 +47,24 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
     const feed: any[] = [];
     let adIndex = 0;
 
-    // 1. Patrocinados no topo
+    // 1. Patrocinados no topo (Já ordenados internamente)
     sponsoredEvents.forEach(ev => feed.push({ type: 'event', data: ev }));
 
-    // 2. Curadoria
+    // 2. Curadoria (Já ordenados internamente)
     curatedEvents.forEach(ev => feed.push({ type: 'event', data: ev }));
 
     // 3. Intercala Standard com Slots de Ads (Lógica 4-7-13-19...)
-    standardEvents.forEach((ev, i) => {
+    standardEvents.forEach((ev) => {
       feed.push({ type: 'event', data: ev });
-      const count = feed.filter(f => f.type === 'event').length;
+      const eventCount = feed.filter(f => f.type === 'event').length;
       
-      // Primeiro anúncio após 4 eventos
-      if (count === 4) {
+      if (eventCount === 4) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       } 
-      // Segundo anúncio após 7 eventos
-      else if (count === 7) {
+      else if (eventCount === 7) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       }
-      // Demais anúncios a cada 6 eventos subsequentes (13, 19, 25...)
-      else if (count > 7 && (count - 7) % 6 === 0) {
+      else if (eventCount > 7 && (eventCount - 7) % 6 === 0) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       }
     });
