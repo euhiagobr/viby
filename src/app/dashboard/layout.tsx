@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -21,6 +20,7 @@ import {
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { UserNav } from "@/components/layout/UserNav"
+import { cn } from "@/lib/utils"
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { currentOrg, organizations, setCurrentOrg } = useCurrentOrganization()
