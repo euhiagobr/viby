@@ -60,16 +60,23 @@ export async function fetchEventDataFromUrl(url: string, userId: string) {
 
     let response;
     try {
-      // Fetch com headers que simulam um navegador real para evitar bloqueios simples de WAF
+      // Fetch com headers que simulam um navegador real (macOS/Chrome) para evitar bloqueios
       response = await fetch(url, {
         method: 'GET',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
           'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
-          'Referer': 'https://www.google.com/',
+          'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"macOS"',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'Upgrade-Insecure-Requests': '1'
         },
         signal: controller.signal,
         next: { revalidate: 0 },
@@ -77,13 +84,14 @@ export async function fetchEventDataFromUrl(url: string, userId: string) {
       });
     } catch (fetchErr: any) {
       clearTimeout(timeoutId);
-      console.error(`[Event Import] Erro de rede:`, fetchErr.message);
+      console.error(`[Event Import] Erro de rede detalhado:`, fetchErr.message);
       
       if (fetchErr.name === 'AbortError') {
         throw new Error("Tempo de resposta esgotado (Timeout). O site de origem está lento.");
       }
       
-      throw new Error(`Falha de conexão: O site de origem (ex: Sympla/Ingresse) pode estar bloqueando requisições automatizadas vindas de servidores cloud.`);
+      // Mensagem genérica para quando o Node.js falha em abrir o socket (bloqueio de IP Cloud)
+      throw new Error(`O site de origem bloqueou a conexão. Isso geralmente acontece por proteções contra automação. Tente colar apenas o texto ou usar outra URL.`);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -91,7 +99,7 @@ export async function fetchEventDataFromUrl(url: string, userId: string) {
     if (!response.ok) {
       console.error(`[Event Import] HTTP Error: ${response.status}`);
       if (response.status === 403 || response.status === 401) {
-        throw new Error("Acesso negado pelo site de origem (403 Forbidden). Proteção anti-bot detectada.");
+        throw new Error("Acesso negado (403). O site de origem identificou o servidor como um robô.");
       }
       throw new Error(`O site de origem retornou erro ${response.status}.`);
     }
@@ -174,7 +182,7 @@ export async function fetchEventDataFromUrl(url: string, userId: string) {
     });
 
     if (!data.titulo) {
-      throw new Error("Não foi possível identificar informações estruturadas nesta página.");
+      throw new Error("Não foi possível identificar o título do evento nesta página.");
     }
 
     return { success: true, data };
