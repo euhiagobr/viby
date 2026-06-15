@@ -155,8 +155,8 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
-      // Limpeza de campos para garantir que o objeto seja serializável para a Server Action
-      const { ...cleanBaseData } = formData as any;
+      // Sanitização profunda para envio estável à Server Action
+      const cleanBaseData = JSON.parse(JSON.stringify(formData));
 
       const eventPayload = {
         ...cleanBaseData,

@@ -6,8 +6,7 @@ import { slugify } from '@/lib/slug-utils';
 import { normalizeEventDates } from '@/lib/utils';
 
 /**
- * @fileOverview Server Actions para gestão de eventos.
- * Implementação utilizando Timestamps nativos para consistência de consulta e ordenação.
+ * @fileOverview Server Actions para gestão de eventos com logs de auditoria.
  */
 
 async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string, eventData: any) {
@@ -54,11 +53,11 @@ export async function createEventAction(params: {
   eventData: any;
 }) {
   const db = getAdminDb();
+  console.log(`[createEventAction] Starting for org: ${params.orgId}`);
   
   try {
     const { eventData } = params;
     
-    // Normalização rigorosa de datas antes da conversão para Timestamp
     const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
     if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
 
@@ -67,11 +66,9 @@ export async function createEventAction(params: {
     const slug = await generateUniqueSlug(db, params.orgId, eventData.title);
     const eventRef = db.collection('events').doc();
     
-    // Conversão explícita para o tipo Date do motor V8 para que o Admin SDK crie Timestamps perfeitos
     const startDate = new Date(dateNormalization.startDate);
     const endDate = new Date(dateNormalization.endDate);
 
-    // Sanitização do payload: Remove campos de controle para evitar conflito de tipos
     const { 
       id: _id, 
       createdAt: _ca, 
@@ -86,7 +83,6 @@ export async function createEventAction(params: {
       ...sanitizedData,
       id: eventRef.id,
       slug,
-      // O campo 'date' é a chave principal de ordenação nas vitrines
       date: admin.firestore.Timestamp.fromDate(startDate),
       startDate: admin.firestore.Timestamp.fromDate(startDate),
       endDate: admin.firestore.Timestamp.fromDate(endDate),
@@ -99,6 +95,7 @@ export async function createEventAction(params: {
     };
 
     await eventRef.set(finalData);
+    console.log(`[createEventAction] Success! ID: ${eventRef.id}, Slug: ${slug}`);
 
     return { success: true, id: eventRef.id, slug };
   } catch (e: any) {
