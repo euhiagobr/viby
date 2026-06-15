@@ -6,7 +6,6 @@ import { useLandingEvents } from './useLandingEvents';
 import { useRecurringEvents } from './useRecurringEvents';
 import { useVisibleEvents } from './useVisibleEvents';
 import { useFeaturedEvents } from './useFeaturedEvents';
-import { useSponsoredEvents } from './useSponsoredEvents';
 import { useAds } from './useAds';
 import { type Coordinates } from '@/lib/location-utils';
 
@@ -62,7 +61,7 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
       if (count === 4) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       } 
-      // Segundo anúncio após 7 eventos (conforme solicitado: 7 eventos + 2 anúncios inicialmente)
+      // Segundo anúncio após 7 eventos
       else if (count === 7) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       }

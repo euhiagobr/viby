@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useFirestore } from '@/firebase';
-import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentSnapshot, Timestamp } from 'firebase/firestore';
 
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
@@ -20,16 +20,15 @@ export function useLandingEvents(initialEvents: any[] = []) {
     try {
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - 30);
-      const dateThreshold = thresholdDate.toISOString();
-
-      // Ajustado para os limites solicitados: 7 inicial, depois 3 em 3
-      // Buscamos um pouco mais para compensar possíveis eventos filtrados em memória
-      const fetchLimit = isInitial ? 10 : 5;
+      
+      // Buscamos um volume maior para compensar eventos passados/pais de recorrência
+      // e garantir que eventos normais futuros entrem no pool de processamento.
+      const fetchLimit = isInitial ? 35 : 15;
 
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
-        where("date", ">=", dateThreshold),
+        where("date", ">=", thresholdDate.toISOString()),
         orderBy("date", "asc"),
         ...(isInitial ? [limit(fetchLimit)] : [startAfter(lastVisible), limit(fetchLimit)])
       );
@@ -50,6 +49,8 @@ export function useLandingEvents(initialEvents: any[] = []) {
       if (snapshot.docs.length > 0) {
         setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
       }
+      
+      // Mantemos o carregamento infinito se retornou o limite solicitado
       setHasMore(snapshot.docs.length >= fetchLimit);
     } catch (e) {
       console.error("[useLandingEvents Error]", e);

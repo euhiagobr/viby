@@ -66,6 +66,7 @@ async function getInitialEvents() {
   try {
     const db = getAdminDb();
     
+    // Janela de 30 dias para capturar pais de recorrências ativas
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - 30);
     const dateThreshold = thresholdDate.toISOString();
@@ -74,7 +75,7 @@ async function getInitialEvents() {
       .where('status', '==', 'Ativo')
       .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
-      .limit(10) // Busca um pouco mais para garantir 7 visíveis após merge/filter
+      .limit(30) // Aumentado para garantir que alcancemos eventos futuros normais após os pais de recorrência
       .get();
       
     if (snap.empty) return [];
