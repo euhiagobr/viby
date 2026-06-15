@@ -2,10 +2,9 @@
 "use client"
 
 import * as React from "react"
-import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag, ShieldAlert } from "lucide-react"
+import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag, RefreshCw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -50,8 +49,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       return isNaN(d.getTime()) ? null : d;
     };
     
-    // Na fase de hidratação, não podemos usar Date() pois o tempo mudou.
-    // Usamos o início dos tempos como placeholder se a data do evento estiver faltando.
     const start = parseDate(event.date) || (mounted ? new Date() : new Date(0));
     let end = parseDate(event.endDate);
     
@@ -227,6 +224,11 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
             {mounted && !isEnded && (
               <div className="flex items-center gap-1.5">
                  <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/95 p-1 rounded-lg shadow-md" />
+                 {event.isRecurring && (
+                   <Badge className="bg-secondary text-white border-none shadow-md px-2 h-5 text-[7px] font-black uppercase flex items-center gap-1">
+                      <RefreshCw className="w-2 h-2 animate-spin-slow" /> {t('event.recurring_series', 'Série Recorrente')}
+                   </Badge>
+                 )}
               </div>
             )}
           </div>
@@ -240,7 +242,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
               )}
               {distanceMeters !== null && (
                 <Badge className="bg-white/95 text-secondary border-none shadow-md px-3 py-1.5 text-[10px] font-black uppercase flex items-center gap-1">
-                  <Navigation className="w-3 h-3 fill-secondary" /> {distanceMeters < 1000 ? `${distanceMeters} m de você` : `${(distanceMeters/1000).toFixed(1)} km de você`}
+                  <Navigation className="w-3 h-3 fill-secondary" /> {distanceMeters < 1000 ? `${distanceMeters} m` : `${(distanceMeters/1000).toFixed(1)} km`}
                 </Badge>
               )}
             </div>
@@ -264,7 +266,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
                 <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{t('event.when')}</p>
                 <div className="flex items-center gap-1 text-[11px] font-black text-primary">
                    <Calendar className="w-3 h-3 text-secondary" />
-                   <span>
+                   <span className="whitespace-nowrap">
                       {mounted ? (
                         <>
                           {eventDates.start.toLocaleDateString(language, { day: '2-digit', month: 'short' })}
@@ -281,6 +283,17 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
                 {pricingDisplay}
              </div>
           </div>
+
+          {event.isRecurring && event._nextOccurrences?.length > 1 && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              <span className="text-[8px] font-black uppercase opacity-30 w-full mb-1">Outras datas:</span>
+              {event._nextOccurrences.slice(1, 3).map((occ: any, i: number) => (
+                <div key={i} className="px-2 py-0.5 bg-muted rounded-md text-[8px] font-bold text-muted-foreground uppercase">
+                  {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="w-full h-10 bg-primary text-white flex items-center justify-center font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
              {isCuradoria ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
