@@ -1,9 +1,8 @@
-
 'use client';
 
 import { useMemo } from 'react';
 import { normalizeText } from '@/lib/utils';
-import { calculateDistanceMeters } from '@/lib/event-scoring-utils';
+import { calculateDistanceMeters, isEventVisible } from '@/lib/event-scoring-utils';
 import { type Coordinates } from '@/lib/location-utils';
 
 export function useVisibleEvents(events: any[], filters: { searchName: string, searchCity: string, userLocation: Coordinates | null, now: Date | null }) {
@@ -11,13 +10,8 @@ export function useVisibleEvents(events: any[], filters: { searchName: string, s
     const { searchName, searchCity, userLocation, now } = filters;
 
     return events.filter(e => {
-      const startMs = new Date(e.date).getTime();
-      if (isNaN(startMs)) return false;
-      const endMs = e.endDate ? new Date(e.endDate).getTime() : (startMs + 6 * 60 * 60 * 1000);
-      
-      // Durante hidratação (now == null), permitimos ver o evento se o endMs for futuro em relação ao servidor
-      const refNow = now || new Date();
-      if (refNow.getTime() >= endMs) return false;
+      // Usamos a utilidade centralizada para garantir consistência entre os componentes
+      if (!isEventVisible(e, now)) return false;
 
       // Filtros de busca
       const nameNorm = normalizeText(searchName);

@@ -18,11 +18,11 @@ export function calculateDistanceMeters(coords1: Coordinates, coords2: Coordinat
  * Regra: Eventos ativos cujo horário de encerramento ainda não passou.
  * Para eventos recorrentes, a visibilidade depende da próxima ocorrência válida.
  */
-export function isEventVisible(event: any): boolean {
+export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   if (!event || event.status !== 'Ativo') return false;
   
   // Garantir comparação em milissegundos absolutos para evitar problemas de fuso horário
-  const now = new Date().getTime();
+  const now = nowOverride ? nowOverride.getTime() : new Date().getTime();
   
   const parseDateToMs = (val: any) => {
     if (!val) return null;

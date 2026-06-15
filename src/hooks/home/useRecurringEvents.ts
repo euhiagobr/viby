@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -33,6 +32,7 @@ export function useRecurringEvents(events: any[], now: Date | null) {
 
     return events.map(e => {
       let effectiveDate = e.date;
+      let effectiveEndDate = e.endDate;
       let nextOccurrences: any[] = [];
       
       if (e.isRecurring && allOccurrences) {
@@ -53,6 +53,20 @@ export function useRecurringEvents(events: any[], now: Date | null) {
 
           if (nextValid) {
             effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+            
+            // Resolvemos o término baseado na ocorrência para evitar que o endDate antigo do pai esconda o evento
+            if (nextValid.endTime) {
+              effectiveEndDate = nextValid.date + 'T' + nextValid.endTime + ':00';
+            } else {
+              // Fallback: mantém a duração original ou 4h
+              const startParent = new Date(e.date).getTime();
+              const endParent = new Date(e.endDate).getTime();
+              const duration = (!isNaN(startParent) && !isNaN(endParent) && endParent > startParent) 
+                ? (endParent - startParent) 
+                : (4 * 60 * 60 * 1000);
+              effectiveEndDate = new Date(new Date(effectiveDate).getTime() + duration).toISOString();
+            }
+
             // Pega as 3 próximas datas para exibição no card
             nextOccurrences = sorted
               .filter(o => new Date(o._dt.getTime() + 6 * 60 * 60 * 1000) > refTime)
@@ -64,6 +78,7 @@ export function useRecurringEvents(events: any[], now: Date | null) {
       return { 
         ...e, 
         date: effectiveDate,
+        endDate: effectiveEndDate,
         _nextOccurrences: nextOccurrences 
       };
     });
