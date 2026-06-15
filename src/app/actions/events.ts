@@ -71,7 +71,7 @@ export async function createEventAction(params: {
     const startDate = new Date(dateNormalization.startDate);
     const endDate = new Date(dateNormalization.endDate);
 
-    // Sanitização final do payload
+    // Sanitização do payload: Remove campos de controle para evitar conflito de tipos
     const { 
       id: _id, 
       createdAt: _ca, 
@@ -79,7 +79,6 @@ export async function createEventAction(params: {
       date: _d, 
       startDate: _sd, 
       endDate: _ed,
-      organizer: _org,
       ...sanitizedData 
     } = eventData;
 
@@ -145,7 +144,6 @@ export async function updateEventAction(params: {
       date: _d, 
       startDate: _sd, 
       endDate: _ed, 
-      organizer: _org,
       ...sanitizedData 
     } = eventData;
 

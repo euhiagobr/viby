@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -129,7 +128,7 @@ export default function NovoEventoPage() {
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', 
       (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
-      () => setUploadProgress(null), 
+      () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) }, 
       async () => {
         const url = await getDownloadURL(uploadTask.snapshot.ref)
         setFormData(prev => ({ ...prev, image: url }))
@@ -156,11 +155,17 @@ export default function NovoEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
-      // Limpeza profunda para evitar erro de serialização na Server Action
+      // Limpeza e Desnormalização para permitir renderização imediata nas vitrines
       const { organizer, ...cleanBaseData } = formData as any;
 
       const eventPayload = {
         ...cleanBaseData,
+        organizer: {
+          id: currentOrg.id,
+          name: currentOrg.name,
+          username: currentOrg.username,
+          avatar: currentOrg.avatar || ""
+        },
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         capacidadeTotal: totalCapacity,
@@ -197,7 +202,6 @@ export default function NovoEventoPage() {
       }
 
       toast({ title: "Evento Publicado!" });
-      // Redireciona para a página pública do evento recém-criado
       router.push(`/${currentOrg.username}/${result.slug || result.id}`);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao publicar", description: error.message });
@@ -206,17 +210,13 @@ export default function NovoEventoPage() {
     }
   }
 
-  const isVibyOfficial = currentOrg?.id === VIBY_OFFICIAL_UID;
-  const isCurrentEventPaid = formData.type === 'interno' && 
-    batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
-
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild><Link href="/dashboard/projetos"><ArrowLeft className="w-5 h-5" /></Link></Button>
           <div>
-            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Novo Evento</h1>
+            <h1 className="text-3xl font-black italic tracking-tighter text-primary uppercase">Novo Evento</h1>
             <p className="text-muted-foreground font-medium">Preencha os detalhes para publicar sua experiência.</p>
           </div>
         </div>
@@ -261,27 +261,9 @@ export default function NovoEventoPage() {
                    disclosurePrices={formData.disclosurePrices}
                    onDisclosurePricesChange={v => setFormData({...formData, disclosurePrices: v})}
                    config={eventTypesSettings}
-                   forceShowStartingPrice={formData.curationType === 'curadoria'}
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
               </div>
-
-              {isVibyOfficial && (
-                <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-3">
-                   <Label className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
-                      <Star className="w-4 h-4 fill-secondary" /> Tipo de Vínculo (Exclusivo Viby)
-                   </Label>
-                   <Select value={formData.curationType} onValueChange={v => setFormData({...formData, curationType: v})}>
-                      <SelectTrigger className="rounded-xl h-11 bg-white border-none shadow-sm">
-                         <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                         <SelectItem value="realização">Realização Direta</SelectItem>
-                         <SelectItem value="curadoria">Curadoria de Terceiros</SelectItem>
-                      </SelectContent>
-                   </Select>
-                </div>
-              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
