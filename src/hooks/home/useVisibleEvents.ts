@@ -9,7 +9,7 @@ export function useVisibleEvents(events: any[], filters: { searchName: string, s
   const visibleEvents = useMemo(() => {
     const { searchName, searchCity, userLocation, now } = filters;
 
-    return events.filter(e => {
+    const processed = events.filter(e => {
       // Usamos a utilidade centralizada para garantir consistência entre os componentes
       if (!isEventVisible(e, now)) return false;
 
@@ -31,12 +31,26 @@ export function useVisibleEvents(events: any[], filters: { searchName: string, s
       const dateStr = e.date?.toDate ? e.date.toDate().toISOString() : e.date;
       const startDateTime = new Date(dateStr);
       
+      const finalDate = isNaN(startDateTime.getTime()) ? new Date() : startDateTime;
+
       return { 
         ...e, 
         _distanceMeters: distMeters, 
-        _startDateTime: isNaN(startDateTime.getTime()) ? new Date() : startDateTime 
+        _startDateTime: finalDate 
       };
-    }).sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
+    });
+
+    // Log para diagnosticar a ordenação
+    const sorted = [...processed].sort((a, b) => a._startDateTime.getTime() - b._startDateTime.getTime());
+    
+    console.log('[DEBUG-VIBY] Trace de Ordenação:', sorted.map(e => ({
+      title: e.title,
+      rawDate: e.date,
+      computedISO: e._startDateTime.toISOString(),
+      timestamp: e._startDateTime.getTime()
+    })));
+
+    return sorted;
   }, [events, filters]);
 
   return visibleEvents;
