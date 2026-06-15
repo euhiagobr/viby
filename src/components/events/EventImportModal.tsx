@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -13,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Link as LinkIcon, Loader2, Zap, Globe, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Link as LinkIcon, Loader2, Zap, Globe, AlertTriangle, CheckCircle2, Info, ShieldCheck } from 'lucide-react';
 import { fetchEventDataFromUrl } from '@/app/actions/event-import';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase';
