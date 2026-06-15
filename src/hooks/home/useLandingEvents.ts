@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useFirestore } from '@/firebase';
-import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, startAfter, DocumentSnapshot } from 'firebase/firestore';
 
 /**
  * Hook de busca de eventos para a Landing Page.
- * Threshold de 30 dias para capturar pais de recorrências ativas.
+ * Removido filtro de data do Firestore para suportar mixed-types (String/Timestamp)
+ * e garantir que pais de recorrências não sejam descartados precocemente.
  */
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
@@ -21,31 +22,24 @@ export function useLandingEvents(initialEvents: any[] = []) {
     
     setIsFetching(true);
     try {
-      const fetchLimit = isInitial ? 45 : 20;
-
-      // Threshold de 30 dias para resiliência de recorrência
-      const thresholdDate = new Date();
-      thresholdDate.setDate(thresholdDate.getDate() - 30); 
-      const dateThreshold = Timestamp.fromDate(thresholdDate);
+      // Carregamos lotes maiores no banco pois o filtro de visibilidade (vencidos) ocorre no cliente
+      const fetchLimit = isInitial ? 60 : 30;
 
       let q;
       if (isInitial) {
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
-          where("date", ">=", dateThreshold),
           orderBy("date", "asc"),
           limit(fetchLimit)
         );
       } else {
         const lastEvent = rawEvents[rawEvents.length - 1];
-        // Se a data for string (vinda do SSR), criamos um Date temporário para o cursor
         const cursor = lastVisible || (lastEvent?.date?.seconds ? lastEvent.date : (lastEvent?.date ? new Date(lastEvent.date) : null));
         
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
-          where("date", ">=", dateThreshold),
           orderBy("date", "asc"),
           startAfter(cursor),
           limit(fetchLimit)

@@ -10,10 +10,12 @@ import { type Coordinates } from '@/lib/location-utils';
 /**
  * Orquestrador do feed da Landing Page.
  * Unifica eventos, resolve recorrências e intercala anúncios.
+ * Implementa padrão 9 + 3 conforme solicitado.
  */
 export function useHomeFeed(initialEvents: any[], filters: { searchName: string, searchCity: string, userLocation: Coordinates | null }) {
   const [now, setNow] = useState<Date | null>(null);
-  const [displayLimit, setDisplayLimit] = useState(7);
+  // Primeiro carregamento exibe 9 eventos
+  const [displayLimit, setDisplayLimit] = useState(9);
 
   useEffect(() => {
     setNow(new Date());
@@ -28,6 +30,7 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
   const { ads } = useAds();
 
   const handleLoadMore = useCallback(() => {
+    // Carregamentos subsequentes adicionam 3 eventos
     const newLimit = displayLimit + 3;
     setDisplayLimit(newLimit);
     
@@ -49,7 +52,7 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
       
       const eventCount = idx + 1;
       
-      // Lógica de injeção de Ads solicitada:
+      // Lógica de injeção de Ads (intercalação dinâmica)
       // 1º Ad: após 4 eventos
       if (eventCount === 4 && ads.length > 0) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
@@ -58,7 +61,7 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
       else if (eventCount === 7 && ads.length > 1) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       }
-      // Ads subsequentes: ciclo de 6 eventos (13, 19, 25...)
+      // Ads subsequentes: ciclo a cada 6 eventos após o 7º (13, 19, 25...)
       else if (eventCount > 7 && (eventCount - 7) % 6 === 0 && ads.length > adIndex) {
         feed.push({ type: 'ad', adIndex: adIndex++ });
       }

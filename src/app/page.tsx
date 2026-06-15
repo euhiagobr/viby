@@ -60,16 +60,13 @@ async function getInitialEvents() {
   try {
     const db = getAdminDb();
     
-    // Usamos um threshold de 30 dias para garantir que pais de recorrências ativas não sumam
-    const thresholdDate = new Date();
-    thresholdDate.setDate(thresholdDate.getDate() - 30);
-    const dateThreshold = admin.firestore.Timestamp.fromDate(thresholdDate);
-
+    // Removido filtro de data rígido no banco para evitar conflitos de tipos (String vs Timestamp)
+    // e permitir que eventos recorrentes (cuja data base do pai é antiga) sejam localizados.
+    // A filtragem temporal agora acontece 100% no cliente através do pipeline de visibilidade.
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
-      .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
-      .limit(45)
+      .limit(60) // Carrega um lote maior para compensar a filtragem em memória
       .get();
       
     if (snap.empty) return [];
