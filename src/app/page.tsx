@@ -66,17 +66,18 @@ async function getInitialEvents() {
   try {
     const db = getAdminDb();
     
-    // REGRA DE NEGÓCIO: Buscar eventos que começaram há no máximo 12 horas ou que ainda vão começar
-    // Isso garante que peguemos eventos "em andamento" sem poluir com eventos encerrados de dias atrás.
-    const yesterday = new Date();
-    yesterday.setHours(yesterday.getHours() - 12);
-    const dateThreshold = yesterday.toISOString();
+    // REGRA DE NEGÓCIO: Buscar eventos que começaram há no máximo 30 dias ou que ainda vão começar.
+    // Usamos um threshold generoso para permitir que eventos recorrentes cujos "pais" têm data antiga
+    // entrem no pipeline e sejam resolvidos para suas datas futuras no cliente.
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - 30);
+    const dateThreshold = thresholdDate.toISOString();
 
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
-      .limit(12)
+      .limit(15)
       .get();
       
     if (snap.empty) return [];

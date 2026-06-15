@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import ExplorarClient from "./ExplorarClient"
@@ -18,22 +19,6 @@ function serializeData(data: any): any {
   if (data instanceof Date) return data.toISOString();
   if (Array.isArray(data)) return data.map(item => serializeData(item));
   if (typeof data === 'object') {
-    // Normalização de datas legadas para SSR
-    if (data.date && data.endDate && typeof data.date === 'string' && typeof data.endDate === 'string') {
-      const dStart = new Date(data.date);
-      let dEnd = new Date(data.endDate);
-      if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime()) && dEnd <= dStart) {
-        const startDay = dStart.toISOString().split('T')[0];
-        const endDay = dEnd.toISOString().split('T')[0];
-        if (startDay === endDay) {
-          dEnd.setDate(dEnd.getDate() + 1);
-          data.endDate = dEnd.toISOString();
-        }
-      }
-    }
-
-    const proto = Object.getPrototypeOf(data);
-    if (proto !== null && proto !== Object.prototype) return String(data);
     const serialized: any = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -48,10 +33,17 @@ function serializeData(data: any): any {
 async function getInitialEvents() {
   try {
     const db = getAdminDb();
+    
+    // Janela de 30 dias para capturar pais de recorrências ativas
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - 30);
+    const dateThreshold = thresholdDate.toISOString();
+
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
+      .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
-      .limit(9)
+      .limit(12)
       .get();
       
     const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -35,7 +36,7 @@ export function useRecurringEvents(events: any[], now: Date | null) {
       let effectiveEndDate = e.endDate;
       let nextOccurrences: any[] = [];
       
-      if (e.isRecurring && allOccurrences) {
+      if (e.isRecurring && allOccurrences && allOccurrences.length > 0) {
         // Filtra ocorrências pertencentes a este evento pai
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         
@@ -59,10 +60,10 @@ export function useRecurringEvents(events: any[], now: Date | null) {
               effectiveEndDate = nextValid.date + 'T' + nextValid.endTime + ':00';
             } else {
               // Fallback: mantém a duração original ou 4h
-              const startParent = new Date(e.date).getTime();
-              const endParent = new Date(e.endDate).getTime();
-              const duration = (!isNaN(startParent) && !isNaN(endParent) && endParent > startParent) 
-                ? (endParent - startParent) 
+              const dStart = new Date(e.date || 0).getTime();
+              const dEnd = new Date(e.endDate || 0).getTime();
+              const duration = (!isNaN(dStart) && !isNaN(dEnd) && dEnd > dStart) 
+                ? (dEnd - dStart) 
                 : (4 * 60 * 60 * 1000);
               effectiveEndDate = new Date(new Date(effectiveDate).getTime() + duration).toISOString();
             }
