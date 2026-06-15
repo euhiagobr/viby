@@ -61,10 +61,11 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
   const displayEvents = React.useMemo(() => {
     const source = rawEvents?.length > 0 ? rawEvents : initialEvents;
     const today = startOfToday();
+    const refTime = now || new Date();
     
     return source.map(e => {
       let effectiveDate = e.date;
-      if (e.isRecurring && allOccurrences && now) {
+      if (e.isRecurring && allOccurrences) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
@@ -73,7 +74,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
           
           const nextValid = sorted.find(o => {
             const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
-            return now < endThreshold;
+            return refTime < endThreshold;
           });
 
           if (nextValid) {
@@ -83,8 +84,8 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
       }
       return { ...e, date: effectiveDate };
     }).filter(event => {
-      // Filtro de visibilidade (Remove encerrados)
-      if (!isEventVisible(event, now)) return false;
+      // Filtro de visibilidade (Remove encerrados com base na hora real)
+      if (!isEventVisible(event, refTime)) return false;
 
       // Base Filter (LGBT)
       const byCategory = LGBT_CATEGORY_IDS.includes(event.categoryId)
@@ -103,8 +104,14 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
 
       // Date Filter
       if (dateFilter !== 'all') {
-        const dateStr = event.date?.toDate ? event.date.toDate().toISOString() : event.date;
-        const eventDate = new Date(dateStr);
+        const parseDate = (val: any) => {
+          if (!val) return null;
+          if (val.toDate) return val.toDate();
+          const d = new Date(val);
+          return isNaN(d.getTime()) ? null : d;
+        };
+
+        const eventDate = parseDate(event.date);
         if (!eventDate) return false;
 
         if (dateFilter === 'today') {
@@ -121,7 +128,6 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
 
       return true;
     }).sort((a, b) => {
-      // Ordenação Cronológica ASC
       const tA = new Date(a.date?.toDate ? a.date.toDate().toISOString() : a.date).getTime();
       const tB = new Date(b.date?.toDate ? b.date.toDate().toISOString() : b.date).getTime();
       return tA - tB;

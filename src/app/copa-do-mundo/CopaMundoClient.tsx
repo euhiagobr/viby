@@ -99,20 +99,20 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   const processedEvents = React.useMemo(() => {
     const cityNorm = normalizeText(searchCity);
     const searchNorm = normalizeText(search);
+    const refTime = now || new Date();
 
     return rawEvents.map(e => {
       let effectiveDate = e.date;
-      if (e.isRecurring && allOccurrences && now) {
+      if (e.isRecurring && allOccurrences) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
-          // Ordenação local para resolver próxima data
           const sorted = [...myOccs]
             .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '00:00'}:00`) }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
           const nextValid = sorted.find(o => {
             const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
-            return now < endThreshold;
+            return refTime < endThreshold;
           });
 
           if (nextValid) {
@@ -122,8 +122,8 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
-      // Filtro de encerramento (D+0 6h)
-      if (!isEventVisible(e, now)) return false;
+      // Filtro de visibilidade (Remove encerrados com base na hora real)
+      if (!isEventVisible(e, refTime)) return false;
       
       if (search && !normalizeText(e.title || "").includes(searchNorm)) return false;
       if (searchCity && !normalizeText(e.city || "").includes(cityNorm)) return false;
@@ -138,13 +138,13 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       }
 
       // Filtro de Data
-      if (now) {
+      if (refTime) {
         const dateStr = e.date?.toDate ? e.date.toDate().toISOString() : e.date;
         const eventDate = new Date(dateStr);
-        if (dateFilter === 'today' && eventDate.toDateString() !== now.toDateString()) return false;
+        if (dateFilter === 'today' && eventDate.toDateString() !== refTime.toDateString()) return false;
         if (dateFilter === 'week') {
           const nextWeek = new Date();
-          nextWeek.setDate(now.getDate() + 7);
+          nextWeek.setDate(refTime.getDate() + 7);
           if (eventDate > nextWeek) return false;
         }
       }
@@ -159,7 +159,6 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       const startDateTime = new Date(dateStr);
       return { ...e, _distanceMeters: dist, _startDateTime: isNaN(startDateTime.getTime()) ? new Date() : startDateTime };
     }).sort((a, b) => {
-      // Ordenação: Data (ASC) -> Distância (ASC)
       const timeDiff = a._startDateTime.getTime() - b._startDateTime.getTime();
       if (timeDiff !== 0) return timeDiff;
       return a._distanceMeters - b._distanceMeters;
@@ -191,7 +190,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
         
         <div className="container mx-auto px-4 relative z-10 py-20 text-center">
           <div className="max-w-4xl mx-auto space-y-10 flex flex-col items-center">
-            <Badge className="bg-[#ffdf00] text-[#002776] border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center gap-2 animate-bounce">
+            <Badge className="bg-[#ffdf00] text-[#002776] border-none px-4 py-1.5 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center gap-2 animate-pulse cursor-pointer">
               <Trophy className="w-3.5 h-3.5 fill-current" /> Rumo ao Hexa 2026
             </Badge>
             <h1 className="text-6xl md:text-9xl font-black uppercase italic tracking-tighter leading-[0.8]">
