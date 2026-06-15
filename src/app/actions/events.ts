@@ -45,6 +45,7 @@ async function generateUniqueSlug(db: admin.firestore.Firestore, orgId: string, 
 
     slug = `${baseSlug}-${counter}`;
     counter++;
+    if (counter > 10) return `${baseSlug}-${Math.random().toString(36).substring(2, 5)}`;
   }
 }
 
@@ -56,23 +57,36 @@ export async function createEventAction(params: {
   const db = getAdminDb();
   
   try {
-    const dateNormalization = normalizeEventDates(params.eventData.startDate, params.eventData.endDate);
+    console.log(`[createEventAction] Initing for Org: ${params.orgId} by User: ${params.userId}`);
+    
+    const { eventData } = params;
+    const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
+    
     if (!dateNormalization.isValid) {
       throw new Error(dateNormalization.error);
     }
 
-    await validateStripeAccount(db, params.orgId, params.eventData);
+    await validateStripeAccount(db, params.orgId, eventData);
 
-    const slug = await generateUniqueSlug(db, params.orgId, params.eventData.title);
-    
+    const slug = await generateUniqueSlug(db, params.orgId, eventData.title);
     const eventRef = db.collection('events').doc();
     
-    // Converte strings para Timestamps reais do Firestore
     const startDate = new Date(dateNormalization.startDate);
     const endDate = new Date(dateNormalization.endDate);
 
+    // Removemos campos que podem causar erro de serialização se vierem do client
+    const { 
+      id: _id, 
+      createdAt: _ca, 
+      updatedAt: _ua, 
+      date: _d, 
+      startDate: _sd, 
+      endDate: _ed, 
+      ...sanitizedData 
+    } = eventData;
+
     const finalData = {
-      ...params.eventData,
+      ...sanitizedData,
       id: eventRef.id,
       slug,
       date: admin.firestore.Timestamp.fromDate(startDate),
@@ -85,9 +99,11 @@ export async function createEventAction(params: {
     };
 
     await eventRef.set(finalData);
+    console.log(`[createEventAction] Success! Event ID: ${eventRef.id}`);
 
     return { success: true, id: eventRef.id, slug };
   } catch (e: any) {
+    console.error(`[createEventAction] Error:`, e.message);
     return { success: false, error: e.message };
   }
 }
@@ -102,12 +118,14 @@ export async function updateEventAction(params: {
   try {
     if (!params.eventId) throw new Error("ID do evento é obrigatório.");
 
-    const dateNormalization = normalizeEventDates(params.eventData.startDate, params.eventData.endDate);
+    const { eventData } = params;
+    const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
+    
     if (!dateNormalization.isValid) {
       throw new Error(dateNormalization.error);
     }
 
-    await validateStripeAccount(db, params.orgId, params.eventData);
+    await validateStripeAccount(db, params.orgId, eventData);
 
     const eventRef = db.collection('events').doc(params.eventId);
     const eventSnap = await eventRef.get();
@@ -116,15 +134,25 @@ export async function updateEventAction(params: {
     const oldData = eventSnap.data()!;
 
     let slug = oldData.slug;
-    if (slugify(params.eventData.title) !== slugify(oldData.title)) {
-      slug = await generateUniqueSlug(db, params.orgId, params.eventData.title, params.eventId);
+    if (slugify(eventData.title) !== slugify(oldData.title)) {
+      slug = await generateUniqueSlug(db, params.orgId, eventData.title, params.eventId);
     }
 
     const startDate = new Date(dateNormalization.startDate);
     const endDate = new Date(dateNormalization.endDate);
 
+    const { 
+      id: _id, 
+      createdAt: _ca, 
+      updatedAt: _ua, 
+      date: _d, 
+      startDate: _sd, 
+      endDate: _ed, 
+      ...sanitizedData 
+    } = eventData;
+
     const updatePayload = {
-      ...params.eventData,
+      ...sanitizedData,
       slug,
       date: admin.firestore.Timestamp.fromDate(startDate),
       startDate: admin.firestore.Timestamp.fromDate(startDate),
@@ -136,6 +164,7 @@ export async function updateEventAction(params: {
 
     return { success: true, slug };
   } catch (e: any) {
+    console.error(`[updateEventAction] Error:`, e.message);
     return { success: false, error: e.message };
   }
 }

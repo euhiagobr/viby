@@ -5,12 +5,12 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, serverTimestamp, doc, query, orderBy } from "firebase/firestore"
+import { collection, doc, query, orderBy } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, ShieldAlert, Building2, MapPin, Star, Landmark, ShieldCheck, AlertTriangle } from "lucide-react"
+import { Loader2, ArrowLeft, Building2, MapPin, Landmark, Star, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { normalizeText } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -52,7 +52,7 @@ export default function NovoEventoPage() {
   const { data: eventTypesSettings } = useDoc<any>(eventTypesSettingsRef);
 
   const [loading, setLoading] = useState(false)
-  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
     title: "",
@@ -62,6 +62,7 @@ export default function NovoEventoPage() {
     startingPrice: 0,
     disclosurePrices: [] as { price: number; untilTime: string }[],
     categoryId: "",
+    categoryName: "",
     ageRatingCode: "free",
     startDate: "",
     endDate: "",
@@ -78,13 +79,11 @@ export default function NovoEventoPage() {
       state: "", 
       country: "Brasil", 
       countryCode: "BR",
-      postalCode: "",
-      latitude: -23.55052, 
-      longitude: -46.633308,
+      postalCode: "", 
+      latitude: null, 
+      longitude: null,
       formattedAddress: ""
     },
-    isMultiLocation: false,
-    locations: [] as any[],
     isRecurring: false,
     frequency: "weekly",
     recurringEndDate: "",
@@ -93,25 +92,15 @@ export default function NovoEventoPage() {
     curationType: "realização"
   })
 
-  useEffect(() => {
-    if (dashboardCurrency && !formData.title && formData.currency !== dashboardCurrency) {
-      setFormData(prev => ({ ...prev, currency: dashboardCurrency }));
-    }
-  }, [dashboardCurrency, formData.title, formData.currency]);
-
   const [ticketMode, setTicketMode] = useState<any>('free')
   const [batches, setBatches] = useState<any[]>([])
   const [totalCapacity, setTotalCapacity] = useState(100)
-
-  const hasStripeAccount = !!currentOrg?.stripeAccountId;
-  const isVibyOfficial = currentOrg?.id === VIBY_OFFICIAL_UID;
 
   const handleUseOrgLocation = () => {
     if (!currentOrg?.address) {
       toast({ variant: "destructive", title: "Endereço não configurado", description: "Vá nas configurações da marca para definir o endereço da sede." });
       return;
     }
-    
     const orgAddr = currentOrg.address;
     setFormData(prev => ({
       ...prev,
@@ -144,26 +133,17 @@ export default function NovoEventoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!db || !user || !currentOrg) return
+    if (!db || !user) return
 
-    const isPublic = formData.status === 'Ativo';
-    if (isPublic) {
-      const { address } = formData;
-      if (!address.countryCode || !address.city || (!address.addressLine1 && !address.street) || !address.latitude || !address.longitude) {
-        toast({ 
-          variant: "destructive", 
-          title: "Localização Incompleta", 
-          description: "Eventos ativos exigem endereço completo e coordenadas no mapa." 
-        });
-        return;
-      }
+    if (!currentOrg) {
+      toast({ variant: "destructive", title: "Marca não selecionada", description: "Por favor, selecione ou crie uma organização antes de publicar." });
+      return;
     }
 
-    // Identificar se o evento é pago (Venda interna com preço > 0)
     const isPaid = formData.type === 'interno' && 
       batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
 
-    if (isPaid && !hasStripeAccount) {
+    if (isPaid && !currentOrg.stripeAccountId) {
       toast({ variant: "destructive", title: "Ação Bloqueada", description: "Para vender ingressos é necessário configurar sua conta de recebimento Stripe." });
       return;
     }
@@ -183,25 +163,28 @@ export default function NovoEventoPage() {
         return isNaN(d.getTime()) ? dStr : d.toISOString();
       };
 
-      const eventPayload: any = {
+      const eventData: any = {
         ...formData,
-        startDate: toISO(formData.startDate),
-        endDate: toISO(formData.endDate),
-        date: toISO(formData.startDate),
-        recurringEndDate: toISO(formData.recurringEndDate),
+        organizationId: currentOrg.id,
+        organizerId: user.uid,
         organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "" },
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         capacidadeTotal: totalCapacity,
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
+        date: toISO(formData.startDate),
+        startDate: toISO(formData.startDate),
+        endDate: toISO(formData.endDate),
+        recurringEndDate: toISO(formData.recurringEndDate),
         city: formData.address.city,
         location: formData.address.neighborhood || formData.address.venueName,
         latitude: formData.address.latitude,
         longitude: formData.address.longitude,
       }
 
-      const cleanData = JSON.parse(JSON.stringify(eventPayload, (key, value) => 
+      // Sanitização de tipos complexos para a fronteira da Server Action
+      const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => 
         value === undefined ? null : value
       ));
 
@@ -229,7 +212,7 @@ export default function NovoEventoPage() {
         });
       }
 
-      toast({ title: "Evento Publicado!" })
+      toast({ title: "Evento Publicado!", description: "Seu projeto já está disponível na rede." });
       router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao publicar", description: error.message })
@@ -238,17 +221,36 @@ export default function NovoEventoPage() {
     }
   }
 
+  const isVibyOfficial = currentOrg?.id === VIBY_OFFICIAL_UID;
   const isCurrentEventPaid = formData.type === 'interno' && 
     batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" asChild><Link href="/dashboard/organizacoes"><ArrowLeft className="w-5 h-5" /></Link></Button>
+        <div>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Novo Evento</h1>
+          <p className="text-muted-foreground font-medium">Preencha os detalhes para publicar sua experiência.</p>
         </div>
       </div>
+
+      {!currentOrg && (
+        <Card className="border-none shadow-xl rounded-[2rem] bg-orange-50 border-l-8 border-orange-500 animate-in zoom-in-95">
+           <CardContent className="p-8 flex items-start gap-4">
+              <ShieldAlert className="w-8 h-8 text-orange-600 shrink-0 mt-1" />
+              <div className="space-y-1">
+                 <h2 className="text-xl font-black uppercase italic tracking-tighter text-orange-800">Ação Necessária</h2>
+                 <p className="text-sm font-medium text-orange-700 leading-relaxed">
+                    Você precisa selecionar ou criar uma **Organização** antes de publicar um evento. Use o seletor na barra lateral esquerda.
+                 </p>
+                 <Button asChild className="mt-4 bg-orange-600 text-white font-black rounded-xl h-10 px-6 uppercase italic text-[10px]">
+                    <Link href="/dashboard/organizacoes/new">Criar minha Marca</Link>
+                 </Button>
+              </div>
+           </CardContent>
+        </Card>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <EventHeader 
@@ -291,22 +293,27 @@ export default function NovoEventoPage() {
                          <SelectItem value="curadoria">Curadoria de Terceiros</SelectItem>
                       </SelectContent>
                    </Select>
-                   <p className="text-[9px] font-bold text-muted-foreground uppercase italic px-1">
-                      Define o rótulo exibido acima do nome da marca no card do evento.
-                   </p>
                 </div>
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
-                   <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v})}>
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                   <Select 
+                    value={formData.categoryId} 
+                    onValueChange={v => {
+                      const cat = categories?.find(c => c.id === v);
+                      setFormData({...formData, categoryId: v, categoryName: cat?.name || ""})
+                    }}
+                   >
                       <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                       <SelectContent className="rounded-xl">
                          {categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                       </SelectContent>
                    </Select>
                 </div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Classificação</Label>
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase opacity-60">Classificação</Label>
                    <Select value={formData.ageRatingCode} onValueChange={v => setFormData({...formData, ageRatingCode: v})}>
                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-xl">
@@ -375,7 +382,7 @@ export default function NovoEventoPage() {
 
         {formData.type === 'interno' && (
           <div className="space-y-6">
-             {isCurrentEventPaid && !hasStripeAccount && (
+             {isCurrentEventPaid && !currentOrg?.stripeAccountId && (
                 <Card className="border-none shadow-xl rounded-[2rem] bg-white overflow-hidden animate-in zoom-in-95">
                    <div className="bg-orange-500 p-8 flex items-center text-white gap-4">
                       <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-xl border border-white/20">
@@ -407,7 +414,7 @@ export default function NovoEventoPage() {
           </div>
         )}
 
-        <Button type="submit" disabled={loading} className="w-full h-20 bg-secondary text-white font-black h-20 rounded-[2.5rem] shadow-xl uppercase italic text-xl transition-all active:scale-95">
+        <Button type="submit" disabled={loading || !currentOrg} className="w-full h-20 bg-secondary text-white font-black text-xl rounded-[2.5rem] shadow-xl uppercase italic transition-all active:scale-95">
           {loading ? <Loader2 className="animate-spin mr-2" /> : "Publicar Experiência"}
         </Button>
       </form>
