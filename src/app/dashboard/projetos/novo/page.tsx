@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -33,7 +34,7 @@ import {
   BilheteriaAdmin,
   EventRecurrence
 } from "@/components/events"
-import { getAgeRatingConfig } from "@/lib/rating-utils"
+import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { createEventAction } from "@/app/actions/events"
