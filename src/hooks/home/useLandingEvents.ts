@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -25,8 +24,9 @@ export function useLandingEvents(initialEvents: any[] = []) {
       const fetchLimit = isInitial ? 45 : 20;
 
       // Filtro de data usando Timestamp nativo para compatibilidade com o banco
+      // Usamos um threshold generoso de 24h atrás para não descartar eventos que estão no ar
       const thresholdDate = new Date();
-      thresholdDate.setHours(thresholdDate.getHours() - 12); // Janela generosa de visibilidade
+      thresholdDate.setHours(thresholdDate.getHours() - 24); 
       const dateThreshold = Timestamp.fromDate(thresholdDate);
 
       let q;

@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -85,6 +84,10 @@ export async function createEventAction(params: {
     const orgSnap = await db.collection('organizations').doc(params.orgId).get();
     const orgData = orgSnap.data();
 
+    if (!orgSnap.exists) {
+      throw new Error("Organização não localizada para o vínculo.");
+    }
+
     const finalData = {
       ...sanitizedData,
       id: eventRef.id,
@@ -97,9 +100,9 @@ export async function createEventAction(params: {
       organizerId: params.userId,
       organizer: {
         id: params.orgId,
-        name: orgData?.name || eventData.organizer?.name || "Organizador",
-        username: orgData?.username || eventData.organizer?.username || "evento",
-        avatar: orgData?.avatar || eventData.organizer?.avatar || ""
+        name: orgData?.name || "Organizador",
+        username: orgData?.username || "evento",
+        avatar: orgData?.avatar || ""
       },
       interestedCount: 0,
       ingressosVendidos: 0,
@@ -167,9 +170,9 @@ export async function updateEventAction(params: {
       endDate: admin.firestore.Timestamp.fromDate(endDate),
       organizer: {
         id: params.orgId,
-        name: orgData?.name || oldData.organizer?.name,
-        username: orgData?.username || oldData.organizer?.username,
-        avatar: orgData?.avatar || oldData.organizer?.avatar
+        name: orgData?.name || oldData.organizer?.name || "Organizador",
+        username: orgData?.username || oldData.organizer?.username || "evento",
+        avatar: orgData?.avatar || oldData.organizer?.avatar || ""
       },
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
