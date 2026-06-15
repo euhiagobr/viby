@@ -45,25 +45,44 @@ export async function fetchEventDataFromUrl(url: string, userId: string) {
       throw new Error("URL inválida ou insegura.");
     }
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-      },
-      next: { revalidate: 0 },
-      cache: 'no-store'
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"Windows"',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'Upgrade-Insecure-Requests': '1'
+        },
+        next: { revalidate: 0 },
+        cache: 'no-store'
+      });
+    } catch (fetchErr: any) {
+      console.error(`[Event Import] Erro crítico no fetch:`, fetchErr.message || fetchErr);
+      throw new Error(`Falha de conexão com o servidor de origem: ${fetchErr.message || 'Erro desconhecido'}`);
+    }
 
     if (!response.ok) {
       console.error(`[Event Import] Falha no fetch. Status: ${response.status} ${response.statusText}`);
-      throw new Error(`Falha ao carregar a página: ${response.status}`);
+      if (response.status === 403 || response.status === 401) {
+        throw new Error("Acesso negado pelo site de origem. Eles podem estar bloqueando robôs.");
+      }
+      throw new Error(`Falha ao carregar a página: ${response.status} ${response.statusText}`);
     }
 
     const html = await response.text();
     if (!html || html.length < 100) {
       console.error(`[Event Import] HTML retornado vazio ou muito curto.`);
-      throw new Error("O conteúdo da página não pôde ser lido.");
+      throw new Error("O conteúdo da página não pôde ser lido ou está vazio.");
     }
 
     const $ = cheerio.load(html);
@@ -96,8 +115,11 @@ export async function fetchEventDataFromUrl(url: string, userId: string) {
 
           if (event.offers) {
             const offers = Array.isArray(event.offers) ? event.offers : [event.offers];
-            data.precoMinimo = Math.min(...offers.map((o: any) => parseFloat(o.price)).filter(p => !isNaN(p)));
-            data.precoMaximo = Math.max(...offers.map((o: any) => parseFloat(o.price)).filter(p => !isNaN(p)));
+            const prices = offers.map((o: any) => parseFloat(o.price)).filter(p => !isNaN(p));
+            if (prices.length > 0) {
+              data.precoMinimo = Math.min(...prices);
+              data.precoMaximo = Math.max(...prices);
+            }
           }
           data.method = 'json-ld';
         }

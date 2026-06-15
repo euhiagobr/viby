@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Link as LinkIcon, Loader2, Zap, Globe, AlertTriangle, CheckCircle2, Info, ShieldCheck } from 'lucide-react';
+import { Link as LinkIcon, Loader2, Zap, Globe, Info, ShieldCheck } from 'lucide-react';
 import { fetchEventDataFromUrl } from '@/app/actions/event-import';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase';
@@ -30,15 +30,20 @@ export function EventImportModal({ onImport }: EventImportModalProps) {
   const handleImport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url || !auth?.currentUser) {
-      console.warn("[Viby Import] Usuário não autenticado ou URL vazia.");
       return;
     }
 
-    console.log(`[Viby Import] Solicitando importação da URL: ${url}`);
+    const cleanUrl = url.trim();
+    if (!cleanUrl.startsWith('http')) {
+      toast({ variant: "destructive", title: "URL Inválida", description: "O link deve começar com http ou https." });
+      return;
+    }
+
+    console.log(`[Viby Import] Solicitando importação da URL: ${cleanUrl}`);
     setLoading(true);
     
     try {
-      const result = await fetchEventDataFromUrl(url, auth.currentUser.uid);
+      const result = await fetchEventDataFromUrl(cleanUrl, auth.currentUser.uid);
       
       if (result.success) {
         console.log("[Viby Import] Dados recebidos com sucesso:", result.data);
@@ -48,11 +53,15 @@ export function EventImportModal({ onImport }: EventImportModalProps) {
         setUrl("");
       } else {
         console.error("[Viby Import] O servidor retornou um erro:", result.error);
-        throw new Error(result.error);
+        toast({ 
+          variant: "destructive", 
+          title: "Erro na importação", 
+          description: result.error || "O site de origem pode estar bloqueando a conexão." 
+        });
       }
     } catch (e: any) {
       console.error("[Viby Import] Erro capturado no frontend:", e.message);
-      toast({ variant: "destructive", title: "Erro na importação", description: e.message });
+      toast({ variant: "destructive", title: "Falha de rede", description: "Não foi possível completar a requisição ao servidor." });
     } finally {
       setLoading(false);
     }
@@ -105,14 +114,14 @@ export function EventImportModal({ onImport }: EventImportModalProps) {
              </div>
           </div>
 
-          <Button type="submit" disabled={loading || !url} className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic">
+          <Button type="submit" disabled={loading || !url.trim()} className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic">
             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <><Zap className="w-5 h-5 mr-2" /> Iniciar Importação</>}
           </Button>
         </form>
 
         <div className="p-4 bg-orange-50 border-t flex items-center justify-center gap-2">
            <ShieldCheck className="w-4 h-4 text-orange-600 opacity-60" />
-           <p className="text-[8px] font-black uppercase text-orange-800">Apenas para membros oficiais da organização Viby.</p>
+           <p className="text-[8px] font-black uppercase text-orange-800">Acesso restrito à curadoria oficial Viby.</p>
         </div>
       </DialogContent>
     </Dialog>
