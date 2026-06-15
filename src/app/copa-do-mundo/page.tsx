@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import CopaMundoClient from "./CopaMundoClient"
@@ -61,16 +62,24 @@ function serializeData(data: any): any {
 async function getCopaEvents() {
   try {
     const db = getAdminDb();
+    
+    // Janela de 30 dias para capturar pais de recorrências ativas
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - 30);
+    const dateThreshold = thresholdDate.toISOString();
+
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .where('tags', 'array-contains-any', COPA_TAGS)
+      .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
-      .limit(12)
+      .limit(20)
       .get();
       
     const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     return serializeData(events);
   } catch (e) {
+    console.error("[Copa Events Fetch Error]", e);
     return [];
   }
 }

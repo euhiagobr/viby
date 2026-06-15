@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -52,7 +53,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
 
   const [rawEvents, setRawEvents] = React.useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = React.useState<DocumentSnapshot | null>(null)
-  const [hasMore, setHasMore] = React.useState(initialEvents.length === 12)
+  const [hasMore, setHasMore] = React.useState(initialEvents.length >= 12)
   const [isFetching, setIsFetching] = React.useState(false)
 
   React.useEffect(() => {
@@ -76,17 +77,29 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
     if (!db || isFetching || !hasMore) return
     setIsFetching(true)
     try {
+      const thresholdDate = new Date();
+      thresholdDate.setDate(thresholdDate.getDate() - 30);
+      
+      const cursor = lastVisible || (rawEvents.length > 0 ? rawEvents[rawEvents.length - 1].date : null);
+
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
         where("tags", "array-contains-any", COPA_TAGS),
+        where("date", ">=", thresholdDate.toISOString()),
         orderBy("date", "asc"),
-        startAfter(lastVisible || (initialEvents.length > 0 ? initialEvents[initialEvents.length - 1]?.date : null)),
+        startAfter(cursor),
         limit(12)
       )
       const snap = await getDocs(q)
       const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      setRawEvents(prev => [...prev, ...newDocs])
+      
+      setRawEvents(prev => {
+        const existingIds = new Set(prev.map(i => i.id));
+        const filtered = newDocs.filter(f => !existingIds.has(f.id));
+        return [...prev, ...filtered];
+      });
+
       setLastVisible(snap.docs[snap.docs.length - 1] || null)
       setHasMore(snap.docs.length === 12)
     } catch (e) {
@@ -103,11 +116,14 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
 
     return rawEvents.map(e => {
       let effectiveDate = e.date;
-      if (e.isRecurring && allOccurrences) {
+      let effectiveEndDate = e.endDate;
+      let nextOccurrences: any[] = [];
+
+      if (e.isRecurring && allOccurrences && allOccurrences.length > 0) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '00:00'}:00`) }))
+            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '19:00'}:00`) }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
           const nextValid = sorted.find(o => {
@@ -117,12 +133,24 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
 
           if (nextValid) {
             effectiveDate = `${nextValid.date}T${nextValid.startTime || '19:00'}:00`;
+            
+            if (nextValid.endTime) {
+              effectiveEndDate = `${nextValid.date}T${nextValid.endTime}:00`;
+            } else {
+              const dStart = new Date(e.date || 0).getTime();
+              const dEnd = new Date(e.endDate || 0).getTime();
+              const duration = (!isNaN(dStart) && !isNaN(dEnd) && dEnd > dStart) ? (dEnd - dStart) : (4 * 60 * 60 * 1000);
+              effectiveEndDate = new Date(new Date(effectiveDate).getTime() + duration).toISOString();
+            }
+
+            nextOccurrences = sorted
+              .filter(o => new Date(o._dt.getTime() + 6 * 60 * 60 * 1000) > refTime)
+              .slice(0, 3);
           }
         }
       }
-      return { ...e, date: effectiveDate };
+      return { ...e, date: effectiveDate, endDate: effectiveEndDate, _nextOccurrences: nextOccurrences };
     }).filter(e => {
-      // Filtro de visibilidade (Remove encerrados com base na hora real)
       if (!isEventVisible(e, refTime)) return false;
       
       if (search && !normalizeText(e.title || "").includes(searchNorm)) return false;
@@ -181,7 +209,6 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
 
   return (
     <>
-      {/* THEMED HERO */}
       <section className="relative min-h-[70vh] flex items-center justify-center overflow-hidden bg-[#002776] text-white">
         <div className="absolute inset-0 opacity-20 pointer-events-none">
            <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/stadium/1920/1080')] bg-cover bg-center grayscale" />
@@ -246,7 +273,6 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
         </div>
       </section>
 
-      {/* FEED DE EVENTOS */}
       <section id="copa-feed" className="py-20 container mx-auto px-4 flex-1">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
           <div className="space-y-2">
