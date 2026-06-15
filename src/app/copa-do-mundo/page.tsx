@@ -64,19 +64,12 @@ async function getCopaEvents() {
   try {
     const db = getAdminDb();
     
-    // Janela de 30 dias para capturar pais de recorrências ativas
-    const thresholdDate = new Date();
-    thresholdDate.setDate(thresholdDate.getDate() - 30);
-    
-    // IMPORTANTE: Consulta deve usar admin.firestore.Timestamp para bater com o tipo do campo no banco
-    const dateThreshold = admin.firestore.Timestamp.fromDate(thresholdDate);
-
+    // Na Copa, queremos ver tudo o que está tagueado, mesmo que tenha sido criado há mais tempo
+    // Removemos o threshold rígido de data para garantir que o "pai" de recorrências seja encontrado
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .where('tags', 'array-contains-any', COPA_TAGS)
-      .where('date', '>=', dateThreshold)
-      .orderBy('date', 'asc')
-      .limit(20)
+      .limit(40)
       .get();
       
     const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));

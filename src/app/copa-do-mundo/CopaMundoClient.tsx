@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -64,32 +65,24 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   const { data: allOccurrences, loading: loadingOccs } = useCollection<any>(occurrencesQuery)
 
   const fetchMore = React.useCallback(async (isInitial = false) => {
-    if (!db || isFetching || (!isInitial && !hasMore)) return
+    if (!db || isFetching) return
     setIsFetching(true)
     try {
-      // Threshold de 60 dias para garantir captura de pais de séries longas
-      const thresholdDate = new Date();
-      thresholdDate.setDate(thresholdDate.getDate() - 60);
-      
       let q;
       if (isInitial) {
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
           where("tags", "array-contains-any", COPA_TAGS),
-          where("date", ">=", thresholdDate),
-          orderBy("date", "asc"),
-          limit(20)
+          limit(30)
         );
       } else {
-        const cursor = lastVisible || (rawEvents.length > 0 ? rawEvents[rawEvents.length - 1].date : null);
+        const cursor = lastVisible;
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
           where("tags", "array-contains-any", COPA_TAGS),
-          where("date", ">=", thresholdDate),
-          orderBy("date", "asc"),
-          startAfter(cursor),
+          ...(cursor ? [startAfter(cursor)] : []),
           limit(12)
         );
       }
@@ -114,7 +107,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
     } finally {
       setIsFetching(false)
     }
-  }, [db, isFetching, hasMore, lastVisible, rawEvents]);
+  }, [db, isFetching, lastVisible]);
 
   React.useEffect(() => {
     setNow(new Date())
@@ -140,7 +133,6 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       let effectiveEndDate = e.endDate;
       let nextOccurrences: any[] = [];
 
-      // Só tenta o merge se as ocorrências já tiverem carregado (evita sumiço temporário)
       if (e.isRecurring && allOccurrences && allOccurrences.length > 0) {
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
@@ -173,11 +165,12 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       }
       return { ...e, date: effectiveDate, endDate: effectiveEndDate, _nextOccurrences: nextOccurrences };
     }).filter(e => {
-      // Regra de Visibilidade: Eventos recorrentes não somem enquanto carregamos ocorrências
       if (!isEventVisible(e, refTime) && (!e.isRecurring || !loadingOccs)) return false;
       
-      if (search && !normalizeText(e.title || "").includes(searchNorm)) return false;
-      if (searchCity && !normalizeText(e.city || "").includes(cityNorm)) return false;
+      const titleMatch = !search || normalizeText(e.title || "").includes(searchNorm);
+      const cityMatch = !searchCity || normalizeText(e.city || "").includes(cityNorm);
+
+      if (!titleMatch || !cityMatch) return false;
 
       if (priceFilter !== 'all') {
         const minPrice = e.startingPrice ?? 0;
@@ -187,15 +180,9 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
         if (priceFilter === '100' && minPrice > 100) return false;
       }
 
-      if (refTime && dateFilter !== 'all') {
-        const dateStr = e.date?.toDate ? e.date.toDate().toISOString() : e.date;
-        const eventDate = new Date(dateStr);
+      if (dateFilter !== 'all') {
+        const eventDate = new Date(e.date?.toDate ? e.date.toDate().toISOString() : e.date);
         if (dateFilter === 'today' && eventDate.toDateString() !== refTime.toDateString()) return false;
-        if (dateFilter === 'week') {
-          const nextWeek = new Date();
-          nextWeek.setDate(refTime.getDate() + 7);
-          if (eventDate > nextWeek) return false;
-        }
       }
 
       return true;
@@ -204,9 +191,8 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       if (userLocation && e.latitude && e.longitude) {
         dist = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
       }
-      const dateStr = e.date?.toDate ? e.date.toDate().toISOString() : e.date;
-      const startDateTime = new Date(dateStr);
-      return { ...e, _distanceMeters: dist, _startDateTime: isNaN(startDateTime.getTime()) ? new Date() : startDateTime };
+      const eventDate = new Date(e.date?.toDate ? e.date.toDate().toISOString() : e.date);
+      return { ...e, _distanceMeters: dist, _startDateTime: isNaN(eventDate.getTime()) ? new Date() : eventDate };
     }).sort((a, b) => {
       const timeDiff = a._startDateTime.getTime() - b._startDateTime.getTime();
       if (timeDiff !== 0) return timeDiff;

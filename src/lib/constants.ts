@@ -27,10 +27,14 @@ export const EVENT_TYPES = [
 ];
 
 export const COPA_TAGS = [
-  "copa do mundo",
   "copa",
+  "copa do mundo",
+  "fifa",
   "world cup",
-  "fifa world cup",
-  "assistir copa",
-  "transmissão copa"
+  "hexa",
+  "brasil",
+  "torcida",
+  "futebol",
+  "copa2026",
+  "fifa world cup"
 ];
