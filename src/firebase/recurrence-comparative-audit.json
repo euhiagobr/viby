@@ -1,0 +1,50 @@
+
+{
+  "audit_version": "1.1.0",
+  "subject": "Análise de Disparidade em Eventos Recorrentes",
+  "pages_mapped": {
+    "LandingPageClient.tsx": {
+      "queries": [
+        "collection(db, 'events') com filtros: status == 'Ativo', date >= threshold",
+        "collection(db, 'recurring_occurrences') com filtros: status == 'active', date >= yesterdayStr"
+      ],
+      "recurrence_logic": "Habilitada. Executa map em rawEvents, filtra allOccurrences por parentId, resolve data efetiva e ordena.",
+      "status": "CORRETO"
+    },
+    "ExplorarClient.tsx": {
+      "queries": [
+        "collection(db, 'events') com filtros: status == 'Ativo'",
+        "collection(db, 'recurring_occurrences') com filtros: status == 'active', date >= yesterdayStr"
+      ],
+      "recurrence_logic": "Habilitada. Possui o bloco de merge e atualização de e.date no processedEvents.",
+      "status": "CORRETO"
+    },
+    "CopaMundoClient.tsx": {
+      "queries": [
+        "collection(db, 'events') com filtros: status == 'Ativo', tags array-contains-any COPA_TAGS"
+      ],
+      "recurrence_logic": "AUSENTE. Não carrega recurring_occurrences. Ignora o campo isRecurring.",
+      "status": "INCORRETO"
+    },
+    "LGBTClient.tsx": {
+      "queries": [
+        "collection(db, 'events') com filtros: status == 'Ativo'"
+      ],
+      "recurrence_logic": "AUSENTE. Não possui query para recurring_occurrences nem lógica de merge no displayEvents.",
+      "status": "INCORRETO"
+    }
+  },
+  "disparity_analysis": {
+    "root_cause": "As páginas CopaMundoClient e LGBTClient filtram apenas a coleção 'events', exibindo exclusivamente a data base do evento pai. A expansão para encontrar a 'Próxima Ocorrência' depende da carga da subcoleção de apoio que não foi implementada nestes arquivos.",
+    "missing_code_blocks": [
+      "useMemoFirebase(() => query(collection(db, 'recurring_occurrences'), ...))",
+      "const { data: allOccurrences } = useCollection(occurrencesQuery)",
+      "rawEvents.map(e => { if (e.isRecurring) { ... find next valid occurrence ... } })"
+    ],
+    "impact": "Eventos recorrentes nestas páginas exibem datas congeladas no passado (data de criação) ou param de aparecer quando a data pai expira, mesmo havendo sessões futuras ativas."
+  },
+  "correction_requirement": {
+    "minimal_fix": "Importar e replicar o pipeline de carga e merge de ocorrências presente na LandingPageClient para os arquivos CopaMundoClient e LGBTClient.",
+    "risk_level": "Baixo (Apenas adição de lógica de visualização já validada em outras partes do sistema)."
+  }
+}
