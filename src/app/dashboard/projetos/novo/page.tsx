@@ -2,9 +2,9 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { useAuth, useUser, useFirestore, useFirebaseApp, useMemoFirebase, useCollection, useDoc } from "@/firebase"
 import { collection, doc, query, orderBy } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent } from "@/components/ui/card"
@@ -25,8 +25,6 @@ import {
   BilheteriaAdmin,
   EventRecurrence
 } from "@/components/events"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
@@ -35,6 +33,10 @@ import { createEventAction } from "@/app/actions/events"
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fcapa.jpeg?alt=media";
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
+/**
+ * @fileOverview Rota oficial de criação de novos eventos.
+ * Consolidada como a única implementação para evitar duplicação arquitetural.
+ */
 export default function NovoEventoPage() {
   const router = useRouter()
   const db = useFirestore()
@@ -183,7 +185,6 @@ export default function NovoEventoPage() {
         longitude: formData.address.longitude,
       }
 
-      // Sanitização de tipos complexos para a fronteira da Server Action
       const cleanData = JSON.parse(JSON.stringify(eventData, (key, value) => 
         value === undefined ? null : value
       ));
@@ -384,7 +385,7 @@ export default function NovoEventoPage() {
           <div className="space-y-6">
              {isCurrentEventPaid && !currentOrg?.stripeAccountId && (
                 <Card className="border-none shadow-xl rounded-[2rem] bg-white overflow-hidden animate-in zoom-in-95">
-                   <div className="bg-orange-500 p-8 flex items-center text-white gap-4">
+                   <div className="bg-orange-50 p-8 flex items-center text-white gap-4">
                       <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-xl border border-white/20">
                          <Landmark className="w-6 h-6" />
                       </div>
