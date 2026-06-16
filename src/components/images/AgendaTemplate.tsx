@@ -23,11 +23,10 @@ interface AgendaTemplateProps {
 }
 
 /**
- * TEMPLATE AUDITADO (VIBY ENGINE v1.1)
- * Implementa Modo de Debug Visual e Cálculo estrito de Área Útil.
+ * TEMPLATE AUDITADO (VIBY ENGINE v1.2)
+ * Adicionado IDs e Classes para Auditoria Real (getBoundingClientRect).
  */
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
-  // CONFIGURAÇÃO DE RENDERIZAÇÃO ESTÁTICA (AUDITORIA)
   const config = {
     stories: { width: 1080, height: 1920, itemHeight: 180, headerMargin: 60, padding: 80, gap: 20 },
     instagram: { width: 1080, height: 1350, itemHeight: 200, headerMargin: 40, padding: 60, gap: 20 },
@@ -42,13 +41,11 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
   }[theme];
 
   const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : 'viby.club';
-
-  // ATIVE ESTE FLAG PARA VER AS BORDAS DE AUDITORIA
   const DEBUG_MODE = true; 
 
   return (
     <div 
-      className="viby-export-page"
+      className="viby-export-page viby-template-root"
       style={{ 
         width: `${config.width}px`, 
         height: `${config.height}px`, 
@@ -62,24 +59,27 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         boxSizing: 'border-box',
         position: 'relative',
         overflow: 'hidden',
-        border: DEBUG_MODE ? '5px solid red' : 'none' // AUDITORIA: LIMITE FÍSICO DO TEMPLATE
+        border: DEBUG_MODE ? '5px solid red' : 'none'
       }}
     >
       {/* Background Decor */}
       <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '600px', height: '600px', background: `${colors.accent}15`, borderRadius: '50%', filter: 'blur(100px)' }} />
 
-      {/* Header (Área Reservada: ~310px) */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'flex-end', 
-        marginBottom: `${config.headerMargin}px`, 
-        position: 'relative', 
-        zIndex: 10, 
-        flexShrink: 0, 
-        width: '100%', 
-        boxSizing: 'border-box' 
-      }}>
+      {/* Header */}
+      <div 
+        className="viby-header"
+        style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'flex-end', 
+          marginBottom: `${config.headerMargin}px`, 
+          position: 'relative', 
+          zIndex: 10, 
+          flexShrink: 0, 
+          width: '100%', 
+          boxSizing: 'border-box' 
+        }}
+      >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
            <div style={{ background: colors.accent, color: theme === 'copa' ? '#002776' : '#FFFFFF', padding: '8px 24px', borderRadius: '50px', width: 'fit-content', fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
               Agenda
@@ -89,26 +89,31 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
            </h1>
         </div>
         {logoUrl && (
-          <img src={logoUrl} style={{ height: '70px', maxWidth: '300px', objectFit: 'contain', flexShrink: 0 }} alt="Logo" />
+          <img src={logoUrl} className="viby-logo" style={{ height: '70px', maxWidth: '300px', objectFit: 'contain', flexShrink: 0 }} alt="Logo" />
         )}
       </div>
 
-      {/* ÁREA ÚTIL DE EVENTOS (Cálculo Rigoroso) */}
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        gap: `${config.gap}px`, 
-        flex: 1, 
-        position: 'relative', 
-        zIndex: 10, 
-        overflow: 'hidden', 
-        width: '100%', 
-        boxSizing: 'border-box',
-        border: DEBUG_MODE ? '3px solid blue' : 'none' // AUDITORIA: ÁREA ÚTIL DE RENDERIZAÇÃO
-      }}>
-        {events.map((ev) => (
+      {/* ÁREA ÚTIL DE EVENTOS */}
+      <div 
+        className="viby-events-container"
+        style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: `${config.gap}px`, 
+          flex: 1, 
+          position: 'relative', 
+          zIndex: 10, 
+          overflow: 'hidden', 
+          width: '100%', 
+          boxSizing: 'border-box',
+          border: DEBUG_MODE ? '3px solid blue' : 'none'
+        }}
+      >
+        {events.map((ev, idx) => (
           <div 
             key={ev.id} 
+            className="viby-card"
+            data-index={idx}
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -116,7 +121,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               background: colors.itemBg, 
               padding: '24px', 
               borderRadius: '40px',
-              border: DEBUG_MODE ? '2px solid green' : (theme === 'claro' ? '1px solid #E2E8F0' : '1px solid rgba(255,255,255,0.1)'), // AUDITORIA: LIMITE DO CARD
+              border: DEBUG_MODE ? '2px solid green' : (theme === 'claro' ? '1px solid #E2E8F0' : '1px solid rgba(255,255,255,0.1)'),
               boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
               boxSizing: 'border-box',
               width: '100%',
@@ -126,18 +131,18 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               overflow: 'hidden'
             }}
           >
-             <div style={{ width: '130px', height: '130px', borderRadius: '25px', overflow: 'hidden', flexShrink: 0 }}>
+             <div className="viby-card-image" style={{ width: '130px', height: '130px', borderRadius: '25px', overflow: 'hidden', flexShrink: 0 }}>
                 <img src={ev.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
              </div>
              
              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                <div className="viby-card-date" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
                    <span style={{ fontSize: '20px', fontWeight: 900, color: colors.accent, fontStyle: 'italic', whiteSpace: 'nowrap' }}>{formatTemplateDate(ev.date)}</span>
                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: colors.text, opacity: 0.3 }} />
                    <span style={{ fontSize: '16px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{formatTemplateTime(ev.date)}</span>
                 </div>
                 
-                <h2 style={{ 
+                <h2 className="viby-card-title" style={{ 
                   fontSize: '36px', 
                   fontWeight: 900, 
                   textTransform: 'uppercase', 
@@ -153,7 +158,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                    {shortenTitle(ev.title, 45)}
                 </h2>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5, flexShrink: 0 }}>
+                <div className="viby-card-location" style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5, flexShrink: 0 }}>
                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                       <circle cx="12" cy="10" r="3" />
@@ -165,20 +170,23 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         ))}
       </div>
 
-      {/* Footer (Área Reservada: ~100px) */}
-      <div style={{ 
-        marginTop: 'auto', 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        gap: '40px', 
-        padding: '30px 0 0 0', 
-        position: 'relative', 
-        zIndex: 10, 
-        flexShrink: 0, 
-        width: '100%', 
-        boxSizing: 'border-box' 
-      }}>
+      {/* Footer */}
+      <div 
+        className="viby-footer"
+        style={{ 
+          marginTop: 'auto', 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          gap: '40px', 
+          padding: '30px 0 0 0', 
+          position: 'relative', 
+          zIndex: 10, 
+          flexShrink: 0, 
+          width: '100%', 
+          boxSizing: 'border-box' 
+        }}
+      >
          <div style={{ flex: 1, height: '2px', background: colors.text, opacity: 0.1 }} />
          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
             <p style={{ fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>{siteUrl}</p>

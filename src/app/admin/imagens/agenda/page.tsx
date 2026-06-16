@@ -26,7 +26,9 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   AlertTriangle,
-  Info
+  Info,
+  ShieldCheck,
+  Terminal
 } from 'lucide-react';
 import { 
   Select, 
@@ -44,9 +46,6 @@ import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
 /**
  * CONFIGURAÇÃO DE CAPACIDADE AUDITADA (VIBY V.1)
- * Stories: Área Útil 1350px / (Card 180 + Gap 20) = 6.7 -> LIMITE 6
- * Feed: Área Útil 950px / (Card 200 + Gap 20) = 4.3 -> LIMITE 4
- * A4: Área Útil 1354px / (Card 210 + Gap 20) = 5.8 -> LIMITE 5
  */
 const ITEMS_PER_FORMAT = {
   stories: 6,
@@ -69,6 +68,7 @@ export default function AgendaGeneratorPage() {
   const [selectedEvents, setSelectedEvents] = React.useState<any[]>([]);
   const [isSearching, setIsSearching] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [isAuditing, setIsAuditing] = React.useState(false);
   
   const [format, setFormat] = React.useState<'A4' | 'instagram' | 'stories'>('stories');
   const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa'>('viby');
@@ -80,6 +80,78 @@ export default function AgendaGeneratorPage() {
 
   const containerRef = React.useRef<HTMLDivElement>(null);
 
+  // MOTOR DE AUDITORIA FORENSE (getBoundingClientRect)
+  const runForensicAudit = React.useCallback(() => {
+    if (!containerRef.current) return;
+    setIsAuditing(true);
+
+    console.clear();
+    console.group(`%c VIBY FORENSIC AUDIT - ${new Date().toLocaleTimeString()} `, 'background: #2C52EE; color: white; font-weight: bold; font-size: 14px;');
+
+    const pages = containerRef.current.querySelectorAll('.viby-export-page');
+    
+    pages.forEach((page, pIdx) => {
+      const pageEl = page as HTMLElement;
+      const rootRect = pageEl.getBoundingClientRect();
+      const scaleFactor = FORMAT_DIMENSIONS[format].width / rootRect.width;
+
+      console.group(`PÁGINA ${pIdx + 1} (${format}) - Escala Preview: ${rootRect.width.toFixed(0)}px (Alvo: ${FORMAT_DIMENSIONS[format].width}px)`);
+      
+      console.table({
+        'Template Root': { width: rootRect.width, height: rootRect.height, top: rootRect.top, bottom: rootRect.bottom }
+      });
+
+      // Medir Header
+      const header = pageEl.querySelector('.viby-header');
+      if (header) {
+        const hRect = header.getBoundingClientRect();
+        console.log(`%c Header: top ${hRect.top.toFixed(1)}, bottom ${hRect.bottom.toFixed(1)}, height ${hRect.height.toFixed(1)} `, 'color: #3b82f6');
+      }
+
+      // Medir Container de Eventos (Área Azul)
+      const container = pageEl.querySelector('.viby-events-container');
+      if (container) {
+        const cRect = container.getBoundingClientRect();
+        console.log(`%c Container Eventos (Área Azul): top ${cRect.top.toFixed(1)}, bottom ${cRect.bottom.toFixed(1)}, height ${cRect.height.toFixed(1)} `, 'color: #2C52EE; font-weight: bold');
+
+        // Medir cada Card (Área Verde)
+        const cards = container.querySelectorAll('.viby-card');
+        cards.forEach((card, cIdx) => {
+          const cardEl = card as HTMLElement;
+          const rect = cardEl.getBoundingClientRect();
+          const isOverflowing = rect.bottom > (cRect.bottom + 1); // Tolerância de 1px
+          const delta = rect.bottom - cRect.bottom;
+
+          console.log(
+            `%c Card ${cIdx + 1}: top ${rect.top.toFixed(1)}, bottom ${rect.bottom.toFixed(1)}, height ${rect.height.toFixed(1)} ${isOverflowing ? `!! TRANSBORDOU ${delta.toFixed(1)}px !!` : '(OK)'} `,
+            isOverflowing ? 'color: red; font-weight: bold' : 'color: green'
+          );
+
+          // Medir Elementos Internos
+          const title = cardEl.querySelector('.viby-card-title');
+          if (title) {
+            const tRect = title.getBoundingClientRect();
+            if (tRect.bottom > rect.bottom) console.warn(`   -> Título do card ${cIdx + 1} está vazando para baixo!`);
+            if (tRect.right > rect.right) console.warn(`   -> Título do card ${cIdx + 1} está vazando para a direita!`);
+          }
+        });
+      }
+
+      // Medir Footer
+      const footer = pageEl.querySelector('.viby-footer');
+      if (footer) {
+        const fRect = footer.getBoundingClientRect();
+        console.log(`%c Footer: top ${fRect.top.toFixed(1)}, bottom ${fRect.bottom.toFixed(1)}, height ${fRect.height.toFixed(1)} `, 'color: #8b5cf6');
+        if (fRect.bottom > rootRect.bottom) console.error(`   %c !! O RODAPÉ VAZOU PARA FORA DO TEMPLATE !! `, 'background: red; color: white');
+      }
+
+      console.groupEnd();
+    });
+
+    console.groupEnd();
+    setIsAuditing(false);
+  }, [format]);
+
   React.useEffect(() => {
     if (settings?.logoUrl) {
       fetchImageAsBase64(settings.logoUrl).then(res => {
@@ -90,6 +162,14 @@ export default function AgendaGeneratorPage() {
       if (res.success) setCopaLogoBase64(res.data || null);
     });
   }, [settings?.logoUrl]);
+
+  // Auditoria automática ao mudar eventos ou formato
+  React.useEffect(() => {
+    if (selectedEvents.length > 0) {
+      const timer = setTimeout(runForensicAudit, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedEvents.length, format, theme, runForensicAudit]);
 
   const handleSearch = async () => {
     if (!db || !searchTerm.trim() || isSearching) return;
@@ -139,15 +219,6 @@ export default function AgendaGeneratorPage() {
     for (let i = 0; i < selectedEvents.length; i += itemsPerPage) {
       pages.push(selectedEvents.slice(i, i + itemsPerPage));
     }
-    
-    // AUDITORIA DE CONSOLE
-    console.group(`[Viby Auditoria] Geração de Agenda - ${format}`);
-    console.log("Total de Eventos:", selectedEvents.length);
-    console.log("Itens por Página:", itemsPerPage);
-    console.log("Páginas Resultantes:", pages.length);
-    console.table(pages.map((p, i) => ({ página: i + 1, itens: p.length })));
-    console.groupEnd();
-
     return pages;
   }, [selectedEvents, format]);
 
@@ -177,18 +248,6 @@ export default function AgendaGeneratorPage() {
         link.click();
         
         await new Promise(r => setTimeout(r, 500));
-      }
-
-      if (db) {
-        await addDoc(collection(db, "generated_images_logs"), {
-          templateId: 'agenda',
-          templateName: 'Agenda da Semana',
-          format,
-          theme,
-          pagesCount: pages.length,
-          eventsCount: selectedEvents.length,
-          createdAt: serverTimestamp()
-        });
       }
 
       toast({ title: "Exportação concluída!" });
@@ -287,6 +346,13 @@ export default function AgendaGeneratorPage() {
                    </SelectContent>
                 </Select>
              </div>
+             
+             <Separator className="border-dashed" />
+             
+             <Button onClick={runForensicAudit} disabled={selectedEvents.length === 0} variant="outline" className="w-full h-12 rounded-xl border-dashed gap-2 font-black uppercase text-[10px] border-secondary text-secondary">
+                {isAuditing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Terminal className="w-4 h-4" />}
+                Executar Auditoria Real
+             </Button>
           </CardContent>
         </Card>
       </div>
@@ -351,12 +417,11 @@ export default function AgendaGeneratorPage() {
         </div>
 
         <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4 mx-2">
-           <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
+           <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
            <div className="space-y-1">
-              <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Nota de Layout e Debug</h4>
+              <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Relatório de Auditoria Forense</h4>
               <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-                 O sistema agora utiliza limites rigorosos de área útil: <span className="text-primary font-black">Stories (6), Feed (4), A4 (5)</span>. 
-                 A borda vermelha no preview indica o limite físico da exportação.
+                 Para visualizar os números exatos medidos pelo navegador (`getBoundingClientRect`), abra o Console (F12) e clique em **Executar Auditoria Real**. O sistema informará se houver transbordamento em pixels.
               </p>
            </div>
         </div>
