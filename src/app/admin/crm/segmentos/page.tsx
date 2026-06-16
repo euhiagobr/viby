@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -6,178 +7,138 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
   Users, 
-  Plus, 
-  Search, 
-  Loader2, 
   Target, 
   Building2,
   Ticket,
   User,
-  Inbox,
-  ChevronRight,
   Calculator,
-  Save
+  ChevronRight,
+  Filter,
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, getCountFromServer } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { collection, getCountFromServer, query, where } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
-import { toast } from '@/hooks/use-toast';
-import { createCrmSegmentAction } from '@/app/actions/crm-marketing';
 
-const TARGET_TYPES = [
-  { value: 'leads', label: 'Leads de Organizador', icon: Target, coll: 'organizer_leads' },
-  { value: 'users', label: 'Usuários na Base', icon: User, coll: 'users' },
-  { value: 'buyers', label: 'Compradores Reais', icon: Ticket, coll: 'registrations' },
-  { value: 'organizers', label: 'Marcas Ativas', icon: Building2, coll: 'organizations' },
+const PUBLIC_BASES = [
+  { id: 'users', label: 'Todos os Usuários', icon: User, coll: 'users' },
+  { id: 'buyers', label: 'Todos os Compradores', icon: Ticket, coll: 'registrations' },
+  { id: 'organizers', label: 'Todos os Organizadores', icon: Building2, coll: 'organizations' },
+  { id: 'leads', label: 'Todos os Leads', icon: Target, coll: 'organizer_leads' },
 ];
 
-export default function CrmSegmentsPage() {
+export default function CrmSegmentsRestructuringPage() {
   const db = useFirestore();
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<string>('leads');
-  const [estimatedCount, setEstimatedCount] = React.useState<number | null>(null);
-  const [loadingCount, setLoadingCount] = React.useState(false);
+  const [selectedBase, setSelectedBase] = React.useState<string | null>(null);
+  const [counts, setCounts] = React.useState<Record<string, number>>({});
+  const [loading, setLoading] = React.useState(true);
 
-  const segmentsQuery = useMemoFirebase(() => db ? query(collection(db, "crm_segmentos"), orderBy("createdAt", "desc")) : null, [db]);
-  const { data: segments, loading } = useCollection<any>(segmentsQuery);
-
-  // Calcula contagem REAL do segmento selecionado via Firestore
   React.useEffect(() => {
     if (!db) return;
-    const calculateCount = async () => {
-      setLoadingCount(true);
-      try {
-        const target = TARGET_TYPES.find(t => t.value === activeTab);
-        if (target) {
-          const snapshot = await getCountFromServer(collection(db, target.coll));
-          setEstimatedCount(snapshot.data().count);
-        }
-      } catch (e) {
-        setEstimatedCount(0);
-      } finally {
-        setLoadingCount(false);
+    const fetchCounts = async () => {
+      const results: any = {};
+      for (const base of PUBLIC_BASES) {
+        const snap = await getCountFromServer(collection(db, base.coll));
+        results[base.id] = snap.data().count;
       }
+      setCounts(results);
+      setLoading(false);
     };
-    calculateCount();
-  }, [db, activeTab]);
-
-  const handleCreateSegment = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    const formData = new FormData(e.currentTarget);
-    
-    try {
-      const res = await createCrmSegmentAction({
-        name: formData.get('name') as string,
-        description: formData.get('desc') as string,
-        targetType: activeTab,
-        estimatedCount: estimatedCount || 0
-      });
-      if (res.success) {
-        toast({ title: "Segmento real salvo!" });
-        (e.target as HTMLFormElement).reset();
-      } else throw new Error(res.error);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    fetchCounts();
+  }, [db]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-7">
-           <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-              <CardHeader className="bg-muted/30 border-b p-8">
-                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Construtor de Segmentos</CardTitle>
-                 <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-secondary">Baseado exclusivamente na audiência real da Viby</CardDescription>
-              </CardHeader>
-              <CardContent className="p-8">
-                 <form onSubmit={handleCreateSegment} className="space-y-8">
-                    <div className="space-y-6">
-                       <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Nome do Segmento</Label>
-                          <Input name="name" required className="rounded-xl h-12" placeholder="Ex: Todos os Leads Ativos" />
-                       </div>
-                    </div>
-
-                    <Separator className="border-dashed" />
-
-                    <div className="space-y-4">
-                       <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Audiência Alvo (Real)</Label>
-                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          {TARGET_TYPES.map(t => (
-                            <button 
-                              key={t.value}
-                              type="button"
-                              onClick={() => setActiveTab(t.value)}
-                              className={cn(
-                                "flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all gap-2",
-                                activeTab === t.value ? "bg-secondary text-white border-secondary shadow-lg" : "bg-white border-border hover:border-secondary/30"
-                              )}
-                            >
-                               <t.icon className="w-5 h-5" />
-                               <span className="text-[8px] font-black uppercase text-center leading-none">{t.label}</span>
-                            </button>
-                          ))}
-                       </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
-                       <div className="p-4 bg-secondary/5 rounded-2xl flex-1 border border-secondary/10 flex items-center justify-between w-full">
-                          <div className="space-y-0.5">
-                             <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">Audiência na Base</p>
-                             <div className="flex items-center gap-2">
-                               {loadingCount ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : (
-                                 <p className="text-xl font-black text-primary italic">
-                                   {estimatedCount?.toLocaleString() || "0"} <span className="text-[10px] font-bold">RECIPIENTES</span>
-                                 </p>
-                               )}
-                             </div>
-                          </div>
-                          <Calculator className="w-6 h-6 text-secondary opacity-30" />
-                       </div>
-                       <Button type="submit" disabled={isSubmitting || loadingCount} className="h-16 px-10 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic w-full sm:w-auto">
-                          {isSubmitting ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Segmento
-                       </Button>
-                    </div>
-                 </form>
-              </CardContent>
-           </Card>
-        </div>
-
-        <div className="lg:col-span-5 space-y-8">
-           <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-              <CardHeader className="bg-muted/30 border-b p-8"><CardTitle className="text-lg font-black uppercase italic tracking-tighter text-primary">Segmentos Ativos</CardTitle></CardHeader>
-              <CardContent className="p-0">
-                 {loading ? (
-                   <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
-                 ) : segments && segments.length > 0 ? (
-                    <div className="divide-y">
-                       {segments.map((s: any) => (
-                         <div key={s.id} className="p-6 flex items-center justify-between hover:bg-muted/5 transition-colors group">
-                            <div className="space-y-1">
-                               <p className="font-black text-sm uppercase italic text-primary leading-none">{s.name}</p>
-                               <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-[7px] font-black uppercase h-4 px-1.5">{s.targetType}</Badge>
-                                  <span className="text-[9px] font-bold text-muted-foreground uppercase">{s.estimatedCount?.toLocaleString() || "0"} pessoas</span>
-                               </div>
-                            </div>
-                            <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 text-muted-foreground/30"><ChevronRight className="w-4 h-4" /></Button>
-                         </div>
-                       ))}
-                    </div>
-                 ) : (
-                    <div className="p-20 text-center opacity-20 italic text-[10px] uppercase font-black">Nenhum segmento customizado</div>
-                 )}
-              </CardContent>
-           </Card>
-        </div>
+      <div className="flex flex-col gap-2">
+        <h2 className="text-2xl font-black uppercase italic text-primary">Construtor de Audiência</h2>
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Etapa 1: Seleção do Público-Base</p>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {PUBLIC_BASES.map((base) => (
+          <Card 
+            key={base.id} 
+            className={cn(
+              "border-2 transition-all cursor-pointer rounded-[2rem] overflow-hidden group",
+              selectedBase === base.id ? "border-secondary bg-secondary/5 shadow-xl" : "border-transparent bg-white hover:border-muted-foreground/20"
+            )}
+            onClick={() => setSelectedBase(base.id)}
+          >
+            <CardContent className="p-8 flex flex-col items-center text-center gap-6">
+               <div className={cn(
+                 "p-4 rounded-2xl transition-colors",
+                 selectedBase === base.id ? "bg-secondary text-white" : "bg-muted text-muted-foreground group-hover:bg-secondary/10 group-hover:text-secondary"
+               )}>
+                  <base.icon className="w-8 h-8" />
+               </div>
+               <div className="space-y-1">
+                  <h3 className="font-black text-sm uppercase italic text-primary">{base.label}</h3>
+                  <div className="flex items-center justify-center gap-2">
+                    {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : (
+                      <span className="text-2xl font-black text-primary">({counts[base.id] || 0})</span>
+                    )}
+                  </div>
+               </div>
+               {selectedBase === base.id && <CheckCircle2 className="w-6 h-6 text-green-600 animate-in zoom-in-50" />}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {selectedBase && (
+        <div className="space-y-8 animate-in slide-in-from-top-4 duration-500">
+           <div className="flex flex-col gap-2">
+              <h2 className="text-2xl font-black uppercase italic text-primary">Refinamento de Alvo</h2>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Etapa 2: Aplicar Filtros Dinâmicos</p>
+           </div>
+
+           <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+              <CardContent className="p-10">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                    <FilterGroup title="Localização" items={["Cidade", "Estado", "País"]} />
+                    <FilterGroup title="Comportamento" items={["Última Compra", "Total Gasto", "Data Cadastro"]} />
+                    <FilterGroup title="Engajamento" items={["Eventos Visitados", "Categorias", "Interesses"]} />
+                 </div>
+
+                 <Separator className="my-10 border-dashed" />
+
+                 <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-4 p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
+                       <Calculator className="w-5 h-5 text-secondary" />
+                       <div>
+                          <p className="text-[10px] font-black uppercase text-muted-foreground">Alcance Estimado</p>
+                          <p className="text-xl font-black text-primary italic">Processando filtros reais...</p>
+                       </div>
+                    </div>
+                    <Button className="h-16 px-10 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">
+                       Prosseguir p/ IA <ChevronRight className="w-5 h-5" />
+                    </Button>
+                 </div>
+              </CardContent>
+           </Card>
+        </div>
+      )}
     </div>
   );
 }
+
+function FilterGroup({ title, items }: { title: string, items: string[] }) {
+  return (
+    <div className="space-y-4">
+       <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary flex items-center gap-2">
+          <Filter className="w-3.5 h-3.5" /> {title}
+       </h4>
+       <div className="space-y-2">
+          {items.map(item => (
+            <div key={item} className="p-3 bg-muted/30 rounded-xl border border-border/50 text-[10px] font-bold uppercase text-muted-foreground flex justify-between items-center hover:bg-white hover:shadow-sm cursor-pointer transition-all">
+               {item}
+               <Plus className="w-3 h-3 opacity-30" />
+            </div>
+          ))}
+       </div>
+    </div>
+  );
+}
+
+import { Plus as PlusIcon } from "lucide-react";

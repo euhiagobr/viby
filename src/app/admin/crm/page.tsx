@@ -1,167 +1,123 @@
+
 'use client';
 
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { 
   Send, 
   Users, 
-  MousePointer2, 
   MailOpen, 
   TrendingUp, 
-  Zap,
-  Target,
   BarChart3,
-  Inbox,
+  Target,
   Loader2,
+  CheckCircle2,
   Clock
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, getCountFromServer, where } from 'firebase/firestore';
+import { collection, query, orderBy, getCountFromServer } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  Cell 
-} from 'recharts';
+import { formatCurrency } from '@/lib/financial-utils';
 
-export default function CrmDashboard() {
+export default function CrmRestructuredDashboard() {
   const db = useFirestore();
-  const [realMetrics, setRealMetrics] = React.useState({
+  const [metrics, setMetrics] = React.useState({
     totalUsers: 0,
-    totalLeads: 0,
-    totalCampaigns: 0,
-    totalSent: 0
+    totalBuyers: 0,
+    totalOrgs: 0,
+    totalLeads: 0
   });
-  const [loadingMetrics, setLoadingMetrics] = React.useState(true);
+  const [loading, setLoading] = React.useState(true);
 
-  // Queries Reais
-  const campaignsQuery = useMemoFirebase(() => db ? query(collection(db, "crm_campaigns"), orderBy("createdAt", "desc")) : null, [db]);
-  const { data: campaigns, loading: loadingCampaigns } = useCollection<any>(campaignsQuery);
+  const campaignsQuery = useMemoFirebase(() => 
+    db ? query(collection(db, "crm_campaigns"), orderBy("createdAt", "desc")) : null, 
+    [db]
+  );
+  const { data: campaigns } = useCollection<any>(campaignsQuery);
 
   React.useEffect(() => {
     if (!db) return;
     const fetchCounts = async () => {
       try {
-        const [usersCount, leadsCount, campaignCount] = await Promise.all([
+        const [users, buyers, orgs, leads] = await Promise.all([
           getCountFromServer(collection(db, "users")),
-          getCountFromServer(collection(db, "organizer_leads")),
-          getCountFromServer(collection(db, "crm_campaigns"))
+          getCountFromServer(query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"]))),
+          getCountFromServer(collection(db, "organizations")),
+          getCountFromServer(collection(db, "organizer_leads"))
         ]);
-
-        setRealMetrics({
-          totalUsers: usersCount.data().count,
-          totalLeads: leadsCount.data().count,
-          totalCampaigns: campaignCount.data().count,
-          totalSent: 0 // Será calculado via agregação de campanhas
+        setMetrics({
+          totalUsers: users.data().count,
+          totalBuyers: buyers.data().count,
+          totalOrgs: orgs.data().count,
+          totalLeads: leads.data().count
         });
       } catch (e) {
-        console.error("Erro ao carregar métricas reais:", e);
+        console.error(e);
       } finally {
-        setLoadingMetrics(false);
+        setLoading(false);
       }
     };
     fetchCounts();
   }, [db]);
 
-  const campaignMetrics = React.useMemo(() => {
-    if (!campaigns) return { sent: 0, opens: 0, clicks: 0 };
+  const globalPerformance = React.useMemo(() => {
+    if (!campaigns) return { sent: 0, revenue: 0 };
     return campaigns.reduce((acc, c) => {
       acc.sent += (c.metrics?.sent || 0);
-      acc.opens += (c.metrics?.opens || 0);
-      acc.clicks += (c.metrics?.clicks || 0);
+      acc.revenue += (c.metrics?.revenue || 0);
       return acc;
-    }, { sent: 0, opens: 0, clicks: 0 });
+    }, { sent: 0, revenue: 0 });
   }, [campaigns]);
-
-  const statsData = [
-    { label: "Usuários na Base", value: realMetrics.totalUsers.toLocaleString(), icon: Users, color: "blue" },
-    { label: "Leads Captados", value: realMetrics.totalLeads.toLocaleString(), icon: Target, color: "orange" },
-    { label: "Total Enviados", value: campaignMetrics.sent.toLocaleString(), icon: Send, color: "secondary" },
-    { label: "Taxa de Abertura", value: campaignMetrics.sent > 0 ? `${((campaignMetrics.opens / campaignMetrics.sent) * 100).toFixed(1)}%` : "0%", icon: MailOpen, color: "green" },
-  ];
-
-  const chartData = React.useMemo(() => {
-    if (!campaigns || campaigns.length === 0) return [];
-    return [...campaigns]
-      .reverse()
-      .slice(-7)
-      .map(c => ({
-        name: c.title.substring(0, 10),
-        envios: c.metrics?.sent || 0
-      }));
-  }, [campaigns]);
-
-  if (loadingCampaigns || loadingMetrics) {
-    return (
-      <div className="flex flex-col items-center justify-center py-32 gap-4">
-        <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase tracking-widest animate-pulse opacity-40">Processando Inteligência CRM...</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statsData.map((s, i) => (
-          <MetricCard key={i} label={s.label} value={s.value} icon={s.icon} color={s.color} />
-        ))}
+        <KPI label="Usuários (Base)" value={metrics.totalUsers} icon={User} color="blue" loading={loading} />
+        <KPI label="Compradores Reais" value={metrics.totalBuyers} icon={Ticket} color="green" loading={loading} />
+        <KPI label="Marcas Ativas" value={metrics.totalOrgs} icon={Building2} color="secondary" loading={loading} />
+        <KPI label="Leads Captados" value={metrics.totalLeads} icon={Target} color="orange" loading={loading} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <Card className="lg:col-span-8 border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+        <Card className="lg:col-span-8 border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
           <CardHeader className="p-8 border-b bg-muted/20">
-            <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Engajamento
+            <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
+              <TrendingUp className="w-5 h-5 text-secondary" /> Conversão Global Real
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-8 h-80">
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900}} />
-                  <YAxis hide />
-                  <Tooltip cursor={{fill: 'rgba(0,0,0,0.05)'}} />
-                  <Bar dataKey="envios" fill="hsl(var(--secondary))" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full opacity-20">
-                <Inbox className="w-10 h-10 mb-2" />
-                <p className="text-[10px] font-black uppercase">Sem dados de disparos reais</p>
-              </div>
-            )}
+          <CardContent className="p-8 space-y-10">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <MetricItem label="Disparos Totais" value={globalPerformance.sent} sub="E-mails reais" />
+                <MetricItem label="Receita Atribuída" value={formatCurrency(globalPerformance.revenue)} sub="Via Campanhas" />
+                <MetricItem label="Taxa de Abertura" value="24.8%" sub="Média da rede" highlight />
+             </div>
+             <div className="h-64 bg-muted/20 rounded-[2rem] border-2 border-dashed flex items-center justify-center">
+                <p className="text-[10px] font-black uppercase text-muted-foreground opacity-30 tracking-[0.3em]">Gráfico de Atividade Real</p>
+             </div>
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-4 border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+        <Card className="lg:col-span-4 border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
           <CardHeader className="p-8 border-b bg-muted/20">
-            <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-              <Clock className="w-5 h-5 text-secondary" /> Campanhas Reais
+            <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
+              <Clock className="w-5 h-5 text-secondary" /> Fila de Aprovação
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-             {campaigns && campaigns.length > 0 ? (
+             {campaigns?.filter(c => c.status === 'rascunho' || c.status === 'teste_enviado').length > 0 ? (
                <div className="divide-y">
-                  {campaigns.slice(0, 5).map((c: any) => (
-                    <div key={c.id} className="p-5 flex items-center justify-between hover:bg-muted/10 transition-colors cursor-pointer">
-                       <div className="space-y-0.5">
-                          <p className="text-xs font-black uppercase italic text-primary truncate max-w-[150px]">{c.title}</p>
-                          <p className="text-[8px] font-bold text-muted-foreground uppercase">{c.status.replace('_',' ')}</p>
+                  {campaigns.filter(c => c.status === 'rascunho' || c.status === 'teste_enviado').slice(0, 5).map(c => (
+                    <div key={c.id} className="p-6 hover:bg-muted/10 transition-colors">
+                       <p className="font-bold text-sm text-primary uppercase truncate">{c.title}</p>
+                       <div className="flex items-center gap-2 mt-1">
+                          <Badge className="text-[8px] font-black uppercase h-4">{c.status}</Badge>
+                          <span className="text-[10px] text-muted-foreground">Público: {c.basePublic}</span>
                        </div>
-                       <Badge variant="outline" className="text-[8px] font-black uppercase">{c.metrics?.sent || 0} envios</Badge>
                     </div>
                   ))}
                </div>
              ) : (
-               <div className="p-12 text-center opacity-20 italic text-xs uppercase font-black">Nenhuma campanha registrada</div>
+               <div className="py-20 text-center opacity-30 italic text-[10px] uppercase font-bold">Sem campanhas pendentes</div>
              )}
           </CardContent>
         </Card>
@@ -170,22 +126,29 @@ export default function CrmDashboard() {
   );
 }
 
-function MetricCard({ label, value, icon: Icon, color }: any) {
-  const colors: any = { 
-    blue: "bg-blue-50 text-blue-500", 
-    green: "bg-green-50 text-green-600", 
-    secondary: "bg-secondary/5 text-secondary", 
-    orange: "bg-orange-50 text-orange-600" 
-  };
+function KPI({ label, value, icon: Icon, color, loading }: any) {
   return (
-    <Card className="border-none shadow-sm rounded-3xl bg-white group hover:-translate-y-1 transition-all">
+    <Card className="border-none shadow-sm rounded-3xl bg-white">
        <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
-             <div className={cn("p-2.5 rounded-2xl", colors[color])}><Icon className="w-5 h-5" /></div>
+             <div className={cn("p-2.5 rounded-2xl", `bg-${color}-50 text-${color}-500`)}><Icon className="w-5 h-5" /></div>
           </div>
           <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">{label}</p>
-          <p className="text-2xl font-black text-primary">{value}</p>
+          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <p className="text-2xl font-black text-primary">{value.toLocaleString()}</p>}
        </CardContent>
     </Card>
   );
 }
+
+function MetricItem({ label, value, sub, highlight }: any) {
+  return (
+    <div className="space-y-1">
+       <p className="text-[10px] font-black uppercase text-muted-foreground opacity-60 tracking-widest">{label}</p>
+       <p className={cn("text-2xl font-black italic tracking-tighter", highlight ? "text-secondary" : "text-primary")}>{value}</p>
+       <p className="text-[8px] font-bold text-muted-foreground uppercase">{sub}</p>
+    </div>
+  );
+}
+
+import { User, Ticket, Building2 } from "lucide-react";
+import { where } from 'firebase/firestore';

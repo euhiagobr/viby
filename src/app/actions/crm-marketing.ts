@@ -3,8 +3,11 @@
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { revalidatePath } from 'next/cache';
 import { sendManualMarketingEmail } from './email';
+
+/**
+ * @fileOverview Server Actions para CRM e Fluxo de Aprovação de IA.
+ */
 
 export async function createCrmCampaignAction(data: any, creatorUid: string) {
   const db = getAdminDb();
@@ -14,7 +17,7 @@ export async function createCrmCampaignAction(data: any, creatorUid: string) {
       ...data,
       id: campaignRef.id,
       status: 'rascunho',
-      metrics: { sent: 0, delivered: 0, opens: 0, clicks: 0, unsubscribes: 0, conversions: 0, revenue: 0 },
+      metrics: { sent: 0, delivered: 0, opens: 0, clicks: 0, conversions: 0, revenue: 0 },
       createdBy: creatorUid,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -26,7 +29,7 @@ export async function createCrmCampaignAction(data: any, creatorUid: string) {
   }
 }
 
-export async function sendTestEmailAction(campaignId: string, adminUid: string) {
+export async function sendTestEmailAction(campaignId: string) {
   const db = getAdminDb();
   const testAddress = "viby@viby.club";
   
@@ -60,33 +63,6 @@ export async function approveCrmCampaignAction(campaignId: string, adminUid: str
       status: 'aprovado',
       approvedBy: adminUid,
       approvedAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function createCrmSegmentAction(data: any) {
-  const db = getAdminDb();
-  try {
-    const segmentRef = db.collection('crm_segmentos').doc();
-    await segmentRef.set({
-      ...data,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function toggleAutomationAction(ruleId: string, active: boolean) {
-  const db = getAdminDb();
-  try {
-    await db.collection('crm_automation_rules').doc(ruleId).update({
-      active,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
     return { success: true };

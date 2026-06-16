@@ -1,103 +1,48 @@
 
 {
   "entities": {
-    "User": {
-      "title": "Usuário",
-      "description": "Perfil pessoal e identidade de acesso. Utiliza padrão triplo de segurança para dados sensíveis (CPF).",
+    "CrmCampaign": {
+      "title": "Campanha de Marketing",
+      "description": "Campanha de e-mail marketing gerada via IA com fluxo de aprovação.",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "username": { "type": "string" },
-        "displayName": { "type": "string" },
-        "email": { "type": "string" },
-        "avatar": { "type": "string" },
-        "banner": { "type": "string", "description": "Capa do perfil (disponível apenas para usuários verificados)" },
-        "bio": { "type": "string" },
-        "cpfMasked": { "type": "string", "description": "CPF para exibição: ***.***.***-XX" },
-        "cpfHash": { "type": "string", "description": "Hash SHA256 determinístico para busca e unicidade" },
-        "needsCPFUpdate": { "type": "boolean", "description": "Sinaliza se a conta precisa migrar para o novo padrão seguro" },
-        "plan": { "type": "string", "enum": ["free", "pro", "top"] },
-        "walletBalance": { "type": "number" },
-        "isPartner": { "type": "boolean", "description": "Define se o usuário é um Parceiro Estratégico Viby" },
-        "isAffiliate": { "type": "boolean", "description": "Define se o usuário participa do programa Divulgue e Ganhe" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["uid", "username", "email", "cpfHash"]
-    },
-    "Lead": {
-      "title": "Lead de Organizador",
-      "description": "Captação e gestão de potenciais organizadores (CRM).",
-      "type": "object",
-      "properties": {
-        "nome": { "type": "string" },
-        "empresa": { "type": "string" },
-        "cidade": { "type": "string" },
-        "whatsapp": { "type": "string" },
-        "email": { "type": "string" },
-        "instagram": { "type": "string" },
-        "tipoEvento": { "type": "string" },
-        "publicoMedio": { "type": "string" },
-        "mensagem": { "type": "string" },
-        "status": { "type": "string", "enum": ["novo", "sem_contato", "contatado", "negociando", "aguardando_retorno", "convertido", "perdido", "arquivado"] },
-        "responsavel": { "type": "string" },
-        "origem": { "type": "string" },
-        "prioridade": { "type": "string", "enum": ["baixa", "media", "alta", "urgente"] },
-        "potencial": { "type": "string", "enum": ["baixo", "medio", "alto"] },
-        "observacoesInternas": { "type": "string" },
-        "ultimoContato": { "type": "string", "format": "date-time" },
-        "proximoFollowUp": { "type": "string", "format": "date-time" },
-        "dataConversao": { "type": "string", "format": "date-time" },
-        "stripeStatus": { "type": "string", "enum": ["sim", "nao", "pendente"] },
-        "eventosPublicados": { "type": "number" },
-        "valorNegociado": { "type": "number" },
-        "interessesComerciais": { "type": "array", "items": { "type": "string" } },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
+        "title": { "type": "string" },
+        "objective": { "type": "string" },
+        "basePublic": { "type": "string", "enum": ["users", "buyers", "organizers", "leads", "attendees"] },
+        "filters": { "type": "object" },
+        "status": { "type": "string", "enum": ["rascunho", "teste_enviado", "aprovado", "agendado", "enviando", "concluido"] },
+        "subject": { "type": "string" },
+        "preheader": { "type": "string" },
+        "contentHtml": { "type": "string" },
+        "targetCount": { "type": "number" },
+        "selectedEventIds": { "type": "array", "items": { "type": "string" } },
+        "brandVersion": { "type": "number" },
+        "createdBy": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "sent": { "type": "number" },
+            "delivered": { "type": "number" },
+            "opens": { "type": "number" },
+            "clicks": { "type": "number" },
+            "conversions": { "type": "number" },
+            "revenue": { "type": "number" }
+          }
+        }
       }
     },
-    "LeadHistory": {
-      "title": "Histórico do Lead",
-      "description": "Timeline de interações e alterações no CRM.",
+    "BrandKnowledge": {
+      "title": "Conhecimento da Marca",
+      "description": "Dados mestres da identidade Viby para orientação da IA.",
       "type": "object",
       "properties": {
-        "leadId": { "type": "string" },
-        "tipo": { "type": "string" },
-        "descricao": { "type": "string" },
-        "canal": { "type": "string" },
-        "resultado": { "type": "string" },
-        "usuarioResponsavel": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "Category": {
-      "title": "Categoria de Evento",
-      "description": "Classificação temática para eventos.",
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "slug": { "type": "string" },
-        "icon": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["name", "slug"]
-    },
-    "Occurrence": {
-      "title": "Ocorrência Recorrente",
-      "description": "Sessão individual de um evento recorrente.",
-      "type": "object",
-      "properties": {
-        "parentId": { "type": "string" },
-        "date": { "type": "string", "format": "date" },
-        "status": { "type": "string", "enum": ["active", "cancelled"] }
-      }
-    },
-    "Ad": {
-      "title": "Anúncio",
-      "description": "Campanha publicitária paga.",
-      "type": "object",
-      "properties": {
-        "organizationId": { "type": "string" },
-        "status": { "type": "string", "enum": ["Ativo", "Pendente", "Finalizado", "Rejeitado"] }
+        "identity": { "type": "object" },
+        "visual": { "type": "object" },
+        "urls": { "type": "object" },
+        "contacts": { "type": "object" },
+        "footerTemplate": { "type": "string" },
+        "version": { "type": "number" }
       }
     }
   },
@@ -105,29 +50,17 @@
     "providers": ["password", "google"]
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "User",
-      "description": "Perfis públicos e metadados de busca."
+    "/crm_campaigns/{campaignId}": {
+      "schema": "CrmCampaign",
+      "description": "Repositório de campanhas de e-mail marketing."
     },
-    "/organizer_leads/{leadId}": {
-      "schema": "Lead",
-      "description": "Central de Leads (CRM)."
+    "/settings/brand_knowledge": {
+      "schema": "BrandKnowledge",
+      "description": "Configuração única da identidade da marca."
     },
-    "/crm_lead_history/{historyId}": {
-      "schema": "LeadHistory",
-      "description": "Timeline de eventos do CRM."
-    },
-    "/categories/{categoryId}": {
-      "schema": "Category",
-      "description": "Lista global de categorias de eventos."
-    },
-    "/recurring_occurrences/{occId}": {
-      "schema": "Occurrence",
-      "description": "Sessões individuais para eventos recorrentes e Copa."
-    },
-    "/ads/{adId}": {
-      "schema": "Ad",
-      "description": "Gestão de campanhas patrocinadas."
+    "/settings/ai_config": {
+      "schema": "object",
+      "description": "Configurações de modelos e prompts globais."
     }
   }
 }
