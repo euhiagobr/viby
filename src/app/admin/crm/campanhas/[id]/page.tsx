@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { sendTestEmailAction, approveCrmCampaignAction } from '@/app/actions/crm-marketing';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from '@/components/ui/separator';
 
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();

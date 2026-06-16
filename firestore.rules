@@ -88,6 +88,27 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /crm_campaigns/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /crm_segmentos/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /crm_automation_rules/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /crm_templates/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /sent_emails/{id} {
+      allow read: if isAdmin();
+      allow create: if true;
+    }
+
     // Administradores
     match /system_admins/{adminId} {
       allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
