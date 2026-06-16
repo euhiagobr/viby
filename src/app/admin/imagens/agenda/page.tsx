@@ -36,6 +36,7 @@ import { toPng } from 'html-to-image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
+import { Separator } from '@/components/ui/separator';
 
 const ITEMS_PER_FORMAT = {
   stories: 7,
@@ -97,9 +98,15 @@ export default function AgendaGeneratorPage() {
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(ev => {
+          // Filtra por texto
           const title = normalizeText(ev.title || "");
           const tags = (ev.tags || []).map(t => normalizeText(t));
-          return title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
+          const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
+          
+          // REGRA: Não exibir eventos que já estão na lista
+          const isNotListed = !selectedEvents.some(s => s.id === ev.id);
+          
+          return matchesSearch && isNotListed;
         });
         
       setSearchResults(results);

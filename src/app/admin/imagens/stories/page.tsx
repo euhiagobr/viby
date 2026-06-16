@@ -82,7 +82,12 @@ export default function StoriesGeneratorPage() {
         .filter(ev => {
           const title = normalizeText(ev.title || "");
           const tags = (ev.tags || []).map(t => normalizeText(t));
-          return title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
+          const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
+          
+          // Oculta o que já está selecionado
+          const isNotSelected = ev.id !== selectedEvent?.id;
+
+          return matchesSearch && isNotSelected;
         });
       setSearchResults(results);
     } catch (e) {

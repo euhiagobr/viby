@@ -84,7 +84,12 @@ export default function CarouselGeneratorPage() {
         .filter(ev => {
            const title = normalizeText(ev.title || "");
            const tags = (ev.tags || []).map(t => normalizeText(t));
-           return title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
+           const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
+
+           // REGRA: Não exibir o que já está na fila
+           const isNotListed = !selectedEvents.some(s => s.id === ev.id);
+
+           return matchesSearch && isNotListed;
         });
       setSearchResults(results);
     } catch (e) {
