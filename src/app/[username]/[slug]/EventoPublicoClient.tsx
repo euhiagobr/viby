@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -185,6 +184,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
     const locationQuery = encodeURIComponent(addressLines.join(' '));
 
+    // CORREÇÃO: Resolução consistente de coordenadas para o mapa
+    const lat = event.latitude !== undefined && event.latitude !== null ? event.latitude : (event.address?.latitude !== undefined ? event.address.latitude : -23.55052);
+    const lng = event.longitude !== undefined && event.longitude !== null ? event.longitude : (event.address?.longitude !== undefined ? event.address.longitude : -46.633308);
+
+    console.log("[Viby-Audit] Renderizando Mapa Público:", { id: event.id, lat, lng });
+
     return (
       <div className="animate-in fade-in duration-700">
         <div className="relative h-[40vh] md:h-[60vh] w-full overflow-hidden">
@@ -237,7 +242,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
             <section className="space-y-6">
                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Localização</h3>
                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-                  <div className="h-64 w-full"><LocationMap latitude={event.latitude} longitude={event.longitude} interactive={false} onChange={() => {}} /></div>
+                  <div className="h-64 w-full"><LocationMap latitude={lat} longitude={lng} interactive={false} onChange={() => {}} /></div>
                   <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
                      <div className="space-y-1 text-center md:text-left">
                         {addressLines.map((line, idx) => (

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -12,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import { Loader2, ArrowLeft, Save, Handshake, Settings2, Ticket, RefreshCw, Eye, Star, Landmark, ShieldCheck, AlertTriangle } from "lucide-react"
 import Link from "next/link"
-import { normalizeText } from "@/lib/utils"
+import { normalizeText, normalizeEventDates } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -89,20 +88,32 @@ export default function EditarEventoPage() {
   useEffect(() => {
     if (event) {
       const legacyAddress = event.address || {};
+      
+      // LOG AUDITORIA INICIALIZAÇÃO
+      console.log("[Viby-Audit] Carregando evento para edição:", {
+        id: event.id,
+        top_lat: event.latitude,
+        top_lng: event.longitude,
+        nested_lat: legacyAddress.latitude,
+        nested_lng: legacyAddress.longitude
+      });
+
       const addr = {
         venueName: legacyAddress.venueName || event.location || "",
         addressLine1: legacyAddress.addressLine1 || legacyAddress.street || "",
         addressLine2: legacyAddress.addressLine2 || legacyAddress.complement || "",
         streetNumber: legacyAddress.streetNumber || legacyAddress.number || "",
-        neighborhood: legacyAddress.neighborhood || event.location || "",
+        neighborhood: legacyAddress.neighborhood || "",
         city: legacyAddress.city || event.city || "",
         stateRegion: legacyAddress.stateRegion || legacyAddress.state || event.state || "",
         country: legacyAddress.country || "Brasil",
         countryCode: legacyAddress.countryCode || "BR",
         postalCode: legacyAddress.postalCode || event.cep || "",
-        latitude: legacyAddress.latitude || event.latitude || null,
-        longitude: legacyAddress.longitude || event.longitude || null,
-        formattedAddress: legacyAddress.formattedAddress || ""
+        // CORREÇÃO: Verificação explícita contra null/undefined para permitir 0.00
+        latitude: legacyAddress.latitude !== undefined && legacyAddress.latitude !== null ? legacyAddress.latitude : (event.latitude !== undefined ? event.latitude : null),
+        longitude: legacyAddress.longitude !== undefined && legacyAddress.longitude !== null ? legacyAddress.longitude : (event.longitude !== undefined ? event.longitude : null),
+        formattedAddress: legacyAddress.formattedAddress || "",
+        isCustomized: legacyAddress.isCustomized || false
       };
 
       setFormData({
@@ -162,6 +173,14 @@ export default function EditarEventoPage() {
       return;
     }
 
+    // LOG AUDITORIA PRÉ-SAVE
+    console.log("[Viby-Audit] Preparando salvamento do evento:", {
+      id: eventId,
+      lat_to_save: formData.address.latitude,
+      lng_to_save: formData.address.longitude,
+      is_customized: formData.address.isCustomized
+    });
+
     setLoading(true)
     try {
       const searchKeywords = [
@@ -171,7 +190,6 @@ export default function EditarEventoPage() {
 
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
 
-      // Normalização de Datas para UTC (Prevenção de desvio de horário)
       const toISO = (dStr: string) => {
         if (!dStr) return null;
         const d = new Date(dStr);
@@ -190,7 +208,7 @@ export default function EditarEventoPage() {
         batches: formData.type === 'interno' ? batches : [],
         searchKeywords,
         city: formData.address.city,
-        location: formData.address.neighborhood || formData.address.venueName,
+        location: formData.address.neighborhood || formData.address.venueName || formData.address.city,
         latitude: formData.address.latitude,
         longitude: formData.address.longitude,
       }
@@ -222,7 +240,7 @@ export default function EditarEventoPage() {
       }
 
       toast({ title: "Evento Atualizado!" })
-      router.push(`/dashboard/organizacoes/${currentOrg.username}/events`)
+      router.push(`/${result.username}/${result.slug || eventId}`);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: error.message })
     } finally {

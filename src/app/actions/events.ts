@@ -91,6 +91,12 @@ export async function createEventAction(params: {
       throw new Error("Organização não localizada para o vínculo.");
     }
 
+    // CORREÇÃO: Sincronização explícita de coordenadas no save
+    const finalLat = sanitizedData.latitude !== undefined && sanitizedData.latitude !== null ? sanitizedData.latitude : (sanitizedData.address?.latitude || null);
+    const finalLng = sanitizedData.longitude !== undefined && sanitizedData.longitude !== null ? sanitizedData.longitude : (sanitizedData.address?.longitude || null);
+
+    console.log("[Viby-Action] Criando evento com coordenadas:", { lat: finalLat, lng: finalLng });
+
     const finalData = {
       ...sanitizedData,
       id: eventRef.id,
@@ -99,6 +105,8 @@ export async function createEventAction(params: {
       date: admin.firestore.Timestamp.fromDate(startDate),
       startDate: admin.firestore.Timestamp.fromDate(startDate),
       endDate: admin.firestore.Timestamp.fromDate(endDate),
+      latitude: finalLat,
+      longitude: finalLng,
       organizationId: params.orgId,
       organizerId: params.userId,
       organizer: {
@@ -165,12 +173,20 @@ export async function updateEventAction(params: {
     const orgSnap = await db.collection('organizations').doc(params.orgId).get();
     const orgData = orgSnap.data();
 
+    // CORREÇÃO: Sincronização explícita de coordenadas no update
+    const finalLat = sanitizedData.latitude !== undefined && sanitizedData.latitude !== null ? sanitizedData.latitude : (sanitizedData.address?.latitude || null);
+    const finalLng = sanitizedData.longitude !== undefined && sanitizedData.longitude !== null ? sanitizedData.longitude : (sanitizedData.address?.longitude || null);
+
+    console.log("[Viby-Action] Atualizando evento com coordenadas:", { id: params.eventId, lat: finalLat, lng: finalLng });
+
     const updatePayload = {
       ...sanitizedData,
       slug,
       date: admin.firestore.Timestamp.fromDate(startDate),
       startDate: admin.firestore.Timestamp.fromDate(startDate),
       endDate: admin.firestore.Timestamp.fromDate(endDate),
+      latitude: finalLat,
+      longitude: finalLng,
       organizer: {
         id: params.orgId,
         name: orgData?.name || oldData.organizer?.name || "Organizador",

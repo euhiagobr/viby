@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -62,6 +61,17 @@ const COUNTRIES = [
   { code: 'MX', name: 'México', postalLabel: 'Código Postal' },
 ];
 
+// Campos que, se alterados, devem disparar um novo geocoding automático
+const STRUCTURAL_FIELDS = [
+  'postalCode',
+  'addressLine1',
+  'streetNumber',
+  'neighborhood',
+  'city',
+  'stateRegion',
+  'countryCode'
+];
+
 interface EventLocationProps {
   address: Partial<AddressComponents>
   onChange?: (address: any) => void
@@ -82,9 +92,8 @@ export function EventLocation({ address, onChange, isPublic, className, status }
     return country?.postalLabel || "Postal Code";
   }, [address?.countryCode]);
 
-  // EFEITO: Geocodificação automática reativa baseada nos campos manuais
+  // EFEITO: Geocodificação automática reativa baseada apenas em campos estruturais
   React.useEffect(() => {
-    // Só dispara se o usuário não alterou o PIN manualmente e se temos dados mínimos
     if (address.isCustomized || !address.addressLine1 || !address.city || isPublic) return;
 
     const timer = setTimeout(async () => {
@@ -93,12 +102,13 @@ export function EventLocation({ address, onChange, isPublic, className, status }
       try {
         const coords = await getCoordinatesFromAddress(searchStr);
         if (coords && (coords.latitude !== address.latitude || coords.longitude !== address.longitude)) {
+          console.log("[Auto-Geocode] Nova posição detectada para endereço estrutural:", coords);
           onChange?.({ ...address, ...coords });
         }
       } catch (e) {
         console.warn("[Auto-Geocode] Silent fail.");
       }
-    }, 1500); // Debounce longo para não estourar cota da API enquanto digita
+    }, 2000); 
 
     return () => clearTimeout(timer);
   }, [
@@ -107,31 +117,10 @@ export function EventLocation({ address, onChange, isPublic, className, status }
     address.neighborhood, 
     address.city, 
     address.stateRegion, 
-    address.country,
+    address.countryCode,
     address.isCustomized,
     isPublic
   ]);
-
-  // Busca debounced automática para o campo de busca global
-  React.useEffect(() => {
-    if (!globalSearch || globalSearch.length < 3) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      setHasSearched(false);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      const results = await searchGlobalAddresses(globalSearch);
-      setSuggestions(results);
-      setHasSearched(true);
-      setShowSuggestions(true);
-      setIsSearching(false);
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [globalSearch]);
 
   const handleGlobalSearchManual = async () => {
     if (!globalSearch || globalSearch.length < 3) return;
@@ -145,7 +134,10 @@ export function EventLocation({ address, onChange, isPublic, className, status }
 
   const selectSuggestion = (data: any) => {
     const mapped = mapNominatimToAddress(data);
-    onChange?.({ ...address, ...mapped, isCustomized: false });
+    console.log("[Viby-Location] POI Selecionado via Autocomplete:", mapped);
+    // IMPORTANTE: isCustomized: true aqui garante que o auto-geocoder NÃO substitua as coordenadas precisas do POI
+    // por uma busca textual aproximada da rua/bairro posteriormente.
+    onChange?.({ ...address, ...mapped, isCustomized: true });
     setShowSuggestions(false);
     setGlobalSearch("");
     setHasSearched(false);
@@ -154,6 +146,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
   const handleMapChange = async (lat: number, lng: number) => {
     if (address.latitude?.toFixed(6) === lat.toFixed(6) && address.longitude?.toFixed(6) === lng.toFixed(6)) return;
 
+    console.log("[Viby-Location] Mapa alterado manualmente para:", lat, lng);
     setIsSearching(true);
     try {
       const result = await reverseGeocode(lat, lng);
@@ -163,7 +156,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
           ...result,
           latitude: lat,
           longitude: lng,
-          isCustomized: true // Marcamos como customizado para parar a auto-geocodificação
+          isCustomized: true 
         });
       } else {
         onChange?.({ ...address, latitude: lat, longitude: lng, isCustomized: true });
@@ -176,10 +169,14 @@ export function EventLocation({ address, onChange, isPublic, className, status }
   };
 
   const handleFieldChange = (field: string, value: any) => {
+    const isStructural = STRUCTURAL_FIELDS.includes(field);
+    
     onChange?.({
       ...address,
       [field]: value,
-      isCustomized: false // Permitimos que a automação tente re-posicionar o pin
+      // Se alterou um campo NÃO estrutural (nome, complemento), preservamos a customização/coordenadas atuais
+      // Se alterou campo estrutural, permitimos o recálculo automático se não estiver travado por customização manual
+      isCustomized: isStructural ? false : address.isCustomized 
     });
   };
 
@@ -216,7 +213,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
   };
 
   const isAtivo = status === 'Ativo';
-  const missingCoords = !address?.latitude || !address?.longitude;
+  const missingCoords = address?.latitude === null || address?.longitude === null;
 
   if (isPublic) {
     const addressLines = formatFullAddress(address);
@@ -233,8 +230,8 @@ export function EventLocation({ address, onChange, isPublic, className, status }
         <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
           <div className="h-64 w-full">
             <LocationMap 
-              latitude={address?.latitude || -23.55052} 
-              longitude={address?.longitude || -46.633308} 
+              latitude={address?.latitude ?? -23.55052} 
+              longitude={address?.longitude ?? -46.633308} 
               interactive={false} 
               onChange={() => {}} 
             />
@@ -277,7 +274,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                 <div className="flex items-center gap-2">
                   {address.isCustomized && (
                     <Badge variant="outline" className="text-[8px] font-black uppercase border-orange-200 text-orange-600 bg-orange-50 gap-1.5 h-6">
-                       <Edit3 className="w-3 h-3" /> Pin posicionado manualmente
+                       <Edit3 className="w-3 h-3" /> Pin fixado
                     </Badge>
                   )}
                   {isAtivo && missingCoords && (
@@ -397,14 +394,14 @@ export function EventLocation({ address, onChange, isPublic, className, status }
               <div className="space-y-4">
                  <Label className="text-[10px] font-black uppercase opacity-60 flex justify-between items-center">
                     Confirmação de Pin Geográfico
-                    {address.latitude && (
+                    {address.latitude !== null && (
                       <Badge className="bg-green-600 text-white border-none shadow-sm text-[8px] font-black uppercase h-5 px-2">Localizado</Badge>
                     )}
                  </Label>
                  <div className="h-[400px] w-full rounded-[2.5rem] overflow-hidden border-2 border-muted shadow-inner relative group/map bg-white">
                     <LocationMap 
-                      latitude={address?.latitude || -23.55052} 
-                      longitude={address?.longitude || -46.633308} 
+                      latitude={address?.latitude ?? -23.55052} 
+                      longitude={address?.longitude ?? -46.633308} 
                       onChange={handleMapChange}
                       interactive={true}
                     />
@@ -412,7 +409,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                       <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-20 flex items-center justify-center">
                          <div className="p-4 bg-white rounded-2xl shadow-xl flex items-center gap-3">
                             <Loader2 className="w-5 h-5 animate-spin text-secondary" />
-                            <span className="text-[10px] font-black uppercase text-primary">Ajustando Lente...</span>
+                            <span className="text-[10px] font-black uppercase text-primary">Sincronizando...</span>
                          </div>
                       </div>
                     )}
