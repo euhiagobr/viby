@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Fluxo Genkit para geração inteligente de campanhas de e-mail marketing.
@@ -6,6 +7,7 @@
 
 import { ai, z } from '@/ai/genkit';
 import { getAdminDb } from '@/lib/firebase/admin';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const GerarCampanhaEmailInputSchema = z.object({
   objetivo: z.string().describe('Objetivo da campanha (ex: reativar compradores inativos).'),
@@ -27,6 +29,7 @@ export async function gerarCampanhaEmail(input: z.infer<typeof GerarCampanhaEmai
 
 const prompt = ai.definePrompt({
   name: 'gerarCampanhaEmailPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: GerarCampanhaEmailInputSchema.extend({ eventsContext: z.array(z.any()) }) },
   output: { schema: GerarCampanhaEmailOutputSchema },
   prompt: `Você é o estrategista de marketing da Viby, uma plataforma líder em experiências culturais.
@@ -65,31 +68,46 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
     outputSchema: GerarCampanhaEmailOutputSchema,
   },
   async (input) => {
-    const db = getAdminDb();
-    
-    // Busca eventos REAIS ativos para alimentar o contexto da IA
-    const eventsSnap = await db.collection('events')
-      .where('status', '==', 'Ativo')
-      .orderBy('date', 'asc')
-      .limit(15)
-      .get();
-    
-    const eventsContext = eventsSnap.docs.map(d => {
-      const data = d.data();
-      return {
-        id: d.id,
-        title: data.title,
-        categoryName: data.categoryName || "Evento",
-        city: data.city || "Brasil",
-        startingPrice: data.startingPrice || 0
-      };
-    });
+    try {
+      const db = getAdminDb();
+      
+      console.log("[SERVER-AI] Buscando eventos reais para contexto...");
+      
+      // Busca eventos REAIS ativos para alimentar o contexto da IA
+      const eventsSnap = await db.collection('events')
+        .where('status', '==', 'Ativo')
+        .orderBy('date', 'asc')
+        .limit(15)
+        .get();
+      
+      const eventsContext = eventsSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title,
+          categoryName: data.categoryName || "Evento",
+          city: data.city || "Brasil",
+          startingPrice: data.startingPrice || 0
+        };
+      });
 
-    if (eventsContext.length === 0) {
-      throw new Error("Não há eventos ativos na plataforma para gerar a campanha.");
+      if (eventsContext.length === 0) {
+        throw new Error("Não há eventos ativos na plataforma para gerar a campanha.");
+      }
+
+      console.log(`[SERVER-AI] Contexto carregado com ${eventsContext.length} eventos. Chamando modelo...`);
+
+      const { output } = await prompt({ ...input, eventsContext });
+      
+      if (!output) {
+        throw new Error("O modelo de IA não retornou uma saída válida.");
+      }
+
+      console.log("[SERVER-AI] Geração concluída com sucesso.");
+      return output;
+    } catch (err: any) {
+      console.error("[SERVER-AI-ERROR] Falha no fluxo:", err);
+      throw err;
     }
-
-    const { output } = await prompt({ ...input, eventsContext });
-    return output!;
   }
 );

@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -10,7 +11,7 @@ import {
   Plus, 
   Search, 
   Loader2, 
-  Sparkles,
+  Sparkles, 
   Inbox,
   ChevronRight,
   Mail,
@@ -58,6 +59,8 @@ export default function CrmCampaignsPage() {
     const formData = new FormData(e.currentTarget);
     
     try {
+      console.log("[CRM-AI] Iniciando geração de campanha...");
+      
       // IA consulta eventos reais no servidor via Genkit Flow
       const aiResult = await gerarCampanhaEmail({
         objetivo: formData.get('objetivo') as string,
@@ -65,6 +68,8 @@ export default function CrmCampaignsPage() {
         ton: formData.get('tom') as string,
         maxEventos: 3
       });
+
+      console.log("[CRM-AI] Resposta da IA recebida com sucesso.");
 
       const campaignRes = await createCrmCampaignAction({
         title: formData.get('title') as string,
@@ -78,7 +83,12 @@ export default function CrmCampaignsPage() {
         router.push(`/admin/crm/campanhas/${campaignRes.id}`);
       } else throw new Error(campaignRes.error);
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Erro na IA", description: err.message });
+      console.error("[CRM-AI-ERROR] Falha na geração da campanha:", err);
+      toast({ 
+        variant: "destructive", 
+        title: "Erro na IA", 
+        description: err.message || "Consulte o console do navegador para detalhes." 
+      });
     } finally {
       setIsAiLoading(false);
     }

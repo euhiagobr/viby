@@ -1,10 +1,15 @@
 
-import {genkit, z} from 'genkit';
-import {googleAI} from '@genkit-ai/google-genai';
+import { genkit, z } from 'kit';
+import { googleAI } from '@genkit-ai/google-genai';
+
+/**
+ * @fileOverview Configuração central do Genkit v1.x.
+ */
 
 export const ai = genkit({
-  plugins: [googleAI()],
-  model: googleAI.model('gemini-1.5-flash'),
+  plugins: [
+    googleAI(),
+  ],
 });
 
 export { z };
