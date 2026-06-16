@@ -1,0 +1,68 @@
+
+{
+  "collections": {
+    "crm_campaigns": {
+      "description": "Campanhas de e-mail marketing geradas manualmente ou via IA.",
+      "fields": {
+        "title": "string",
+        "objective": "string",
+        "targetSegmentId": "string (ref:crm_segments)",
+        "status": "rascunho | teste_enviado | aguardando_aprovacao | aprovado | agendado | enviando | concluido | cancelado",
+        "tone": "profissional | entusiasmado | urgente | informativo",
+        "subject": "string",
+        "preheader": "string",
+        "contentHtml": "string",
+        "selectedEventIds": "array of strings",
+        "metrics": {
+          "sent": "number",
+          "delivered": "number",
+          "opens": "number",
+          "clicks": "number",
+          "unsubscribes": "number",
+          "conversions": "number",
+          "revenue": "number"
+        },
+        "testEmailSentAt": "timestamp",
+        "approvedBy": "string (UID)",
+        "approvedAt": "timestamp",
+        "scheduledAt": "timestamp",
+        "createdBy": "string (UID)",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
+    "crm_segments": {
+      "description": "Segmentos de público definidos por filtros dinâmicos.",
+      "fields": {
+        "name": "string",
+        "description": "string",
+        "targetType": "leads | users | buyers | organizers",
+        "filters": "map (JSON logic for filtering)",
+        "estimatedCount": "number",
+        "createdAt": "timestamp"
+      }
+    },
+    "crm_automation_rules": {
+      "description": "Regras para disparos automáticos baseados em gatilhos.",
+      "fields": {
+        "name": "string",
+        "trigger": "lead_signup | organizer_no_event | event_no_sales | inactive_buyer | inactive_user",
+        "delayDays": "number",
+        "templateId": "string",
+        "active": "boolean",
+        "createdAt": "timestamp"
+      }
+    },
+    "crm_email_logs": {
+      "description": "Log individual de cada e-mail disparado.",
+      "fields": {
+        "campaignId": "string",
+        "recipientEmail": "string",
+        "recipientId": "string",
+        "status": "sent | delivered | opened | clicked | failed",
+        "error": "string (opcional)",
+        "timestamp": "timestamp"
+      }
+    }
+  }
+}

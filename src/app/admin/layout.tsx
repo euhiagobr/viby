@@ -93,6 +93,7 @@ export default function AdminLayout({
   const navItems = [
     { title: 'Painel', url: '/admin', icon: LayoutDashboard, permission: 'dashboard.view' as any },
     { title: 'Leads (Organização)', url: '/admin/leads', icon: Target, permission: 'marketing.view' as any },
+    { title: 'CRM & Marketing', url: '/admin/crm', icon: Mail, permission: 'marketing.emails' as any },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays, permission: 'events.view' as any },
     { title: 'Recorrentes', url: '/admin/eventos-recorrentes', icon: RefreshCw, permission: 'events.view' as any },
     { title: 'Páginas', url: '/admin/paginas', icon: Building2, permission: 'organizations.view' as any },
@@ -103,7 +104,6 @@ export default function AdminLayout({
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone, permission: 'marketing.view' as any },
     { title: 'Cupons Globais', url: '/admin/cupons', icon: TicketPercent, permission: 'marketing.coupons' as any },
     { title: 'Campanhas', url: '/admin/campanhas', icon: Zap, permission: 'marketing.campaigns' as any },
-    { title: 'E-mail Marketing', url: '/admin/marketing', icon: Send, permission: 'marketing.emails' as any },
     { title: 'Fiscal / Impostos', url: '/admin/imposto', icon: Scale, permission: 'financial.view' as any },
     { title: 'Transferências', url: '/admin/transferencias', icon: SendHorizontal, permission: 'financial.payouts' as any },
     { title: 'Financeiro (Contas)', url: '/admin/financeiro', icon: Landmark, permission: 'financial.view' as any },
