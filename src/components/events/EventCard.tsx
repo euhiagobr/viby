@@ -34,7 +34,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const [mounted, setMounted] = React.useState(false);
   const [liveStatus, setLiveStatus] = React.useState<{ label: string; colorClass: string; icon?: any } | null>(null);
-  const [currentDisplayPrice, setCurrentDisplayPrice] = React.useState<any>(null);
 
   React.useEffect(() => {
     setMounted(true);
@@ -143,12 +142,11 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
-  const username = event.organizer?.username || "evento";
   const slugOrId = event.slug || event.id;
 
   return (
     <Link 
-      href={`/${username}/${slugOrId}`}
+      href={`/eventos/${slugOrId}`}
       className={cn(
         "group flex flex-col h-full overflow-hidden border-none shadow-md bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-2xl cursor-pointer relative",
         isSponsored && "ring-1 ring-secondary/20",

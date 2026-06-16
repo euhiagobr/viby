@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -379,7 +378,8 @@ export async function sendSupportTicketResponseEmail(data: { to: string; userNam
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const emailSettingsSnap = await getAdminDb().collection('settings').doc('email').get();
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
     const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const content = `

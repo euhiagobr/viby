@@ -61,11 +61,11 @@ function CommentItem({ comment, eventId, isAdmin, onDelete }: { comment: any, ev
             <span className="text-[11px] font-black uppercase tracking-tight text-primary">
               {author?.name || "Usuário"}
             </span>
-            {(author?.isVerified || author?.verified) && <BadgeCheck className="w-3 h-3 fill-blue-500 text-white" />}
+            {(author?.isVerified || author?.verified) && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white" />}
           </div>
           {canDelete && (
             <button onClick={(e) => { e.stopPropagation(); onDelete(comment.id); }} className="opacity-0 group-hover:opacity-100 text-destructive hover:scale-110 transition-all">
-              <Trash2 className="w-3 h-3" />
+              <Trash2 className="w-3.5 h-3" />
             </button>
           )}
         </div>
@@ -100,8 +100,8 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
   const endDate = event.endDate?.toDate ? event.endDate.toDate() : (event.endDate ? new Date(event.endDate) : new Date(eventDate.getTime() + 4 * 60 * 60 * 1000))
   const isEnded = endDate < new Date()
 
-  const username = event.organizer?.username || "evento"
-  const eventLink = `/${username}/${event.id}`
+  const slugOrId = event.slug || event.id;
+  const eventLink = `/eventos/${slugOrId}`
 
   // Comentários
   const commentsQuery = useMemoFirebase(() => {
@@ -200,7 +200,7 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
               <span className="text-sm font-black uppercase italic tracking-tighter text-primary">{event.organizer?.name || "Organizador"}</span>
               {isVerified && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white" />}
             </div>
-            <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">@{username}</span>
+            <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">@{event.organizer?.username}</span>
           </div>
         </div>
       </CardHeader>

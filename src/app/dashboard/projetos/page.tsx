@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -253,8 +252,8 @@ export default function MeusEventosPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events?.map((event: any) => {
             const time = formatTime(event.date);
-            const username = currentOrg.username;
-            const eventLink = `/${username}/${event.id}`;
+            const slugOrId = event.slug || event.id;
+            const eventLink = `/eventos/${slugOrId}`;
             
             return (
               <Card key={event.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all group rounded-[1.5rem] bg-white">

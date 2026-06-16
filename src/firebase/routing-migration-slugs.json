@@ -1,0 +1,21 @@
+{
+  "migration": {
+    "target": "Global Event Slugs",
+    "structure": {
+      "old": "/[username]/[slug]",
+      "new": "/eventos/[slug]"
+    },
+    "reason": "Simplify routing and improve SEO discoverability by removing the organization dependency from the primary event URL.",
+    "rules": {
+      "slug_uniqueness": "Slugs must now be globally unique in the 'events' collection.",
+      "redirects": "Permanent 301 redirects implemented in src/app/[username]/[slug]/page.tsx."
+    },
+    "impact_areas": [
+      "Metadata generation (Canonical URLs)",
+      "Internal linking (EventCard, Timeline, etc)",
+      "Admin/Dashboard management links",
+      "Email templates and shareable links",
+      "Sitemap generation"
+    ]
+  }
+}

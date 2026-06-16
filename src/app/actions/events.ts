@@ -25,14 +25,17 @@ async function validateStripeAccount(db: admin.firestore.Firestore, orgId: strin
   return true;
 }
 
-async function generateUniqueSlug(db: admin.firestore.Firestore, orgId: string, title: string, currentEventId?: string, manualSlug?: string) {
+/**
+ * Garante unicidade GLOBAL de slugs para a nova estrutura de rotas /eventos/[slug]
+ */
+async function generateUniqueSlug(db: admin.firestore.Firestore, title: string, currentEventId?: string, manualSlug?: string) {
   const baseSlug = manualSlug ? slugify(manualSlug) : slugify(title);
   let slug = baseSlug;
   let counter = 1;
 
   while (true) {
+    // Busca global por slug para evitar colisões na rota unificada /eventos/
     const snap = await db.collection('events')
-      .where('organizationId', '==', orgId)
       .where('slug', '==', slug)
       .limit(1)
       .get();
@@ -43,7 +46,7 @@ async function generateUniqueSlug(db: admin.firestore.Firestore, orgId: string, 
 
     slug = `${baseSlug}-${counter}`;
     counter++;
-    if (counter > 10) return `${baseSlug}-${Math.random().toString(36).substring(2, 5)}`;
+    if (counter > 20) return `${baseSlug}-${Math.random().toString(36).substring(2, 7)}`;
   }
 }
 
@@ -63,7 +66,7 @@ export async function createEventAction(params: {
 
     await validateStripeAccount(db, params.orgId, eventData);
 
-    const slug = await generateUniqueSlug(db, params.orgId, eventData.title);
+    const slug = await generateUniqueSlug(db, eventData.title);
     const eventRef = db.collection('events').doc();
     
     const startDate = new Date(dateNormalization.startDate);
@@ -142,7 +145,7 @@ export async function updateEventAction(params: {
 
     let slug = oldData.slug;
     if (slugify(eventData.title) !== slugify(oldData.title)) {
-      slug = await generateUniqueSlug(db, params.orgId, eventData.title, params.eventId);
+      slug = await generateUniqueSlug(db, eventData.title, params.eventId);
     }
 
     const startDate = new Date(dateNormalization.startDate);
@@ -199,7 +202,7 @@ export async function updateEventSlugAction(params: {
     const eventData = eventSnap.data()!;
 
     const source = params.manualSlug || params.newTitle || eventData.title;
-    const slug = await generateUniqueSlug(db, params.orgId, source, params.eventId, params.manualSlug);
+    const slug = await generateUniqueSlug(db, source, params.eventId, params.manualSlug);
 
     await eventRef.update({
       slug,

@@ -1,4 +1,3 @@
-
 import { MetadataRoute } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 
@@ -23,14 +22,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       { url: `${baseUrl}/privacidade`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.3 },
     ];
 
+    // Páginas de Perfil (Usuários e Marcas)
     const usernamesSnap = await db.collection('usernames').get();
-    const uidToUsername: Record<string, string> = {};
-
     usernamesSnap.forEach(doc => {
-      const data = doc.data();
       const username = doc.id;
-      uidToUsername[data.uid] = username;
-      
       routes.push({
         url: `${baseUrl}/${username}`,
         lastModified: new Date(),
@@ -39,14 +34,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     });
 
+    // Páginas de Eventos (Nova Estrutura Unificada /eventos/[slug])
     const eventsSnap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .get();
 
     eventsSnap.forEach(doc => {
       const event = doc.data();
-      const ownerId = event.organizationId || event.organizerId;
-      const username = uidToUsername[ownerId] || 'evento';
       const slug = event.slug || doc.id;
       
       let lastMod = new Date();
@@ -55,7 +49,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
 
       routes.push({
-        url: `${baseUrl}/${username}/${slug}`,
+        url: `${baseUrl}/eventos/${slug}`,
         lastModified: lastMod,
         changeFrequency: 'daily',
         priority: 0.9
