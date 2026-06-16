@@ -1,0 +1,14 @@
+
+{
+  "collection": "crm_templates",
+  "description": "Templates de e-mail marketing reutilizáveis.",
+  "fields": {
+    "name": "string (Nome identificador)",
+    "description": "string (Finalidade do template)",
+    "subject": "string (Assunto padrão)",
+    "htmlContent": "string (Corpo do e-mail em HTML)",
+    "category": "vendas | engajamento | suporte | informativo",
+    "updatedAt": "timestamp",
+    "createdAt": "timestamp"
+  }
+}
