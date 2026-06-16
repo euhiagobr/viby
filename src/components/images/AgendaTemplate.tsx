@@ -24,12 +24,13 @@ interface AgendaTemplateProps {
 /**
  * Template oficial "Agenda da Semana"
  * Suporta tema especial Copa do Mundo 2026.
+ * Layout otimizado para evitar transbordamento.
  */
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const config = {
-    stories: { width: 1080, height: 1920, fontSize: 32 },
-    instagram: { width: 1080, height: 1350, fontSize: 28 },
-    A4: { width: 1240, height: 1754, fontSize: 36 }
+    stories: { width: 1080, height: 1920, itemHeight: 180, headerMargin: 60 },
+    instagram: { width: 1080, height: 1350, itemHeight: 200, headerMargin: 40 },
+    A4: { width: 1240, height: 1754, itemHeight: 220, headerMargin: 80 }
   }[format];
 
   const colors = {
@@ -51,7 +52,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         color: colors.text,
         display: 'flex',
         flexDirection: 'column',
-        padding: '80px',
+        padding: '60px 80px',
         fontFamily: 'Poppins, sans-serif',
         boxSizing: 'border-box',
         position: 'relative',
@@ -62,7 +63,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
       <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '600px', height: '600px', background: `${colors.accent}15`, borderRadius: '50%', filter: 'blur(100px)' }} />
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '60px', position: 'relative', zIndex: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: `${config.headerMargin}px`, position: 'relative', zIndex: 10 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
            <div style={{ background: colors.accent, color: theme === 'copa' ? '#002776' : '#FFFFFF', padding: '10px 25px', borderRadius: '50px', width: 'fit-content', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
               Agenda
@@ -93,30 +94,33 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               borderRadius: '35px',
               border: theme === 'claro' ? '1px solid #E2E8F0' : '1px solid rgba(255,255,255,0.1)',
               boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              maxHeight: `${config.itemHeight}px`,
+              minHeight: `${config.itemHeight}px`,
+              overflow: 'hidden'
             }}
           >
-             <div style={{ width: '140px', height: '140px', borderRadius: '25px', overflow: 'hidden', flexShrink: 0 }}>
+             <div style={{ width: '130px', height: '130px', borderRadius: '25px', overflow: 'hidden', flexShrink: 0 }}>
                 <img src={ev.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
              </div>
              
-             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
+             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                   <span style={{ fontSize: '22px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(ev.date)}</span>
+                   <span style={{ fontSize: '20px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(ev.date)}</span>
                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: colors.text, opacity: 0.3 }} />
-                   <span style={{ fontSize: '18px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date)}</span>
+                   <span style={{ fontSize: '16px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date)}</span>
                 </div>
                 
-                <h2 style={{ fontSize: '38px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', lineHeight: 1, margin: 0, color: colors.text }}>
-                   {shortenTitle(ev.title, 40)}
+                <h2 style={{ fontSize: '34px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', lineHeight: 1, margin: 0, color: colors.text }}>
+                   {shortenTitle(ev.title, 38)}
                 </h2>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5 }}>
-                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                       <circle cx="12" cy="10" r="3" />
                    </svg>
-                   <span style={{ fontSize: '18px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{ev.city}</span>
+                   <span style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{ev.city}</span>
                 </div>
              </div>
           </div>
@@ -124,7 +128,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
       </div>
 
       {/* Footer / CTA */}
-      <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', padding: '40px 0', position: 'relative', zIndex: 10 }}>
+      <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', padding: '30px 0', position: 'relative', zIndex: 10 }}>
          <div style={{ flex: 1, height: '2px', background: colors.text, opacity: 0.1 }} />
          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
             <p style={{ fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>{siteUrl}</p>

@@ -20,7 +20,8 @@ import {
   Layout,
   FileDown,
   X,
-  Trophy
+  Trophy,
+  ChevronRight
 } from 'lucide-react';
 import { 
   Select, 
