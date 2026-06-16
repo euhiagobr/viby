@@ -193,8 +193,8 @@ export default function AgendaGeneratorPage() {
     if (!containerRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    // Pequeno delay para garantir renderização de fontes
-    await new Promise(r => setTimeout(r, 1200));
+    // Sincronização estendida para mídias e fontes
+    await new Promise(r => setTimeout(r, 2000));
 
     try {
       const pages = containerRef.current.querySelectorAll('.viby-template-root');
@@ -203,19 +203,25 @@ export default function AgendaGeneratorPage() {
       for (let i = 0; i < pages.length; i++) {
         const pageElement = pages[i] as HTMLElement;
         
-        // Mobile-Safe: Garantir que imagens estão prontas
+        // Mobile-Safe: Garantir que todas as imagens no slide estão totalmente carregadas
         const imgs = Array.from(pageElement.querySelectorAll('img'));
-        await Promise.all(imgs.map(img => img.decode().catch(() => {})));
+        await Promise.all(imgs.map(img => {
+          if (img.complete) return Promise.resolve();
+          return new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = resolve;
+          });
+        }));
 
         const dataUrl = await toPng(pageElement, {
           pixelRatio: 2,
           cacheBust: true,
           quality: 0.95,
           width: dimensions.width,
-          height: dimensions.height
+          height: dimensions.height,
+          skipFonts: false
         });
 
-        // Mobile-Safe Download Flow via Blob
         const response = await fetch(dataUrl);
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
@@ -223,19 +229,18 @@ export default function AgendaGeneratorPage() {
         const link = document.createElement('a');
         link.download = `viby-agenda-${theme}-${format}-p${i + 1}.png`;
         link.href = blobUrl;
+        link.rel = "noopener";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         
-        // Limpeza de memória
         URL.revokeObjectURL(blobUrl);
-        
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 800));
       }
       toast({ title: "Exportação concluída!" });
     } catch (err) {
       console.error("[Export Error]", err);
-      toast({ variant: "destructive", title: "Erro na exportação", description: "Tente novamente." });
+      toast({ variant: "destructive", title: "Erro na geração", description: "Verifique sua conexão e tente novamente." });
     } finally {
       setIsGenerating(false);
     }
@@ -383,3 +388,4 @@ function FormatBtn({ active, onClick, icon: Icon, label }: any) {
     </button>
   );
 }
+

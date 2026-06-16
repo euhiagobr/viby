@@ -85,13 +85,8 @@ export default function StoriesGeneratorPage() {
           const title = normalizeText(ev.title || "");
           const tags = (ev.tags || []).map(t => normalizeText(t));
           const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
-          
-          // Oculta o que já está selecionado
           const isNotSelected = ev.id !== selectedEvent?.id;
-
-          // REGRA: Não exibir eventos que já terminaram
           const isVisible = isEventVisible(ev, now);
-
           return matchesSearch && isNotSelected && isVisible;
         });
       setSearchResults(results);
@@ -118,18 +113,27 @@ export default function StoriesGeneratorPage() {
     if (!renderRef.current || isGenerating || !selectedEvent) return;
     setIsGenerating(true);
     
-    // Garantir decodificação das mídias para mobile
-    const imgs = Array.from(renderRef.current.querySelectorAll('img'));
-    await Promise.all(imgs.map(img => img.decode().catch(() => {})));
+    // Pequeno delay para garantir sincronização de fontes
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     try {
+      // Garantir decodificação total da mídia antes de disparar o canvas
+      const imgs = Array.from(renderRef.current.querySelectorAll('img'));
+      await Promise.all(imgs.map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      }));
+
       const dataUrl = await toPng(renderRef.current, {
         pixelRatio: 2,
         cacheBust: true,
-        quality: 0.95
+        quality: 0.95,
+        skipFonts: false
       });
 
-      // Mobile-Safe Download via Blob
       const response = await fetch(dataUrl);
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -137,12 +141,13 @@ export default function StoriesGeneratorPage() {
       const link = document.createElement('a');
       link.download = `viby-story-${selectedEvent.slug || selectedEvent.id}-${theme}.png`;
       link.href = blobUrl;
+      link.rel = "noopener";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
       if (db) {
-        await addDoc(collection(db, "generated_images_logs"), {
+        addDoc(collection(db, "generated_images_logs"), {
           templateId: 'story_unico',
           templateName: 'Story Único',
           format: 'stories',
@@ -152,7 +157,6 @@ export default function StoriesGeneratorPage() {
         });
       }
 
-      // Cleanup
       URL.revokeObjectURL(blobUrl);
       toast({ title: "Story gerado!" });
     } catch (err) {
