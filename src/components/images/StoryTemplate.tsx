@@ -7,23 +7,20 @@ import { QRCodeSVG } from 'qrcode.react';
 
 interface StoryTemplateProps {
   event: any;
-  theme: 'viby' | 'claro' | 'escuro' | 'copa';
+  theme: 'viby' | 'claro' | 'escuro' | 'copa' | 'pride';
   logoUrl?: string;
 }
 
-/**
- * Template de Story ajustado para centralização absoluta e blindagem lateral.
- * Adicionado suporte ao tema Copa 2026.
- */
 export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
   const colors = {
     viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 100%)', text: '#FFFFFF', accent: '#2C52EE', qrBg: '#FFFFFF' },
     claro: { bg: '#F8FAFC', text: '#000000', accent: '#2C52EE', qrBg: '#FFFFFF' },
     escuro: { bg: '#000000', text: '#FFFFFF', accent: '#2C52EE', qrBg: '#111111' },
-    copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', accent: '#ffdf00', qrBg: '#FFFFFF' }
+    copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', accent: '#ffdf00', qrBg: '#FFFFFF' },
+    pride: { bg: 'linear-gradient(45deg, #FF0000, #FF8B00, #FFD300, #008121, #004CFF, #760089)', text: '#FFFFFF', accent: '#FFFFFF', qrBg: '#FFFFFF' }
   }[theme];
 
-  const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : 'viby.club';
+  const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : 'viby.club';
   const qrUrl = `https://viby.club/${event.organizer?.username || 'evento'}/${event.slug || event.id}?vsrc=qr_story`;
 
   return (
@@ -55,7 +52,7 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
 
       {/* Header */}
       <div style={{ width: '100%', padding: '80px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10, boxSizing: 'border-box' }}>
-        <div style={{ background: colors.accent, color: theme === 'copa' ? '#002776' : '#FFFFFF', padding: '12px 36px', borderRadius: '50px', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
+        <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride') ? '#000000' : '#FFFFFF', padding: '12px 36px', borderRadius: '50px', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
           Destaque
         </div>
         {logoUrl && <img src={logoUrl} style={{ height: '70px', maxWidth: '300px', objectFit: 'contain' }} alt="Logo" />}

@@ -15,18 +15,12 @@ interface EventItem {
 interface AgendaTemplateProps {
   events: EventItem[];
   format: 'A4' | 'instagram' | 'stories';
-  theme: 'viby' | 'claro' | 'escuro' | 'copa';
+  theme: 'viby' | 'claro' | 'escuro' | 'copa' | 'pride';
   logoUrl?: string;
   pageNumber?: number;
   totalPages?: number;
 }
 
-/**
- * TEMPLATE DE AGENDA (VIBY ENGINE v2.7)
- * - Blindagem horizontal total via box-sizing e maxWidth.
- * - Cálculo determinístico de área útil vertical.
- * - Adicionado suporte ao tema Copa 2026.
- */
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -64,14 +58,15 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
     viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 100%)', text: '#FFFFFF', itemBg: 'rgba(255,255,255,0.05)', accent: '#2C52EE' },
     claro: { bg: '#F8FAFC', text: '#000000', itemBg: '#FFFFFF', accent: '#2C52EE' },
     escuro: { bg: '#000000', text: '#FFFFFF', itemBg: '#111111', accent: '#2C52EE' },
-    copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', itemBg: 'rgba(255,255,255,0.1)', accent: '#ffdf00' }
+    copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', itemBg: 'rgba(255,255,255,0.1)', accent: '#ffdf00' },
+    pride: { bg: 'linear-gradient(45deg, #FF0000, #FF8B00, #FFD300, #008121, #004CFF, #760089)', text: '#FFFFFF', itemBg: 'rgba(0,0,0,0.5)', accent: '#FFFFFF' }
   }[theme];
 
   const availableHeight = config.height - config.headerHeight - config.footerHeight - (config.padding * 2);
   const maxCards = Math.floor((availableHeight + config.gap) / (config.itemHeight + config.gap));
   const visibleEvents = events.slice(0, maxCards);
 
-  const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : 'viby.club';
+  const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : 'viby.club';
 
   return (
     <div 
@@ -93,7 +88,6 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
     >
       <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '600px', height: '600px', background: `${colors.accent}15`, borderRadius: '50%', filter: 'blur(100px)' }} />
 
-      {/* Header */}
       <div 
         className="viby-header"
         style={{ 
@@ -108,7 +102,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-           <div style={{ background: colors.accent, color: theme === 'copa' ? '#002776' : '#FFFFFF', padding: '8px 24px', borderRadius: '50px', width: 'fit-content', fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
+           <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride') ? '#000000' : '#FFFFFF', padding: '8px 24px', borderRadius: '50px', width: 'fit-content', fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
               Agenda
            </div>
            <h1 style={{ fontSize: '90px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, lineHeight: 0.8, letterSpacing: '-4px' }}>
@@ -120,7 +114,6 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         )}
       </div>
 
-      {/* Container de Eventos */}
       <div 
         ref={containerRef}
         className="viby-events-container"
@@ -184,7 +177,6 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         ))}
       </div>
 
-      {/* Footer */}
       <div 
         className="viby-footer"
         style={{ 

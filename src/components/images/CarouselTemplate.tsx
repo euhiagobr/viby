@@ -8,15 +8,12 @@ import { QRCodeSVG } from 'qrcode.react';
 interface CarouselTemplateProps {
   event: any;
   aspectRatio: '1:1' | '4:5';
-  theme: 'viby' | 'claro' | 'escuro' | 'copa';
+  theme: 'viby' | 'claro' | 'escuro' | 'copa' | 'pride';
   logoUrl?: string;
   slideNumber?: number;
   totalSlides?: number;
 }
 
-/**
- * Template de Carrossel ajustado para centralização simétrica e blindagem horizontal.
- */
 export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumber, totalSlides }: CarouselTemplateProps) {
   const config = {
     '1:1': { width: 1080, height: 1080, padding: 80 },
@@ -27,7 +24,8 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
     viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 100%)', text: '#FFFFFF', accent: '#2C52EE' },
     claro: { bg: '#F8FAFC', text: '#000000', accent: '#2C52EE' },
     escuro: { bg: '#000000', text: '#FFFFFF', accent: '#2C52EE' },
-    copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', accent: '#ffdf00' }
+    copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', accent: '#ffdf00' },
+    pride: { bg: 'linear-gradient(45deg, #FF0000, #FF8B00, #FFD300, #008121, #004CFF, #760089)', text: '#FFFFFF', accent: '#FFFFFF' }
   }[theme];
 
   const qrUrl = `https://viby.club/${event.organizer?.username || 'evento'}/${event.slug || event.id}?vsrc=qr_carousel`;

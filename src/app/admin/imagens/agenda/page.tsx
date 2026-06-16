@@ -21,7 +21,10 @@ import {
   X,
   Trophy,
   Image as ImageIcon,
-  Info
+  Info,
+  Heart,
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import { 
   Select, 
@@ -38,6 +41,7 @@ import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { Separator } from '@/components/ui/separator';
 import { isEventVisible } from '@/lib/event-scoring-utils';
+import { COPA_TAGS, LGBT_TAGS, LGBT_CATEGORY_IDS } from '@/lib/constants';
 
 const ITEMS_PER_FORMAT = {
   stories: 7,
@@ -62,7 +66,7 @@ export default function AgendaGeneratorPage() {
   const [isGenerating, setIsGenerating] = React.useState(false);
   
   const [format, setFormat] = React.useState<'A4' | 'instagram' | 'stories'>('stories');
-  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa'>('viby');
+  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
   const { data: settings } = useDoc<any>(settingsRef);
@@ -100,15 +104,10 @@ export default function AgendaGeneratorPage() {
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(ev => {
-          // Filtra por texto
           const title = normalizeText(ev.title || "");
           const tags = (ev.tags || []).map(t => normalizeText(t));
           const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
-          
-          // REGRA: Não exibir eventos que já estão na lista
           const isNotListed = !selectedEvents.some(s => s.id === ev.id);
-
-          // REGRA: Não exibir eventos que já terminaram
           const isVisible = isEventVisible(ev, now);
           
           return matchesSearch && isNotListed && isVisible;
@@ -117,6 +116,47 @@ export default function AgendaGeneratorPage() {
       setSearchResults(results);
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na busca" });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const loadPreset = async (type: 'copa' | 'lgbt') => {
+    if (!db || isSearching) return;
+    setIsSearching(true);
+    try {
+      const q = query(
+        collection(db, "events"),
+        where("status", "==", "Ativo"),
+        orderBy("date", "asc"),
+        limit(200)
+      );
+      const snap = await getDocs(q);
+      const now = new Date();
+      
+      const filtered = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(ev => isEventVisible(ev, now))
+        .filter(ev => {
+          if (type === 'copa') {
+            return ev.tags?.some(t => COPA_TAGS.includes(t.toLowerCase()));
+          } else {
+            const byCategory = LGBT_CATEGORY_IDS.includes(ev.categoryId);
+            const byTags = ev.tags?.some(t => LGBT_TAGS.includes(t.toLowerCase()));
+            return byCategory || byTags;
+          }
+        });
+
+      const prepared = await Promise.all(filtered.slice(0, 15).map(async (ev) => {
+        const imgRes = await fetchImageAsBase64(ev.image);
+        return { ...ev, image: imgRes.success ? imgRes.data : ev.image };
+      }));
+
+      setSelectedEvents(prepared);
+      setTheme(type === 'copa' ? 'copa' : 'pride');
+      toast({ title: `Preset ${type.toUpperCase()} carregado!`, description: `${prepared.length} eventos adicionados.` });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro ao carregar preset" });
     } finally {
       setIsSearching(false);
     }
@@ -189,10 +229,21 @@ export default function AgendaGeneratorPage() {
       <div className="lg:col-span-4 space-y-8">
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
-            <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Seleção de Eventos</CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase">Busque por nome ou tags (ex: copa).</CardDescription>
+            <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Seleção de Conteúdo</CardTitle>
+            <CardDescription className="text-[10px] font-bold uppercase">Busque eventos ou use um preset.</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
+            <div className="grid grid-cols-2 gap-2 mb-4">
+               <Button variant="outline" onClick={() => loadPreset('copa')} disabled={isSearching} className="h-12 rounded-xl border-dashed gap-2 font-black uppercase text-[9px] text-[#002776] border-[#ffdf00] bg-[#ffdf00]/5">
+                  <Trophy className="w-3.5 h-3.5 fill-[#ffdf00]" /> Preset Copa
+               </Button>
+               <Button variant="outline" onClick={() => loadPreset('lgbt')} disabled={isSearching} className="h-12 rounded-xl border-dashed gap-2 font-black uppercase text-[9px] text-pink-600 border-pink-200 bg-pink-50/50">
+                  <Heart className="w-3.5 h-3.5 fill-pink-500" /> Preset Pride
+               </Button>
+            </div>
+
+            <Separator className="border-dashed" />
+
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-30" />
@@ -214,7 +265,7 @@ export default function AgendaGeneratorPage() {
               </div>
             )}
             <div className="space-y-3 pt-4">
-              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Lista de Eventos ({selectedEvents.length})</Label>
+              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Lista Atual ({selectedEvents.length})</Label>
               <div className="space-y-2">
                 {selectedEvents.map((ev) => (
                   <div key={ev.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50 group animate-in slide-in-from-left-2">
@@ -248,11 +299,8 @@ export default function AgendaGeneratorPage() {
                    <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                    <SelectContent className="rounded-xl">
                       <SelectItem value="viby">Viby (Padrão)</SelectItem>
-                      <SelectItem value="copa">
-                        <div className="flex items-center gap-2 text-[#002776] font-bold">
-                           <Trophy className="w-3.5 h-3.5 text-[#ffdf00]" /> Copa 2026
-                        </div>
-                      </SelectItem>
+                      <SelectItem value="copa">Copa do Mundo 2026</SelectItem>
+                      <SelectItem value="pride">Pride / Diversidade</SelectItem>
                       <SelectItem value="claro">Minimalista Claro</SelectItem>
                       <SelectItem value="escuro">Deep Black</SelectItem>
                    </SelectContent>

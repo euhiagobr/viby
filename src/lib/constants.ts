@@ -38,6 +38,17 @@ export const COPA_TAGS = [
   "fifa world cup"
 ];
 
+export const LGBT_TAGS = [
+  "lgbt", "lgbtqiapn", "lgbtqia+", "gay", "lesbica", "lésbica", 
+  "bissexual", "bi", "trans", "travesti", "transgenero", "queer", 
+  "diversidade", "pride", "parada lgbt"
+];
+
+export const LGBT_CATEGORY_IDS = [
+  "bNr5g766mc0vGskU1RBq",
+  "bnxzzfbroJjdEjwlBfy0"
+];
+
 export const NOISY_WORDS = [
   "oficial", "festival", "festa", "encontro", "grande", "evento", 
   "brasileiro", "brasil", "internacional", "mundial", "fifa", "copa", "do", "da", "de"
