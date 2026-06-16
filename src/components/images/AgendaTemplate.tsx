@@ -62,7 +62,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
       <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '600px', height: '600px', background: `${colors.accent}15`, borderRadius: '50%', filter: 'blur(100px)' }} />
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '80px', position: 'relative', zIndex: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '60px', position: 'relative', zIndex: 10 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
            <div style={{ background: colors.accent, color: theme === 'copa' ? '#002776' : '#FFFFFF', padding: '10px 25px', borderRadius: '50px', width: 'fit-content', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
               Agenda
@@ -80,33 +80,34 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
       </div>
 
       {/* Events List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', flex: 1, position: 'relative', zIndex: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
         {events.map((ev) => (
           <div 
             key={ev.id} 
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: '40px', 
+              gap: '30px', 
               background: colors.itemBg, 
-              padding: '30px', 
-              borderRadius: '40px',
+              padding: '20px', 
+              borderRadius: '35px',
               border: theme === 'claro' ? '1px solid #E2E8F0' : '1px solid rgba(255,255,255,0.1)',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.05)'
+              boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
+              boxSizing: 'border-box'
             }}
           >
-             <div style={{ width: '180px', height: '180px', borderRadius: '30px', overflow: 'hidden', flexShrink: 0 }}>
+             <div style={{ width: '140px', height: '140px', borderRadius: '25px', overflow: 'hidden', flexShrink: 0 }}>
                 <img src={ev.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
              </div>
              
-             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
+             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                   <span style={{ fontSize: '24px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(ev.date)}</span>
+                   <span style={{ fontSize: '22px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(ev.date)}</span>
                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: colors.text, opacity: 0.3 }} />
-                   <span style={{ fontSize: '20px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date)}</span>
+                   <span style={{ fontSize: '18px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date)}</span>
                 </div>
                 
-                <h2 style={{ fontSize: '42px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', lineHeight: 1, margin: 0, color: colors.text }}>
+                <h2 style={{ fontSize: '38px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', lineHeight: 1, margin: 0, color: colors.text }}>
                    {shortenTitle(ev.title, 40)}
                 </h2>
                 
@@ -117,12 +118,6 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                    </svg>
                    <span style={{ fontSize: '18px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{ev.city}</span>
                 </div>
-             </div>
-
-             <div style={{ padding: '20px', background: colors.accent, borderRadius: '25px', color: theme === 'copa' ? '#002776' : '#FFF' }}>
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
-                   <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
              </div>
           </div>
         ))}

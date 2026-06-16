@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
+import { useFirestore, useDoc } from '@/firebase';
 import { collection, query, where, orderBy, limit, addDoc, serverTimestamp, getDocs, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,6 @@ import {
   Search, 
   Loader2, 
   Plus, 
-  Trash2, 
   GripVertical, 
   Download, 
   RefreshCw,
@@ -20,10 +19,7 @@ import {
   Smartphone,
   Layout,
   FileDown,
-  CheckCircle2,
-  Info,
   X,
-  Image as ImageIcon,
   Trophy
 } from 'lucide-react';
 import { 
@@ -37,14 +33,13 @@ import { toast } from '@/hooks/use-toast';
 import { AgendaTemplate } from '@/components/images/AgendaTemplate';
 import { toPng } from 'html-to-image';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
 const ITEMS_PER_FORMAT = {
   stories: 6,
-  instagram: 5,
-  A4: 7
+  instagram: 4,
+  A4: 6
 };
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
@@ -73,7 +68,6 @@ export default function AgendaGeneratorPage() {
         if (res.success) setLogoBase64(res.data || null);
       });
     }
-    // Pre-load Copa Logo
     fetchImageAsBase64(COPA_LOGO).then(res => {
       if (res.success) setCopaLogoBase64(res.data || null);
     });
@@ -179,7 +173,7 @@ export default function AgendaGeneratorPage() {
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Seleção de Eventos</CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase">Adicione quantos eventos desejar.</CardDescription>
+            <CardDescription className="text-[10px] font-bold uppercase">Adicione quanto eventos desejar.</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
             <div className="flex gap-2">
