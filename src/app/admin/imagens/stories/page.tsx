@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -48,6 +47,7 @@ export default function StoriesGeneratorPage() {
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
   const { data: settings } = useDoc<any>(settingsRef);
+  
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
@@ -80,8 +80,9 @@ export default function StoriesGeneratorPage() {
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(ev => {
-           const title = normalizeText(ev.title || "");
-           return title.includes(searchNorm);
+          const title = normalizeText(ev.title || "");
+          const tags = (ev.tags || []).map(t => normalizeText(t));
+          return title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
         });
       setSearchResults(results);
     } catch (e) {
@@ -138,13 +139,15 @@ export default function StoriesGeneratorPage() {
     }
   };
 
+  const activeLogo = theme === 'copa' ? copaLogoBase64 : logoBase64;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
       <div className="lg:col-span-4 space-y-8">
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Seleção do Evento</CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase">Destaque um único projeto.</CardDescription>
+            <CardDescription className="text-[10px] font-bold uppercase">Busque por nome ou tags (ex: copa).</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
             {!selectedEvent ? (
@@ -153,7 +156,7 @@ export default function StoriesGeneratorPage() {
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-30" />
                     <Input 
-                      placeholder="Nome do evento..." 
+                      placeholder="Nome ou tag..." 
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -257,7 +260,7 @@ export default function StoriesGeneratorPage() {
                   <StoryTemplate 
                     event={selectedEvent} 
                     theme={theme} 
-                    logoUrl={(theme === 'copa' ? copaLogoBase64 : logoBase64) || undefined}
+                    logoUrl={activeLogo || undefined}
                   />
                 </div>
              </div>

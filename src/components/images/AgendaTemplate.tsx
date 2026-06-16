@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -26,6 +25,7 @@ interface AgendaTemplateProps {
  * TEMPLATE DE AGENDA (VIBY ENGINE v2.7)
  * - Blindagem horizontal total via box-sizing e maxWidth.
  * - Cálculo determinístico de área útil vertical.
+ * - Adicionado suporte ao tema Copa 2026.
  */
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);

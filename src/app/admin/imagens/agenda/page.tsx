@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -8,14 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { 
   Search, 
   Loader2, 
   Plus, 
   GripVertical, 
   Download, 
-  RefreshCw,
   Palette,
   Maximize2,
   Smartphone,
@@ -23,13 +20,8 @@ import {
   FileDown,
   X,
   Trophy,
-  ChevronRight,
   Image as ImageIcon,
-  CheckCircle2,
-  AlertTriangle,
-  Info,
-  ShieldCheck,
-  Terminal
+  Info
 } from 'lucide-react';
 import { 
   Select, 
@@ -57,6 +49,8 @@ const FORMAT_DIMENSIONS = {
   A4: { width: 1240, height: 1754 }
 };
 
+const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
+
 export default function AgendaGeneratorPage() {
   const db = useFirestore();
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -70,7 +64,9 @@ export default function AgendaGeneratorPage() {
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
   const { data: settings } = useDoc<any>(settingsRef);
+  
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
+  const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -80,13 +76,15 @@ export default function AgendaGeneratorPage() {
         if (res.success) setLogoBase64(res.data || null);
       });
     }
+    fetchImageAsBase64(COPA_LOGO).then(res => {
+      if (res.success) setCopaLogoBase64(res.data || null);
+    });
   }, [settings?.logoUrl]);
 
   const handleSearch = async () => {
     if (!db || !searchTerm.trim() || isSearching) return;
     setIsSearching(true);
     try {
-      // Aumentamos o limite para 200 para permitir uma filtragem local por nome mais abrangente
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
@@ -100,7 +98,8 @@ export default function AgendaGeneratorPage() {
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(ev => {
           const title = normalizeText(ev.title || "");
-          return title.includes(searchNorm);
+          const tags = (ev.tags || []).map(t => normalizeText(t));
+          return title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
         });
         
       setSearchResults(results);
@@ -171,19 +170,21 @@ export default function AgendaGeneratorPage() {
     }
   };
 
+  const activeLogo = theme === 'copa' ? copaLogoBase64 : logoBase64;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
       <div className="lg:col-span-4 space-y-8">
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Seleção de Eventos</CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase">Adicione quanto eventos desejar.</CardDescription>
+            <CardDescription className="text-[10px] font-bold uppercase">Busque por nome ou tags (ex: copa).</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-30" />
-                <Input placeholder="Nome do evento..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} className="pl-10 h-11 rounded-xl" />
+                <Input placeholder="Nome ou tag..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} className="pl-10 h-11 rounded-xl" />
               </div>
               <Button onClick={handleSearch} disabled={isSearching} className="h-11 px-4 rounded-xl font-bold bg-secondary text-white">
                 {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "OK"}
@@ -235,6 +236,11 @@ export default function AgendaGeneratorPage() {
                    <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                    <SelectContent className="rounded-xl">
                       <SelectItem value="viby">Viby (Padrão)</SelectItem>
+                      <SelectItem value="copa">
+                        <div className="flex items-center gap-2 text-[#002776] font-bold">
+                           <Trophy className="w-3.5 h-3.5 text-[#ffdf00]" /> Copa 2026
+                        </div>
+                      </SelectItem>
                       <SelectItem value="claro">Minimalista Claro</SelectItem>
                       <SelectItem value="escuro">Deep Black</SelectItem>
                    </SelectContent>
@@ -278,7 +284,7 @@ export default function AgendaGeneratorPage() {
                       "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
                       format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[486px]" : "scale-[0.3] h-[526px]"
                     )}>
-                       <AgendaTemplate events={pageEvents} format={format} theme={theme} logoUrl={logoBase64 || undefined} pageNumber={idx + 1} totalPages={eventPages.length} />
+                       <AgendaTemplate events={pageEvents} format={format} theme={theme} logoUrl={activeLogo || undefined} pageNumber={idx + 1} totalPages={eventPages.length} />
                     </div>
                   </div>
                 ))}

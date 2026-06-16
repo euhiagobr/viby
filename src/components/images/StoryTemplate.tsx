@@ -13,6 +13,7 @@ interface StoryTemplateProps {
 
 /**
  * Template de Story ajustado para centralização absoluta e blindagem lateral.
+ * Adicionado suporte ao tema Copa 2026.
  */
 export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
   const colors = {
