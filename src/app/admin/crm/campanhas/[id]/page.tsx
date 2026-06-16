@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -15,17 +16,17 @@ import {
   Clock, 
   Loader2,
   Eye,
-  Zap,
   Target,
   AlertTriangle,
   Smartphone,
   Monitor,
   ShieldCheck,
-  Calendar
+  Calendar,
+  Zap
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { sendTestEmailAction, approveCrmCampaignAction } from '@/app/actions/crm-marketing';
+import { sendTestEmailAction, approveCrmCampaignAction, dispatchCrmCampaignAction } from '@/app/actions/crm-marketing';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
@@ -61,10 +62,24 @@ export default function CampaignDetailPage() {
     setIsProcessing(true);
     try {
       const res = await approveCrmCampaignAction(id, user?.uid!);
-      if (res.success) toast({ title: "Campanha Aprovada!", description: "O disparo agora pode ser agendado." });
+      if (res.success) toast({ title: "Campanha Aprovada!", description: "O disparo agora pode ser realizado." });
       else throw new Error(res.error);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro na aprovação", description: e.message });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDispatch = async () => {
+    if (!id || isProcessing || !confirm("Deseja iniciar o disparo real para toda a base filtrada agora?")) return;
+    setIsProcessing(true);
+    try {
+      const res = await dispatchCrmCampaignAction(id, user?.uid!);
+      if (res.success) toast({ title: "Disparo Concluído!", description: `${res.sentCount} e-mails foram enviados.` });
+      else throw new Error(res.error);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Falha no Disparo", description: e.message });
     } finally {
       setIsProcessing(false);
     }
@@ -85,7 +100,8 @@ export default function CampaignDetailPage() {
             <div className="flex items-center gap-3 mt-1">
                <Badge className={cn(
                  "uppercase text-[9px] font-black h-5 px-2 shadow-sm",
-                 campaign.status === 'aprovado' ? "bg-green-600" : "bg-orange-500"
+                 campaign.status === 'concluido' ? "bg-green-600" : 
+                 campaign.status === 'aprovado' ? "bg-blue-600" : "bg-orange-500"
                )}>{campaign.status?.replace('_',' ')}</Badge>
                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Criada em {new Date(campaign.createdAt?.seconds * 1000 || campaign.createdAt).toLocaleString('pt-BR')}</span>
             </div>
@@ -93,12 +109,19 @@ export default function CampaignDetailPage() {
         </div>
 
         <div className="flex gap-2">
-           <Button variant="outline" onClick={handleSendTest} disabled={isProcessing} className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] gap-2 border-primary text-primary">
+           <Button variant="outline" onClick={handleSendTest} disabled={isProcessing || campaign.status === 'concluido'} className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] gap-2 border-primary text-primary">
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Teste (Viby Club)
            </Button>
+           
            {campaign.status === 'teste_enviado' && (
-             <Button onClick={handleApprove} disabled={isProcessing} className="bg-green-600 text-white rounded-xl h-11 px-8 font-black uppercase italic text-xs shadow-lg shadow-green-900/10">
+             <Button onClick={handleApprove} disabled={isProcessing} className="bg-primary text-white rounded-xl h-11 px-8 font-black uppercase italic text-xs shadow-lg">
                 {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />} Aprovar Campanha
+             </Button>
+           )}
+
+           {campaign.status === 'aprovado' && (
+             <Button onClick={handleDispatch} disabled={isProcessing} className="bg-secondary text-white rounded-xl h-11 px-10 font-black uppercase italic text-xs shadow-xl shadow-secondary/20 animate-pulse hover:animate-none">
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 mr-2 fill-current" />} Disparar para Base
              </Button>
            )}
         </div>
@@ -106,6 +129,17 @@ export default function CampaignDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         <div className="lg:col-span-4 space-y-8">
+           {campaign.status === 'concluido' && (
+             <Card className="border-none shadow-sm rounded-[2rem] bg-green-50 border-l-8 border-green-500 overflow-hidden">
+                <CardContent className="p-8 space-y-2">
+                   <h3 className="text-xl font-black uppercase italic text-green-800">Campanha Finalizada</h3>
+                   <div className="flex items-center gap-2 text-green-700 font-bold text-xs uppercase">
+                      <CheckCircle2 className="w-4 h-4" /> {campaign.metrics?.sent || 0} E-mails disparados com sucesso.
+                   </div>
+                </CardContent>
+             </Card>
+           )}
+
            {/* Auditoria de Datas */}
            <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
               <CardHeader className="bg-muted/30 border-b p-8">
@@ -157,7 +191,7 @@ export default function CampaignDetailPage() {
                  </div>
                  <div className="space-y-1">
                     <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Tom da Voz</p>
-                    <p className="text-sm font-bold text-primary uppercase">{campaign.tom || campaign.tone || 'Profissional'}</p>
+                    <p className="text-sm font-bold text-primary uppercase">{campaign.tone || campaign.tom || 'Profissional'}</p>
                  </div>
               </CardContent>
            </Card>

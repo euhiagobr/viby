@@ -7,6 +7,8 @@ import { sendManualMarketingEmail } from './email';
 
 /**
  * @fileOverview Server Actions para CRM e Fluxo de Aprovação de IA.
+ * 
+ * Adicionado: dispatchCrmCampaignAction para processar o envio real para a base filtrada.
  */
 
 export async function createCrmCampaignAction(data: any, creatorUid: string) {
@@ -67,6 +69,84 @@ export async function approveCrmCampaignAction(campaignId: string, adminUid: str
     });
     return { success: true };
   } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * DISPARO REAL DA CAMPANHA
+ * Localiza os usuários da base filtrada e envia os e-mails.
+ */
+export async function dispatchCrmCampaignAction(campaignId: string, adminUid: string) {
+  const db = getAdminDb();
+  try {
+    const campaignRef = db.collection('crm_campaigns').doc(campaignId);
+    const campaignSnap = await campaignRef.get();
+    
+    if (!campaignSnap.exists) throw new Error("Campanha não localizada.");
+    const campaign = campaignSnap.data()!;
+
+    if (campaign.status !== 'aprovado') {
+      throw new Error("A campanha precisa estar aprovada para ser disparada.");
+    }
+
+    // 1. Identificar Público Alvo com base nos filtros da campanha
+    let usersQuery: admin.firestore.Query = db.collection(campaign.basePublic === 'users' ? 'users' : 
+                                               campaign.basePublic === 'organizers' ? 'organizations' : 
+                                               campaign.basePublic === 'leads' ? 'organizer_leads' : 'users');
+
+    if (campaign.filters?.city && campaign.filters.city !== 'all') {
+      usersQuery = usersQuery.where('city', '==', campaign.filters.city);
+    }
+
+    const targetSnap = await usersQuery.limit(500).get(); // Limite de segurança para MVP
+    const targets = targetSnap.docs.map(d => ({
+      id: d.id,
+      email: d.data().email || d.data().contactEmail,
+      name: d.data().name || d.data().nome || "Membro Viby"
+    })).filter(t => !!t.email);
+
+    if (targets.length === 0) {
+      throw new Error("Nenhum destinatário localizado com os filtros aplicados.");
+    }
+
+    // 2. Marcar como "Enviando"
+    await campaignRef.update({
+      status: 'enviando',
+      dispatchedAt: admin.firestore.FieldValue.serverTimestamp(),
+      dispatchedBy: adminUid,
+      targetCount: targets.length
+    });
+
+    // 3. Processar Envio (Em loop para MVP)
+    let sentCount = 0;
+    for (const target of targets) {
+      try {
+        // Personalização básica se houver placeholder
+        const personalizedHtml = campaign.contentHtml.replace(/@\[username\]/g, `@${target.name.split(' ')[0].toLowerCase()}`);
+        
+        await sendManualMarketingEmail({
+          to: target.email,
+          subject: campaign.subject,
+          content: personalizedHtml
+        });
+        sentCount++;
+      } catch (sendError) {
+        console.error(`[CRM Dispatch] Failed for ${target.email}:`, sendError);
+      }
+    }
+
+    // 4. Finalizar Campanha
+    await campaignRef.update({
+      status: 'concluido',
+      finishedAt: admin.firestore.FieldValue.serverTimestamp(),
+      'metrics.sent': sentCount,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, sentCount };
+  } catch (e: any) {
+    console.error("[CRM Action Error]", e.message);
     return { success: false, error: e.message };
   }
 }
