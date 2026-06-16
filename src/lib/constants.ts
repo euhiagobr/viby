@@ -1,4 +1,3 @@
-
 export const EVENT_CATEGORIES = [
   "eletrônico",
   "funk",
@@ -37,4 +36,9 @@ export const COPA_TAGS = [
   "futebol",
   "copa2026",
   "fifa world cup"
+];
+
+export const NOISY_WORDS = [
+  "oficial", "festival", "festa", "encontro", "grande", "evento", 
+  "brasileiro", "brasil", "internacional", "mundial", "fifa", "copa", "do", "da", "de"
 ];
