@@ -40,6 +40,12 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
+const ITEMS_PER_FORMAT = {
+  stories: 6,
+  instagram: 5,
+  A4: 7
+};
+
 export default function AgendaGeneratorPage() {
   const db = useFirestore();
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -55,7 +61,7 @@ export default function AgendaGeneratorPage() {
   const { data: settings } = useDoc<any>(settingsRef);
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
 
-  const renderRef = React.useRef<HTMLDivElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (settings?.logoUrl) {
@@ -90,7 +96,6 @@ export default function AgendaGeneratorPage() {
   const addEvent = async (event: any) => {
     if (selectedEvents.some(e => e.id === event.id)) return;
     
-    // Proxy da imagem para evitar erro de canvas (CORS)
     const imgRes = await fetchImageAsBase64(event.image);
     const eventWithSafeImage = {
       ...event,
@@ -106,26 +111,43 @@ export default function AgendaGeneratorPage() {
     setSelectedEvents(selectedEvents.filter(e => e.id !== id));
   };
 
-  const handleDownload = async (type: 'png' | 'jpg') => {
-    if (!renderRef.current || isGenerating) return;
+  // Lógica de Chunking para Múltiplas Páginas
+  const eventPages = React.useMemo(() => {
+    const itemsPerPage = ITEMS_PER_FORMAT[format];
+    const pages = [];
+    for (let i = 0; i < selectedEvents.length; i += itemsPerPage) {
+      pages.push(selectedEvents.slice(i, i + itemsPerPage));
+    }
+    return pages;
+  }, [selectedEvents, format]);
+
+  const handleDownloadAll = async () => {
+    if (!containerRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
     // Pequeno delay para garantir renderização final do DOM no canvas
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 800));
 
     try {
-      const func = type === 'png' ? toPng : toJpeg;
-      const dataUrl = await func(renderRef.current, {
-        pixelRatio: 2,
-        cacheBust: true,
-        quality: 0.95,
-        backgroundColor: theme === 'claro' ? '#F8FAFC' : '#000000'
-      });
+      const pages = containerRef.current.querySelectorAll('.viby-export-page');
+      
+      for (let i = 0; i < pages.length; i++) {
+        const pageElement = pages[i] as HTMLElement;
+        const dataUrl = await toPng(pageElement, {
+          pixelRatio: 2,
+          cacheBust: true,
+          quality: 0.95,
+          backgroundColor: theme === 'claro' ? '#F8FAFC' : '#000000'
+        });
 
-      const link = document.createElement('a');
-      link.download = `viby-agenda-${Date.now()}.${type}`;
-      link.href = dataUrl;
-      link.click();
+        const link = document.createElement('a');
+        link.download = `viby-agenda-p${i + 1}-${Date.now()}.png`;
+        link.href = dataUrl;
+        link.click();
+        
+        // Pequena pausa entre downloads para o navegador não bloquear
+        await new Promise(r => setTimeout(r, 300));
+      }
 
       // Logar geração para o histórico
       if (db) {
@@ -134,14 +156,15 @@ export default function AgendaGeneratorPage() {
           templateName: 'Agenda da Semana',
           format,
           theme,
-          formatExt: type,
+          pagesCount: pages.length,
+          eventsCount: selectedEvents.length,
           createdAt: serverTimestamp()
         });
       }
 
-      toast({ title: "Imagem gerada!", description: "O download iniciará automaticamente." });
+      toast({ title: "Todas as páginas geradas!", description: `${pages.length} arquivos baixados.` });
     } catch (err) {
-      toast({ variant: "destructive", title: "Erro na exportação", description: "Certifique-se de que todas as imagens carregaram corretamente." });
+      toast({ variant: "destructive", title: "Erro na exportação", description: "Verifique se as mídias carregaram corretamente." });
     } finally {
       setIsGenerating(false);
     }
@@ -154,7 +177,7 @@ export default function AgendaGeneratorPage() {
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Seleção de Eventos</CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase">Busque e adicione eventos para a arte.</CardDescription>
+            <CardDescription className="text-[10px] font-bold uppercase">Adicione quantos eventos desejar. O sistema criará novas páginas automaticamente.</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
             <div className="flex gap-2">
@@ -193,7 +216,7 @@ export default function AgendaGeneratorPage() {
             )}
 
             <div className="space-y-3 pt-4">
-              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Eventos Selecionados ({selectedEvents.length})</Label>
+              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Lista de Eventos ({selectedEvents.length})</Label>
               <div className="space-y-2">
                 {selectedEvents.map((ev, i) => (
                   <div key={ev.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50 group animate-in slide-in-from-left-2">
@@ -220,7 +243,7 @@ export default function AgendaGeneratorPage() {
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-8">
              <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Layout className="w-3.5 h-3.5" /> Formato de Exportação</Label>
+                <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Layout className="w-3.5 h-3.5" /> Formato Global</Label>
                 <div className="grid grid-cols-3 gap-2">
                    <FormatBtn active={format === 'stories'} onClick={() => setFormat('stories')} icon={Smartphone} label="Stories" />
                    <FormatBtn active={format === 'instagram'} onClick={() => setFormat('instagram')} icon={Layout} label="Feed" />
@@ -229,7 +252,7 @@ export default function AgendaGeneratorPage() {
              </div>
 
              <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Palette className="w-3.5 h-3.5" /> Tema Oficial</Label>
+                <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Palette className="w-3.5 h-3.5" /> Tema Aplicado</Label>
                 <Select value={theme} onValueChange={(v:any) => setTheme(v)}>
                    <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                    <SelectContent className="rounded-xl">
@@ -244,50 +267,64 @@ export default function AgendaGeneratorPage() {
 
         <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/10 flex items-start gap-3">
            <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-           <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed italic">O sistema ajusta automaticamente o tamanho das fontes e a quantidade de itens visíveis conforme o formato selecionado.</p>
+           <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed italic">Atualmente você está gerando {eventPages.length} {eventPages.length > 1 ? 'páginas' : 'página'} de arte.</p>
         </div>
       </div>
 
       {/* Área de Preview e Download */}
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Pré-visualização de Download</h3>
+           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Pré-visualização do Estúdio</h3>
            <div className="flex gap-2">
-              <Button onClick={() => handleDownload('png')} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-6 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
-                 {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Baixar PNG
+              <Button onClick={handleDownloadAll} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
+                 {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
+                 {eventPages.length > 1 ? `Baixar ${eventPages.length} Páginas` : 'Baixar PNG'}
               </Button>
            </div>
         </div>
 
-        <Card className="border-none shadow-2xl rounded-[3rem] bg-[#e2e8f0] overflow-hidden p-10 flex justify-center items-center min-h-[800px] relative">
+        <div className="relative bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] border-none shadow-2xl overflow-hidden">
            {isGenerating && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Processando Canvas...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Exportando lote de imagens...</p>
              </div>
            )}
 
-           <div className={cn(
-             "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
-             format === 'stories' ? "scale-[0.35]" : format === 'instagram' ? "scale-[0.45]" : "scale-[0.3]"
-           )}>
-              <div ref={renderRef}>
-                 <AgendaTemplate 
-                    events={selectedEvents} 
-                    format={format} 
-                    theme={theme} 
-                    logoUrl={logoBase64 || undefined}
-                 />
+           <ScrollArea className="h-full">
+              <div className="flex flex-col items-center gap-20 py-10" ref={containerRef}>
+                {eventPages.map((pageEvents, idx) => (
+                  <div key={idx} className="relative group/preview flex flex-col items-center gap-4">
+                    <div className="flex items-center gap-3 px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full border shadow-xl mb-4">
+                      <Layout className="w-4 h-4 text-secondary" />
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Página {idx + 1}</p>
+                    </div>
+                    
+                    <div className={cn(
+                      "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
+                      format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[608px]" : "scale-[0.3] h-[526px]"
+                    )}>
+                       <AgendaTemplate 
+                          events={pageEvents} 
+                          format={format} 
+                          theme={theme} 
+                          logoUrl={logoBase64 || undefined}
+                          pageNumber={idx + 1}
+                          totalPages={eventPages.length}
+                       />
+                    </div>
+                  </div>
+                ))}
+
+                {selectedEvents.length === 0 && (
+                  <div className="flex flex-col items-center justify-center opacity-30 gap-4 py-40">
+                     <ImageIcon className="w-16 h-16" />
+                     <p className="font-black uppercase tracking-[0.4em] text-sm">Adicione eventos para visualizar</p>
+                  </div>
+                )}
               </div>
-           </div>
-
-           {selectedEvents.length === 0 && (
-             <div className="absolute inset-0 flex flex-col items-center justify-center opacity-30 gap-4">
-                <ImageIcon className="w-16 h-16" />
-                <p className="font-black uppercase tracking-[0.4em] text-sm">Selecione eventos para visualizar</p>
-             </div>
-           )}
-        </Card>
+           </ScrollArea>
+        </div>
       </div>
     </div>
   );

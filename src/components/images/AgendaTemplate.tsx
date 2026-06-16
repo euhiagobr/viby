@@ -17,17 +17,19 @@ interface AgendaTemplateProps {
   format: 'A4' | 'instagram' | 'stories';
   theme: 'viby' | 'claro' | 'escuro';
   logoUrl?: string;
+  pageNumber?: number;
+  totalPages?: number;
 }
 
 /**
  * Template oficial "Agenda da Semana"
  * Segue rigorosamente a identidade visual da Viby.
  */
-export function AgendaTemplate({ events, format, theme, logoUrl }: AgendaTemplateProps) {
+export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const config = {
-    stories: { width: 1080, height: 1920, items: 6, fontSize: 32 },
-    instagram: { width: 1080, height: 1350, items: 5, fontSize: 28 },
-    A4: { width: 1240, height: 1754, items: 7, fontSize: 36 }
+    stories: { width: 1080, height: 1920, fontSize: 32 },
+    instagram: { width: 1080, height: 1350, fontSize: 28 },
+    A4: { width: 1240, height: 1754, fontSize: 36 }
   }[format];
 
   const colors = {
@@ -38,6 +40,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl }: AgendaTemplat
 
   return (
     <div 
+      className="viby-export-page"
       style={{ 
         width: `${config.width}px`, 
         height: `${config.height}px`, 
@@ -64,6 +67,9 @@ export function AgendaTemplate({ events, format, theme, logoUrl }: AgendaTemplat
            <h1 style={{ fontSize: '100px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, lineHeight: 0.8, letterSpacing: '-4px' }}>
               DA <span style={{ color: theme === 'claro' ? '#2C52EE' : '#FFFFFF', opacity: theme === 'claro' ? 1 : 0.4 }}>SEMANA</span>
            </h1>
+           {totalPages && totalPages > 1 && (
+             <p style={{ fontSize: '18px', fontWeight: 800, opacity: 0.5, margin: '10px 0 0 5px' }}>PÁGINA {pageNumber} DE {totalPages}</p>
+           )}
         </div>
         {logoUrl && (
           <img src={logoUrl} style={{ height: '80px', objectFit: 'contain', filter: theme === 'viby' || theme === 'escuro' ? 'brightness(0) invert(1)' : 'none' }} alt="Logo" />
@@ -72,7 +78,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl }: AgendaTemplat
 
       {/* Events List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', flex: 1, position: 'relative', zIndex: 10 }}>
-        {events.slice(0, config.items).map((ev) => (
+        {events.map((ev) => (
           <div 
             key={ev.id} 
             style={{ 
@@ -97,7 +103,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl }: AgendaTemplat
                    <span style={{ fontSize: '20px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date)}</span>
                 </div>
                 
-                <h2 style={{ fontSize: '42px', fontWeight: 900, textTransform: 'uppercase', italic: 'italic', lineHeight: 1, margin: 0, color: colors.text }}>
+                <h2 style={{ fontSize: '42px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', lineHeight: 1, margin: 0, color: colors.text }}>
                    {shortenTitle(ev.title, 40)}
                 </h2>
                 
