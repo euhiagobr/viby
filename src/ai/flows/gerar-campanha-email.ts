@@ -27,6 +27,63 @@ export async function gerarCampanhaEmail(input: z.infer<typeof GerarCampanhaEmai
   return gerarCampanhaEmailFlow(input);
 }
 
+const gerarCampanhaEmailPrompt = ai.definePrompt({
+  name: 'gerarCampanhaEmailPrompt',
+  input: {
+    schema: z.object({
+      objetivo: z.string(),
+      publicoAlvo: z.string(),
+      tom: z.string(),
+      maxEventos: z.number(),
+      brand: z.any(),
+      aiConfig: z.any(),
+      eventsContext: z.array(z.any())
+    })
+  },
+  output: { schema: GerarCampanhaEmailOutputSchema },
+  prompt: `
+{{aiConfig.globalBasePrompt}}
+
+VOCÊ DEVE GERAR O CONTEÚDO FINAL. 
+NUNCA INCLUA TAGS COMO {{{brand...}}} OU {{title}} NO SEU OUTPUT. 
+SUBSTITUA TODOS OS PLACEHOLDERS PELOS VALORES REAIS ABAIXO.
+
+IDENTIDADE DA MARCA:
+Nome: {{brand.identity.tradeName}}
+Slogan: {{brand.identity.slogan}}
+Descrição: {{brand.identity.shortDescription}}
+
+VISUAL E LOGO:
+Cor Primária: {{brand.visual.primaryColor}}
+Cor do CTA: {{brand.visual.ctaColor}}
+Logo URL: {{brand.logos.main}}
+
+CONTATOS REAIS (USAR APENAS ESTES):
+Suporte: {{brand.contacts.emails.support}}
+WhatsApp: {{brand.contacts.whatsapp.number}}
+Instagram: {{brand.contacts.social.instagram}}
+Site: {{brand.urls.mainSite}}
+
+CONTEXTO DA CAMPANHA:
+Objetivo: {{objetivo}}
+Público: {{publicoAlvo}}
+Tom: {{tom}}
+
+EVENTOS DISPONÍVEIS (SELECIONE OS {{maxEventos}} MAIS RELEVANTES):
+{{#each eventsContext}}
+- ID: {{id}}, Título: {{title}}, Cidade: {{city}}, Preço: {{startingPrice}}, Link: {{url}}
+{{/each}}
+
+REQUISITOS DO OUTPUT:
+1. "contentHtml" deve ser um HTML completo, responsivo e com os dados populados.
+2. Use a logo da marca em <img src="{{brand.logos.main}}">.
+3. Botões devem ter a cor {{brand.visual.ctaColor}}.
+4. Inclua links reais dos eventos selecionados.
+5. Retorne os "selectedEventIds" que você usou no HTML.
+6. A "brandVersion" deve ser {{brand.version}}.
+  `
+});
+
 const gerarCampanhaEmailFlow = ai.defineFlow(
   {
     name: 'gerarCampanhaEmailFlow',
@@ -37,7 +94,7 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
     try {
       const db = getAdminDb();
       
-      console.log("[SERVER-AI] Carregando Configurações e Base de Conhecimento da Marca...");
+      console.log("[SERVER-AI] Carregando Configurações e Base de Conhecimento...");
       
       const [aiConfigSnap, brandSnap] = await Promise.all([
         db.collection('settings').doc('ai_config').get(),
@@ -45,24 +102,16 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
       ]);
 
       if (!brandSnap.exists) {
-        throw new Error("Base de conhecimento da marca não configurada. Por favor, preencha as informações em /admin/crm/ia/marca.");
+        throw new Error("Base de conhecimento da marca não configurada.");
       }
 
       const aiConfig = aiConfigSnap.exists ? aiConfigSnap.data() : {
-        modelCampaigns: 'openai/gpt-4o-mini',
         globalBasePrompt: "Você é a IA oficial da Viby."
       };
       
       const brand = brandSnap.data()!;
 
-      // Validação de dados obrigatórios conforme regra de Fallback
-      if (!brand.logos?.main || !brand.visual?.primaryColor || !brand.contacts?.emails?.support) {
-        throw new Error("Dados obrigatórios da marca ausentes (Logo, Cor ou Email Suporte). Geração bloqueada.");
-      }
-
-      const modelId = aiConfig.modelCampaigns || 'openai/gpt-4o-mini';
-
-      console.log("[SERVER-AI] Buscando eventos reais para contexto...");
+      console.log("[SERVER-AI] Buscando eventos ativos...");
       const eventsSnap = await db.collection('events')
         .where('status', '==', 'Ativo')
         .orderBy('date', 'asc')
@@ -82,75 +131,26 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
       });
 
       if (eventsContext.length === 0) {
-        throw new Error("Não há eventos ativos na plataforma para gerar a campanha.");
+        throw new Error("Não há eventos ativos para gerar a campanha.");
       }
 
-      console.log(`[SERVER-AI] Chamando ${modelId} com Identidade da Marca v${brand.version}...`);
+      console.log(`[SERVER-AI] Chamando modelo de IA para geração final...`);
 
-      const response = await ai.generate({
-        model: modelId,
-        input: { ...input, eventsContext, aiConfig, brand },
-        output: { schema: GerarCampanhaEmailOutputSchema },
-        prompt: `{{{aiConfig.globalBasePrompt}}}
-
-IDENTIDADE DA MARCA (USAR APENAS ESTES DADOS):
-Nome: {{{brand.identity.tradeName}}}
-Slogan: {{{brand.identity.slogan}}}
-Missão: {{{brand.identity.mission}}}
-Descrição: {{{brand.identity.shortDescription}}}
-
-CORES OFICIAIS (USAR NO HTML):
-Primária: {{{brand.visual.primaryColor}}}
-Secundária: {{{brand.visual.secondaryColor}}}
-CTA: {{{brand.visual.ctaColor}}}
-Fundo: {{{brand.visual.backgroundColor}}}
-Texto: {{{brand.visual.textColor}}}
-
-CONTATOS OFICIAIS (NUNCA INVENTAR):
-Email Suporte: {{{brand.contacts.emails.support}}}
-WhatsApp: {{{brand.contacts.whatsapp.number}}}
-Instagram: {{{brand.contacts.social.instagram}}}
-Site: {{{brand.urls.mainSite}}}
-
-LOGO OFICIAL: {{{brand.logos.main}}}
-
-DIRETRIZES DE TOM DE VOZ:
-- Usar: Amigável, moderno, humano, positivo.
-- Evitar: Robótico, agressivo, clickbait.
-
-CONTEXTO DA CAMPANHA:
-Objetivo: {{{objetivo}}}
-Público Alvo: {{{publicoAlvo}}}
-Tom Selecionado: {{{tom}}}
-
-EVENTOS REAIS DISPONÍVEIS (Selecione até {{{maxEventos}}} mais relevantes):
-{{#each eventsContext}}
-- ID: {{id}}, Título: {{title}}, Categoria: {{categoryName}}, Cidade: {{city}}, Preço: {{startingPrice}}, Link: {{url}}
-{{/each}}
-
-REQUISITOS DO HTML:
-1. Cabeçalho com logo oficial da marca.
-2. Design limpo e responsivo usando as cores oficiais.
-3. Botões de CTA com a cor {{{brand.visual.ctaColor}}}.
-4. Rodapé padrão incluindo links de redes sociais e email de suporte.
-5. Inserir link de descadastro (Unsubscribe) no final.
-
-Gere o assunto, preheader, os IDs selecionados, a versão da marca utilizada ({{{brand.version}}}) e o HTML completo.`
+      const { output } = await gerarCampanhaEmailPrompt({
+        ...input,
+        brand,
+        aiConfig,
+        eventsContext
       });
       
-      const output = response.output;
-      
       if (!output) {
-        throw new Error("O modelo de IA não retornou uma saída válida.");
+        throw new Error("A IA falhou ao gerar o conteúdo.");
       }
 
-      console.log("[SERVER-AI] Geração concluída com sucesso.");
-      return {
-        ...output,
-        brandVersion: brand.version
-      };
+      console.log("[SERVER-AI] Campanha gerada com sucesso.");
+      return output;
     } catch (err: any) {
-      console.error("[SERVER-AI-ERROR] Falha no fluxo:", err);
+      console.error("[SERVER-AI-ERROR] Falha no fluxo:", err.message);
       throw err;
     }
   }

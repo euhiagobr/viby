@@ -24,7 +24,6 @@ import {
   Dialog, 
   DialogContent, 
   DialogDescription, 
-  DialogFooter, 
   DialogHeader, 
   DialogTitle, 
   DialogTrigger 
@@ -59,9 +58,8 @@ export default function CrmCampaignsPage() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      console.log("[CRM-AI] Iniciando geração de campanha...");
+      console.log("[CRM-AI] Solicitando geração de campanha...");
       
-      // IA consulta eventos reais no servidor via Genkit Flow
       const aiResult = await gerarCampanhaEmail({
         objetivo: formData.get('objetivo') as string,
         publicoAlvo: formData.get('segmento') as string,
@@ -69,26 +67,25 @@ export default function CrmCampaignsPage() {
         maxEventos: 3
       });
 
-      console.log("[CRM-AI] Resposta da IA recebida com sucesso.");
+      console.log("[CRM-AI] Recebendo resultado estruturado...");
 
       const campaignRes = await createCrmCampaignAction({
         title: formData.get('title') as string,
         ...aiResult,
         objective: formData.get('objetivo') as string,
         tom: formData.get('tom') as string,
-        status: 'rascunho'
       }, user.uid);
 
       if (campaignRes.success) {
-        toast({ title: "Campanha real gerada!" });
+        toast({ title: "Campanha estruturada com sucesso!" });
         router.push(`/admin/crm/campanhas/${campaignRes.id}`);
       } else throw new Error(campaignRes.error);
     } catch (err: any) {
-      console.error("[CRM-AI-ERROR] Falha na geração da campanha:", err);
+      console.error("[CRM-AI-ERROR] Erro na geração:", err);
       toast({ 
         variant: "destructive", 
         title: "Erro na IA", 
-        description: err.message || "Consulte o console do navegador para detalhes." 
+        description: err.message || "Erro desconhecido. Verifique as configurações da marca."
       });
     } finally {
       setIsAiLoading(false);
@@ -115,20 +112,20 @@ export default function CrmCampaignsPage() {
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Sparkles className="w-6 h-6 fill-current" /></div>
                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Viby AI Marketing</DialogTitle>
                  </div>
-                 <DialogDescription className="font-bold text-secondary uppercase text-[10px]">Criação inteligente conectada à base de dados real</DialogDescription>
+                 <DialogDescription className="font-bold text-secondary uppercase text-[10px]">Criação inteligente baseada em dados reais</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleGenerateAi} className="p-8 space-y-6">
                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase ml-1">Título Interno</Label><Input name="title" required className="rounded-xl h-11" placeholder="Ex: Campanha Retenção SP" /></div>
-                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase ml-1">Objetivo Estratégico</Label><Input name="objetivo" required className="rounded-xl h-11" placeholder="Ex: Vender ingressos para Karaokê" /></div>
+                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase ml-1">Objetivo Estratégico</Label><Input name="objetivo" required className="rounded-xl h-11" placeholder="Ex: Reativar usuários antigos" /></div>
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase ml-1">Público Alvo</Label>
-                       <Select name="segmento" required defaultValue="Compradores de Karaokê">
+                       <Select name="segmento" required defaultValue="Interessados em Shows">
                           <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
                           <SelectContent className="rounded-xl">
-                             <SelectItem value="Compradores de Karaokê">Compradores de Karaokê</SelectItem>
-                             <SelectItem value="Público Diversidade">Público Diversidade</SelectItem>
-                             <SelectItem value="Leads Pendentes">Leads Pendentes</SelectItem>
+                             <SelectItem value="Interessados em Shows">Interessados em Shows</SelectItem>
+                             <SelectItem value="Usuários de São Paulo">Usuários de SP</SelectItem>
+                             <SelectItem value="Leads de Organizadores">Leads Pendentes</SelectItem>
                           </SelectContent>
                        </Select>
                     </div>
@@ -138,7 +135,7 @@ export default function CrmCampaignsPage() {
                           <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
                           <SelectContent className="rounded-xl">
                              <SelectItem value="profissional">Profissional</SelectItem>
-                             <SelectItem value="entusiasmado">Entusiasmado</SelectItem>
+                             <SelectItem value="amigável">Amigável</SelectItem>
                              <SelectItem value="urgente">Urgente</SelectItem>
                           </SelectContent>
                        </Select>
@@ -178,11 +175,6 @@ export default function CrmCampaignsPage() {
                         </div>
 
                         <div className="flex items-center gap-10">
-                           <div className="hidden md:flex gap-8 text-center">
-                              <StatItem label="Abertura" value={c.metrics?.sent > 0 ? `${Math.round((c.metrics.opens/c.metrics.sent)*100)}%` : "0%"} />
-                              <StatItem label="Cliques" value={c.metrics?.sent > 0 ? `${Math.round((c.metrics.clicks/c.metrics.sent)*100)}%` : "0%"} />
-                              <StatItem label="Enviados" value={c.metrics?.sent || 0} />
-                           </div>
                            <ChevronRight className="w-5 h-5 text-muted-foreground/30 group-hover:text-secondary transition-colors" />
                         </div>
                      </div>
@@ -199,13 +191,4 @@ export default function CrmCampaignsPage() {
       </div>
     </div>
   );
-}
-
-function StatItem({ label, value }: any) {
-   return (
-      <div className="flex flex-col">
-         <span className="text-base font-black text-primary">{value}</span>
-         <span className="text-[8px] font-black uppercase text-muted-foreground tracking-widest opacity-60">{label}</span>
-      </div>
-   );
 }
