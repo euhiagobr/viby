@@ -24,7 +24,8 @@ import {
   ChevronRight,
   Image as ImageIcon,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { 
   Select, 
@@ -367,4 +368,3 @@ function FormatBtn({ active, onClick, icon: Icon, label }: any) {
     </button>
   );
 }
-
