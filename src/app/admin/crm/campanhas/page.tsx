@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -58,7 +57,7 @@ export default function CrmCampaignsPage() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      console.log("[CRM-AI] Solicitando geração de campanha...");
+      console.log("[CRM-AI] Iniciando geração de campanha...");
       
       const aiResult = await gerarCampanhaEmail({
         objetivo: formData.get('objetivo') as string,
@@ -66,8 +65,6 @@ export default function CrmCampaignsPage() {
         tom: formData.get('tom') as string,
         maxEventos: 3
       });
-
-      console.log("[CRM-AI] Recebendo resultado estruturado...");
 
       const campaignRes = await createCrmCampaignAction({
         title: formData.get('title') as string,
@@ -77,15 +74,15 @@ export default function CrmCampaignsPage() {
       }, user.uid);
 
       if (campaignRes.success) {
-        toast({ title: "Campanha estruturada com sucesso!" });
+        toast({ title: "Campanha gerada pela IA!" });
         router.push(`/admin/crm/campanhas/${campaignRes.id}`);
       } else throw new Error(campaignRes.error);
     } catch (err: any) {
-      console.error("[CRM-AI-ERROR] Erro na geração:", err);
+      console.error("[CRM-AI-ERROR] Falha na geração da campanha:", err);
       toast({ 
         variant: "destructive", 
         title: "Erro na IA", 
-        description: err.message || "Erro desconhecido. Verifique as configurações da marca."
+        description: err.message || "Não foi possível processar a geração no momento."
       });
     } finally {
       setIsAiLoading(false);
@@ -97,7 +94,7 @@ export default function CrmCampaignsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar campanha real..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11 rounded-xl" />
+          <Input placeholder="Buscar campanha..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11 rounded-xl" />
         </div>
         
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -137,6 +134,7 @@ export default function CrmCampaignsPage() {
                              <SelectItem value="profissional">Profissional</SelectItem>
                              <SelectItem value="amigável">Amigável</SelectItem>
                              <SelectItem value="urgente">Urgente</SelectItem>
+                             <SelectItem value="entusiasmado">Entusiasmado</SelectItem>
                           </SelectContent>
                        </Select>
                     </div>

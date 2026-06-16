@@ -1,10 +1,9 @@
-
 'use client';
 
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useFirestore, useDoc, useAuth, useUser } from '@/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,15 +12,11 @@ import {
   Send, 
   CheckCircle2, 
   Clock, 
-  ShieldCheck, 
   Loader2,
   Eye,
-  Mail,
   Zap,
   Target,
-  BarChart3,
   AlertTriangle,
-  XCircle,
   Smartphone,
   Monitor
 } from 'lucide-react';
@@ -29,7 +24,6 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { sendTestEmailAction, approveCrmCampaignAction } from '@/app/actions/crm-marketing';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from '@/components/ui/separator';
 
 export default function CampaignDetailPage() {
@@ -87,8 +81,8 @@ export default function CampaignDetailPage() {
                <Badge className={cn(
                  "uppercase text-[9px] font-black h-5 px-2 shadow-sm",
                  campaign.status === 'aprovado' ? "bg-green-600" : "bg-orange-500"
-               )}>{campaign.status.replace('_',' ')}</Badge>
-               <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Criada em {new Date(campaign.createdAt?.seconds * 1000).toLocaleString('pt-BR')}</span>
+               )}>{campaign.status?.replace('_',' ')}</Badge>
+               <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Criada em {new Date(campaign.createdAt?.seconds * 1000 || campaign.createdAt).toLocaleString('pt-BR')}</span>
             </div>
           </div>
         </div>

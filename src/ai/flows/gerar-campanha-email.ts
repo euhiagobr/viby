@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Fluxo Genkit para geração inteligente de campanhas de e-mail marketing.
@@ -24,6 +23,7 @@ const GerarCampanhaEmailOutputSchema = z.object({
 });
 
 export async function gerarCampanhaEmail(input: z.infer<typeof GerarCampanhaEmailInputSchema>) {
+  console.log("[SERVER-AI] Acionando fluxo de geração de e-mail:", input);
   return gerarCampanhaEmailFlow(input);
 }
 
@@ -44,9 +44,10 @@ const gerarCampanhaEmailPrompt = ai.definePrompt({
   prompt: `
 {{aiConfig.globalBasePrompt}}
 
-VOCÊ DEVE GERAR O CONTEÚDO FINAL. 
-NUNCA INCLUA TAGS COMO {{{brand...}}} OU {{title}} NO SEU OUTPUT. 
-SUBSTITUA TODOS OS PLACEHOLDERS PELOS VALORES REAIS ABAIXO.
+INSTRUÇÃO CRÍTICA:
+Você deve gerar o conteúdo HTML FINAL populado.
+NÃO use tags de template como \{{title}} ou \{{{brand...}}} no seu texto de saída.
+Substitua todos os campos pelos valores reais fornecidos abaixo.
 
 IDENTIDADE DA MARCA:
 Nome: {{brand.identity.tradeName}}
@@ -58,7 +59,7 @@ Cor Primária: {{brand.visual.primaryColor}}
 Cor do CTA: {{brand.visual.ctaColor}}
 Logo URL: {{brand.logos.main}}
 
-CONTATOS REAIS (USAR APENAS ESTES):
+CONTATOS REAIS:
 Suporte: {{brand.contacts.emails.support}}
 WhatsApp: {{brand.contacts.whatsapp.number}}
 Instagram: {{brand.contacts.social.instagram}}
@@ -75,11 +76,11 @@ EVENTOS DISPONÍVEIS (SELECIONE OS {{maxEventos}} MAIS RELEVANTES):
 {{/each}}
 
 REQUISITOS DO OUTPUT:
-1. "contentHtml" deve ser um HTML completo, responsivo e com os dados populados.
+1. "contentHtml" deve ser um HTML completo e responsivo.
 2. Use a logo da marca em <img src="{{brand.logos.main}}">.
-3. Botões devem ter a cor {{brand.visual.ctaColor}}.
-4. Inclua links reais dos eventos selecionados.
-5. Retorne os "selectedEventIds" que você usou no HTML.
+3. Botões e chamadas devem usar a cor {{brand.visual.ctaColor}}.
+4. Inclua links reais dos eventos selecionados na mensagem.
+5. Retorne os "selectedEventIds" utilizados.
 6. A "brandVersion" deve ser {{brand.version}}.
   `
 });
@@ -102,7 +103,7 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
       ]);
 
       if (!brandSnap.exists) {
-        throw new Error("Base de conhecimento da marca não configurada.");
+        throw new Error("Base de conhecimento da marca não configurada no painel administrativo.");
       }
 
       const aiConfig = aiConfigSnap.exists ? aiConfigSnap.data() : {
@@ -111,7 +112,7 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
       
       const brand = brandSnap.data()!;
 
-      console.log("[SERVER-AI] Buscando eventos ativos...");
+      console.log("[SERVER-AI] Buscando eventos ativos para contexto...");
       const eventsSnap = await db.collection('events')
         .where('status', '==', 'Ativo')
         .orderBy('date', 'asc')
@@ -131,10 +132,10 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
       });
 
       if (eventsContext.length === 0) {
-        throw new Error("Não há eventos ativos para gerar a campanha.");
+        throw new Error("Não há eventos ativos disponíveis para compor a campanha.");
       }
 
-      console.log(`[SERVER-AI] Chamando modelo de IA para geração final...`);
+      console.log(`[SERVER-AI] Chamando modelo de IA para geração...`);
 
       const { output } = await gerarCampanhaEmailPrompt({
         ...input,
@@ -144,7 +145,7 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
       });
       
       if (!output) {
-        throw new Error("A IA falhou ao gerar o conteúdo.");
+        throw new Error("A IA não retornou um resultado válido.");
       }
 
       console.log("[SERVER-AI] Campanha gerada com sucesso.");
