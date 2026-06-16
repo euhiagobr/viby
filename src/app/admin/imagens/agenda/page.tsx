@@ -57,8 +57,6 @@ const FORMAT_DIMENSIONS = {
   A4: { width: 1240, height: 1754 }
 };
 
-const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
-
 export default function AgendaGeneratorPage() {
   const db = useFirestore();
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -134,51 +132,48 @@ export default function AgendaGeneratorPage() {
   }, [selectedEvents, format]);
 
   /**
-   * AUDITORIA HORIZONTAL FORENSE EXCLUSIVA
-   * Foca na detecção de "vazamentos" laterais.
+   * AUDITORIA FORENSE COMPLETA (Vertical e Horizontal)
+   * Mede via getBoundingClientRect() todos os elementos estruturais do template.
    */
   const runForensicAudit = () => {
     if (!containerRef.current) return;
-    const pages = containerRef.current.querySelectorAll('.viby-export-page');
+    const pages = containerRef.current.querySelectorAll('.viby-template-root');
     
-    console.group(`VIBY HORIZONTAL AUDIT - FORMATO: ${format.toUpperCase()}`);
+    console.group(`VIBY FORENSIC AUDIT - FORMATO: ${format.toUpperCase()}`);
     
     pages.forEach((page, pIdx) => {
-      const pageRect = page.getBoundingClientRect();
-      const container = page.querySelector('.viby-events-container');
-      if (!container) return;
-      const containerRect = container.getBoundingClientRect();
+      const rootRect = page.getBoundingClientRect();
+      const header = page.querySelector('.viby-header')?.getBoundingClientRect();
+      const container = page.querySelector('.viby-events-container')?.getBoundingClientRect();
+      const footer = page.querySelector('.viby-footer')?.getBoundingClientRect();
 
-      console.log(`PÁGINA ${pIdx + 1}: [Template Width: ${pageRect.width}px] [Container Width: ${containerRect.width}px]`);
-
-      const cards = container.querySelectorAll('.viby-card');
-      const cardReport = Array.from(cards).map((card: any, cIdx) => {
-        const rect = card.getBoundingClientRect();
-        const overflowRight = rect.right - containerRect.right;
-        
-        // Medir elementos internos para detectar quem "empurra" a largura
-        const title = card.querySelector('.viby-card-title');
-        const location = card.querySelector('.viby-card-location');
-        const content = card.querySelector('.viby-card-content');
-
-        return {
-          cardIndex: cIdx + 1,
-          cardWidth: rect.width,
-          cardRight: Math.round(rect.right),
-          containerRight: Math.round(containerRect.right),
-          overflowRight: overflowRight > 0.5 ? `${overflowRight.toFixed(2)}px (OVERFLOW)` : '0px (PASS)',
-          titleScrollWidth: title?.scrollWidth,
-          titleClientWidth: title?.clientWidth,
-          titleHasOverflow: title?.scrollWidth > title?.clientWidth ? 'YES' : 'NO',
-          contentHasOverflow: content?.scrollWidth > content?.clientWidth ? 'YES' : 'NO'
-        };
+      console.log(`PÁGINA ${pIdx + 1} DETALHES:`);
+      console.table({
+        'ROOT': { width: rootRect.width, height: rootRect.height, top: rootRect.top, bottom: rootRect.bottom },
+        'HEADER': { height: header?.height, top: header?.top, bottom: header?.bottom },
+        'CONTAINER': { width: container?.width, height: container?.height, top: container?.top, bottom: container?.bottom },
+        'FOOTER': { height: footer?.height, top: footer?.top, bottom: footer?.bottom }
       });
 
-      console.table(cardReport);
+      // Validação Crítica: O container invade o footer?
+      if (container && footer && container.bottom > footer.top) {
+        console.warn(`[OVERFLOW DETECTADO] O container azul ultrapassou o footer em ${Math.round(container.bottom - footer.top)}px`);
+      } else {
+        console.log(`[LAYOUT OK] Espaço livre entre container e footer: ${footer ? Math.round(footer.top - (container?.bottom || 0)) : 'N/A'}px`);
+      }
+
+      // Validação de Largura: Algum card "vazou" na direita?
+      const cards = page.querySelectorAll('.viby-card');
+      cards.forEach((card, cIdx) => {
+        const cRect = card.getBoundingClientRect();
+        if (container && cRect.right > container.right + 1) {
+          console.error(`[WIDTH LEAK] Card ${cIdx + 1} vazou na direita por ${Math.round(cRect.right - container.right)}px`);
+        }
+      });
     });
     
     console.groupEnd();
-    toast({ title: "Auditoria horizontal concluída!", description: "Dados técnicos enviados ao console (F12)." });
+    toast({ title: "Auditoria finalizada!", description: "Métricas milimétricas enviadas ao console (F12)." });
   };
 
   const handleDownloadAll = async () => {
@@ -187,7 +182,7 @@ export default function AgendaGeneratorPage() {
     await new Promise(r => setTimeout(r, 1000));
 
     try {
-      const pages = containerRef.current.querySelectorAll('.viby-export-page');
+      const pages = containerRef.current.querySelectorAll('.viby-template-root');
       const dimensions = FORMAT_DIMENSIONS[format];
       
       for (let i = 0; i < pages.length; i++) {
@@ -278,7 +273,6 @@ export default function AgendaGeneratorPage() {
                    <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                    <SelectContent className="rounded-xl">
                       <SelectItem value="viby">Viby (Padrão)</SelectItem>
-                      <SelectItem value="copa">Copa do Mundo</SelectItem>
                       <SelectItem value="claro">Minimalista Claro</SelectItem>
                       <SelectItem value="escuro">Deep Black</SelectItem>
                    </SelectContent>
@@ -286,7 +280,7 @@ export default function AgendaGeneratorPage() {
              </div>
              <Separator className="border-dashed" />
              <Button variant="outline" onClick={runForensicAudit} className="w-full h-11 rounded-xl border-dashed gap-2 text-[10px] font-black uppercase">
-                <Terminal className="w-4 h-4" /> Executar Auditoria Horizontal
+                <Terminal className="w-4 h-4" /> Executar Auditoria Forense
              </Button>
           </CardContent>
         </Card>
@@ -301,7 +295,7 @@ export default function AgendaGeneratorPage() {
            <div className="flex gap-2">
               <Button onClick={handleDownloadAll} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
-                 {eventPages.length > 1 ? `Baixar ${eventPages.length} Páginas` : 'Baixar PNG'}
+                 Baixar PNG
               </Button>
            </div>
         </div>
@@ -322,10 +316,6 @@ export default function AgendaGeneratorPage() {
                   </div>
                 ) : eventPages.map((pageEvents, idx) => (
                   <div key={idx} className="relative flex flex-col items-center gap-4">
-                    <div className="flex items-center gap-3 px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full border shadow-xl mb-4">
-                      <Layout className="w-4 h-4 text-secondary" />
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Folha {idx + 1} de {eventPages.length}</p>
-                    </div>
                     <div className={cn(
                       "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
                       format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[486px]" : "scale-[0.3] h-[526px]"
