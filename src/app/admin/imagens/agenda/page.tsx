@@ -21,7 +21,8 @@ import {
   FileDown,
   X,
   Trophy,
-  ChevronRight
+  ChevronRight,
+  Image as ImageIcon
 } from 'lucide-react';
 import { 
   Select, 
@@ -37,6 +38,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
+// Limite estrito de itens por página para evitar transbordamento
 const ITEMS_PER_FORMAT = {
   stories: 6,
   instagram: 4,
@@ -99,6 +101,7 @@ export default function AgendaGeneratorPage() {
   const addEvent = async (event: any) => {
     if (selectedEvents.some(e => e.id === event.id)) return;
     
+    setIsSearching(true);
     const imgRes = await fetchImageAsBase64(event.image);
     const eventWithSafeImage = {
       ...event,
@@ -108,6 +111,7 @@ export default function AgendaGeneratorPage() {
     setSelectedEvents([...selectedEvents, eventWithSafeImage]);
     setSearchResults([]);
     setSearchTerm("");
+    setIsSearching(false);
   };
 
   const removeEvent = (id: string) => {
@@ -145,7 +149,7 @@ export default function AgendaGeneratorPage() {
         link.href = dataUrl;
         link.click();
         
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 400));
       }
 
       if (db) {
@@ -281,7 +285,12 @@ export default function AgendaGeneratorPage() {
 
            <ScrollArea className="h-full">
               <div className="flex flex-col items-center gap-20 py-10" ref={containerRef}>
-                {eventPages.map((pageEvents, idx) => (
+                {eventPages.length === 0 ? (
+                  <div className="text-center opacity-20 py-40">
+                     <ImageIcon className="w-20 h-20 mx-auto mb-4" />
+                     <p className="text-sm font-black uppercase italic">Adicione eventos para gerar a agenda</p>
+                  </div>
+                ) : eventPages.map((pageEvents, idx) => (
                   <div key={idx} className="relative group/preview flex flex-col items-center gap-4">
                     <div className="flex items-center gap-3 px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full border shadow-xl mb-4">
                       <Layout className="w-4 h-4 text-secondary" />
