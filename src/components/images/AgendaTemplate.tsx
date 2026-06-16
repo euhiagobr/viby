@@ -23,7 +23,7 @@ interface AgendaTemplateProps {
 
 /**
  * Template oficial "Agenda da Semana"
- * Ajustado para centralização absoluta e prevenção de cortes laterais.
+ * Ajustado para centralização absoluta e limites de altura rigorosos.
  */
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const config = {
@@ -80,8 +80,18 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         )}
       </div>
 
-      {/* Events List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, position: 'relative', zIndex: 10, overflow: 'hidden', width: '100%', boxSizing: 'border-box' }}>
+      {/* Events List - LIMITED BY CALCULATION */}
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        gap: '20px', 
+        flex: 1, 
+        position: 'relative', 
+        zIndex: 10, 
+        overflow: 'hidden', 
+        width: '100%', 
+        boxSizing: 'border-box' 
+      }}>
         {events.map((ev) => (
           <div 
             key={ev.id} 
@@ -141,7 +151,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         ))}
       </div>
 
-      {/* Footer / CTA */}
+      {/* Footer / CTA - GUARANTEED BOTTOM */}
       <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', padding: '30px 0 0 0', position: 'relative', zIndex: 10, flexShrink: 0, width: '100%', boxSizing: 'border-box' }}>
          <div style={{ flex: 1, height: '2px', background: colors.text, opacity: 0.1 }} />
          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
@@ -153,3 +163,4 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
     </div>
   );
 }
+

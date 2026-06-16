@@ -22,7 +22,9 @@ import {
   X,
   Trophy,
   ChevronRight,
-  Image as ImageIcon
+  Image as ImageIcon,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   Select, 
@@ -38,15 +40,21 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
+/**
+ * LIMITES DE LAYOUT VIBY (Calculados por Área Útil)
+ * Stories: 1920px total -> 1760px úteis -> 6 itens (200px/cad)
+ * Feed: 1350px total -> 1230px úteis -> 4 itens (220px/cad)
+ * A4: 1754px total -> 1554px úteis -> 4 itens (230px/cad)
+ */
 const ITEMS_PER_FORMAT = {
   stories: 6,
   instagram: 4,
-  A4: 6
+  A4: 4
 };
 
 const FORMAT_DIMENSIONS = {
   stories: { width: 1080, height: 1920 },
-  instagram: { width: 1080, height: 1080 },
+  instagram: { width: 1080, height: 1350 },
   A4: { width: 1240, height: 1754 }
 };
 
@@ -274,7 +282,14 @@ export default function AgendaGeneratorPage() {
 
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Pré-visualização do Estúdio</h3>
+           <div className="space-y-1">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Pré-visualização do Estúdio</h3>
+              {selectedEvents.length > 0 && (
+                <p className="text-[9px] font-bold text-secondary uppercase italic animate-in fade-in">
+                   {selectedEvents.length} eventos. {selectedEvents.length > ITEMS_PER_FORMAT[format] ? `Distribuídos em ${eventPages.length} artes sequenciais.` : "Cabe em uma única arte."}
+                </p>
+              )}
+           </div>
            <div className="flex gap-2">
               <Button onClick={handleDownloadAll} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
@@ -302,7 +317,7 @@ export default function AgendaGeneratorPage() {
                   <div key={idx} className="relative group/preview flex flex-col items-center gap-4">
                     <div className="flex items-center gap-3 px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full border shadow-xl mb-4">
                       <Layout className="w-4 h-4 text-secondary" />
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Página {idx + 1}</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Página {idx + 1} de {eventPages.length}</p>
                     </div>
                     
                     <div className={cn(
@@ -323,6 +338,16 @@ export default function AgendaGeneratorPage() {
               </div>
            </ScrollArea>
         </div>
+
+        <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4 mx-2">
+           <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
+           <div className="space-y-1">
+              <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Nota de Layout</h4>
+              <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
+                 O sistema calcula automaticamente o espaço disponível. Caso selecione mais eventos do que cabe no formato, eles serão divididos em múltiplas imagens para garantir que nenhum card seja cortado.
+              </p>
+           </div>
+        </div>
       </div>
     </div>
   );
@@ -342,3 +367,4 @@ function FormatBtn({ active, onClick, icon: Icon, label }: any) {
     </button>
   );
 }
+
