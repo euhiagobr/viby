@@ -34,7 +34,7 @@ async function generateUniqueSlug(db: admin.firestore.Firestore, title: string, 
   let counter = 1;
 
   while (true) {
-    // Busca global por slug para evitar colisões na rota unificada /eventos/
+    // Busca global por slug para evitar colisões
     const snap = await db.collection('events')
       .where('slug', '==', slug)
       .limit(1)
@@ -114,7 +114,7 @@ export async function createEventAction(params: {
     };
 
     await eventRef.set(finalData);
-    return { success: true, id: eventRef.id, slug };
+    return { success: true, id: eventRef.id, slug, username: orgData?.username };
   } catch (e: any) {
     console.error(`[createEventAction] Critical Failure:`, e.message);
     return { success: false, error: e.message };
@@ -181,7 +181,7 @@ export async function updateEventAction(params: {
     };
 
     await eventRef.update(updatePayload);
-    return { success: true, slug };
+    return { success: true, slug, username: orgData?.username || oldData.organizer?.username };
   } catch (e: any) {
     return { success: false, error: e.message };
   }

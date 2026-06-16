@@ -209,7 +209,8 @@ export default function NovoEventoPage() {
       }
 
       toast({ title: "Evento Publicado!" });
-      router.push(`/eventos/${result.slug || result.id}`);
+      // Roteamento Canônico: /[username]/[slug]
+      router.push(`/${result.username}/${result.slug || result.id}`);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao publicar", description: error.message });
     } finally {
