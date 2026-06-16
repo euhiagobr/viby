@@ -12,7 +12,8 @@ import {
   Layout, 
   Zap, 
   History,
-  Target
+  Target,
+  BrainCircuit
 } from 'lucide-react';
 
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
@@ -24,6 +25,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
     { title: 'Segmentos', url: '/admin/crm/segmentos', icon: Users },
     { title: 'Templates', url: '/admin/crm/templates', icon: Layout },
     { title: 'Automações', url: '/admin/crm/automacoes', icon: Zap },
+    { title: 'IA Config', url: '/admin/crm/ia', icon: BrainCircuit },
     { title: 'Histórico', url: '/admin/crm/historico', icon: History },
   ];
 
@@ -39,7 +41,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      <nav className="flex items-center gap-2 p-1.5 bg-muted/50 rounded-2xl w-fit border border-border/40 shadow-inner">
+      <nav className="flex items-center gap-2 p-1.5 bg-muted/50 rounded-2xl w-fit border border-border/40 shadow-inner overflow-x-auto max-w-full">
         {navItems.map((item) => {
           const isActive = pathname === item.url || (item.url !== '/admin/crm' && pathname?.startsWith(item.url));
           return (
@@ -47,7 +49,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
               key={item.url} 
               href={item.url}
               className={cn(
-                "flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all",
+                "flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all shrink-0",
                 isActive 
                   ? "bg-white text-primary shadow-sm ring-1 ring-border/50" 
                   : "text-muted-foreground hover:text-primary hover:bg-white/50"

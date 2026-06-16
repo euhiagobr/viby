@@ -2,7 +2,7 @@
 'use server';
 /**
  * @fileOverview Fluxo Genkit para geração inteligente de campanhas de e-mail marketing.
- * Seleciona eventos REAIS da base de dados e compõe HTML baseado na identidade Viby.
+ * Utiliza a Base de Conhecimento Permanente da Viby configurada em Firestore.
  */
 
 import { ai, z } from '@/ai/genkit';
@@ -29,33 +29,44 @@ export async function gerarCampanhaEmail(input: z.infer<typeof GerarCampanhaEmai
 const prompt = ai.definePrompt({
   name: 'gerarCampanhaEmailPrompt',
   model: 'openai/gpt-4o',
-  input: { schema: GerarCampanhaEmailInputSchema.extend({ eventsContext: z.array(z.any()) }) },
+  input: { 
+    schema: GerarCampanhaEmailInputSchema.extend({ 
+      eventsContext: z.array(z.any()),
+      aiConfig: z.any() 
+    }) 
+  },
   output: { schema: GerarCampanhaEmailOutputSchema },
-  prompt: `Você é o estrategista de marketing da Viby, uma plataforma líder em experiências culturais.
-Sua tarefa é gerar uma campanha de e-mail marketing de alta conversão utilizando exclusivamente eventos reais disponíveis.
+  prompt: `{{{aiConfig.globalBasePrompt}}}
 
-INSTRUÇÕES DE DESIGN:
-- Use as cores da Viby: Primária (#000000), Secundária (#2C52EE).
+DIRETRIZES DA MARCA:
+{{{aiConfig.brandDescription}}}
+
+TOM DE VOZ DESEJADO:
+- Usar: {{#each aiConfig.toneOfVoice.do}} {{{this}}}, {{/each}}
+- Evitar: {{#each aiConfig.toneOfVoice.dont}} {{{this}}}, {{/each}}
+
+INSTRUÇÕES DE DESIGN VIBY:
+- Cores: Primária (#000000), Secundária (#2C52EE).
 - Layout moderno, limpo e responsivo.
 - Botões de CTA: fundo #2C52EE, texto branco, cantos arredondados (12px).
 - Logo: https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media
 
-ESTRATÉGIA DE CONTEÚDO:
+CONTEXTO DA CAMPANHA:
 Objetivo: {{{objetivo}}}
-Público: {{{publicoAlvo}}}
-Tom: {{{tom}}}
+Público Alvo: {{{publicoAlvo}}}
+Tom Selecionado: {{{tom}}}
 
-EVENTOS DISPONÍVEIS NA BASE REAL (Selecione até {{{maxEventos}}} mais relevantes):
+EVENTOS REAIS DISPONÍVEIS (Selecione até {{{maxEventos}}} mais relevantes):
 {{#each eventsContext}}
 - ID: {{id}}, Título: {{title}}, Categoria: {{categoryName}}, Cidade: {{city}}, Preço: {{startingPrice}}
 {{/each}}
 
 REQUISITOS DO HTML:
-1. Cabeçalho com logo.
-2. Título (H1) em negrito e itálico.
-3. Texto envolvente conectando o objetivo ao público.
+1. Cabeçalho com logo Viby.
+2. Título (H1) em negrito e itálico seguindo a identidade.
+3. Texto envolvente conectando os objetivos da marca aos interesses do público.
 4. Blocos de eventos selecionados com Imagem, Título e Local.
-5. CTA Principal.
+5. Chamado para ação (CTA) principal.
 
 Gere o assunto, preheader, os IDs selecionados e o HTML completo.`
 });
@@ -70,13 +81,19 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
     try {
       const db = getAdminDb();
       
+      console.log("[SERVER-AI] Carregando Base de Conhecimento...");
+      const configSnap = await db.collection('settings').doc('ai_config').get();
+      const aiConfig = configSnap.exists ? configSnap.data() : {
+        brandDescription: "Plataforma de eventos Viby.",
+        globalBasePrompt: "Você é a IA oficial da Viby.",
+        toneOfVoice: { do: ["amigável"], dont: ["robótico"] }
+      };
+
       console.log("[SERVER-AI] Buscando eventos reais para contexto...");
-      
-      // Busca eventos REAIS ativos para alimentar o contexto da IA
       const eventsSnap = await db.collection('events')
         .where('status', '==', 'Ativo')
         .orderBy('date', 'asc')
-        .limit(15)
+        .limit(20)
         .get();
       
       const eventsContext = eventsSnap.docs.map(d => {
@@ -94,9 +111,9 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
         throw new Error("Não há eventos ativos na plataforma para gerar a campanha.");
       }
 
-      console.log(`[SERVER-AI] Contexto carregado com ${eventsContext.length} eventos. Chamando modelo OpenAI...`);
+      console.log(`[SERVER-AI] Contexto carregado com ${eventsContext.length} eventos. Chamando GPT-4o...`);
 
-      const { output } = await prompt({ ...input, eventsContext });
+      const { output } = await prompt({ ...input, eventsContext, aiConfig });
       
       if (!output) {
         throw new Error("O modelo de IA não retornou uma saída válida.");

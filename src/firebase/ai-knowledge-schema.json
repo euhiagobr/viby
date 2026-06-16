@@ -1,0 +1,25 @@
+
+{
+  "collection": "settings",
+  "document": "ai_config",
+  "description": "Base de conhecimento permanente para o comportamento da IA da Viby.",
+  "fields": {
+    "brandName": "string (Viby)",
+    "brandDescription": "string (Descrição da missão e plataforma)",
+    "objectives": "array of strings (Metas estratégicas da marca)",
+    "toneOfVoice": {
+      "do": "array of strings (Diretrizes do que fazer)",
+      "dont": "array of strings (Diretrizes do que não fazer)"
+    },
+    "userTypes": {
+      "lead": { "description": "string", "objective": "string" },
+      "user": { "description": "string", "objective": "string" },
+      "buyer": { "description": "string", "objective": "string" },
+      "recurrent": { "description": "string", "objective": "string" },
+      "organizer": { "description": "string", "objective": "string" }
+    },
+    "globalBasePrompt": "string (Prompt mestre que orienta todas as gerações)",
+    "updatedAt": "timestamp",
+    "updatedBy": "string (UID do administrador)"
+  }
+}
