@@ -1,5 +1,5 @@
 import { genkit, z } from 'genkit';
-import { openai } from 'genkitx-openai';
+import { openAI } from 'genkitx-openai';
 
 /**
  * @fileOverview Configuração central do Genkit v1.x utilizando OpenAI.
@@ -8,7 +8,7 @@ import { openai } from 'genkitx-openai';
 
 export const ai = genkit({
   plugins: [
-    openai(),
+    openAI(),
   ],
   model: 'openai/gpt-4o-mini', // Padrão GPT-5 Mini (gpt-4o-mini) conforme solicitado
 });
