@@ -1,0 +1,76 @@
+
+{
+  "collection": "settings",
+  "document": "brand_knowledge",
+  "description": "Base de conhecimento mestre com dados oficiais da marca Viby para orientação da IA.",
+  "fields": {
+    "identity": {
+      "companyName": "string",
+      "tradeName": "string",
+      "slogan": "string",
+      "shortDescription": "string",
+      "fullDescription": "string",
+      "mission": "string",
+      "vision": "string",
+      "values": "array of strings"
+    },
+    "urls": {
+      "mainSite": "string",
+      "adminPanel": "string",
+      "helpCenter": "string",
+      "blog": "string",
+      "institutional": "string"
+    },
+    "logos": {
+      "main": "string",
+      "horizontal": "string",
+      "vertical": "string",
+      "white": "string",
+      "dark": "string",
+      "icon": "string"
+    },
+    "visual": {
+      "primaryColor": "string (hex)",
+      "secondaryColor": "string (hex)",
+      "accentColor": "string (hex)",
+      "ctaColor": "string (hex)",
+      "backgroundColor": "string (hex)",
+      "textColor": "string (hex)",
+      "primaryFont": "string",
+      "secondaryFont": "string"
+    },
+    "contacts": {
+      "emails": {
+        "contact": "string",
+        "support": "string",
+        "financial": "string",
+        "partnerships": "string",
+        "marketing": "string"
+      },
+      "whatsapp": {
+        "number": "string",
+        "link": "string",
+        "defaultText": "string"
+      },
+      "social": {
+        "instagram": "string",
+        "facebook": "string",
+        "tiktok": "string",
+        "linkedin": "string",
+        "x": "string",
+        "youtube": "string"
+      }
+    },
+    "support": {
+      "hours": "string",
+      "helpUrl": "string"
+    },
+    "emailDefaults": {
+      "footerHtml": "string",
+      "signatures": "array of strings"
+    },
+    "version": "number",
+    "updatedAt": "timestamp",
+    "updatedBy": "string (UID)"
+  }
+}

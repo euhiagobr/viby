@@ -13,7 +13,8 @@ import {
   Zap, 
   History,
   Target,
-  BrainCircuit
+  BrainCircuit,
+  Award
 } from 'lucide-react';
 
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
@@ -26,6 +27,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
     { title: 'Templates', url: '/admin/crm/templates', icon: Layout },
     { title: 'Automações', url: '/admin/crm/automacoes', icon: Zap },
     { title: 'IA Config', url: '/admin/crm/ia', icon: BrainCircuit },
+    { title: 'Identidade Marca', url: '/admin/crm/ia/marca', icon: Award },
     { title: 'Histórico', url: '/admin/crm/historico', icon: History },
   ];
 
