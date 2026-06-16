@@ -32,6 +32,7 @@ import { StoryTemplate } from '@/components/images/StoryTemplate';
 import { toPng } from 'html-to-image';
 import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
+import { isEventVisible } from '@/lib/event-scoring-utils';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
@@ -76,6 +77,7 @@ export default function StoriesGeneratorPage() {
       );
       const snap = await getDocs(q);
       const searchNorm = normalizeText(searchTerm);
+      const now = new Date();
       
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -87,7 +89,10 @@ export default function StoriesGeneratorPage() {
           // Oculta o que já está selecionado
           const isNotSelected = ev.id !== selectedEvent?.id;
 
-          return matchesSearch && isNotSelected;
+          // REGRA: Não exibir eventos que já terminaram
+          const isVisible = isEventVisible(ev, now);
+
+          return matchesSearch && isNotSelected && isVisible;
         });
       setSearchResults(results);
     } catch (e) {

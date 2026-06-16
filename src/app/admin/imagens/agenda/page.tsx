@@ -37,6 +37,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { Separator } from '@/components/ui/separator';
+import { isEventVisible } from '@/lib/event-scoring-utils';
 
 const ITEMS_PER_FORMAT = {
   stories: 7,
@@ -94,6 +95,7 @@ export default function AgendaGeneratorPage() {
       );
       const snap = await getDocs(q);
       const searchNorm = normalizeText(searchTerm);
+      const now = new Date();
       
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -105,8 +107,11 @@ export default function AgendaGeneratorPage() {
           
           // REGRA: Não exibir eventos que já estão na lista
           const isNotListed = !selectedEvents.some(s => s.id === ev.id);
+
+          // REGRA: Não exibir eventos que já terminaram
+          const isVisible = isEventVisible(ev, now);
           
-          return matchesSearch && isNotListed;
+          return matchesSearch && isNotListed && isVisible;
         });
         
       setSearchResults(results);
