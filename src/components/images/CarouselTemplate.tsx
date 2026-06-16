@@ -21,7 +21,7 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
   }[aspectRatio];
 
   const colors = {
-    viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 100%)', text: '#FFFFFF', accent: '#2C52EE' },
+    viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 60%, #8b5cf6 100%)', text: '#FFFFFF', accent: '#2C52EE' },
     claro: { bg: '#F8FAFC', text: '#000000', accent: '#2C52EE' },
     escuro: { bg: '#000000', text: '#FFFFFF', accent: '#2C52EE' },
     copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', accent: '#ffdf00' },
@@ -70,7 +70,7 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, overflow: 'hidden' }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
               <span style={{ fontSize: '32px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(event.date)}</span>
-              <span style={{ fontSize: '24px', fontWeight: 700, opacity: 0.6 }}>{formatTemplateTime(event.date)}</span>
+              <span style={{ fontSize: '24px', fontWeight: 700, opacity: 0.6 }}>{formatTemplateTime(event.date, event.endDate)}</span>
            </div>
            
            <h2 style={{ 

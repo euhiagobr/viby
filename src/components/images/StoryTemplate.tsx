@@ -13,7 +13,7 @@ interface StoryTemplateProps {
 
 export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
   const colors = {
-    viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 100%)', text: '#FFFFFF', accent: '#2C52EE', qrBg: '#FFFFFF' },
+    viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 60%, #8b5cf6 100%)', text: '#FFFFFF', accent: '#2C52EE', qrBg: '#FFFFFF' },
     claro: { bg: '#F8FAFC', text: '#000000', accent: '#2C52EE', qrBg: '#FFFFFF' },
     escuro: { bg: '#000000', text: '#FFFFFF', accent: '#2C52EE', qrBg: '#111111' },
     copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', accent: '#ffdf00', qrBg: '#FFFFFF' },
@@ -70,7 +70,7 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
             <span style={{ fontSize: '46px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(event.date)}</span>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.accent }} />
-            <span style={{ fontSize: '32px', fontWeight: 700, opacity: 0.8 }}>{formatTemplateTime(event.date)}</span>
+            <span style={{ fontSize: '32px', fontWeight: 700, opacity: 0.8 }}>{formatTemplateTime(event.date, event.endDate)}</span>
          </div>
 
          <h1 style={{ 

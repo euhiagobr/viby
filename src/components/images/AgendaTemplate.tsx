@@ -9,6 +9,7 @@ interface EventItem {
   title: string;
   image: string;
   date: any;
+  endDate?: any;
   city: string;
 }
 
@@ -158,7 +159,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                 <div className="viby-card-date" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                    <span style={{ fontSize: '20px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(ev.date)}</span>
                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: colors.text, opacity: 0.3 }} />
-                   <span style={{ fontSize: '16px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date)}</span>
+                   <span style={{ fontSize: '16px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date, ev.endDate)}</span>
                 </div>
                 
                 <h2 className="viby-card-title" style={{ fontSize: '36px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', lineHeight: 1.1, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', boxSizing: 'border-box' }}>

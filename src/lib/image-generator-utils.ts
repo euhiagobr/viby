@@ -52,13 +52,21 @@ export function formatTemplateDate(dateValue: any): string {
 }
 
 /**
- * Formata horário para o estilo do template (ex: 18:00H)
+ * Formata horário para o estilo do template (ex: 18:00 - 22:00H)
  */
-export function formatTemplateTime(dateValue: any): string {
+export function formatTemplateTime(dateValue: any, endDateValue?: any): string {
   if (!dateValue) return "";
   try {
-    const d = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + "H";
+    const dStart = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
+    const startStr = dStart.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    if (endDateValue) {
+      const dEnd = endDateValue.toDate ? endDateValue.toDate() : new Date(endDateValue);
+      const endStr = dEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return `${startStr} - ${endStr}H`;
+    }
+    
+    return `${startStr}H`;
   } catch (e) {
     return "";
   }
