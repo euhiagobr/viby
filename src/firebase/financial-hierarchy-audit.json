@@ -1,0 +1,100 @@
+
+{
+  "audit_version": "1.0.0",
+  "audit_id": "VIBY-FIN-2024-002",
+  "subject": "Hierarquia, Consistência e Validação de Taxas",
+  "status": "COMPLETED",
+  "files_involved": [
+    "src/lib/financial-utils.ts",
+    "src/services/payments/pay-button-service.ts",
+    "src/app/actions/stripe.ts",
+    "src/app/api/webhooks/stripe/route.ts",
+    "src/components/finance/RevenueSimulator.tsx",
+    "src/app/admin/imposto/page.tsx",
+    "src/app/dashboard/organizacoes/[username]/finance/page.tsx"
+  ],
+  "bloco_1_source_of_truth": {
+    "global_fees": "Firestore: settings/fees",
+    "organization_fees": "Firestore: organizations/{orgId} (campos: customBuyerMarkup, customOrganizerPercent, customOrganizerMinFee)",
+    "priority_resolution": "A função calculateVibyOfficialSplit verifica se o objeto 'customFees' possui valores não nulos. Se existirem, eles anulam os valores globais definidos em constantes no financial-utils.ts.",
+    "hardcoded_values": "Sim. VIBY_BUYER_MARKUP (0.15), VIBY_ORGANIZER_FEE (0.10) e VIBY_MIN_FEE_BRL (3.99) estão no código como fallback.",
+    "cache_strategy": "Cálculos dinâmicos em tempo real no frontend e snapshotting (congelamento) no momento da criação da Ordem."
+  },
+  "bloco_2_real_hierarchy": {
+    "priority_1": "Taxa da Organização (Sobrescreve tudo)",
+    "priority_2": "Taxa Global (Configurada no painel admin)",
+    "priority_3": "Constantes Hardcoded (Fallback de segurança)",
+    "levels_found": "O sistema não possui taxas por evento ou por ingresso; a regra é vinculada estritamente à Entidade Organizadora (Marca)."
+  },
+  "bloco_3_consistency": {
+    "shared_function": "calculateVibyOfficialSplit",
+    "usage_audit": {
+      "simulator": "CONSISTENTE (Passa customFees da org)",
+      "checkout_stripe": "CONSISTENTE (Calcula no service usando orgsData)",
+      "webhook_stripe": "CONSISTENTE (Utiliza snapshot salvo no documento 'orders')",
+      "fiscal_ledger": "CONSISTENTE (Processado via calculateDetailedVibyBreakdown)",
+      "payout_dash": "CONSISTENTE (Usa campos producerNetAmount salvos nos ingressos)"
+    },
+    "divergences": "Nenhuma divergência de cálculo encontrada. A função utilitária é a única fonte de lógica para todo o sistema."
+  },
+  "bloco_4_validation": {
+    "negative_payout_protection": "NÃO EXISTE. O cálculo FacePrice - OrganizerFee pode resultar em valores negativos se o preço for inferior a R$ 3,99 e não houver taxa customizada menor.",
+    "fee_vs_price_limit": "NÃO EXISTE. O Stripe retornará Erro 400 se a application_fee for maior que o valor total da transação.",
+    "enforcement_points": {
+      "frontend": "Apenas visual (exibe o valor calculado, mesmo que negativo)",
+      "backend_actions": "Nenhuma trava de valor mínimo no createEventAction",
+      "checkout": "Nenhuma trava no pay-button-service.ts antes de chamar o Stripe"
+    }
+  },
+  "bloco_5_simulations": {
+    "scenario_a": {
+      "face_price": 1.00,
+      "global_min": 3.99,
+      "org_min": 1.99,
+      "result": {
+        "fee_applied": 1.99,
+        "organizer_payout": -0.99,
+        "status": "FAIL (Payout Negativo)"
+      }
+    },
+    "scenario_b": {
+      "face_price": 2.00,
+      "global_min": 3.99,
+      "org_min": 0.99,
+      "result": {
+        "fee_applied": 0.99,
+        "organizer_payout": 1.01,
+        "status": "SUCCESS"
+      }
+    },
+    "scenario_c": {
+      "face_price": 2.00,
+      "global_min": 3.99,
+      "org_min": "N/A",
+      "result": {
+        "fee_applied": 3.99,
+        "organizer_payout": -1.99,
+        "status": "FAIL (Payout Negativo / Stripe Error)"
+      }
+    }
+  },
+  "bloco_6_fee_changes": {
+    "global_change": "Impacta novos checkouts e simuladores. Ordens já criadas preservam a taxa anterior devido ao snapshotting.",
+    "org_change": "Impacta novos checkouts. Se o evento já existia, ele passa a usar a nova regra da marca no próximo clique em 'Garantir'.",
+    "history_preservation": "Garantida para vendas concluídas (registrations). Inexistente para rascunhos ou intenções de compra não finalizadas.",
+    "versioning": "Não implementado. O sistema usa o estado atual da Org no momento do Checkout."
+  },
+  "bloco_7_checkout_webhook": {
+    "split_risk": "O split é calculado no momento da criação do Checkout (application_fee_amount). O webhook apenas confirma a transação.",
+    "divergence_risk": "ZERO entre checkout e webhook, pois o valor é fixado no Stripe. ALTO entre o que o produtor vê no editor e o que é cobrado se a taxa global mudar entre a criação do evento e a compra."
+  },
+  "bloco_8_final_answers": {
+    "q1_priority": "Organização (customFees) > Global.",
+    "q2_incorrect_points": "Nenhum ponto detectado ignorando a hierarquia.",
+    "q3_negative_payout": "SIM. Risco crítico para qualquer ingresso < R$ 3,99 sem taxa customizada.",
+    "q4_checkout_failure": "SIM. Erro 'application_fee exceeds amount' no Stripe.",
+    "q5_checkout_webhook_divergence": "NÃO (Snapshotting ativo).",
+    "q6_simulator_divergence": "NÃO (Compartilham a mesma função).",
+    "q7_need_correction": "SIM. Urgente: Trava de preço mínimo no formulário e no backend (actions/events.ts)."
+  }
+}
