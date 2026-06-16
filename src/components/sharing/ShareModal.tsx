@@ -181,13 +181,14 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Pequeno atraso para garantir fontes e Decodificação de Imagem (Mobile friendly)
+    await new Promise(resolve => setTimeout(resolve, 1200));
 
     try {
       const config = FORMAT_CONFIGS[format];
       const node = renderRef.current;
 
+      // Forçar decodificação de todas as imagens antes de converter para canvas
       const images = Array.from(node.querySelectorAll('img'));
       await Promise.all(images.map(img => {
         if (!img.src) return Promise.resolve();
@@ -195,8 +196,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
           console.warn("[ShareModal] Falha ao decodificar imagem para canvas:", e);
         });
       }));
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
 
       const themeStyle = getThemeStyle(selectedTheme);
 
@@ -213,6 +212,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         throw new Error("A imagem gerada está vazia.");
       }
 
+      // Mobile-Safe: Download via Blob
       const response = await fetch(dataUrl);
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -220,7 +220,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       const link = document.createElement('a');
       link.download = `viby-${data.username}-${format}.png`;
       link.href = blobUrl;
-      document.body.appendChild(link);
+      document.body.appendChild(link); // Requisito para Firefox e alguns browsers mobile
       link.click();
       document.body.removeChild(link);
       
@@ -232,7 +232,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       toast({ 
         variant: "destructive", 
         title: "Erro na geração", 
-        description: "Tente novamente ou use outro formato." 
+        description: "Tente novamente." 
       });
     } finally {
       setIsGenerating(false);

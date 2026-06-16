@@ -127,23 +127,37 @@ export default function CarouselGeneratorPage() {
       
       for (let i = 0; i < slides.length; i++) {
         const slideElement = slides[i] as HTMLElement;
+
+        // Mobile-Safe Image Decode
+        const imgs = Array.from(slideElement.querySelectorAll('img'));
+        await Promise.all(imgs.map(img => img.decode().catch(() => {})));
+
         const dataUrl = await toPng(slideElement, {
           pixelRatio: 2,
           cacheBust: true,
           quality: 0.95
         });
 
+        // Mobile-Safe Download flow via Blob
+        const response = await fetch(dataUrl);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+
         const link = document.createElement('a');
         link.download = `viby-carousel-${theme}-slide${i + 1}.png`;
-        link.href = dataUrl;
+        link.href = blobUrl;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         
-        await new Promise(r => setTimeout(r, 400));
+        URL.revokeObjectURL(blobUrl);
+        await new Promise(r => setTimeout(r, 600));
       }
 
       toast({ title: "Carrossel exportado!", description: `${slides.length} arquivos baixados.` });
     } catch (err) {
-      toast({ variant: "destructive", title: "Erro na exportação" });
+      console.error("[Carousel Export Error]", err);
+      toast({ variant: "destructive", title: "Erro na exportação", description: "Tente novamente." });
     } finally {
       setIsGenerating(false);
     }

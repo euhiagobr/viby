@@ -118,6 +118,10 @@ export default function StoriesGeneratorPage() {
     if (!renderRef.current || isGenerating || !selectedEvent) return;
     setIsGenerating(true);
     
+    // Garantir decodificação das mídias para mobile
+    const imgs = Array.from(renderRef.current.querySelectorAll('img'));
+    await Promise.all(imgs.map(img => img.decode().catch(() => {})));
+
     try {
       const dataUrl = await toPng(renderRef.current, {
         pixelRatio: 2,
@@ -125,10 +129,17 @@ export default function StoriesGeneratorPage() {
         quality: 0.95
       });
 
+      // Mobile-Safe Download via Blob
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
       const link = document.createElement('a');
       link.download = `viby-story-${selectedEvent.slug || selectedEvent.id}-${theme}.png`;
-      link.href = dataUrl;
+      link.href = blobUrl;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
 
       if (db) {
         await addDoc(collection(db, "generated_images_logs"), {
@@ -141,9 +152,12 @@ export default function StoriesGeneratorPage() {
         });
       }
 
+      // Cleanup
+      URL.revokeObjectURL(blobUrl);
       toast({ title: "Story gerado!" });
     } catch (err) {
-      toast({ variant: "destructive", title: "Erro na exportação" });
+      console.error("[Export Error]", err);
+      toast({ variant: "destructive", title: "Erro na exportação", description: "Tente novamente." });
     } finally {
       setIsGenerating(false);
     }
@@ -244,7 +258,7 @@ export default function StoriesGeneratorPage() {
 
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Preview 9:16 HD</h3>
+           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview 9:16 HD</h3>
            <Button onClick={handleDownload} disabled={isGenerating || !selectedEvent} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
               {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
               Baixar PNG

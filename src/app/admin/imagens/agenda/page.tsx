@@ -192,7 +192,9 @@ export default function AgendaGeneratorPage() {
   const handleDownloadAll = async () => {
     if (!containerRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
-    await new Promise(r => setTimeout(r, 1000));
+    
+    // Pequeno delay para garantir renderização de fontes
+    await new Promise(r => setTimeout(r, 1200));
 
     try {
       const pages = containerRef.current.querySelectorAll('.viby-template-root');
@@ -200,23 +202,40 @@ export default function AgendaGeneratorPage() {
       
       for (let i = 0; i < pages.length; i++) {
         const pageElement = pages[i] as HTMLElement;
+        
+        // Mobile-Safe: Garantir que imagens estão prontas
+        const imgs = Array.from(pageElement.querySelectorAll('img'));
+        await Promise.all(imgs.map(img => img.decode().catch(() => {})));
+
         const dataUrl = await toPng(pageElement, {
           pixelRatio: 2,
           cacheBust: true,
-          quality: 1,
+          quality: 0.95,
           width: dimensions.width,
           height: dimensions.height
         });
 
+        // Mobile-Safe Download Flow via Blob
+        const response = await fetch(dataUrl);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+
         const link = document.createElement('a');
         link.download = `viby-agenda-${theme}-${format}-p${i + 1}.png`;
-        link.href = dataUrl;
+        link.href = blobUrl;
+        document.body.appendChild(link);
         link.click();
-        await new Promise(r => setTimeout(r, 500));
+        document.body.removeChild(link);
+        
+        // Limpeza de memória
+        URL.revokeObjectURL(blobUrl);
+        
+        await new Promise(r => setTimeout(r, 600));
       }
       toast({ title: "Exportação concluída!" });
     } catch (err) {
-      toast({ variant: "destructive", title: "Erro na exportação" });
+      console.error("[Export Error]", err);
+      toast({ variant: "destructive", title: "Erro na exportação", description: "Tente novamente." });
     } finally {
       setIsGenerating(false);
     }
