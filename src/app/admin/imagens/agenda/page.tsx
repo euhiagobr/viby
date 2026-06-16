@@ -73,7 +73,6 @@ export default function AgendaGeneratorPage() {
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
-  const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -83,9 +82,6 @@ export default function AgendaGeneratorPage() {
         if (res.success) setLogoBase64(res.data || null);
       });
     }
-    fetchImageAsBase64(COPA_LOGO).then(res => {
-      if (res.success) setCopaLogoBase64(res.data || null);
-    });
   }, [settings?.logoUrl]);
 
   const handleSearch = async () => {
@@ -137,12 +133,15 @@ export default function AgendaGeneratorPage() {
     return pages;
   }, [selectedEvents, format]);
 
-  // AUDITORIA HORIZONTAL FORENSE
+  /**
+   * AUDITORIA HORIZONTAL FORENSE EXCLUSIVA
+   * Foca na detecção de "vazamentos" laterais.
+   */
   const runForensicAudit = () => {
     if (!containerRef.current) return;
     const pages = containerRef.current.querySelectorAll('.viby-export-page');
     
-    console.group("VIBY HORIZONTAL FORENSIC AUDIT");
+    console.group(`VIBY HORIZONTAL AUDIT - FORMATO: ${format.toUpperCase()}`);
     
     pages.forEach((page, pIdx) => {
       const pageRect = page.getBoundingClientRect();
@@ -150,27 +149,28 @@ export default function AgendaGeneratorPage() {
       if (!container) return;
       const containerRect = container.getBoundingClientRect();
 
-      console.log(`PÁGINA ${pIdx + 1}: [Template Width: ${pageRect.width}px] [Container Right: ${containerRect.right}]`);
+      console.log(`PÁGINA ${pIdx + 1}: [Template Width: ${pageRect.width}px] [Container Width: ${containerRect.width}px]`);
 
       const cards = container.querySelectorAll('.viby-card');
-      const cardReport = Array.from(cards).map((card, cIdx) => {
+      const cardReport = Array.from(cards).map((card: any, cIdx) => {
         const rect = card.getBoundingClientRect();
         const overflowRight = rect.right - containerRect.right;
         
-        // Medir elementos internos
+        // Medir elementos internos para detectar quem "empurra" a largura
         const title = card.querySelector('.viby-card-title');
         const location = card.querySelector('.viby-card-location');
-        const titleOverflow = title ? (title.scrollWidth > title.clientWidth) : false;
-        const locOverflow = location ? (location.scrollWidth > location.clientWidth) : false;
+        const content = card.querySelector('.viby-card-content');
 
         return {
           cardIndex: cIdx + 1,
-          width: rect.width,
-          left: Math.round(rect.left),
-          right: Math.round(rect.right),
-          overflowRight: overflowRight > 0.5 ? `${overflowRight.toFixed(2)}px (FAIL)` : 'NONE (PASS)',
-          titleScroll: titleOverflow ? 'YES (RISK)' : 'OK',
-          locScroll: locOverflow ? 'YES (RISK)' : 'OK'
+          cardWidth: rect.width,
+          cardRight: Math.round(rect.right),
+          containerRight: Math.round(containerRect.right),
+          overflowRight: overflowRight > 0.5 ? `${overflowRight.toFixed(2)}px (OVERFLOW)` : '0px (PASS)',
+          titleScrollWidth: title?.scrollWidth,
+          titleClientWidth: title?.clientWidth,
+          titleHasOverflow: title?.scrollWidth > title?.clientWidth ? 'YES' : 'NO',
+          contentHasOverflow: content?.scrollWidth > content?.clientWidth ? 'YES' : 'NO'
         };
       });
 
@@ -178,7 +178,7 @@ export default function AgendaGeneratorPage() {
     });
     
     console.groupEnd();
-    toast({ title: "Auditoria concluída!", description: "Veja os resultados no console (F12)." });
+    toast({ title: "Auditoria horizontal concluída!", description: "Dados técnicos enviados ao console (F12)." });
   };
 
   const handleDownloadAll = async () => {
@@ -286,7 +286,7 @@ export default function AgendaGeneratorPage() {
              </div>
              <Separator className="border-dashed" />
              <Button variant="outline" onClick={runForensicAudit} className="w-full h-11 rounded-xl border-dashed gap-2 text-[10px] font-black uppercase">
-                <Terminal className="w-4 h-4" /> Executar Auditoria Real
+                <Terminal className="w-4 h-4" /> Executar Auditoria Horizontal
              </Button>
           </CardContent>
         </Card>
