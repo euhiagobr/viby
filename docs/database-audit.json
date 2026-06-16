@@ -1,0 +1,144 @@
+
+{
+  "audit_version": "1.0.0",
+  "audit_timestamp": "2024-05-22T14:30:00Z",
+  "status": "COMPLETED",
+  "collections": {
+    "users": {
+      "document_structure": "/users/{uid}",
+      "fields": {
+        "uid": { "type": "string", "required": true, "desc": "ID único do Firebase Auth" },
+        "name": { "type": "string", "required": true, "desc": "Nome completo do usuário" },
+        "username": { "type": "string", "required": true, "desc": "Identificador único com @ (lowercase)" },
+        "email": { "type": "string", "required": true, "desc": "E-mail de cadastro" },
+        "avatar": { "type": "string", "required": false, "desc": "URL da foto de perfil" },
+        "gender": { "type": "string", "required": false, "enum": ["masculino", "feminino", "nao-binario", "outro"] },
+        "cpfHash": { "type": "string", "required": true, "desc": "Hash SHA256 do CPF para unicidade" },
+        "cpfMasked": { "type": "string", "required": true, "desc": "CPF formatado para exibição" },
+        "role": { "type": "string", "required": true, "enum": ["user", "admin"] },
+        "status": { "type": "string", "required": true, "enum": ["Ativo", "Bloqueado", "Desativado"] },
+        "city": { "type": "string", "required": false },
+        "state": { "type": "string", "required": false },
+        "country": { "type": "string", "required": false, "default": "Brasil" },
+        "totalXp": { "type": "number", "required": false, "default": 0 },
+        "level": { "type": "number", "required": false, "default": 1 },
+        "createdAt": { "type": "serverTimestamp", "required": true }
+      },
+      "subcollections": {
+        "private/sensitive": { "fields": ["cpfEncrypted"] }
+      }
+    },
+    "organizations": {
+      "document_structure": "/organizations/{orgId}",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true, "desc": "Nome Fantasia ou Razão Social" },
+        "username": { "type": "string", "required": true, "desc": "@ da marca" },
+        "type": { "type": "string", "required": true, "desc": "Segmento (Produtora, Artista, etc)" },
+        "ownerId": { "type": "string", "required": true, "desc": "UID do usuário proprietário" },
+        "avatar": { "type": "string", "required": false },
+        "banner": { "type": "string", "required": false },
+        "bio": { "type": "string", "required": false },
+        "verified": { "type": "boolean", "required": false, "default": false },
+        "status": { "type": "string", "required": true, "default": "Ativo" },
+        "stripeAccountId": { "type": "string", "required": false },
+        "adBalance": { "type": "number", "required": false, "default": 0 },
+        "followersCount": { "type": "number", "required": false, "default": 0 },
+        "city": { "type": "string", "required": false },
+        "createdAt": { "type": "serverTimestamp", "required": true }
+      },
+      "subcollections": {
+        "members": { "fields": ["userId", "role", "status"] }
+      }
+    },
+    "events": {
+      "document_structure": "/events/{eventId}",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "title": { "type": "string", "required": true },
+        "slug": { "type": "string", "required": true, "desc": "URL amigável única" },
+        "description": { "type": "string", "required": true },
+        "date": { "type": "timestamp", "required": true, "desc": "Início da experiência" },
+        "endDate": { "type": "timestamp", "required": false },
+        "type": { "type": "string", "required": true, "enum": ["interno", "externo", "divulgacao"] },
+        "categoryId": { "type": "string", "required": true },
+        "categoryName": { "type": "string", "required": false },
+        "organizationId": { "type": "string", "required": true, "desc": "Vínculo com a marca" },
+        "city": { "type": "string", "required": true },
+        "location": { "type": "string", "required": true, "desc": "Nome do estabelecimento" },
+        "latitude": { "type": "number", "required": false },
+        "longitude": { "type": "number", "required": false },
+        "image": { "type": "string", "required": false },
+        "status": { "type": "string", "required": true, "enum": ["Ativo", "Oculto", "Excluído", "Rascunho"] },
+        "tags": { "type": "array", "items": "string" },
+        "interestedCount": { "type": "number", "default": 0 },
+        "ingressosVendidos": { "type": "number", "default": 0 }
+      },
+      "subcollections": {
+        "interests": { "fields": ["userId", "timestamp"] },
+        "comments": { "fields": ["userId", "text", "createdAt"] },
+        "partners": { "fields": ["orgId", "status"] }
+      }
+    },
+    "orders": {
+      "document_structure": "/orders/{orderId}",
+      "fields": {
+        "userId": { "type": "string", "required": true },
+        "userName": { "type": "string", "required": true },
+        "userEmail": { "type": "string", "required": true },
+        "items": { "type": "array", "desc": "Lista de ingressos comprados" },
+        "currency": { "type": "string", "required": true },
+        "status": { "type": "string", "required": true, "enum": ["pending", "paid", "failed"] },
+        "totals": { "type": "object", "fields": ["subtotal", "fees", "totalToPay"] },
+        "createdAt": { "type": "serverTimestamp", "required": true }
+      }
+    },
+    "registrations": {
+      "document_structure": "/registrations/{regId}",
+      "fields": {
+        "eventId": { "type": "string", "required": true },
+        "userId": { "type": "string", "required": true },
+        "organizationId": { "type": "string", "required": true },
+        "ticketCode": { "type": "string", "required": true },
+        "paymentStatus": { "type": "string", "required": true, "enum": ["Pago", "Disponível", "Pendente", "Estornado"] },
+        "checkedIn": { "type": "boolean", "default": false },
+        "price": { "type": "number", "required": true },
+        "timestamp": { "type": "timestamp", "required": true }
+      }
+    }
+  },
+  "relationships": {
+    "user_orders": { "key": "userId", "cardinality": "1:N", "integrity": "Alta (Auth mandatory)" },
+    "org_events": { "key": "organizationId", "cardinality": "1:N", "integrity": "Alta" },
+    "event_registrations": { "key": "eventId", "cardinality": "1:N", "integrity": "Alta" },
+    "user_follows_org": { "key": "followerId (User) -> followingId (Org)", "cardinality": "N:N", "integrity": "Média" }
+  },
+  "crm_segmentation_logic": {
+    "all_users": { "collection": "users", "filters": [] },
+    "all_organizers": { "collection": "organizations", "filters": [] },
+    "all_buyers": { "collection": "registrations", "filters": ["paymentStatus == 'Pago'"], "distinct": "userId" },
+    "all_leads": { "collection": "organizer_leads", "filters": [] },
+    "inactive_buyers": { "collection": "registrations", "filters": ["timestamp < 90 days ago"], "exclude": ["active_registrations"] },
+    "organizers_no_sales": { "collection": "organizations", "join": "registrations", "condition": "count == 0" }
+  },
+  "geolocation_mapping": {
+    "users": ["city", "state", "country"],
+    "organizations": ["city", "state", "address (map)"],
+    "events": ["city", "state", "latitude", "longitude", "address (map)"]
+  },
+  "interests_mapping": {
+    "user_gamification": { "fields": ["topCategory", "categoriesExplored"] },
+    "follows": { "target": "followingId (Organization ID)" },
+    "event_interests": { "path": "/events/{id}/interests" }
+  },
+  "ai_customization_fields": {
+    "user_context": ["name", "city", "totalXp", "level"],
+    "event_context": ["title", "categoryName", "description", "date", "city"],
+    "org_context": ["name", "verified", "type"]
+  },
+  "recommendations": [
+    "Padronizar campos de 'city' e 'state' em todas as coleções para evitar disparidade (case-sensitivity).",
+    "Criar índices compostos para (organizationId + status + date) para otimizar feed de marcas.",
+    "Implementar agregação de faturamento na coleção 'organizations' via Cloud Functions para evitar queries pesadas no CRM."
+  ]
+}
