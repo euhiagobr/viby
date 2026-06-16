@@ -1,43 +1,80 @@
-
 {
-  "report_id": "VIBY-AUDIT-2024-06-10",
-  "status": "RAIZ_IDENTIFICADA",
-  "findings": {
-    "firestore": {
-      "permission_denied": [
-        {
-          "context": "Collection Group Query",
-          "path": "members",
-          "component": "OrganizationContext.tsx",
-          "reason": "Missing recursive wildcard {path=**} in firestore.rules"
-        },
-        {
-          "context": "Collection Group Query",
-          "path": "partners",
-          "component": "OrganizationContext.tsx",
-          "reason": "Missing recursive wildcard {path=**} in firestore.rules"
-        }
-      ]
+  "audit_id": "VIBY-AUDIT-2024-001",
+  "status": "COMPLETED",
+  "timestamp": "2024-05-21T15:00:00Z",
+  "analysis": {
+    "current_flow": {
+      "url": "/eventos/[slug]",
+      "router": "src/app/eventos/[slug]/page.tsx",
+      "resolution": "Busca global no Firestore pelo campo 'slug'.",
+      "fallback": "Busca por ID de documento se o slug não for localizado.",
+      "redirection": "URLs legadas em /[username]/[slug] executam Redirect 301 para /eventos/[slug]."
     },
-    "routing": {
-      "404_errors": [
-        {
-          "target": "/dashboard/projetos/novo",
-          "reason": "Naming mismatch: Code uses plural /projetos/ while file system is singular /projeto/",
-          "files": ["src/app/dashboard/organizacoes/[username]/events/page.tsx", "src/app/dashboard/projetos/page.tsx"]
-        },
-        {
-          "target": "/novo",
-          "reason": "Dynamic route interception: 'novo' is missing from RESERVED_ROUTES in [username] layouts",
-          "files": ["src/app/[username]/page.tsx"]
-        }
-      ]
+    "original_flow": {
+      "url": "/[username]/[slug]",
+      "router": "src/app/[username]/[slug]/page.tsx (legado)",
+      "resolution": "Dependência mútua entre o username da organização e o slug do evento.",
+      "risk": "Alta sensibilidade a alterações de username por parte das organizações."
     },
-    "external_apis": {
-      "google_ads_400": {
-        "reason": "Invalid or unauthorized slot names in AdsRenderer.tsx",
-        "slots": ["home-feed-slot", "discovery-feed-slot"]
+    "firestore_mapping": {
+      "collection": "events",
+      "fields_found": {
+        "slug": "Obrigatório. Identificador único global utilizado para resolução de URL.",
+        "organizationId": "Obrigatório. Vínculo técnico com a entidade proprietária.",
+        "organizerId": "Redundante/Legado. UID do criador original.",
+        "organizer": "Objeto desnormalizado contendo {id, name, username, avatar}. Utilizado para exibição rápida.",
+        "id": "Document ID. Utilizado como fallback de resolução."
       }
+    },
+    "dependencies": [
+      {
+        "file": "src/app/sitemap.ts",
+        "dependency": "Gera URLs no formato /eventos/[slug].",
+        "status": "SINCRONIZADO"
+      },
+      {
+        "file": "src/components/events/EventCard.tsx",
+        "dependency": "Link para /eventos/[slugOrId].",
+        "status": "SINCRONIZADO"
+      },
+      {
+        "file": "src/components/sharing/ShareModal.tsx",
+        "dependency": "Gera links de compartilhamento e QR no formato /eventos/[slug].",
+        "status": "SINCRONIZADO"
+      },
+      {
+        "file": "src/app/[username]/page.tsx",
+        "dependency": "Controle de rotas reservadas para evitar colisões com perfis.",
+        "status": "RISCO_DETECTADO"
+      }
+    ],
+    "critical_risks": [
+      {
+        "id": "RISK-001",
+        "title": "Colisão de Rota Estática",
+        "description": "O termo 'eventos' não consta na lista RESERVED_ROUTES de src/app/[username]/page.tsx. Se um usuário criar o username 'eventos', a rota de perfil interceptará a rota global de eventos.",
+        "severity": "ALTA"
+      },
+      {
+        "id": "RISK-002",
+        "title": "Unicidade Global de Slugs",
+        "description": "Com a remoção do escopo de username, dois eventos com o mesmo nome em organizações diferentes geram colisão. A função generateUniqueSlug mitiga isso adicionando sufixos numéricos.",
+        "severity": "MÉDIA"
+      }
+    ],
+    "seo_audit": {
+      "canonical": "Formatado como /eventos/[slug].",
+      "open_graph": "Utiliza o novo formato unificado para metadados sociais.",
+      "indexing": "URLs legadas estão sendo desindexadas via Redirect 301, consolidando autoridade na nova estrutura."
     }
+  },
+  "technical_recommendation": {
+    "preferred_canonical": "/eventos/[slug]",
+    "justification": "Independência total de alterações cadastrais da organização (username), maior estabilidade de links compartilhados a longo prazo e simplificação da estrutura de sitemaps.",
+    "immediate_actions": [
+      "Adicionar 'eventos' à lista RESERVED_ROUTES em src/app/[username]/page.tsx.",
+      "Garantir que a função generateUniqueSlug seja sempre chamada no update de título.",
+      "Manter o redirecionamento 301 por no mínimo 12 meses para preservação de backlinks."
+    ]
   }
 }
