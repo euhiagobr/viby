@@ -1,5 +1,4 @@
-
-import { genkit, z } from 'kit';
+import { genkit, z } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 
 /**
