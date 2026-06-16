@@ -23,7 +23,8 @@ import {
   MapPin,
   ChevronLeft,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  ShieldCheck
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -233,7 +234,7 @@ export default function CrmCampaignsPage() {
                          <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Afinidade (Categoria)</Label>
                             <Select value={filters.category} onValueChange={v => setFilters({...filters, category: v})}>
-                               <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                               <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Todas as categorias" /></SelectTrigger>
                                <SelectContent className="rounded-xl">
                                   <SelectItem value="all">Todas as categorias</SelectItem>
                                   {availableCategories.map(c => <SelectItem key={c} value={c}>{c.toUpperCase()}</SelectItem>)}
