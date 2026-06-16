@@ -64,10 +64,15 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
   }[theme];
 
   const availableHeight = config.height - config.headerHeight - config.footerHeight - (config.padding * 2);
-  const maxCards = Math.floor((availableHeight + config.gap) / (config.itemHeight + config.gap));
+  const cardHeight = config.itemHeight;
+  const gap = config.gap;
+  
+  // Cálculo determinístico de capacidade para evitar transbordamento
+  const maxCards = Math.floor((availableHeight + gap) / (cardHeight + gap));
   const visibleEvents = events.slice(0, maxCards);
 
   const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : 'viby.club';
+  const subTitleText = theme === 'pride' ? 'DIVERSIDADE' : 'SEMANA';
 
   return (
     <div 
@@ -107,7 +112,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               Agenda
            </div>
            <h1 style={{ fontSize: '90px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, lineHeight: 0.8, letterSpacing: '-4px' }}>
-              DA <span style={{ opacity: 0.4 }}>SEMANA</span>
+              DA <span style={{ opacity: 0.4 }}>{subTitleText}</span>
            </h1>
         </div>
         {logoUrl && (
@@ -125,7 +130,6 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
           width: '100%',
           maxWidth: '100%',
           height: `${maxCards * config.itemHeight + (maxCards - 1) * config.gap}px`,
-          maxHeight: `${availableHeight}px`,
           overflow: 'hidden',
           boxSizing: 'border-box',
           position: 'relative',
