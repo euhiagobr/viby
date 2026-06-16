@@ -15,7 +15,7 @@ interface CarouselTemplateProps {
 }
 
 /**
- * Template de Carrossel ajustado para centralização simétrica.
+ * Template de Carrossel ajustado para centralização simétrica e blindagem horizontal.
  */
 export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumber, totalSlides }: CarouselTemplateProps) {
   const config = {
@@ -55,7 +55,7 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '60px', position: 'relative', zIndex: 10, width: '100%', boxSizing: 'border-box' }}>
-        {logoUrl ? <img src={logoUrl} style={{ height: '60px', objectFit: 'contain' }} alt="Logo" /> : <span style={{ fontSize: '32px', fontWeight: 900, fontStyle: 'italic' }}>VIBY</span>}
+        {logoUrl ? <img src={logoUrl} style={{ height: '60px', maxWidth: '300px', objectFit: 'contain' }} alt="Logo" /> : <span style={{ fontSize: '32px', fontWeight: 900, fontStyle: 'italic' }}>VIBY</span>}
         {totalSlides && totalSlides > 1 && (
           <div style={{ background: 'rgba(255,255,255,0.1)', padding: '8px 24px', borderRadius: '50px', fontSize: '18px', fontWeight: 900 }}>
              {slideNumber} / {totalSlides}

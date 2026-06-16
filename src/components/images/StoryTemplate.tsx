@@ -12,7 +12,7 @@ interface StoryTemplateProps {
 }
 
 /**
- * Template de Story ajustado para centralização absoluta.
+ * Template de Story ajustado para centralização absoluta e blindagem lateral.
  */
 export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
   const colors = {
@@ -35,7 +35,7 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
         color: colors.text,
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center', // Centraliza tudo horizontalmente
+        alignItems: 'center', 
         fontFamily: 'Poppins, sans-serif',
         boxSizing: 'border-box',
         position: 'relative',
@@ -57,7 +57,7 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
         <div style={{ background: colors.accent, color: theme === 'copa' ? '#002776' : '#FFFFFF', padding: '12px 36px', borderRadius: '50px', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
           Destaque
         </div>
-        {logoUrl && <img src={logoUrl} style={{ height: '70px', objectFit: 'contain' }} alt="Logo" />}
+        {logoUrl && <img src={logoUrl} style={{ height: '70px', maxWidth: '300px', objectFit: 'contain' }} alt="Logo" />}
       </div>
 
       {/* Main Image */}
@@ -84,7 +84,9 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
            margin: 0, 
            letterSpacing: '-6px',
            width: '100%',
-           overflow: 'hidden'
+           overflow: 'hidden',
+           whiteSpace: 'nowrap',
+           textOverflow: 'ellipsis'
          }}>
            {shortenTitle(event.title, 30)}
          </h1>
