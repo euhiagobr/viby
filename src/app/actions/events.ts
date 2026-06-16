@@ -230,3 +230,102 @@ export async function updateEventSlugAction(params: {
     return { success: false, error: e.message };
   }
 }
+
+/**
+ * Transferência de titularidade de evento entre organizações.
+ */
+export async function transferEventAction(params: {
+  eventId: string;
+  targetOrgUsername: string;
+  adminUid: string;
+  adminName: string;
+}) {
+  const db = getAdminDb();
+  const { eventId, targetOrgUsername, adminUid, adminName } = params;
+
+  try {
+    const cleanUsername = targetOrgUsername.toLowerCase().trim().replace('@', '');
+    
+    return await db.runTransaction(async (transaction) => {
+      // 1. Validar Organização Destino
+      const orgRef = db.collection('organizations').where('username', '==', cleanUsername).limit(1);
+      const orgSnap = await transaction.get(orgRef);
+      
+      if (orgSnap.empty) throw new Error("Organização destino não localizada.");
+      const targetOrg = { id: orgSnap.docs[0].id, ...orgSnap.docs[0].data() } as any;
+
+      if (targetOrg.status !== 'Ativo') throw new Error("A organização destino não está ativa.");
+
+      // 2. Validar Evento
+      const eventRef = db.collection('events').doc(eventId);
+      const eventSnap = await transaction.get(eventRef);
+      
+      if (!eventSnap.exists) throw new Error("Evento não localizado.");
+      const eventData = eventSnap.data()!;
+
+      if (targetOrg.id === eventData.organizationId) throw new Error("O evento já pertence a esta organização.");
+
+      // 3. Validar Colisão de Slug no Destino
+      const slugCheck = await db.collection('events')
+        .where('organizationId', '==', targetOrg.id)
+        .where('slug', '==', eventData.slug)
+        .limit(1).get();
+
+      if (!slugCheck.empty) {
+        throw new Error(`A organização @${cleanUsername} já possui um evento com o slug "/${eventData.slug}".`);
+      }
+
+      // 4. Preparar Dados de Auditoria
+      const auditRef = db.collection('event_transfer_audit').doc();
+      const auditData = {
+        eventId,
+        eventName: eventData.title,
+        oldOrganizationId: eventData.organizationId,
+        oldOrganizationName: eventData.organizer?.name || "N/A",
+        oldOrganizationUsername: eventData.organizer?.username || "N/A",
+        newOrganizationId: targetOrg.id,
+        newOrganizationName: targetOrg.name,
+        newOrganizationUsername: targetOrg.username,
+        adminUid,
+        adminName,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      // 5. Executar Updates
+      transaction.update(eventRef, {
+        organizationId: targetOrg.id,
+        organizerId: targetOrg.ownerId || eventData.organizerId, // Transfere posse para o dono da org
+        organizer: {
+          id: targetOrg.id,
+          name: targetOrg.name,
+          username: targetOrg.username,
+          avatar: targetOrg.avatar || ""
+        },
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastTransferAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      transaction.set(auditRef, auditData);
+
+      // Log Geral de Segurança
+      const logRef = db.collection('admin_audit_logs').doc();
+      transaction.set(logRef, {
+        adminId: adminUid,
+        adminName,
+        eventId,
+        action: 'transfer_event_ownership',
+        reason: `Evento transferido entre organizações: @${auditData.oldOrganizationUsername} -> @${auditData.newOrganizationUsername}`,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        metadata: {
+          from: auditData.oldOrganizationId,
+          to: auditData.newOrganizationId
+        }
+      });
+
+      return { success: true, newUrl: `/${targetOrg.username}/${eventData.slug}` };
+    });
+  } catch (e: any) {
+    console.error("[Transfer Action] Failure:", e.message);
+    return { success: false, error: e.message };
+  }
+}

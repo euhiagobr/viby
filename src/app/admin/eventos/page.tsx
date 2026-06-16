@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { collection, query, orderBy, deleteDoc, doc, updateDoc, where, getDocs, limit, serverTimestamp, writeBatch } from "firebase/firestore"
 import { 
   Table, 
@@ -28,7 +28,10 @@ import {
   CheckCircle2,
   Save,
   Globe,
-  Info
+  Info,
+  ArrowRightLeft,
+  Building2,
+  AtSign
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,11 +41,15 @@ import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { cn } from "@/lib/utils"
-import { updateEventSlugAction } from "@/app/actions/events"
+import { updateEventSlugAction, transferEventAction } from "@/app/actions/events"
 import { slugify } from "@/lib/slug-utils"
+import { useAdminPermissions } from "@/hooks/use-admin-permissions"
 
 export default function AdminEventosPage() {
   const db = useFirestore()
+  const auth = useAuth()
+  const { user: currentUser } = useUser(auth)
+  const { adminProfile } = useAdminPermissions()
   const [search, setSearch] = React.useState("")
   const [isProcessing, setIsProcessing] = React.useState(false)
   
@@ -50,6 +57,11 @@ export default function AdminEventosPage() {
   const [slugTarget, setSlugTarget] = React.useState<any>(null)
   const [newSlugValue, setNewSlugValue] = React.useState("")
   const [isSlugDialogOpen, setIsSlugDialogOpen] = React.useState(false)
+
+  // Estados para Transferência
+  const [transferTarget, setTransferTarget] = React.useState<any>(null)
+  const [targetOrgUsername, setTargetOrgUsername] = React.useState("")
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = React.useState(false)
 
   const eventsQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -92,6 +104,31 @@ export default function AdminEventosPage() {
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro na URL", description: e.message })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleTransfer = async () => {
+    if (!transferTarget || !targetOrgUsername || isProcessing || !adminProfile) return
+    setIsProcessing(true)
+    try {
+      const res = await transferEventAction({
+        eventId: transferTarget.id,
+        targetOrgUsername,
+        adminUid: adminProfile.uid,
+        adminName: adminProfile.nome
+      })
+
+      if (res.success) {
+        toast({ title: "Transferência Concluída!", description: "O proprietário do evento foi alterado." })
+        setIsTransferDialogOpen(false)
+        setTargetOrgUsername("")
+      } else {
+        throw new Error(res.error)
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Falha na Transferência", description: e.message })
     } finally {
       setIsProcessing(false)
     }
@@ -262,6 +299,15 @@ export default function AdminEventosPage() {
                           variant="ghost" 
                           size="icon" 
                           className="h-8 w-8 text-secondary hover:bg-secondary/10" 
+                          onClick={() => { setTransferTarget(event); setIsTransferDialogOpen(true); }}
+                          title="Transferir Organização"
+                        >
+                          <ArrowRightLeft className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-secondary hover:bg-secondary/10" 
                           onClick={() => handleOpenSlugDialog(event)}
                           title="Editar URL (Slug)"
                         >
@@ -329,6 +375,61 @@ export default function AdminEventosPage() {
                >
                   {isProcessing ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Save className="w-6 h-6 mr-2" />}
                   Atualizar Endereço
+               </Button>
+            </DialogFooter>
+         </DialogContent>
+      </Dialog>
+
+      {/* DIALOG DE TRANSFERÊNCIA DE PROPRIEDADE */}
+      <Dialog open={isTransferDialogOpen} onOpenChange={setIsTransferDialogOpen}>
+         <DialogContent className="max-w-md rounded-[2.5rem]">
+            <DialogHeader>
+               <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Transferir Evento</DialogTitle>
+               <DialogDescription className="font-medium text-xs">Mude a organização proprietária deste projeto.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+               <div className="p-5 bg-muted/30 rounded-2xl border-2 border-dashed space-y-4">
+                  <div className="space-y-1">
+                     <p className="text-[8px] font-black uppercase opacity-40">Evento Selecionado</p>
+                     <p className="font-bold text-sm text-primary uppercase truncate">{transferTarget?.title}</p>
+                  </div>
+                  <div className="space-y-1">
+                     <p className="text-[8px] font-black uppercase opacity-40">Dono Atual</p>
+                     <div className="flex items-center gap-2">
+                        <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-[10px] font-black uppercase">@{transferTarget?.organizer?.username}</span>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Organização Destino (@username)</Label>
+                  <div className="relative">
+                     <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 text-secondary" />
+                     <Input 
+                       placeholder="Ex: bardojoaquim" 
+                       value={targetOrgUsername} 
+                       onChange={e => setTargetOrgUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""))}
+                       className="pl-10 h-12 rounded-xl"
+                     />
+                  </div>
+               </div>
+
+               <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                  <p className="text-[9px] text-orange-800 font-bold uppercase leading-relaxed italic">
+                    Atenção: Esta ação mudará a URL pública do evento. Vendas históricas e relatórios financeiros da organização antiga não serão transferidos.
+                  </p>
+               </div>
+            </div>
+            <DialogFooter>
+               <Button 
+                onClick={handleTransfer} 
+                disabled={isProcessing || !targetOrgUsername}
+                className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic text-lg"
+               >
+                  {isProcessing ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <ArrowRightLeft className="w-5 h-5 mr-2" />}
+                  Confirmar Transferência
                </Button>
             </DialogFooter>
          </DialogContent>

@@ -1,0 +1,19 @@
+{
+  "collection": "event_transfer_audit",
+  "description": "Log imutável de transferência de propriedade de eventos entre organizações.",
+  "fields": {
+    "id": "string (auto-id)",
+    "eventId": "string (referência ao documento original em /events)",
+    "eventName": "string (título no momento da troca)",
+    "oldOrganizationId": "string",
+    "oldOrganizationName": "string",
+    "oldOrganizationUsername": "string",
+    "newOrganizationId": "string",
+    "newOrganizationName": "string",
+    "newOrganizationUsername": "string",
+    "adminUid": "string (executor da ação)",
+    "adminName": "string",
+    "timestamp": "serverTimestamp"
+  },
+  "security_rules": "Leitura restrita a administradores. Escrita proibida para o cliente (apenas via Server Action)."
+}
