@@ -1,7 +1,9 @@
+
 'use server';
 /**
  * @fileOverview Fluxo Genkit para geração de campanhas de marketing utilizando dados reais da Viby.
- * Mapeado conforme auditoria de schema e configurado com GPT-4o-Mini por padrão.
+ * 
+ * - gerarCampanhaEmail: Função principal que coordena a consulta de dados e chamada à IA.
  */
 
 import { ai, z } from '@/ai/genkit';
@@ -22,85 +24,115 @@ const GerarCampanhaEmailOutputSchema = z.object({
   reasoning: z.string().describe("Explicação da estratégia utilizada.")
 });
 
-export async function gerarCampanhaEmail(input: z.infer<typeof GerarCampanhaEmailInputSchema>) {
-  const db = getAdminDb();
-  
-  // 1. Consultar Base de Conhecimento Permanente da Marca
-  const brandSnap = await db.collection('settings').doc('brand_knowledge').get();
-  const brand = brandSnap.exists ? brandSnap.data() : null;
-  
-  // 2. Consultar Configurações de IA (Modelos)
-  const aiConfigSnap = await db.collection('settings').doc('ai_config').get();
-  const aiConfig = aiConfigSnap.exists ? aiConfigSnap.data() : { modelCampaigns: "openai/gpt-4o-mini" };
+const CampaignPromptInputSchema = z.object({
+  input: GerarCampanhaEmailInputSchema,
+  brand: z.any(),
+  events: z.array(z.any())
+});
 
-  // 3. Consultar Eventos Reais com Métricas da Auditoria
-  const eventsSnap = await db.collection('events')
-    .where('status', '==', 'Ativo')
-    .orderBy('ingressosVendidos', 'desc')
-    .limit(15)
-    .get();
-  
-  const eventsContext = eventsSnap.docs.map(d => {
-    const data = d.data();
-    return {
-      id: d.id,
-      title: data.title,
-      description: data.description,
-      categoryName: data.categoryName,
-      city: data.city,
-      interestedCount: data.interestedCount || 0,
-      ingressosVendidos: data.ingressosVendidos || 0,
-      startingPrice: data.startingPrice || 0,
-      url: `https://viby.club/eventos/${data.slug || d.id}`
-    };
-  });
-
-  const generatePrompt = ai.definePrompt({
-    name: 'generateCampaignPrompt',
-    input: { schema: z.object({
-      input: GerarCampanhaEmailInputSchema,
-      brand: z.any(),
-      events: z.any()
-    }) },
-    output: { schema: GerarCampanhaEmailOutputSchema },
-    prompt: `Você é a IA oficial da Viby. Sua missão é gerar campanhas de Email Marketing de alta conversão.
+/**
+ * Definição do Prompt em nível de módulo para registro correto no Genkit.
+ */
+const generateCampaignPrompt = ai.definePrompt({
+  name: 'generateCampaignPrompt',
+  input: { schema: CampaignPromptInputSchema },
+  output: { schema: GerarCampanhaEmailOutputSchema },
+  prompt: `Você é a IA oficial da Viby. Sua missão é gerar campanhas de Email Marketing de alta conversão.
 
     DIRETRIZES DA MARCA:
-    - Nome: {{{brand.identity.tradeName}}}
-    - Slogan: {{{brand.identity.slogan}}}
-    - Cores: Primária {{{brand.visual.primaryColor}}}, CTA {{{brand.visual.ctaColor}}}
-    - Links: Site {{{brand.urls.mainSite}}}
+    - Nome: {{brand.identity.tradeName}}
+    - Slogan: {{brand.identity.slogan}}
+    - Cores: Primária {{brand.visual.primaryColor}}, CTA {{brand.visual.ctaColor}}
+    - Links: Site {{brand.urls.mainSite}}
 
     CONTEXTO DA CAMPANHA:
-    - Objetivo: {{{input.objetivo}}}
-    - Público-Alvo: {{{input.publicoAlvo}}}
-    - Tom Sugerido: {{{input.tom}}}
+    - Objetivo: {{input.objetivo}}
+    - Público-Alvo: {{input.publicoAlvo}}
+    - Tom Sugerido: {{input.tom}}
 
-    EVENTOS REAIS (SELECIONE OS MAIS RELEVANTES):
+    EVENTOS REAIS DISPONÍVEIS (SELECIONE OS MAIS RELEVANTES):
     {{#each events}}
-    - {{{title}}} ({{{city}}}): Categoria {{{categoryName}}}, {{{interestedCount}}} interessados, Preço a partir de R$ {{{startingPrice}}}. ID: {{{id}}}
+    - {{title}} ({{city}}): Categoria {{categoryName}}, {{interestedCount}} interessados, Preço a partir de R$ {{startingPrice}}. ID: {{id}}
     {{/each}}
 
     REQUISITOS TÉCNICOS:
     - Retorne apenas o objeto JSON conforme o esquema de saída.
     - O campo contentHtml deve ser um template moderno, responsivo e utilizar as cores da marca em botões.
-    - Substitua todas as tags de placeholder (como \\{\\{brand...\\}\\}) por valores reais agora.
-    - É PROIBIDO retornar o HTML com tags de template. O usuário deve ver o dado final.
+    - É PROIBIDO retornar o HTML com tags de placeholder ou chaves duplas. O usuário deve ver o dado final.
     - Utilize os nomes e URLs reais dos eventos fornecidos.
     - Não inclua blocos de código markdown ou explicações fora do JSON.`
-  });
+});
 
-  const response = await generatePrompt({
-    input,
-    brand,
-    events: eventsContext
-  }, {
-    model: aiConfig.modelCampaigns || "openai/gpt-4o-mini"
-  });
+/**
+ * Fluxo de geração de campanha.
+ */
+const generateCampaignFlow = ai.defineFlow(
+  {
+    name: 'generateCampaignFlow',
+    inputSchema: GerarCampanhaEmailInputSchema,
+    outputSchema: z.any(),
+  },
+  async (input) => {
+    const db = getAdminDb();
+    
+    // 1. Consultar Base de Conhecimento Permanente da Marca
+    const brandSnap = await db.collection('settings').doc('brand_knowledge').get();
+    const brand = brandSnap.exists ? brandSnap.data() : { 
+      identity: { tradeName: "Viby", slogan: "Viva o agora" },
+      visual: { primaryColor: "#000000", ctaColor: "#2C52EE" },
+      urls: { mainSite: "https://viby.club" },
+      version: 0
+    };
+    
+    // 2. Consultar Configurações de IA (Modelos)
+    const aiConfigSnap = await db.collection('settings').doc('ai_config').get();
+    const aiConfig = aiConfigSnap.exists ? aiConfigSnap.data() : { modelCampaigns: "openai/gpt-4o-mini" };
 
-  return {
-    ...response.output,
-    brandVersion: brand?.version || 0,
-    timestamp: new Date().toISOString()
-  };
+    // 3. Consultar Eventos Ativos
+    // Nota: Removido orderBy ingressosVendidos para evitar erro de índice ausente no Firestore.
+    const eventsSnap = await db.collection('events')
+      .where('status', '==', 'Ativo')
+      .limit(20)
+      .get();
+    
+    const eventsContext = eventsSnap.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        title: data.title,
+        categoryName: data.categoryName || "Geral",
+        city: data.city || "Brasil",
+        interestedCount: data.interestedCount || 0,
+        ingressosVendidos: data.ingressosVendidos || 0,
+        startingPrice: data.startingPrice || 0,
+        url: `https://viby.club/eventos/${data.slug || d.id}`
+      };
+    });
+
+    // 4. Chamar a IA com o modelo configurado ou fallback estável
+    const { output } = await generateCampaignPrompt({
+      input,
+      brand,
+      events: eventsContext
+    }, {
+      model: aiConfig.modelCampaigns || "openai/gpt-4o-mini"
+    });
+
+    if (!output) {
+      throw new Error("Falha na geração de conteúdo pela IA.");
+    }
+
+    return {
+      ...output,
+      brandVersion: brand?.version || 0,
+      timestamp: new Date().toISOString()
+    };
+  }
+);
+
+/**
+ * Função exportada para ser chamada pelas Server Actions do Next.js.
+ */
+export async function gerarCampanhaEmail(input: z.infer<typeof GerarCampanhaEmailInputSchema>) {
+  return generateCampaignFlow(input);
 }
