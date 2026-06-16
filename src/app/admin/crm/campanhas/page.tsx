@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy, getCountFromServer, getDocs, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,15 @@ import {
   ChevronRight,
   Mail,
   Zap,
-  Tag
+  Target,
+  Users,
+  Building2,
+  Ticket,
+  User,
+  MapPin,
+  ChevronLeft,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -34,59 +42,117 @@ import { createCrmCampaignAction } from '@/app/actions/crm-marketing';
 import { gerarCampanhaEmail } from '@/ai/flows/gerar-campanha-email';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+const PUBLIC_BASES = [
+  { id: 'users', label: 'Usuários', icon: User, coll: 'users' },
+  { id: 'buyers', label: 'Compradores', icon: Ticket, coll: 'registrations' },
+  { id: 'organizers', label: 'Organizadores', icon: Building2, coll: 'organizations' },
+  { id: 'leads', label: 'Leads', icon: Target, coll: 'organizer_leads' },
+  { id: 'attendees', label: 'Participantes', icon: Users, coll: 'registrations' },
+];
 
 export default function CrmCampaignsPage() {
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
   const router = useRouter();
+  
   const [search, setSearch] = React.useState("");
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [step, setStep] = React.useState(1);
   const [isAiLoading, setIsAiLoading] = React.useState(false);
+
+  // Estados da Campanha
+  const [basePublic, setBasePublic] = React.useState<string | null>(null);
+  const [filters, setFilters] = React.useState({ city: 'all', category: 'all', state: 'all' });
+  const [campaignTitle, setCampaignTitle] = React.useState("");
+  const [objective, setObjective] = React.useState("");
+  const [tone, setTone] = React.useState("profissional");
+
+  // Dados Reais para Filtros
+  const [availableCities, setAvailableCities] = React.useState<string[]>([]);
+  const [availableCategories, setAvailableCategories] = React.useState<string[]>([]);
+  const [counts, setCounts] = React.useState<Record<string, number>>({});
+  const [loadingMetadata, setLoadingMetadata] = React.useState(false);
 
   const campaignsQuery = useMemoFirebase(() => db ? query(collection(db, "crm_campaigns"), orderBy("createdAt", "desc")) : null, [db]);
   const { data: campaigns, loading } = useCollection<any>(campaignsQuery);
 
   const filtered = campaigns?.filter(c => c.title?.toLowerCase().includes(search.toLowerCase())) || [];
 
-  const handleGenerateAi = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  // Carregar metadados reais para os filtros
+  React.useEffect(() => {
+    if (!db || !isCreateOpen) return;
+    const fetchMetadata = async () => {
+      setLoadingMetadata(true);
+      try {
+        // Cidades Reais de usuários
+        const usersSnap = await getDocs(collection(db, "users"));
+        const cities = new Set<string>();
+        usersSnap.forEach(d => { if (d.data().city) cities.add(d.data().city) });
+        setAvailableCities(Array.from(cities).sort());
+
+        // Categorias Reais
+        const catsSnap = await getDocs(collection(db, "categories"));
+        setAvailableCategories(catsSnap.docs.map(d => d.data().name).sort());
+
+        // Contagens Base
+        const c: any = {};
+        for (const base of PUBLIC_BASES) {
+          const snap = await getCountFromServer(collection(db, base.coll));
+          c[base.id] = snap.data().count;
+        }
+        setCounts(c);
+      } catch (e) { console.error(e); }
+      finally { setLoadingMetadata(false); }
+    };
+    fetchMetadata();
+  }, [db, isCreateOpen]);
+
+  const handleGenerateAi = async () => {
     if (!user || isAiLoading) return;
     
     setIsAiLoading(true);
-    const formData = new FormData(e.currentTarget);
-    
     try {
-      console.log("[CRM-AI] Iniciando geração de campanha...");
+      console.log("[CRM-AI] Iniciando geração de campanha com dados reais...");
       
       const aiResult = await gerarCampanhaEmail({
-        objetivo: formData.get('objetivo') as string,
-        publicoAlvo: formData.get('segmento') as string,
-        tom: formData.get('tom') as string,
+        objetivo: objective,
+        publicoAlvo: `${basePublic} - ${filters.city !== 'all' ? filters.city : 'Brasil'}`,
+        tom: tone,
         maxEventos: 3
       });
 
       const campaignRes = await createCrmCampaignAction({
-        title: formData.get('title') as string,
+        title: campaignTitle,
+        objective: objective,
+        basePublic: basePublic,
+        filters: filters,
+        status: 'rascunho',
+        tone: tone,
         ...aiResult,
-        objective: formData.get('objetivo') as string,
-        tom: formData.get('tom') as string,
       }, user.uid);
 
       if (campaignRes.success) {
-        toast({ title: "Campanha gerada pela IA!" });
+        toast({ title: "Campanha Gerada!", description: "Revise o preview antes de enviar o teste." });
         router.push(`/admin/crm/campanhas/${campaignRes.id}`);
       } else throw new Error(campaignRes.error);
     } catch (err: any) {
-      console.error("[CRM-AI-ERROR] Falha na geração da campanha:", err);
-      toast({ 
-        variant: "destructive", 
-        title: "Erro na IA", 
-        description: err.message || "Não foi possível processar a geração no momento."
-      });
+      toast({ variant: "destructive", title: "Erro na IA", description: err.message });
     } finally {
       setIsAiLoading(false);
     }
+  };
+
+  const resetModal = () => {
+    setStep(1);
+    setBasePublic(null);
+    setFilters({ city: 'all', category: 'all', state: 'all' });
+    setCampaignTitle("");
+    setObjective("");
+    setTone("profissional");
   };
 
   return (
@@ -97,52 +163,145 @@ export default function CrmCampaignsPage() {
           <Input placeholder="Buscar campanha..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11 rounded-xl" />
         </div>
         
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog open={isCreateOpen} onOpenChange={(v) => { setIsCreateOpen(v); if(!v) resetModal(); }}>
            <DialogTrigger asChild>
               <Button className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg gap-2 uppercase italic">
-                <Plus className="w-5 h-5" /> Nova Campanha IA
+                <Plus className="w-5 h-5" /> Criar Campanha Real
               </Button>
            </DialogTrigger>
-           <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden">
+           <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden">
               <DialogHeader className="p-8 bg-muted/30 border-b">
-                 <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Sparkles className="w-6 h-6 fill-current" /></div>
-                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Viby AI Marketing</DialogTitle>
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                       <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Sparkles className="w-6 h-6 fill-current" /></div>
+                       <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Nova Campanha IA</DialogTitle>
+                    </div>
+                    <Badge variant="outline" className="font-black uppercase text-[9px] h-6 px-3 border-secondary/20 text-secondary">Passo {step} de 3</Badge>
                  </div>
-                 <DialogDescription className="font-bold text-secondary uppercase text-[10px]">Criação inteligente baseada em dados reais</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleGenerateAi} className="p-8 space-y-6">
-                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase ml-1">Título Interno</Label><Input name="title" required className="rounded-xl h-11" placeholder="Ex: Campanha Retenção SP" /></div>
-                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase ml-1">Objetivo Estratégico</Label><Input name="objetivo" required className="rounded-xl h-11" placeholder="Ex: Reativar usuários antigos" /></div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase ml-1">Público Alvo</Label>
-                       <Select name="segmento" required defaultValue="Interessados em Shows">
-                          <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                          <SelectContent className="rounded-xl">
-                             <SelectItem value="Interessados em Shows">Interessados em Shows</SelectItem>
-                             <SelectItem value="Usuários de São Paulo">Usuários de SP</SelectItem>
-                             <SelectItem value="Leads de Organizadores">Leads Pendentes</SelectItem>
-                          </SelectContent>
-                       </Select>
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase ml-1">Tom de Voz</Label>
-                       <Select name="tom" required defaultValue="profissional">
-                          <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                          <SelectContent className="rounded-xl">
-                             <SelectItem value="profissional">Profissional</SelectItem>
-                             <SelectItem value="amigável">Amigável</SelectItem>
-                             <SelectItem value="urgente">Urgente</SelectItem>
-                             <SelectItem value="entusiasmado">Entusiasmado</SelectItem>
-                          </SelectContent>
-                       </Select>
-                    </div>
-                 </div>
-                 <Button type="submit" disabled={isAiLoading} className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg">
-                    {isAiLoading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <><Sparkles className="w-5 h-5 mr-2 fill-current" /> Gerar com IA</>}
-                 </Button>
-              </form>
+
+              <div className="p-8">
+                 {step === 1 && (
+                   <div className="space-y-6 animate-in slide-in-from-right-4">
+                      <div className="space-y-1">
+                        <h3 className="font-black text-sm uppercase italic text-primary">1. Selecione o Público-Base</h3>
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase">Utilizando exclusivamente coleções da auditoria</p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                         {PUBLIC_BASES.map((base) => (
+                           <button
+                             key={base.id}
+                             onClick={() => setBasePublic(base.id)}
+                             className={cn(
+                               "p-4 rounded-2xl border-2 flex items-center gap-4 transition-all text-left",
+                               basePublic === base.id ? "border-secondary bg-secondary/5 shadow-inner" : "border-border hover:bg-muted"
+                             )}
+                           >
+                              <div className={cn("p-2 rounded-lg", basePublic === base.id ? "bg-secondary text-white" : "bg-muted text-muted-foreground")}><base.icon className="w-5 h-5" /></div>
+                              <div className="flex-1 min-w-0">
+                                 <p className="text-xs font-black uppercase italic text-primary">{base.label}</p>
+                                 <p className="text-[10px] font-bold text-muted-foreground">{counts[base.id]?.toLocaleString() || '...'} registros</p>
+                              </div>
+                              {basePublic === base.id && <CheckCircle2 className="w-4 h-4 text-green-600" />}
+                           </button>
+                         ))}
+                      </div>
+                      <div className="flex justify-end pt-4">
+                         <Button onClick={() => setStep(2)} disabled={!basePublic} className="bg-primary text-white font-black rounded-xl h-12 px-8 uppercase italic gap-2">Prosseguir <ChevronRight className="w-4 h-4" /></Button>
+                      </div>
+                   </div>
+                 )}
+
+                 {step === 2 && (
+                   <div className="space-y-8 animate-in slide-in-from-right-4">
+                      <div className="space-y-1">
+                        <h3 className="font-black text-sm uppercase italic text-primary">2. Aplicar Filtros Dinâmicos</h3>
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase">Refinando o público através de dados reais</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Localização (Cidade)</Label>
+                            <Select value={filters.city} onValueChange={v => setFilters({...filters, city: v})}>
+                               <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                               <SelectContent className="rounded-xl">
+                                  <SelectItem value="all">Brasil (Toda a base)</SelectItem>
+                                  {availableCities.map(c => <SelectItem key={c} value={c}>{c.toUpperCase()}</SelectItem>)}
+                               </SelectContent>
+                            </Select>
+                         </div>
+                         <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Afinidade (Categoria)</Label>
+                            <Select value={filters.category} onValueChange={v => setFilters({...filters, category: v})}>
+                               <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                               <SelectContent className="rounded-xl">
+                                  <SelectItem value="all">Todas as categorias</SelectItem>
+                                  {availableCategories.map(c => <SelectItem key={c} value={c}>{c.toUpperCase()}</SelectItem>)}
+                               </SelectContent>
+                            </Select>
+                         </div>
+                      </div>
+
+                      <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 flex items-center justify-between">
+                         <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase text-secondary">Alcance Estimado</p>
+                            <p className="text-3xl font-black text-primary italic">{(counts[basePublic!] || 0).toLocaleString()}</p>
+                         </div>
+                         <Badge className="bg-secondary text-white font-black uppercase text-[8px] h-5">PÚBLICO REAL</Badge>
+                      </div>
+
+                      <div className="flex justify-between pt-4">
+                         <Button variant="ghost" onClick={() => setStep(1)} className="rounded-xl font-black uppercase text-[10px]"><ChevronLeft className="w-4 h-4 mr-1" /> Voltar</Button>
+                         <Button onClick={() => setStep(3)} className="bg-primary text-white font-black rounded-xl h-12 px-8 uppercase italic gap-2">Configurar IA <ChevronRight className="w-4 h-4" /></Button>
+                      </div>
+                   </div>
+                 )}
+
+                 {step === 3 && (
+                   <div className="space-y-6 animate-in slide-in-from-right-4">
+                      <div className="space-y-1">
+                        <h3 className="font-black text-sm uppercase italic text-primary">3. Diretrizes de Geração</h3>
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase">Configurando a estratégia de comunicação</p>
+                      </div>
+
+                      <div className="space-y-4">
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 ml-1">Título da Campanha</Label><Input value={campaignTitle} onChange={e => setCampaignTitle(e.target.value)} required className="rounded-xl h-11" placeholder="Ex: Black Friday 2026" /></div>
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 ml-1">Objetivo da IA</Label><Input value={objective} onChange={e => setObjective(e.target.value)} required className="rounded-xl h-11" placeholder="Ex: Aumentar vendas em SP" /></div>
+                         <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Tom de Voz</Label>
+                            <Select value={tone} onValueChange={setTone}>
+                               <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                               <SelectContent className="rounded-xl">
+                                  <SelectItem value="profissional">Profissional</SelectItem>
+                                  <SelectItem value="amigável">Amigável</SelectItem>
+                                  <SelectItem value="urgente">Urgente</SelectItem>
+                                  <SelectItem value="entusiasmado">Entusiasmado</SelectItem>
+                               </SelectContent>
+                            </Select>
+                         </div>
+                      </div>
+
+                      <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200 flex items-start gap-3">
+                         <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                         <p className="text-[9px] text-orange-800 font-bold uppercase leading-relaxed italic">
+                            A IA utilizará apenas eventos reais ativos e a base de conhecimento da marca Viby para esta geração.
+                         </p>
+                      </div>
+
+                      <div className="flex justify-between pt-4">
+                         <Button variant="ghost" onClick={() => setStep(2)} className="rounded-xl font-black uppercase text-[10px]"><ChevronLeft className="w-4 h-4 mr-1" /> Voltar</Button>
+                         <Button onClick={handleGenerateAi} disabled={isAiLoading || !campaignTitle || !objective} className="bg-secondary text-white font-black h-14 px-10 rounded-2xl shadow-xl uppercase italic text-sm">
+                            {isAiLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <><Sparkles className="w-5 h-5 mr-2 fill-current" /> Gerar Campanha</>}
+                         </Button>
+                      </div>
+                   </div>
+                 )}
+              </div>
+              
+              <div className="p-4 bg-muted/30 border-t flex items-center justify-center gap-2">
+                 <ShieldCheck className="w-4 h-4 text-secondary opacity-40" />
+                 <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Viby AI Engine (GPT-4o-Mini)</p>
+              </div>
            </DialogContent>
         </Dialog>
       </div>
