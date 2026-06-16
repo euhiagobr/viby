@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -5,6 +6,7 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, where, orderBy, limit } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
   TrendingUp, 
   ArrowUpRight, 
@@ -23,7 +25,9 @@ import {
   BarChart3,
   PieChart as PieChartIcon,
   Globe,
-  ShieldCheck
+  ShieldCheck,
+  LayoutDashboard,
+  EyeOff
 } from 'lucide-react';
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { 
@@ -123,8 +127,8 @@ export default function AdminDashboardPage() {
           <Card key={i} className="border-none shadow-sm overflow-hidden group">
              <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                   <div className={stat.bg + " p-3 rounded-2xl group-hover:scale-110 transition-transform"}>
-                      <stat.icon className={stat.color + " w-6 h-6"} />
+                   <div className={cn(stat.bg, "p-3 rounded-2xl group-hover:scale-110 transition-transform")}>
+                      <stat.icon className={cn(stat.color, "w-6 h-6")} />
                    </div>
                    <div className="text-right">
                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{stat.title}</p>
