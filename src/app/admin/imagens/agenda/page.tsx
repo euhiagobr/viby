@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { 
   Search, 
   Loader2, 
@@ -93,56 +94,71 @@ export default function AgendaGeneratorPage() {
     pages.forEach((page, pIdx) => {
       const pageEl = page as HTMLElement;
       const rootRect = pageEl.getBoundingClientRect();
-      const scaleFactor = FORMAT_DIMENSIONS[format].width / rootRect.width;
-
-      console.group(`PÁGINA ${pIdx + 1} (${format}) - Escala Preview: ${rootRect.width.toFixed(0)}px (Alvo: ${FORMAT_DIMENSIONS[format].width}px)`);
       
+      console.group(`PÁGINA ${pIdx + 1} (${format}) - Escala Preview: ${rootRect.width.toFixed(0)}px`);
+      
+      console.log(`%c [1] DIMENSÕES DO TEMPLATE: `, 'font-weight: bold; color: #6366f1');
       console.table({
-        'Template Root': { width: rootRect.width, height: rootRect.height, top: rootRect.top, bottom: rootRect.bottom }
+        'Root': { 
+          width: rootRect.width, 
+          height: rootRect.height, 
+          top: rootRect.top, 
+          bottom: rootRect.bottom 
+        }
       });
 
       // Medir Header
       const header = pageEl.querySelector('.viby-header');
       if (header) {
         const hRect = header.getBoundingClientRect();
-        console.log(`%c Header: top ${hRect.top.toFixed(1)}, bottom ${hRect.bottom.toFixed(1)}, height ${hRect.height.toFixed(1)} `, 'color: #3b82f6');
+        console.log(`%c [2] HEADER: `, 'font-weight: bold; color: #3b82f6');
+        console.table({
+          'Header': { top: hRect.top, bottom: hRect.bottom, height: hRect.height }
+        });
       }
 
       // Medir Container de Eventos (Área Azul)
       const container = pageEl.querySelector('.viby-events-container');
       if (container) {
         const cRect = container.getBoundingClientRect();
-        console.log(`%c Container Eventos (Área Azul): top ${cRect.top.toFixed(1)}, bottom ${cRect.bottom.toFixed(1)}, height ${cRect.height.toFixed(1)} `, 'color: #2C52EE; font-weight: bold');
+        console.log(`%c [3] ÁREA ÚTIL (AZUL): `, 'font-weight: bold; color: #2C52EE');
+        console.table({
+          'Container': { top: cRect.top, bottom: cRect.bottom, height: cRect.height }
+        });
 
         // Medir cada Card (Área Verde)
         const cards = container.querySelectorAll('.viby-card');
+        console.log(`%c [4] CARDS RENDERIZADOS: `, 'font-weight: bold; color: #10b981');
+        
+        const cardMetrics: any[] = [];
         cards.forEach((card, cIdx) => {
           const cardEl = card as HTMLElement;
           const rect = cardEl.getBoundingClientRect();
           const isOverflowing = rect.bottom > (cRect.bottom + 1); // Tolerância de 1px
           const delta = rect.bottom - cRect.bottom;
 
-          console.log(
-            `%c Card ${cIdx + 1}: top ${rect.top.toFixed(1)}, bottom ${rect.bottom.toFixed(1)}, height ${rect.height.toFixed(1)} ${isOverflowing ? `!! TRANSBORDOU ${delta.toFixed(1)}px !!` : '(OK)'} `,
-            isOverflowing ? 'color: red; font-weight: bold' : 'color: green'
-          );
-
-          // Medir Elementos Internos
-          const title = cardEl.querySelector('.viby-card-title');
-          if (title) {
-            const tRect = title.getBoundingClientRect();
-            if (tRect.bottom > rect.bottom) console.warn(`   -> Título do card ${cIdx + 1} está vazando para baixo!`);
-            if (tRect.right > rect.right) console.warn(`   -> Título do card ${cIdx + 1} está vazando para a direita!`);
-          }
+          cardMetrics.push({
+            'Index': cIdx + 1,
+            'Top': rect.top.toFixed(1),
+            'Bottom': rect.bottom.toFixed(1),
+            'Height': rect.height.toFixed(1),
+            'Status': isOverflowing ? `EXTRAPOLOU ${delta.toFixed(1)}px` : 'OK'
+          });
         });
+        console.table(cardMetrics);
       }
 
       // Medir Footer
       const footer = pageEl.querySelector('.viby-footer');
       if (footer) {
         const fRect = footer.getBoundingClientRect();
-        console.log(`%c Footer: top ${fRect.top.toFixed(1)}, bottom ${fRect.bottom.toFixed(1)}, height ${fRect.height.toFixed(1)} `, 'color: #8b5cf6');
-        if (fRect.bottom > rootRect.bottom) console.error(`   %c !! O RODAPÉ VAZOU PARA FORA DO TEMPLATE !! `, 'background: red; color: white');
+        console.log(`%c [5] RODAPÉ: `, 'font-weight: bold; color: #8b5cf6');
+        console.table({
+          'Footer': { top: fRect.top, bottom: fRect.bottom, height: fRect.height }
+        });
+        if (fRect.bottom > rootRect.bottom) {
+          console.error(`%c CRITICAL: O RODAPÉ VAZOU PARA FORA DO TEMPLATE POR ${Math.round(fRect.bottom - rootRect.bottom)}px `, 'background: red; color: white');
+        }
       }
 
       console.groupEnd();
@@ -162,14 +178,6 @@ export default function AgendaGeneratorPage() {
       if (res.success) setCopaLogoBase64(res.data || null);
     });
   }, [settings?.logoUrl]);
-
-  // Auditoria automática ao mudar eventos ou formato
-  React.useEffect(() => {
-    if (selectedEvents.length > 0) {
-      const timer = setTimeout(runForensicAudit, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedEvents.length, format, theme, runForensicAudit]);
 
   const handleSearch = async () => {
     if (!db || !searchTerm.trim() || isSearching) return;
