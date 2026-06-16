@@ -46,13 +46,13 @@ import { cn } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
 /**
- * CONFIGURAÇÃO DE CAPACIDADE AUDITADA (VIBY V.1.5)
- * Valores sincronizados com os limites de área útil do AgendaTemplate.
+ * CONFIGURAÇÃO DE CAPACIDADE AUDITADA (VIBY v2.0)
+ * Valores sincronizados com a área útil física de cada formato.
  */
 const ITEMS_PER_FORMAT = {
   stories: 7,
   instagram: 4,
-  A4: 5
+  A4: 4
 };
 
 const FORMAT_DIMENSIONS = {
@@ -134,7 +134,7 @@ export default function AgendaGeneratorPage() {
     setSelectedEvents(selectedEvents.filter(e => e.id !== id));
   };
 
-  // LÓGICA DE PAGINAÇÃO SINCRONIZADA COM O CÁLCULO DO TEMPLATE
+  // Lógica de Paginação Sincronizada
   const eventPages = React.useMemo(() => {
     const itemsPerPage = ITEMS_PER_FORMAT[format];
     const pages = [];
@@ -275,10 +275,10 @@ export default function AgendaGeneratorPage() {
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
            <div className="space-y-1">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Área de Visualização Determinística</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2"><Info className="w-4 h-4" /> Prévia do Material</h3>
               {selectedEvents.length > 0 && (
                 <p className="text-[9px] font-bold text-secondary uppercase italic animate-in fade-in">
-                   {selectedEvents.length} eventos selecionados. Distribuídos em {eventPages.length} artes de {ITEMS_PER_FORMAT[format]} itens cada.
+                   {selectedEvents.length} eventos. Total: {eventPages.length} página(s). Limite: {ITEMS_PER_FORMAT[format]} itens/pág.
                 </p>
               )}
            </div>
@@ -294,7 +294,7 @@ export default function AgendaGeneratorPage() {
            {isGenerating && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Gerando Pixels Imutáveis...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Renderizando Camadas...</p>
              </div>
            )}
 
@@ -306,10 +306,10 @@ export default function AgendaGeneratorPage() {
                      <p className="text-sm font-black uppercase italic">Adicione eventos para gerar a agenda</p>
                   </div>
                 ) : eventPages.map((pageEvents, idx) => (
-                  <div key={idx} className="relative group/preview flex flex-col items-center gap-4">
+                  <div key={idx} className="relative flex flex-col items-center gap-4">
                     <div className="flex items-center gap-3 px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full border shadow-xl mb-4">
                       <Layout className="w-4 h-4 text-secondary" />
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Arte {idx + 1} de {eventPages.length}</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Folha {idx + 1} de {eventPages.length}</p>
                     </div>
                     
                     <div className={cn(
@@ -336,7 +336,7 @@ export default function AgendaGeneratorPage() {
            <div className="space-y-1">
               <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Cálculo de Capacidade Ativo</h4>
               <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-                 O sistema calcula a altura do cabeçalho e rodapé em tempo real para garantir que nenhum card vaze para fora da imagem. Se houver excesso de eventos, novas páginas são criadas automaticamente.
+                 O sistema calcula a altura disponível e limita a renderização dos cards para impedir transbordamentos. Veja o relatório de auditoria detalhado no console do desenvolvedor (F12).
               </p>
            </div>
         </div>
