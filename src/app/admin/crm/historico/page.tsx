@@ -1,12 +1,18 @@
-
 'use client';
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { 
+  Loader2, 
+  Search, 
+  Inbox, 
+  CheckCircle2, 
+  History
+} from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { 
   Table, 
   TableBody, 
@@ -15,17 +21,6 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { 
-  Mail, 
-  Loader2, 
-  Search, 
-  Clock, 
-  Inbox, 
-  CheckCircle2, 
-  ArrowRight,
-  FilterX
-} from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 export default function CrmHistoryPage() {
@@ -40,13 +35,16 @@ export default function CrmHistoryPage() {
 
   const filtered = logs?.filter(log => 
     log.recipientEmail?.toLowerCase().includes(search.toLowerCase()) ||
-    log.subject?.toLowerCase().includes(search.toLowerCase()) ||
-    log.type?.toLowerCase().includes(search.toLowerCase())
+    log.subject?.toLowerCase().includes(search.toLowerCase())
   ) || [];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+           <h2 className="text-xl font-black uppercase italic text-primary">Log de Disparos Reais</h2>
+           <p className="text-xs font-bold text-muted-foreground uppercase">Auditoria completa de e-mails enviados pelo sistema</p>
+        </div>
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
@@ -55,9 +53,6 @@ export default function CrmHistoryPage() {
             onChange={e => setSearch(e.target.value)} 
             className="pl-10 h-11 rounded-xl" 
           />
-        </div>
-        <div className="flex items-center gap-4 text-[10px] font-black uppercase text-muted-foreground">
-           <CheckCircle2 className="w-4 h-4 text-green-500" /> {logs?.length || 0} Registros Auditados
         </div>
       </div>
 
@@ -85,7 +80,7 @@ export default function CrmHistoryPage() {
                      </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-[8px] font-black uppercase h-5 border-secondary/20 text-secondary bg-secondary/5">
+                    <Badge variant="outline" className="text-[8px] font-black uppercase h-5 border-secondary/20 text-secondary">
                        {log.type?.replace('_',' ')}
                     </Badge>
                   </TableCell>
@@ -103,7 +98,7 @@ export default function CrmHistoryPage() {
                 </TableRow>
               ))
             ) : (
-              <TableRow><TableCell colSpan={5} className="py-32 text-center opacity-30 italic"><Inbox className="w-12 h-12 mx-auto mb-4" />Nenhum registro localizado.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="py-32 text-center opacity-30 italic"><Inbox className="w-12 h-12 mx-auto mb-4" />Nenhum disparo real registrado.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

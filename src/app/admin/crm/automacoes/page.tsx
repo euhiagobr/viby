@@ -1,10 +1,9 @@
-
 'use client';
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -15,7 +14,6 @@ import {
   Clock, 
   ChevronRight, 
   Inbox,
-  AlertTriangle,
   Play
 } from 'lucide-react';
 import { toggleAutomationAction } from '@/app/actions/crm-marketing';
@@ -48,11 +46,9 @@ export default function CrmAutomationsPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="p-4 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 flex items-start gap-3 max-w-2xl">
-           <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
-           <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">
-             As automações são disparadas em tempo real pelo motor de eventos. Certifique-se de que o template selecionado está aprovado para uso.
-           </p>
+        <div>
+          <h2 className="text-xl font-black uppercase italic text-primary">Automações Reais</h2>
+          <p className="text-xs font-bold text-muted-foreground uppercase">Gatilhos automáticos baseados em eventos do sistema</p>
         </div>
         <Button className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg gap-2 uppercase italic shrink-0">
           <Plus className="w-5 h-5" /> Nova Regra
@@ -108,7 +104,7 @@ export default function CrmAutomationsPage() {
         ) : (
           <div className="py-32 text-center bg-white rounded-[3rem] border-2 border-dashed opacity-30 italic flex flex-col items-center gap-4">
              <Inbox className="w-12 h-12" />
-             <p className="text-xs font-black uppercase tracking-widest">Nenhuma regra de automação configurada</p>
+             <p className="text-xs font-black uppercase tracking-widest">Nenhuma regra configurada na base</p>
           </div>
         )}
       </div>

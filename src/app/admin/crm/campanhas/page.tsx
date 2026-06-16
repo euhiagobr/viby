@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -8,27 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
-  Send, 
   Plus, 
   Search, 
   Loader2, 
-  MoreHorizontal, 
   Sparkles,
-  Target,
-  BarChart3,
   Inbox,
   ChevronRight,
   Mail,
-  Zap
+  Zap,
+  Tag
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { 
   Dialog, 
   DialogContent, 
@@ -68,6 +58,7 @@ export default function CrmCampaignsPage() {
     const formData = new FormData(e.currentTarget);
     
     try {
+      // IA consulta eventos reais no servidor via Genkit Flow
       const aiResult = await gerarCampanhaEmail({
         objetivo: formData.get('objetivo') as string,
         publicoAlvo: formData.get('segmento') as string,
@@ -78,11 +69,12 @@ export default function CrmCampaignsPage() {
       const campaignRes = await createCrmCampaignAction({
         title: formData.get('title') as string,
         ...aiResult,
+        objective: formData.get('objetivo') as string,
         status: 'rascunho'
       }, user.uid);
 
       if (campaignRes.success) {
-        toast({ title: "Campanha gerada pela IA!" });
+        toast({ title: "Campanha real gerada!" });
         router.push(`/admin/crm/campanhas/${campaignRes.id}`);
       } else throw new Error(campaignRes.error);
     } catch (err: any) {
@@ -97,7 +89,7 @@ export default function CrmCampaignsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar campanha..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11 rounded-xl" />
+          <Input placeholder="Buscar campanha real..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11 rounded-xl" />
         </div>
         
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -112,7 +104,7 @@ export default function CrmCampaignsPage() {
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Sparkles className="w-6 h-6 fill-current" /></div>
                     <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Viby AI Marketing</DialogTitle>
                  </div>
-                 <DialogDescription className="font-bold text-secondary uppercase text-[10px]">Criação inteligente baseada em dados reais</DialogDescription>
+                 <DialogDescription className="font-bold text-secondary uppercase text-[10px]">Criação inteligente conectada à base de dados real</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleGenerateAi} className="p-8 space-y-6">
                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase ml-1">Título Interno</Label><Input name="title" required className="rounded-xl h-11" placeholder="Ex: Campanha Retenção SP" /></div>
@@ -124,14 +116,14 @@ export default function CrmCampaignsPage() {
                           <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
                           <SelectContent className="rounded-xl">
                              <SelectItem value="Compradores de Karaokê">Compradores de Karaokê</SelectItem>
-                             <SelectItem value="Público LGBT SP">Público LGBT SP</SelectItem>
-                             <SelectItem value="Organizadores Inativos">Organizadores Inativos</SelectItem>
+                             <SelectItem value="Público Diversidade">Público Diversidade</SelectItem>
+                             <SelectItem value="Leads Pendentes">Leads Pendentes</SelectItem>
                           </SelectContent>
                        </Select>
                     </div>
                     <div className="space-y-2">
                        <Label className="text-[10px] font-black uppercase ml-1">Tom de Voz</Label>
-                       <Select name="tom" required defaultValue="entusiasmado">
+                       <Select name="tom" required defaultValue="profissional">
                           <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
                           <SelectContent className="rounded-xl">
                              <SelectItem value="profissional">Profissional</SelectItem>
@@ -176,8 +168,8 @@ export default function CrmCampaignsPage() {
 
                         <div className="flex items-center gap-10">
                            <div className="hidden md:flex gap-8 text-center">
-                              <StatItem label="Abertura" value={c.metrics?.opens > 0 ? `${Math.round((c.metrics.opens/c.metrics.sent)*100)}%` : "0%"} />
-                              <StatItem label="Cliques" value={c.metrics?.clicks > 0 ? `${Math.round((c.metrics.clicks/c.metrics.sent)*100)}%` : "0%"} />
+                              <StatItem label="Abertura" value={c.metrics?.sent > 0 ? `${Math.round((c.metrics.opens/c.metrics.sent)*100)}%` : "0%"} />
+                              <StatItem label="Cliques" value={c.metrics?.sent > 0 ? `${Math.round((c.metrics.clicks/c.metrics.sent)*100)}%` : "0%"} />
                               <StatItem label="Enviados" value={c.metrics?.sent || 0} />
                            </div>
                            <ChevronRight className="w-5 h-5 text-muted-foreground/30 group-hover:text-secondary transition-colors" />

@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -9,17 +8,15 @@ import {
   MousePointer2, 
   MailOpen, 
   TrendingUp, 
-  ArrowUpRight,
   Zap,
-  Clock,
   Target,
   BarChart3,
-  Percent,
   Inbox,
-  Loader2
+  Loader2,
+  Clock
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getCountFromServer, where } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { 
   BarChart, 
@@ -34,69 +31,72 @@ import {
 
 export default function CrmDashboard() {
   const db = useFirestore();
+  const [realMetrics, setRealMetrics] = React.useState({
+    totalUsers: 0,
+    totalLeads: 0,
+    totalCampaigns: 0,
+    totalSent: 0
+  });
+  const [loadingMetrics, setLoadingMetrics] = React.useState(true);
 
   // Queries Reais
   const campaignsQuery = useMemoFirebase(() => db ? query(collection(db, "crm_campaigns"), orderBy("createdAt", "desc")) : null, [db]);
-  const usersQuery = useMemoFirebase(() => db ? collection(db, "users") : null, [db]);
-  const leadsQuery = useMemoFirebase(() => db ? collection(db, "organizer_leads") : null, [db]);
+  const { data: campaigns, loading: loadingCampaigns } = useCollection<any>(campaignsQuery);
 
-  const { data: allCampaigns, loading: loadingCampaigns } = useCollection<any>(campaignsQuery);
-  const { data: users } = useCollection<any>(usersQuery);
-  const { data: leads } = useCollection<any>(leadsQuery);
+  React.useEffect(() => {
+    if (!db) return;
+    const fetchCounts = async () => {
+      try {
+        const [usersCount, leadsCount, campaignCount] = await Promise.all([
+          getCountFromServer(collection(db, "users")),
+          getCountFromServer(collection(db, "organizer_leads")),
+          getCountFromServer(collection(db, "crm_campaigns"))
+        ]);
 
-  // Consolidação de métricas reais
-  const metrics = React.useMemo(() => {
-    if (!allCampaigns) return { sent: 0, opens: 0, clicks: 0, conversions: 0 };
-    return allCampaigns.reduce((acc, c) => {
-      const m = c.metrics || {};
-      acc.sent += (m.sent || 0);
-      acc.opens += (m.opens || 0);
-      acc.clicks += (m.clicks || 0);
-      acc.conversions += (m.conversions || 0);
+        setRealMetrics({
+          totalUsers: usersCount.data().count,
+          totalLeads: leadsCount.data().count,
+          totalCampaigns: campaignCount.data().count,
+          totalSent: 0 // Será calculado via agregação de campanhas
+        });
+      } catch (e) {
+        console.error("Erro ao carregar métricas reais:", e);
+      } finally {
+        setLoadingMetrics(false);
+      }
+    };
+    fetchCounts();
+  }, [db]);
+
+  const campaignMetrics = React.useMemo(() => {
+    if (!campaigns) return { sent: 0, opens: 0, clicks: 0 };
+    return campaigns.reduce((acc, c) => {
+      acc.sent += (c.metrics?.sent || 0);
+      acc.opens += (c.metrics?.opens || 0);
+      acc.clicks += (c.metrics?.clicks || 0);
       return acc;
-    }, { sent: 0, opens: 0, clicks: 0, conversions: 0 });
-  }, [allCampaigns]);
+    }, { sent: 0, opens: 0, clicks: 0 });
+  }, [campaigns]);
 
   const statsData = [
-    { 
-      label: "Envios Totais", 
-      value: metrics.sent.toLocaleString(), 
-      icon: Send, 
-      color: "blue" 
-    },
-    { 
-      label: "Taxa de Abertura", 
-      value: metrics.sent > 0 ? `${((metrics.opens / metrics.sent) * 100).toFixed(1)}%` : "0%", 
-      icon: MailOpen, 
-      color: "green" 
-    },
-    { 
-      label: "Taxa de Cliques", 
-      value: metrics.sent > 0 ? `${((metrics.clicks / metrics.sent) * 100).toFixed(1)}%` : "0%", 
-      icon: MousePointer2, 
-      color: "secondary" 
-    },
-    { 
-      label: "Lead Organizers", 
-      value: (leads?.length || 0).toLocaleString(), 
-      icon: Target, 
-      color: "orange" 
-    },
+    { label: "Usuários na Base", value: realMetrics.totalUsers.toLocaleString(), icon: Users, color: "blue" },
+    { label: "Leads Captados", value: realMetrics.totalLeads.toLocaleString(), icon: Target, color: "orange" },
+    { label: "Total Enviados", value: campaignMetrics.sent.toLocaleString(), icon: Send, color: "secondary" },
+    { label: "Taxa de Abertura", value: campaignMetrics.sent > 0 ? `${((campaignMetrics.opens / campaignMetrics.sent) * 100).toFixed(1)}%` : "0%", icon: MailOpen, color: "green" },
   ];
 
-  // Dados reais para o gráfico (últimas campanhas)
   const chartData = React.useMemo(() => {
-    if (!allCampaigns) return [];
-    return [...allCampaigns]
+    if (!campaigns || campaigns.length === 0) return [];
+    return [...campaigns]
       .reverse()
       .slice(-7)
       .map(c => ({
         name: c.title.substring(0, 10),
         envios: c.metrics?.sent || 0
       }));
-  }, [allCampaigns]);
+  }, [campaigns]);
 
-  if (loadingCampaigns) {
+  if (loadingCampaigns || loadingMetrics) {
     return (
       <div className="flex flex-col items-center justify-center py-32 gap-4">
         <Loader2 className="w-12 h-12 animate-spin text-secondary" />
@@ -117,7 +117,7 @@ export default function CrmDashboard() {
         <Card className="lg:col-span-8 border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="p-8 border-b bg-muted/20">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Disparos
+              <BarChart3 className="w-5 h-5 text-secondary" /> Histórico de Engajamento
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8 h-80">
@@ -134,7 +134,7 @@ export default function CrmDashboard() {
             ) : (
               <div className="flex flex-col items-center justify-center h-full opacity-20">
                 <Inbox className="w-10 h-10 mb-2" />
-                <p className="text-[10px] font-black uppercase">Sem dados históricos</p>
+                <p className="text-[10px] font-black uppercase">Sem dados de disparos reais</p>
               </div>
             )}
           </CardContent>
@@ -143,13 +143,13 @@ export default function CrmDashboard() {
         <Card className="lg:col-span-4 border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="p-8 border-b bg-muted/20">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-              <Clock className="w-5 h-5 text-secondary" /> Últimas Campanhas
+              <Clock className="w-5 h-5 text-secondary" /> Campanhas Reais
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-             {allCampaigns && allCampaigns.length > 0 ? (
+             {campaigns && campaigns.length > 0 ? (
                <div className="divide-y">
-                  {allCampaigns.slice(0, 5).map((c: any) => (
+                  {campaigns.slice(0, 5).map((c: any) => (
                     <div key={c.id} className="p-5 flex items-center justify-between hover:bg-muted/10 transition-colors cursor-pointer">
                        <div className="space-y-0.5">
                           <p className="text-xs font-black uppercase italic text-primary truncate max-w-[150px]">{c.title}</p>
@@ -164,12 +164,6 @@ export default function CrmDashboard() {
              )}
           </CardContent>
         </Card>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-         <AutomationShortcut label="Boas-vindas" desc="Gatilho em tempo real para novos leads" active />
-         <AutomationShortcut label="Abandono de Carrinho" desc="Monitoramento de pendências de checkout" />
-         <AutomationShortcut label="Reativação" desc="Usuários inativos há mais de 30 dias" />
       </div>
     </div>
   );
@@ -193,21 +187,4 @@ function MetricCard({ label, value, icon: Icon, color }: any) {
        </CardContent>
     </Card>
   );
-}
-
-function AutomationShortcut({ label, desc, active }: any) {
-   return (
-      <Card className="border-none shadow-sm rounded-3xl bg-white border-l-4 border-secondary/20">
-         <CardContent className="p-6 flex items-center justify-between">
-            <div className="space-y-1">
-               <div className="flex items-center gap-2">
-                  <Zap className={cn("w-3.5 h-3.5", active ? "text-orange-500 fill-orange-500" : "text-muted-foreground opacity-20")} />
-                  <span className="text-xs font-black uppercase italic text-primary">{label}</span>
-               </div>
-               <p className="text-[9px] font-medium text-muted-foreground uppercase">{desc}</p>
-            </div>
-            <div className={cn("w-2 h-2 rounded-full", active ? "bg-green-500 animate-pulse" : "bg-muted")} />
-         </CardContent>
-      </Card>
-   );
 }

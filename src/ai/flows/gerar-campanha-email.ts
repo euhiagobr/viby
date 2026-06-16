@@ -1,8 +1,7 @@
-
 'use server';
 /**
  * @fileOverview Fluxo Genkit para geração inteligente de campanhas de e-mail marketing.
- * Seleciona eventos relevantes e compõe HTML responsivo baseado na identidade Viby.
+ * Seleciona eventos REAIS da base de dados e compõe HTML baseado na identidade Viby.
  */
 
 import { ai, z } from '@/ai/genkit';
@@ -31,31 +30,30 @@ const prompt = ai.definePrompt({
   input: { schema: GerarCampanhaEmailInputSchema.extend({ eventsContext: z.array(z.any()) }) },
   output: { schema: GerarCampanhaEmailOutputSchema },
   prompt: `Você é o estrategista de marketing da Viby, uma plataforma líder em experiências culturais.
-Sua tarefa é gerar uma campanha de e-mail marketing de alta conversão.
+Sua tarefa é gerar uma campanha de e-mail marketing de alta conversão utilizando exclusivamente eventos reais disponíveis.
 
 INSTRUÇÕES DE DESIGN:
 - Use as cores da Viby: Primária (#000000), Secundária (#2C52EE).
-- O layout deve ser limpo, moderno e responsivo.
-- Botões de CTA devem ter fundo #2C52EE e texto branco, cantos arredondados (12px).
-- Inclua a logo oficial (URL mock: https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media).
+- Layout moderno, limpo e responsivo.
+- Botões de CTA: fundo #2C52EE, texto branco, cantos arredondados (12px).
+- Logo: https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media
 
 ESTRATÉGIA DE CONTEÚDO:
 Objetivo: {{{objetivo}}}
 Público: {{{publicoAlvo}}}
 Tom: {{{tom}}}
 
-EVENTOS DISPONÍVEIS (Selecione os {{{maxEventos}}} mais relevantes):
+EVENTOS DISPONÍVEIS NA BASE REAL (Selecione até {{{maxEventos}}} mais relevantes):
 {{#each eventsContext}}
 - ID: {{id}}, Título: {{title}}, Categoria: {{categoryName}}, Cidade: {{city}}, Preço: {{startingPrice}}
 {{/each}}
 
 REQUISITOS DO HTML:
-1. Cabeçalho com logo centralizada.
-2. Título (H1) em negrito e itálico (estilo Viby).
-3. Texto de corpo envolvente.
-4. Bloco de destaque para os eventos selecionados (Imagem, Título, Data, Cidade).
-5. Botão de CTA principal.
-6. Rodapé institucional com links de descadastro.
+1. Cabeçalho com logo.
+2. Título (H1) em negrito e itálico.
+3. Texto envolvente conectando o objetivo ao público.
+4. Blocos de eventos selecionados com Imagem, Título e Local.
+5. CTA Principal.
 
 Gere o assunto, preheader, os IDs selecionados e o HTML completo.`
 });
@@ -68,18 +66,28 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
   },
   async (input) => {
     const db = getAdminDb();
+    
+    // Busca eventos REAIS ativos para alimentar o contexto da IA
     const eventsSnap = await db.collection('events')
       .where('status', '==', 'Ativo')
-      .limit(20)
+      .orderBy('date', 'asc')
+      .limit(15)
       .get();
     
-    const eventsContext = eventsSnap.docs.map(d => ({
-      id: d.id,
-      title: d.data().title,
-      categoryName: d.data().categoryName,
-      city: d.data().city,
-      startingPrice: d.data().startingPrice
-    }));
+    const eventsContext = eventsSnap.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        title: data.title,
+        categoryName: data.categoryName || "Evento",
+        city: data.city || "Brasil",
+        startingPrice: data.startingPrice || 0
+      };
+    });
+
+    if (eventsContext.length === 0) {
+      throw new Error("Não há eventos ativos na plataforma para gerar a campanha.");
+    }
 
     const { output } = await prompt({ ...input, eventsContext });
     return output!;
