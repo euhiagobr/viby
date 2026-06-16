@@ -22,7 +22,8 @@ import {
   FileDown,
   CheckCircle2,
   Info,
-  X
+  X,
+  Image as ImageIcon
 } from 'lucide-react';
 import { 
   Select, 
