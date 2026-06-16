@@ -120,7 +120,7 @@ export default function CampaignDetailPage() {
                  </div>
                  <div className="space-y-1">
                     <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Tom da Voz</p>
-                    <p className="text-sm font-bold text-primary uppercase">{campaign.ton || campaign.tone || 'Profissional'}</p>
+                    <p className="text-sm font-bold text-primary uppercase">{campaign.tom || campaign.tone || 'Profissional'}</p>
                  </div>
                  <Separator className="border-dashed" />
                  <div className="space-y-4">

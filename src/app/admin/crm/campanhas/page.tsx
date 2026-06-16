@@ -65,7 +65,7 @@ export default function CrmCampaignsPage() {
       const aiResult = await gerarCampanhaEmail({
         objetivo: formData.get('objetivo') as string,
         publicoAlvo: formData.get('segmento') as string,
-        ton: formData.get('tom') as string,
+        tom: formData.get('tom') as string,
         maxEventos: 3
       });
 
@@ -75,6 +75,7 @@ export default function CrmCampaignsPage() {
         title: formData.get('title') as string,
         ...aiResult,
         objective: formData.get('objetivo') as string,
+        tom: formData.get('tom') as string,
         status: 'rascunho'
       }, user.uid);
 
@@ -112,7 +113,7 @@ export default function CrmCampaignsPage() {
               <DialogHeader className="p-8 bg-muted/30 border-b">
                  <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Sparkles className="w-6 h-6 fill-current" /></div>
-                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Viby AI Marketing</DialogTitle>
+                    <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Viby AI Marketing</DialogTitle>
                  </div>
                  <DialogDescription className="font-bold text-secondary uppercase text-[10px]">Criação inteligente conectada à base de dados real</DialogDescription>
               </DialogHeader>
