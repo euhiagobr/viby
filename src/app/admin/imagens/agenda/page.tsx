@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useDoc } from '@/firebase';
-import { collection, query, where, orderBy, limit, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, addDoc, serverTimestamp, getDocs, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,8 @@ import {
   Layout,
   FileDown,
   CheckCircle2,
-  Info
+  Info,
+  X
 } from 'lucide-react';
 import { 
   Select, 
@@ -48,7 +49,6 @@ export default function AgendaGeneratorPage() {
   
   const [format, setFormat] = React.useState<'A4' | 'instagram' | 'stories'>('stories');
   const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro'>('viby');
-  const [processedEvents, setProcessedEvents] = React.useState<any[]>([]);
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
   const { data: settings } = useDoc<any>(settingsRef);
@@ -275,7 +275,7 @@ export default function AgendaGeneratorPage() {
                     events={selectedEvents} 
                     format={format} 
                     theme={theme} 
-                    logoBase64={logoBase64}
+                    logoUrl={logoBase64 || undefined}
                  />
               </div>
            </div>
