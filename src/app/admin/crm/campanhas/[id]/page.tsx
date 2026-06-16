@@ -18,7 +18,9 @@ import {
   Target,
   AlertTriangle,
   Smartphone,
-  Monitor
+  Monitor,
+  ShieldCheck,
+  Calendar
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -43,7 +45,7 @@ export default function CampaignDetailPage() {
     if (!id || isProcessing) return;
     setIsProcessing(true);
     try {
-      const res = await sendTestEmailAction(id, user?.uid!);
+      const res = await sendTestEmailAction(id);
       if (res.success) toast({ title: "E-mail de teste enviado!", description: "Verifique viby@viby.club" });
       else throw new Error(res.error);
     } catch (e: any) {
@@ -69,6 +71,8 @@ export default function CampaignDetailPage() {
 
   if (loading) return <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
   if (!campaign) return <div className="py-20 text-center opacity-20 uppercase font-black italic">Campanha não encontrada</div>;
+
+  const formatDate = (isoStr: string) => isoStr ? new Date(isoStr).toLocaleDateString('pt-BR') : '---';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -101,6 +105,44 @@ export default function CampaignDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         <div className="lg:col-span-4 space-y-8">
+           {/* Auditoria de Datas */}
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
+              <CardHeader className="bg-muted/30 border-b p-8">
+                 <CardTitle className="text-lg font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
+                    <ShieldCheck className="w-5 h-5 text-secondary" /> Validação Temporal
+                 </CardTitle>
+              </CardHeader>
+              <CardContent className="p-8 space-y-6">
+                 <div className="space-y-4">
+                    <div className="space-y-1">
+                       <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Período Solicitado</p>
+                       <div className="flex items-center gap-2 font-bold text-xs">
+                          <Calendar className="w-3.5 h-3.5 text-secondary" />
+                          {formatDate(campaign.audit?.periodoSolicitado?.inicio)} <ArrowRight className="w-3 h-3" /> {formatDate(campaign.audit?.periodoSolicitado?.fim)}
+                       </div>
+                    </div>
+                    <div className="space-y-1">
+                       <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Período Encontrado</p>
+                       <div className="flex items-center gap-2 font-bold text-xs text-primary">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                          {formatDate(campaign.audit?.periodoEncontrado?.inicio)} <ArrowRight className="w-3 h-3" /> {formatDate(campaign.audit?.periodoEncontrado?.fim)}
+                       </div>
+                    </div>
+                 </div>
+                 <Separator className="border-dashed" />
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-muted/20 rounded-2xl text-center">
+                       <p className="text-[8px] font-black uppercase opacity-40">Eventos Analisados</p>
+                       <p className="text-xl font-black">{campaign.audit?.eventosAnalisados || 0}</p>
+                    </div>
+                    <div className="p-4 bg-muted/20 rounded-2xl text-center">
+                       <p className="text-[8px] font-black uppercase opacity-40">Selecionados</p>
+                       <p className="text-xl font-black text-secondary">{campaign.audit?.eventosSelecionados || 0}</p>
+                    </div>
+                 </div>
+              </CardContent>
+           </Card>
+
            <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
               <CardHeader className="bg-muted/30 border-b p-8">
                  <CardTitle className="text-lg font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
@@ -115,17 +157,6 @@ export default function CampaignDetailPage() {
                  <div className="space-y-1">
                     <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Tom da Voz</p>
                     <p className="text-sm font-bold text-primary uppercase">{campaign.tom || campaign.tone || 'Profissional'}</p>
-                 </div>
-                 <Separator className="border-dashed" />
-                 <div className="space-y-4">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2"><Zap className="w-3.5 h-3.5 fill-current" /> Eventos Selecionados</h4>
-                    <div className="space-y-2">
-                       {campaign.selectedEventIds?.map((eid: string) => (
-                         <div key={eid} className="p-3 bg-muted/30 rounded-xl border border-dashed text-[10px] font-bold uppercase truncate">
-                            ID: {eid}
-                         </div>
-                       ))}
-                    </div>
                  </div>
               </CardContent>
            </Card>

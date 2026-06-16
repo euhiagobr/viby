@@ -24,7 +24,8 @@ import {
   ChevronLeft,
   CheckCircle2,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  Calendar
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -44,7 +45,6 @@ import { gerarCampanhaEmail } from '@/ai/flows/gerar-campanha-email';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 const PUBLIC_BASES = [
   { id: 'users', label: 'Usuários', icon: User, coll: 'users' },
@@ -67,7 +67,8 @@ export default function CrmCampaignsPage() {
 
   // Estados da Campanha
   const [basePublic, setBasePublic] = React.useState<string | null>(null);
-  const [filters, setFilters] = React.useState({ city: 'all', category: 'all', state: 'all' });
+  const [filters, setFilters] = React.useState({ city: 'all', category: 'all' });
+  const [periodo, setPeriodo] = React.useState<any>("semana");
   const [campaignTitle, setCampaignTitle] = React.useState("");
   const [objective, setObjective] = React.useState("");
   const [tone, setTone] = React.useState("profissional");
@@ -89,17 +90,14 @@ export default function CrmCampaignsPage() {
     const fetchMetadata = async () => {
       setLoadingMetadata(true);
       try {
-        // Cidades Reais de usuários
         const usersSnap = await getDocs(collection(db, "users"));
         const cities = new Set<string>();
         usersSnap.forEach(d => { if (d.data().city) cities.add(d.data().city) });
         setAvailableCities(Array.from(cities).sort());
 
-        // Categorias Reais
         const catsSnap = await getDocs(collection(db, "categories"));
         setAvailableCategories(catsSnap.docs.map(d => d.data().name).sort());
 
-        // Contagens Base
         const c: any = {};
         for (const base of PUBLIC_BASES) {
           const snap = await getCountFromServer(collection(db, base.coll));
@@ -117,11 +115,10 @@ export default function CrmCampaignsPage() {
     
     setIsAiLoading(true);
     try {
-      console.log("[CRM-AI] Iniciando geração de campanha com dados reais...");
-      
       const aiResult = await gerarCampanhaEmail({
         objetivo: objective,
         publicoAlvo: `${basePublic} - ${filters.city !== 'all' ? filters.city : 'Brasil'}`,
+        periodo,
         tom: tone,
         maxEventos: 3
       });
@@ -130,7 +127,7 @@ export default function CrmCampaignsPage() {
         title: campaignTitle,
         objective: objective,
         basePublic: basePublic,
-        filters: filters,
+        filters: { ...filters, periodo },
         status: 'rascunho',
         tone: tone,
         ...aiResult,
@@ -150,7 +147,8 @@ export default function CrmCampaignsPage() {
   const resetModal = () => {
     setStep(1);
     setBasePublic(null);
-    setFilters({ city: 'all', category: 'all', state: 'all' });
+    setFilters({ city: 'all', category: 'all' });
+    setPeriodo("semana");
     setCampaignTitle("");
     setObjective("");
     setTone("profissional");
@@ -186,7 +184,6 @@ export default function CrmCampaignsPage() {
                    <div className="space-y-6 animate-in slide-in-from-right-4">
                       <div className="space-y-1">
                         <h3 className="font-black text-sm uppercase italic text-primary">1. Selecione o Público-Base</h3>
-                        <p className="text-[10px] text-muted-foreground font-medium uppercase">Utilizando exclusivamente coleções da auditoria</p>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                          {PUBLIC_BASES.map((base) => (
@@ -216,8 +213,8 @@ export default function CrmCampaignsPage() {
                  {step === 2 && (
                    <div className="space-y-8 animate-in slide-in-from-right-4">
                       <div className="space-y-1">
-                        <h3 className="font-black text-sm uppercase italic text-primary">2. Aplicar Filtros Dinâmicos</h3>
-                        <p className="text-[10px] text-muted-foreground font-medium uppercase">Refinando o público através de dados reais</p>
+                        <h3 className="font-black text-sm uppercase italic text-primary">2. Refinamento de Busca</h3>
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase">Segmentando por geolocalização e interesse</p>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -228,7 +225,7 @@ export default function CrmCampaignsPage() {
                                <SelectContent className="rounded-xl">
                                   <SelectItem value="all">Brasil (Toda a base)</SelectItem>
                                   {availableCities.map(c => <SelectItem key={c} value={c}>{c.toUpperCase()}</SelectItem>)}
-                               </SelectContent>
+                                </SelectContent>
                             </Select>
                          </div>
                          <div className="space-y-2">
@@ -243,14 +240,6 @@ export default function CrmCampaignsPage() {
                          </div>
                       </div>
 
-                      <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 flex items-center justify-between">
-                         <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase text-secondary">Alcance Estimado</p>
-                            <p className="text-3xl font-black text-primary italic">{(counts[basePublic!] || 0).toLocaleString()}</p>
-                         </div>
-                         <Badge className="bg-secondary text-white font-black uppercase text-[8px] h-5">PÚBLICO REAL</Badge>
-                      </div>
-
                       <div className="flex justify-between pt-4">
                          <Button variant="ghost" onClick={() => setStep(1)} className="rounded-xl font-black uppercase text-[10px]"><ChevronLeft className="w-4 h-4 mr-1" /> Voltar</Button>
                          <Button onClick={() => setStep(3)} className="bg-primary text-white font-black rounded-xl h-12 px-8 uppercase italic gap-2">Configurar IA <ChevronRight className="w-4 h-4" /></Button>
@@ -261,13 +250,32 @@ export default function CrmCampaignsPage() {
                  {step === 3 && (
                    <div className="space-y-6 animate-in slide-in-from-right-4">
                       <div className="space-y-1">
-                        <h3 className="font-black text-sm uppercase italic text-primary">3. Diretrizes de Geração</h3>
-                        <p className="text-[10px] text-muted-foreground font-medium uppercase">Configurando a estratégia de comunicação</p>
+                        <h3 className="font-black text-sm uppercase italic text-primary">3. Estratégia de Agenda</h3>
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase">Configurando o período e tom de voz</p>
                       </div>
 
                       <div className="space-y-4">
-                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 ml-1">Título da Campanha</Label><Input value={campaignTitle} onChange={e => setCampaignTitle(e.target.value)} required className="rounded-xl h-11" placeholder="Ex: Black Friday 2026" /></div>
-                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 ml-1">Objetivo da IA</Label><Input value={objective} onChange={e => setObjective(e.target.value)} required className="rounded-xl h-11" placeholder="Ex: Aumentar vendas em SP" /></div>
+                         <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Período da Agenda (Filtro Obrigatório)</Label>
+                            <Select value={periodo} onValueChange={setPeriodo}>
+                               <SelectTrigger className="rounded-xl h-11 font-bold text-primary">
+                                  <Calendar className="w-4 h-4 mr-2 opacity-40" />
+                                  <SelectValue />
+                               </SelectTrigger>
+                               <SelectContent className="rounded-xl">
+                                  <SelectItem value="hoje">Somente Hoje</SelectItem>
+                                  <SelectItem value="amanha">Somente Amanhã</SelectItem>
+                                  <SelectItem value="semana">Esta Semana (Seg-Dom)</SelectItem>
+                                  <SelectItem value="7dias">Próximos 7 dias</SelectItem>
+                                  <SelectItem value="15dias">Próximos 15 dias</SelectItem>
+                                  <SelectItem value="30dias">Próximos 30 dias</SelectItem>
+                                  <SelectItem value="mes_atual">Este Mês</SelectItem>
+                                  <SelectItem value="proximo_mes">Próximo Mês</SelectItem>
+                               </SelectContent>
+                            </Select>
+                         </div>
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 ml-1">Título da Campanha</Label><Input value={campaignTitle} onChange={e => setCampaignTitle(e.target.value)} required className="rounded-xl h-11" placeholder="Ex: Destaques da Semana" /></div>
+                         <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 ml-1">Objetivo da IA</Label><Input value={objective} onChange={e => setObjective(e.target.value)} required className="rounded-xl h-11" placeholder="Ex: Convite para agenda cultural" /></div>
                          <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Tom de Voz</Label>
                             <Select value={tone} onValueChange={setTone}>
@@ -285,7 +293,7 @@ export default function CrmCampaignsPage() {
                       <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200 flex items-start gap-3">
                          <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
                          <p className="text-[9px] text-orange-800 font-bold uppercase leading-relaxed italic">
-                            A IA utilizará apenas eventos reais ativos e a base de conhecimento da marca Viby para esta geração.
+                            A IA filtrará eventos exclusivamente dentro do período selecionado. Eventos fora deste intervalo serão ignorados.
                          </p>
                       </div>
 
@@ -348,5 +356,25 @@ export default function CrmCampaignsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function KPICard({ label, value, icon: Icon, color, loading }: any) {
+  const colors: any = {
+    blue: "bg-blue-50 text-blue-500",
+    green: "bg-green-50 text-green-600",
+    orange: "bg-orange-50 text-orange-500",
+    secondary: "bg-secondary/5 text-secondary"
+  };
+  return (
+    <Card className="border-none shadow-sm rounded-3xl bg-white">
+       <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+             <div className={cn("p-2.5 rounded-2xl", colors[color])}><Icon className="w-5 h-5" /></div>
+          </div>
+          <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">{label}</p>
+          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <p className="text-2xl font-black text-primary">{value.toLocaleString()}</p>}
+       </CardContent>
+    </Card>
   );
 }
