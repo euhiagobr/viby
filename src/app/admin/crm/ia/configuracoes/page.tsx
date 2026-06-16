@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -15,7 +16,8 @@ import {
   Zap,
   ArrowLeft,
   Info,
-  ShieldCheck
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -58,7 +60,7 @@ export default function AiModelSettingsPage() {
         updatedAt: serverTimestamp(),
         updatedBy: user.uid
       }, { merge: true });
-      toast({ title: "Modelos atualizados!", description: "A arquitetura de IA agora utiliza as novas definições." });
+      toast({ title: "Arquitetura de IA Atualizada!", description: "O modelo GPT-5 Mini (gpt-4o-mini) foi definido como padrão." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: e.message });
     } finally {
@@ -86,39 +88,39 @@ export default function AiModelSettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-8 max-w-2xl mx-auto">
-        <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+        <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
           <CardHeader className="bg-muted/30 border-b p-8">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-              <Zap className="w-5 h-5 text-secondary" /> Engine de Geração
+              <Zap className="w-5 h-5 text-secondary" /> Engine de Geração (GPT-5 Mini)
             </CardTitle>
-            <CardDescription className="text-xs font-bold uppercase">Utilize IDs oficiais do provedor (ex: openai/gpt-4o-mini)</CardDescription>
+            <CardDescription className="text-xs font-bold uppercase">Utilize openai/gpt-4o-mini para máxima eficiência operacional.</CardDescription>
           </CardHeader>
           <CardContent className="p-8 space-y-6">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60">Modelo para Emails</Label>
+              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Modelo para Emails</Label>
               <Input value={models.modelEmails} onChange={e => setModels({...models, modelEmails: e.target.value})} className="rounded-xl h-11 font-mono" />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60">Modelo para Campanhas</Label>
+              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Modelo para Campanhas</Label>
               <Input value={models.modelCampaigns} onChange={e => setModels({...models, modelCampaigns: e.target.value})} className="rounded-xl h-11 font-mono" />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60">Modelo para Recomendações</Label>
+              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Modelo para Recomendações</Label>
               <Input value={models.modelRecommendations} onChange={e => setModels({...models, modelRecommendations: e.target.value})} className="rounded-xl h-11 font-mono" />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60">Modelo para Automações</Label>
+              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Modelo para Automações</Label>
               <Input value={models.modelAutomations} onChange={e => setModels({...models, modelAutomations: e.target.value})} className="rounded-xl h-11 font-mono" />
             </div>
 
             <Separator className="border-dashed" />
 
-            <div className="p-4 bg-secondary/5 rounded-2xl flex gap-3 border border-secondary/10">
-               <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+            <div className="p-6 bg-orange-50 rounded-[1.5rem] border-2 border-dashed border-orange-200 flex items-start gap-4">
+               <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
                <div className="space-y-1">
-                  <p className="text-[10px] text-secondary font-black uppercase">Padrão Sugerido: GPT-5 Mini (gpt-4o-mini)</p>
-                  <p className="text-[9px] text-secondary font-medium leading-relaxed uppercase">
-                    Este modelo oferece o melhor equilíbrio entre latência, custo e qualidade para fluxos de CRM.
+                  <p className="text-[10px] text-orange-800 font-black uppercase italic">Padrão de Arquitetura Rígido</p>
+                  <p className="text-[9px] text-orange-700 font-medium leading-relaxed uppercase">
+                    O modelo GPT-4o-mini (GPT-5 Mini) é obrigatório para manter os custos operacionais baixos e a latência de geração de campanhas em tempo real.
                   </p>
                </div>
             </div>
