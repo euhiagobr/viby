@@ -24,7 +24,8 @@ import {
   User, 
   Building2,
   Percent,
-  Wallet
+  Wallet,
+  Zap
 } from "lucide-react"
 import { calculateVibyOfficialSplit } from "@/lib/financial-utils"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
@@ -49,7 +50,9 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
     return calculateVibyOfficialSplit(facePrice, currency as CurrencyCode, rates, customFees)
   }, [priceInput, currency, rates, customFees])
 
-  const isMinFeeApplied = results.organizerFee > (parseFloat(priceInput || "0") * (customFees?.customOrganizerPercent ? customFees.customOrganizerPercent / 100 : 0.10))
+  const facePriceNum = parseFloat(priceInput || "0");
+  const isLowPriceRuleActive = facePriceNum > 0 && results.organizerFee === 0 && results.organizerNet === facePriceNum;
+  const isMinFeeApplied = !isLowPriceRuleActive && results.organizerFee > (facePriceNum * (customFees?.customOrganizerPercent ? customFees.customOrganizerPercent / 100 : 0.10));
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -89,24 +92,33 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
                  <span className="text-primary">{formatPrice(results.totalCharged, currency)}</span>
               </div>
               <p className="text-[9px] text-muted-foreground leading-tight ml-6 uppercase font-medium italic">
-                A taxa de serviço cobre os custos de processamento de pagamento, emissão dos ingressos digitais, infraestrutura da plataforma, suporte e segurança da transação.
+                {isLowPriceRuleActive 
+                  ? "Para este valor, o comprador paga a taxa mínima integral da plataforma para garantir seu repasse de 100%."
+                  : "A taxa de serviço cobre os custos de processamento, emissão digital, infraestrutura e suporte."}
               </p>
             </div>
             
             <div className="space-y-2">
               <div className="flex justify-between items-center text-sm font-bold">
                  <span className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] tracking-tight">
-                    <Percent className="w-3.5 h-3.5" /> Comissão Retida pela Viby
+                    <Percent className="w-3.5 h-3.5" /> Comissão Retida do Produtor
                  </span>
                  <div className="flex flex-col items-end">
-                    <span className="text-red-500">-{formatPrice(results.organizerFee, currency)}</span>
+                    <span className={cn(results.organizerFee > 0 ? "text-red-500" : "text-green-600")}>
+                      {results.organizerFee > 0 ? `-${formatPrice(results.organizerFee, currency)}` : "ISENTO"}
+                    </span>
+                    {isLowPriceRuleActive && (
+                      <Badge className="h-4 text-[7px] font-black uppercase bg-green-500 text-white border-none mt-1">Proteção Ativa</Badge>
+                    )}
                     {isMinFeeApplied && (
-                      <Badge className="h-4 text-[7px] font-black uppercase bg-orange-50 text-white border-none mt-1">Trava de Mínimo Ativa</Badge>
+                      <Badge className="h-4 text-[7px] font-black uppercase bg-orange-50 text-white border-none mt-1">Trava de Mínimo</Badge>
                     )}
                  </div>
               </div>
               <p className="text-[9px] text-muted-foreground leading-tight ml-6 uppercase font-medium italic">
-                Comissão aplicada sobre a venda para custear a operação da plataforma, incluindo tecnologia, suporte e recursos de gestão.
+                {isLowPriceRuleActive 
+                  ? "Como o ingresso é de baixo valor, a taxa da Viby foi transferida para o comprador para evitar repasse negativo."
+                  : "Comissão aplicada sobre a venda para custear a operação da plataforma e tecnologia."}
               </p>
             </div>
 
@@ -116,16 +128,19 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
                <div className="relative z-10 space-y-1">
                   <p className="text-[9px] font-black uppercase text-green-700 tracking-widest">Seu Repasse Líquido</p>
                   <p className="text-4xl font-black text-green-600 italic tracking-tighter">{formatPrice(results.organizerNet, currency)}</p>
-                  <p className="text-[8px] font-bold text-green-800/40 uppercase">Valor disponível após a realização do evento</p>
+                  <p className="text-[8px] font-bold text-green-800/40 uppercase">
+                    {isLowPriceRuleActive ? "Você recebe 100% do preço de face" : "Valor disponível após a realização"}
+                  </p>
                </div>
                <Wallet className="absolute -bottom-4 -right-4 w-20 h-20 text-green-600/5 rotate-12" />
+               {isLowPriceRuleActive && <Zap className="absolute top-2 right-2 w-6 h-6 text-green-600/10 animate-pulse" />}
             </div>
           </div>
 
           <div className="p-4 bg-secondary/5 rounded-2xl flex gap-3 border border-secondary/10">
             <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
             <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed">
-              O Viby retém a porcentagem da comissão OU o valor mínimo fixo, prevalecendo sempre o que for maior para garantir a operação.
+              O Viby garante que você nunca tenha repasse negativo. Para ingressos baratos (abaixo de R$ 3,99), a taxa é somada ao valor pago pelo cliente.
             </p>
           </div>
         </div>

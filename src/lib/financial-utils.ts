@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Utilitários financeiros oficiais do Viby.
  * Implementa a regra única e centralizada para toda a plataforma com suporte a moedas nativas e persistência histórica.
@@ -56,7 +55,7 @@ export function calculateVibyOfficialSplit(facePrice: number, eventCurrency: Cur
     ? (customFees.customBuyerMarkup / 100) 
     : VIBY_BUYER_MARKUP;
     
-  const buyerFee = Number((price * markup).toFixed(2));
+  const buyerMarkupFee = Number((price * markup).toFixed(2));
   
   // 2. Taxa do Organizador (Comissão)
   // Prioridade: Organização > Global (10%)
@@ -79,20 +78,36 @@ export function calculateVibyOfficialSplit(facePrice: number, eventCurrency: Cur
     minFeeInEventCurrency = Number((minFeeBRL * rateBrlToEvent).toFixed(2));
   }
   
-  const organizerFee = Math.max(organizerPercentFee, minFeeInEventCurrency);
+  const appliedVibyFee = Math.max(organizerPercentFee, minFeeInEventCurrency);
 
-  // 3. Totais Unitários
-  const totalCharged = Number((price + buyerFee).toFixed(2));
-  const organizerNet = Number((price - organizerFee).toFixed(2));
-  const vibyApplicationFee = Number((buyerFee + organizerFee).toFixed(2));
+  let organizerNet, organizerFeeDeduction, buyerFeeTotal;
+
+  // --- NOVA REGRA DE GARANTIA DE TAXA MÍNIMA ---
+  // Se o valor do ingresso for suficiente para cobrir a taxa mínima:
+  if (price >= appliedVibyFee) {
+    // Fluxo Padrão: Organizador paga a taxa
+    organizerFeeDeduction = appliedVibyFee;
+    organizerNet = Number((price - appliedVibyFee).toFixed(2));
+    buyerFeeTotal = buyerMarkupFee;
+  } else {
+    // Fluxo de Baixo Valor: Comprador paga a diferença (Gap)
+    // Isso garante que o repasse nunca seja negativo e o Stripe não falhe
+    organizerFeeDeduction = 0;
+    organizerNet = price; // Organizador recebe 100% do preço de face
+    // O comprador paga o markup original + a taxa integral da plataforma
+    buyerFeeTotal = Number((buyerMarkupFee + appliedVibyFee).toFixed(2));
+  }
+
+  const totalCharged = Number((price + buyerFeeTotal).toFixed(2));
+  const vibyApplicationFee = Number((buyerMarkupFee + appliedVibyFee).toFixed(2));
 
   return {
     facePrice: price,
-    buyerFee,
+    buyerFee: buyerFeeTotal, // Valor total somado ao preço de face para o cliente
     totalCharged,
-    organizerFee,
+    organizerFee: organizerFeeDeduction, // Valor efetivamente deduzido do organizador
     organizerNet,
-    vibyApplicationFee
+    vibyApplicationFee // Taxa total a ser retida pela Viby via Stripe Application Fee
   };
 }
 
