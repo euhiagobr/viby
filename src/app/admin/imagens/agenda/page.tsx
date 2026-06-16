@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -42,15 +43,15 @@ import { cn } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
 /**
- * LIMITES DE LAYOUT VIBY (Calculados por Área Útil)
- * Stories: 1920px total -> 1760px úteis -> 6 itens (200px/cad)
- * Feed: 1350px total -> 1230px úteis -> 4 itens (220px/cad)
- * A4: 1754px total -> 1554px úteis -> 4 itens (230px/cad)
+ * CONFIGURAÇÃO DE CAPACIDADE AUDITADA (VIBY V.1)
+ * Stories: Área Útil 1350px / (Card 180 + Gap 20) = 6.7 -> LIMITE 6
+ * Feed: Área Útil 950px / (Card 200 + Gap 20) = 4.3 -> LIMITE 4
+ * A4: Área Útil 1354px / (Card 210 + Gap 20) = 5.8 -> LIMITE 5
  */
 const ITEMS_PER_FORMAT = {
   stories: 6,
   instagram: 4,
-  A4: 4
+  A4: 5
 };
 
 const FORMAT_DIMENSIONS = {
@@ -138,6 +139,15 @@ export default function AgendaGeneratorPage() {
     for (let i = 0; i < selectedEvents.length; i += itemsPerPage) {
       pages.push(selectedEvents.slice(i, i + itemsPerPage));
     }
+    
+    // AUDITORIA DE CONSOLE
+    console.group(`[Viby Auditoria] Geração de Agenda - ${format}`);
+    console.log("Total de Eventos:", selectedEvents.length);
+    console.log("Itens por Página:", itemsPerPage);
+    console.log("Páginas Resultantes:", pages.length);
+    console.table(pages.map((p, i) => ({ página: i + 1, itens: p.length })));
+    console.groupEnd();
+
     return pages;
   }, [selectedEvents, format]);
 
@@ -284,7 +294,7 @@ export default function AgendaGeneratorPage() {
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
            <div className="space-y-1">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Pré-visualização do Estúdio</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Área de Visualização Auditada</h3>
               {selectedEvents.length > 0 && (
                 <p className="text-[9px] font-bold text-secondary uppercase italic animate-in fade-in">
                    {selectedEvents.length} eventos. {selectedEvents.length > ITEMS_PER_FORMAT[format] ? `Distribuídos em ${eventPages.length} artes sequenciais.` : "Cabe em uma única arte."}
@@ -318,7 +328,7 @@ export default function AgendaGeneratorPage() {
                   <div key={idx} className="relative group/preview flex flex-col items-center gap-4">
                     <div className="flex items-center gap-3 px-6 py-2.5 bg-white/90 backdrop-blur-md rounded-full border shadow-xl mb-4">
                       <Layout className="w-4 h-4 text-secondary" />
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Página {idx + 1} de {eventPages.length}</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Arte {idx + 1} de {eventPages.length}</p>
                     </div>
                     
                     <div className={cn(
@@ -343,9 +353,10 @@ export default function AgendaGeneratorPage() {
         <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4 mx-2">
            <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
            <div className="space-y-1">
-              <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Nota de Layout</h4>
+              <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Nota de Layout e Debug</h4>
               <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-                 O sistema calcula automaticamente o espaço disponível. Caso selecione mais eventos do que cabe no formato, eles serão divididos em múltiplas imagens para garantir que nenhum card seja cortado.
+                 O sistema agora utiliza limites rigorosos de área útil: <span className="text-primary font-black">Stories (6), Feed (4), A4 (5)</span>. 
+                 A borda vermelha no preview indica o limite físico da exportação.
               </p>
            </div>
         </div>

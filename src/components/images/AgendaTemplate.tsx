@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -22,14 +23,15 @@ interface AgendaTemplateProps {
 }
 
 /**
- * Template oficial "Agenda da Semana"
- * Ajustado para centralização absoluta e limites de altura rigorosos.
+ * TEMPLATE AUDITADO (VIBY ENGINE v1.1)
+ * Implementa Modo de Debug Visual e Cálculo estrito de Área Útil.
  */
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
+  // CONFIGURAÇÃO DE RENDERIZAÇÃO ESTÁTICA (AUDITORIA)
   const config = {
-    stories: { width: 1080, height: 1920, itemHeight: 180, headerMargin: 60, padding: 80 },
-    instagram: { width: 1080, height: 1350, itemHeight: 200, headerMargin: 40, padding: 60 },
-    A4: { width: 1240, height: 1754, itemHeight: 210, headerMargin: 80, padding: 100 }
+    stories: { width: 1080, height: 1920, itemHeight: 180, headerMargin: 60, padding: 80, gap: 20 },
+    instagram: { width: 1080, height: 1350, itemHeight: 200, headerMargin: 40, padding: 60, gap: 20 },
+    A4: { width: 1240, height: 1754, itemHeight: 210, headerMargin: 80, padding: 100, gap: 25 }
   }[format];
 
   const colors = {
@@ -40,6 +42,9 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
   }[theme];
 
   const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : 'viby.club';
+
+  // ATIVE ESTE FLAG PARA VER AS BORDAS DE AUDITORIA
+  const DEBUG_MODE = true; 
 
   return (
     <div 
@@ -56,14 +61,25 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         fontFamily: 'Poppins, sans-serif',
         boxSizing: 'border-box',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        border: DEBUG_MODE ? '5px solid red' : 'none' // AUDITORIA: LIMITE FÍSICO DO TEMPLATE
       }}
     >
       {/* Background Decor */}
       <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '600px', height: '600px', background: `${colors.accent}15`, borderRadius: '50%', filter: 'blur(100px)' }} />
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: `${config.headerMargin}px`, position: 'relative', zIndex: 10, flexShrink: 0, width: '100%', boxSizing: 'border-box' }}>
+      {/* Header (Área Reservada: ~310px) */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'flex-end', 
+        marginBottom: `${config.headerMargin}px`, 
+        position: 'relative', 
+        zIndex: 10, 
+        flexShrink: 0, 
+        width: '100%', 
+        boxSizing: 'border-box' 
+      }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
            <div style={{ background: colors.accent, color: theme === 'copa' ? '#002776' : '#FFFFFF', padding: '8px 24px', borderRadius: '50px', width: 'fit-content', fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
               Agenda
@@ -71,26 +87,24 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
            <h1 style={{ fontSize: '90px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, lineHeight: 0.8, letterSpacing: '-4px' }}>
               DA <span style={{ color: theme === 'claro' ? colors.accent : '#FFFFFF', opacity: theme === 'claro' ? 1 : 0.4 }}>SEMANA</span>
            </h1>
-           {totalPages && totalPages > 1 && (
-             <p style={{ fontSize: '18px', fontWeight: 800, opacity: 0.5, margin: '10px 0 0 5px' }}>PÁGINA {pageNumber} DE {totalPages}</p>
-           )}
         </div>
         {logoUrl && (
           <img src={logoUrl} style={{ height: '70px', maxWidth: '300px', objectFit: 'contain', flexShrink: 0 }} alt="Logo" />
         )}
       </div>
 
-      {/* Events List - LIMITED BY CALCULATION */}
+      {/* ÁREA ÚTIL DE EVENTOS (Cálculo Rigoroso) */}
       <div style={{ 
         display: 'flex', 
         flexDirection: 'column', 
-        gap: '20px', 
+        gap: `${config.gap}px`, 
         flex: 1, 
         position: 'relative', 
         zIndex: 10, 
         overflow: 'hidden', 
         width: '100%', 
-        boxSizing: 'border-box' 
+        boxSizing: 'border-box',
+        border: DEBUG_MODE ? '3px solid blue' : 'none' // AUDITORIA: ÁREA ÚTIL DE RENDERIZAÇÃO
       }}>
         {events.map((ev) => (
           <div 
@@ -102,7 +116,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               background: colors.itemBg, 
               padding: '24px', 
               borderRadius: '40px',
-              border: theme === 'claro' ? '1px solid #E2E8F0' : '1px solid rgba(255,255,255,0.1)',
+              border: DEBUG_MODE ? '2px solid green' : (theme === 'claro' ? '1px solid #E2E8F0' : '1px solid rgba(255,255,255,0.1)'), // AUDITORIA: LIMITE DO CARD
               boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
               boxSizing: 'border-box',
               width: '100%',
@@ -151,8 +165,20 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         ))}
       </div>
 
-      {/* Footer / CTA - GUARANTEED BOTTOM */}
-      <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', padding: '30px 0 0 0', position: 'relative', zIndex: 10, flexShrink: 0, width: '100%', boxSizing: 'border-box' }}>
+      {/* Footer (Área Reservada: ~100px) */}
+      <div style={{ 
+        marginTop: 'auto', 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        gap: '40px', 
+        padding: '30px 0 0 0', 
+        position: 'relative', 
+        zIndex: 10, 
+        flexShrink: 0, 
+        width: '100%', 
+        boxSizing: 'border-box' 
+      }}>
          <div style={{ flex: 1, height: '2px', background: colors.text, opacity: 0.1 }} />
          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
             <p style={{ fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>{siteUrl}</p>
@@ -163,4 +189,3 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
     </div>
   );
 }
-
