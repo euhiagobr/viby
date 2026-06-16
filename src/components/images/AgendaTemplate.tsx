@@ -23,8 +23,8 @@ interface AgendaTemplateProps {
 }
 
 /**
- * TEMPLATE FINAL AUDITADO (VIBY ENGINE v2.0)
- * Cálculo determinístico de área útil e blindagem de renderização.
+ * TEMPLATE FINAL AUDITADO (VIBY ENGINE v2.1)
+ * Adição de classes para auditoria horizontal via getBoundingClientRect.
  */
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -42,30 +42,9 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
     copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', itemBg: 'rgba(255,255,255,0.1)', accent: '#ffdf00' }
   }[theme];
 
-  // 1. CÁLCULO DE CAPACIDADE MATEMÁTICA
   const availableHeight = config.height - config.headerHeight - config.footerHeight - (config.padding * 2);
   const maxCards = Math.floor((availableHeight + config.gap) / (config.itemHeight + config.gap));
-  
-  // 2. BLINDAGEM DE RENDERIZAÇÃO (Clamping real no DOM)
   const visibleEvents = events.slice(0, maxCards);
-
-  // 3. MEDIÇÃO REAL (POST-RENDER AUDIT)
-  React.useLayoutEffect(() => {
-    if (containerRef.current) {
-      const container = containerRef.current;
-      console.group(`Viby Image Audit - Page ${pageNumber}`);
-      console.table({
-        receivedEvents: events.length,
-        maxCardsAllowed: maxCards,
-        renderedInDom: visibleEvents.length,
-        availableHeightPx: availableHeight,
-        containerClientHeight: container.clientHeight,
-        containerScrollHeight: container.scrollHeight,
-        hasOverflow: container.scrollHeight > container.clientHeight ? 'YES (FAIL)' : 'NO (PASS)'
-      });
-      console.groupEnd();
-    }
-  }, [events.length, maxCards, visibleEvents.length, availableHeight, pageNumber]);
 
   const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : 'viby.club';
 
@@ -84,14 +63,15 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         fontFamily: 'Poppins, sans-serif',
         boxSizing: 'border-box',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        border: '5px solid red' // DEBUG: Borda física do arquivo
       }}
     >
-      {/* Background Decor */}
       <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '600px', height: '600px', background: `${colors.accent}15`, borderRadius: '50%', filter: 'blur(100px)' }} />
 
-      {/* Header (Fixed) */}
+      {/* Header */}
       <div 
+        className="viby-header"
         style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
@@ -116,9 +96,10 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         )}
       </div>
 
-      {/* Container de Eventos (Deterministico) */}
+      {/* Container de Eventos (Área Útil) */}
       <div 
         ref={containerRef}
+        className="viby-events-container"
         style={{ 
           display: 'flex', 
           flexDirection: 'column', 
@@ -129,12 +110,14 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
           overflow: 'hidden',
           boxSizing: 'border-box',
           position: 'relative',
-          zIndex: 10
+          zIndex: 10,
+          border: '3px solid blue' // DEBUG: Área útil disponível
         }}
       >
         {visibleEvents.map((ev) => (
           <div 
             key={ev.id} 
+            className="viby-card"
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -142,7 +125,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               background: colors.itemBg, 
               padding: '24px', 
               borderRadius: '40px',
-              border: '1px solid rgba(255,255,255,0.1)',
+              border: '2px solid green', // DEBUG: Limite do card
               width: '100%',
               height: `${config.itemHeight}px`,
               flexShrink: 0,
@@ -150,35 +133,36 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               overflow: 'hidden'
             }}
           >
-             <div style={{ width: '130px', height: '130px', borderRadius: '25px', overflow: 'hidden', flexShrink: 0 }}>
+             <div className="viby-card-image" style={{ width: '130px', height: '130px', borderRadius: '25px', overflow: 'hidden', flexShrink: 0 }}>
                 <img src={ev.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
              </div>
              
-             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+             <div className="viby-card-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
+                <div className="viby-card-date" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                    <span style={{ fontSize: '20px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(ev.date)}</span>
                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: colors.text, opacity: 0.3 }} />
                    <span style={{ fontSize: '16px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date)}</span>
                 </div>
                 
-                <h2 style={{ fontSize: '36px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', lineHeight: 1.1, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <h2 className="viby-card-title" style={{ fontSize: '36px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', lineHeight: 1.1, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                    {shortenTitle(ev.title, 45)}
                 </h2>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5 }}>
+                <div className="viby-card-location" style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5 }}>
                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                       <circle cx="12" cy="10" r="3" />
                    </svg>
-                   <span style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', truncate: true }}>{ev.city}</span>
+                   <span style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{ev.city}</span>
                 </div>
              </div>
           </div>
         ))}
       </div>
 
-      {/* Footer (Fixed) */}
+      {/* Footer */}
       <div 
+        className="viby-footer"
         style={{ 
           marginTop: 'auto', 
           display: 'flex', 

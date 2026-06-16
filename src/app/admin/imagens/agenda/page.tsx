@@ -45,10 +45,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
-/**
- * CONFIGURAÇÃO DE CAPACIDADE AUDITADA (VIBY v2.0)
- * Valores sincronizados com a área útil física de cada formato.
- */
 const ITEMS_PER_FORMAT = {
   stories: 7,
   instagram: 4,
@@ -116,14 +112,12 @@ export default function AgendaGeneratorPage() {
 
   const addEvent = async (event: any) => {
     if (selectedEvents.some(e => e.id === event.id)) return;
-    
     setIsSearching(true);
     const imgRes = await fetchImageAsBase64(event.image);
     const eventWithSafeImage = {
       ...event,
       image: imgRes.success ? imgRes.data : event.image
     };
-
     setSelectedEvents([...selectedEvents, eventWithSafeImage]);
     setSearchResults([]);
     setSearchTerm("");
@@ -134,7 +128,6 @@ export default function AgendaGeneratorPage() {
     setSelectedEvents(selectedEvents.filter(e => e.id !== id));
   };
 
-  // Lógica de Paginação Sincronizada
   const eventPages = React.useMemo(() => {
     const itemsPerPage = ITEMS_PER_FORMAT[format];
     const pages = [];
@@ -144,10 +137,53 @@ export default function AgendaGeneratorPage() {
     return pages;
   }, [selectedEvents, format]);
 
+  // AUDITORIA HORIZONTAL FORENSE
+  const runForensicAudit = () => {
+    if (!containerRef.current) return;
+    const pages = containerRef.current.querySelectorAll('.viby-export-page');
+    
+    console.group("VIBY HORIZONTAL FORENSIC AUDIT");
+    
+    pages.forEach((page, pIdx) => {
+      const pageRect = page.getBoundingClientRect();
+      const container = page.querySelector('.viby-events-container');
+      if (!container) return;
+      const containerRect = container.getBoundingClientRect();
+
+      console.log(`PÁGINA ${pIdx + 1}: [Template Width: ${pageRect.width}px] [Container Right: ${containerRect.right}]`);
+
+      const cards = container.querySelectorAll('.viby-card');
+      const cardReport = Array.from(cards).map((card, cIdx) => {
+        const rect = card.getBoundingClientRect();
+        const overflowRight = rect.right - containerRect.right;
+        
+        // Medir elementos internos
+        const title = card.querySelector('.viby-card-title');
+        const location = card.querySelector('.viby-card-location');
+        const titleOverflow = title ? (title.scrollWidth > title.clientWidth) : false;
+        const locOverflow = location ? (location.scrollWidth > location.clientWidth) : false;
+
+        return {
+          cardIndex: cIdx + 1,
+          width: rect.width,
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          overflowRight: overflowRight > 0.5 ? `${overflowRight.toFixed(2)}px (FAIL)` : 'NONE (PASS)',
+          titleScroll: titleOverflow ? 'YES (RISK)' : 'OK',
+          locScroll: locOverflow ? 'YES (RISK)' : 'OK'
+        };
+      });
+
+      console.table(cardReport);
+    });
+    
+    console.groupEnd();
+    toast({ title: "Auditoria concluída!", description: "Veja os resultados no console (F12)." });
+  };
+
   const handleDownloadAll = async () => {
     if (!containerRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
-    
     await new Promise(r => setTimeout(r, 1000));
 
     try {
@@ -168,10 +204,8 @@ export default function AgendaGeneratorPage() {
         link.download = `viby-agenda-${theme}-${format}-p${i + 1}.png`;
         link.href = dataUrl;
         link.click();
-        
         await new Promise(r => setTimeout(r, 500));
       }
-
       toast({ title: "Exportação concluída!" });
     } catch (err) {
       toast({ variant: "destructive", title: "Erro na exportação" });
@@ -192,44 +226,29 @@ export default function AgendaGeneratorPage() {
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-30" />
-                <Input 
-                  placeholder="Nome do evento..." 
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                  className="pl-10 h-11 rounded-xl"
-                />
+                <Input placeholder="Nome do evento..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} className="pl-10 h-11 rounded-xl" />
               </div>
               <Button onClick={handleSearch} disabled={isSearching} className="h-11 px-4 rounded-xl font-bold bg-secondary text-white">
                 {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "OK"}
               </Button>
             </div>
-
             {searchResults.length > 0 && (
               <div className="p-2 bg-muted/20 rounded-2xl border border-dashed animate-in slide-in-from-top-2">
                  {searchResults.map(ev => (
-                   <button
-                     key={ev.id}
-                     onClick={() => addEvent(ev)}
-                     className="w-full flex items-center gap-3 p-3 hover:bg-white rounded-xl text-left transition-all group"
-                   >
+                   <button key={ev.id} onClick={() => addEvent(ev)} className="w-full flex items-center gap-3 p-3 hover:bg-white rounded-xl text-left transition-all group">
                       <img src={ev.image} className="h-10 w-10 rounded-lg object-cover" alt="" />
-                      <div className="flex-1 min-w-0">
-                         <p className="text-xs font-bold truncate uppercase">{ev.title}</p>
-                         <p className="text-[9px] font-medium opacity-40 uppercase">{ev.city}</p>
-                      </div>
+                      <div className="flex-1 min-w-0"><p className="text-xs font-bold truncate uppercase">{ev.title}</p></div>
                       <Plus className="w-4 h-4 text-secondary opacity-0 group-hover:opacity-100" />
                    </button>
                  ))}
               </div>
             )}
-
             <div className="space-y-3 pt-4">
               <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Lista de Eventos ({selectedEvents.length})</Label>
               <div className="space-y-2">
-                {selectedEvents.map((ev, i) => (
+                {selectedEvents.map((ev) => (
                   <div key={ev.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50 group animate-in slide-in-from-left-2">
-                    <div className="cursor-grab active:cursor-grabbing opacity-20"><GripVertical className="w-4 h-4" /></div>
+                    <div className="opacity-20"><GripVertical className="w-4 h-4" /></div>
                     <img src={ev.image} className="h-8 w-8 rounded-lg object-cover" alt="" />
                     <span className="flex-1 text-xs font-bold uppercase truncate">{ev.title}</span>
                     <button onClick={() => removeEvent(ev.id)} className="p-1.5 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10 rounded-lg transition-all"><X className="w-3.5 h-3.5" /></button>
@@ -253,21 +272,22 @@ export default function AgendaGeneratorPage() {
                    <FormatBtn active={format === 'A4'} onClick={() => setFormat('A4')} icon={Maximize2} label="A4" />
                 </div>
              </div>
-
              <div className="space-y-4">
                 <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Palette className="w-3.5 h-3.5" /> Tema Aplicado</Label>
                 <Select value={theme} onValueChange={(v:any) => setTheme(v)}>
                    <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                    <SelectContent className="rounded-xl">
                       <SelectItem value="viby">Viby (Padrão)</SelectItem>
-                      <SelectItem value="copa" className="font-bold text-[#002776]">
-                        <div className="flex items-center gap-2"><Trophy className="w-3.5 h-3.5 text-[#ffdf00]" /> Copa do Mundo 2026</div>
-                      </SelectItem>
+                      <SelectItem value="copa">Copa do Mundo</SelectItem>
                       <SelectItem value="claro">Minimalista Claro</SelectItem>
                       <SelectItem value="escuro">Deep Black</SelectItem>
                    </SelectContent>
                 </Select>
              </div>
+             <Separator className="border-dashed" />
+             <Button variant="outline" onClick={runForensicAudit} className="w-full h-11 rounded-xl border-dashed gap-2 text-[10px] font-black uppercase">
+                <Terminal className="w-4 h-4" /> Executar Auditoria Real
+             </Button>
           </CardContent>
         </Card>
       </div>
@@ -276,11 +296,7 @@ export default function AgendaGeneratorPage() {
         <div className="flex items-center justify-between px-2">
            <div className="space-y-1">
               <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2"><Info className="w-4 h-4" /> Prévia do Material</h3>
-              {selectedEvents.length > 0 && (
-                <p className="text-[9px] font-bold text-secondary uppercase italic animate-in fade-in">
-                   {selectedEvents.length} eventos. Total: {eventPages.length} página(s). Limite: {ITEMS_PER_FORMAT[format]} itens/pág.
-                </p>
-              )}
+              {selectedEvents.length > 0 && <p className="text-[9px] font-bold text-secondary uppercase italic animate-in fade-in">Total: {eventPages.length} página(s).</p>}
            </div>
            <div className="flex gap-2">
               <Button onClick={handleDownloadAll} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
@@ -297,7 +313,6 @@ export default function AgendaGeneratorPage() {
                 <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Renderizando Camadas...</p>
              </div>
            )}
-
            <ScrollArea className="h-full w-full">
               <div className="flex flex-col items-center gap-20 py-10 w-full" ref={containerRef}>
                 {eventPages.length === 0 ? (
@@ -311,34 +326,16 @@ export default function AgendaGeneratorPage() {
                       <Layout className="w-4 h-4 text-secondary" />
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Folha {idx + 1} de {eventPages.length}</p>
                     </div>
-                    
                     <div className={cn(
                       "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
                       format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[486px]" : "scale-[0.3] h-[526px]"
                     )}>
-                       <AgendaTemplate 
-                          events={pageEvents} 
-                          format={format} 
-                          theme={theme} 
-                          logoUrl={(theme === 'copa' ? copaLogoBase64 : logoBase64) || undefined}
-                          pageNumber={idx + 1}
-                          totalPages={eventPages.length}
-                       />
+                       <AgendaTemplate events={pageEvents} format={format} theme={theme} logoUrl={logoBase64 || undefined} pageNumber={idx + 1} totalPages={eventPages.length} />
                     </div>
                   </div>
                 ))}
               </div>
            </ScrollArea>
-        </div>
-
-        <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4 mx-2">
-           <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
-           <div className="space-y-1">
-              <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Cálculo de Capacidade Ativo</h4>
-              <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-                 O sistema calcula a altura disponível e limita a renderização dos cards para impedir transbordamentos. Veja o relatório de auditoria detalhado no console do desenvolvedor (F12).
-              </p>
-           </div>
         </div>
       </div>
     </div>
@@ -347,13 +344,7 @@ export default function AgendaGeneratorPage() {
 
 function FormatBtn({ active, onClick, icon: Icon, label }: any) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all",
-        active ? "border-secondary bg-secondary/5 text-primary shadow-inner" : "border-border bg-white text-muted-foreground hover:bg-muted"
-      )}
-    >
+    <button onClick={onClick} className={cn("flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all", active ? "border-secondary bg-secondary/5 text-primary shadow-inner" : "border-border bg-white text-muted-foreground hover:bg-muted")}>
       <Icon className="w-5 h-5" />
       <span className="text-[8px] font-black uppercase tracking-widest">{label}</span>
     </button>
