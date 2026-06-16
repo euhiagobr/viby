@@ -1,8 +1,7 @@
-
 'use server';
 /**
  * @fileOverview Fluxo Genkit para geração inteligente de campanhas de e-mail marketing.
- * Utiliza a Base de Conhecimento Permanente da Viby configurada em Firestore.
+ * Utiliza o modelo configurado (GPT-5 Mini por padrão) e consome dados reais da Viby.
  */
 
 import { ai, z } from '@/ai/genkit';
@@ -26,17 +25,57 @@ export async function gerarCampanhaEmail(input: z.infer<typeof GerarCampanhaEmai
   return gerarCampanhaEmailFlow(input);
 }
 
-const prompt = ai.definePrompt({
-  name: 'gerarCampanhaEmailPrompt',
-  model: 'openai/gpt-4o',
-  input: { 
-    schema: GerarCampanhaEmailInputSchema.extend({ 
-      eventsContext: z.array(z.any()),
-      aiConfig: z.any() 
-    }) 
+const gerarCampanhaEmailFlow = ai.defineFlow(
+  {
+    name: 'gerarCampanhaEmailFlow',
+    inputSchema: GerarCampanhaEmailInputSchema,
+    outputSchema: GerarCampanhaEmailOutputSchema,
   },
-  output: { schema: GerarCampanhaEmailOutputSchema },
-  prompt: `{{{aiConfig.globalBasePrompt}}}
+  async (input) => {
+    try {
+      const db = getAdminDb();
+      
+      console.log("[SERVER-AI] Carregando Configurações e Base de Conhecimento...");
+      const configSnap = await db.collection('settings').doc('ai_config').get();
+      const aiConfig = configSnap.exists ? configSnap.data() : {
+        brandDescription: "Plataforma de eventos Viby.",
+        globalBasePrompt: "Você é a IA oficial da Viby.",
+        toneOfVoice: { do: ["amigável"], dont: ["robótico"] },
+        modelCampaigns: 'openai/gpt-4o-mini'
+      };
+
+      // Define o modelo dinamicamente
+      const modelId = aiConfig.modelCampaigns || 'openai/gpt-4o-mini';
+
+      console.log("[SERVER-AI] Buscando eventos reais para contexto...");
+      const eventsSnap = await db.collection('events')
+        .where('status', '==', 'Ativo')
+        .orderBy('date', 'asc')
+        .limit(20)
+        .get();
+      
+      const eventsContext = eventsSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title,
+          categoryName: data.categoryName || "Evento",
+          city: data.city || "Brasil",
+          startingPrice: data.startingPrice || 0
+        };
+      });
+
+      if (eventsContext.length === 0) {
+        throw new Error("Não há eventos ativos na plataforma para gerar a campanha.");
+      }
+
+      console.log(`[SERVER-AI] Chamando ${modelId} com dados reais...`);
+
+      const response = await ai.generate({
+        model: modelId,
+        input: { ...input, eventsContext, aiConfig },
+        output: { schema: GerarCampanhaEmailOutputSchema },
+        prompt: `{{{aiConfig.globalBasePrompt}}}
 
 DIRETRIZES DA MARCA:
 {{{aiConfig.brandDescription}}}
@@ -69,57 +108,15 @@ REQUISITOS DO HTML:
 5. Chamado para ação (CTA) principal.
 
 Gere o assunto, preheader, os IDs selecionados e o HTML completo.`
-});
-
-const gerarCampanhaEmailFlow = ai.defineFlow(
-  {
-    name: 'gerarCampanhaEmailFlow',
-    inputSchema: GerarCampanhaEmailInputSchema,
-    outputSchema: GerarCampanhaEmailOutputSchema,
-  },
-  async (input) => {
-    try {
-      const db = getAdminDb();
-      
-      console.log("[SERVER-AI] Carregando Base de Conhecimento...");
-      const configSnap = await db.collection('settings').doc('ai_config').get();
-      const aiConfig = configSnap.exists ? configSnap.data() : {
-        brandDescription: "Plataforma de eventos Viby.",
-        globalBasePrompt: "Você é a IA oficial da Viby.",
-        toneOfVoice: { do: ["amigável"], dont: ["robótico"] }
-      };
-
-      console.log("[SERVER-AI] Buscando eventos reais para contexto...");
-      const eventsSnap = await db.collection('events')
-        .where('status', '==', 'Ativo')
-        .orderBy('date', 'asc')
-        .limit(20)
-        .get();
-      
-      const eventsContext = eventsSnap.docs.map(d => {
-        const data = d.data();
-        return {
-          id: d.id,
-          title: data.title,
-          categoryName: data.categoryName || "Evento",
-          city: data.city || "Brasil",
-          startingPrice: data.startingPrice || 0
-        };
       });
-
-      if (eventsContext.length === 0) {
-        throw new Error("Não há eventos ativos na plataforma para gerar a campanha.");
-      }
-
-      console.log(`[SERVER-AI] Contexto carregado com ${eventsContext.length} eventos. Chamando GPT-4o...`);
-
-      const { output } = await prompt({ ...input, eventsContext, aiConfig });
+      
+      const output = response.output;
       
       if (!output) {
         throw new Error("O modelo de IA não retornou uma saída válida.");
       }
 
-      console.log("[SERVER-AI] Geração concluída com sucesso via OpenAI.");
+      console.log("[SERVER-AI] Geração concluída com sucesso.");
       return output;
     } catch (err: any) {
       console.error("[SERVER-AI-ERROR] Falha no fluxo:", err);

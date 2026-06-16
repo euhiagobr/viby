@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -20,12 +19,14 @@ import {
   FileJson,
   Plus,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  Settings
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import Link from 'next/link';
 
 const DEFAULT_CONFIG = {
   brandName: "Viby",
@@ -95,9 +96,14 @@ export default function AiKnowledgeBasePage() {
           </h1>
           <p className="text-muted-foreground font-medium text-xs uppercase tracking-widest">Base de conhecimento mestre da IA da Viby</p>
         </div>
-        <Button onClick={handleSave} disabled={isSaving} className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg gap-2 uppercase italic">
-          {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} Salvar Diretrizes
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild className="rounded-full px-6 h-12 gap-2 border-secondary text-secondary">
+             <Link href="/admin/crm/ia/configuracoes"><Settings className="w-4 h-4" /> Configurar Modelos</Link>
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving} className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg gap-2 uppercase italic">
+            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} Salvar Diretrizes
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -121,7 +127,7 @@ export default function AiKnowledgeBasePage() {
               <div className="space-y-4">
                 <Label className="text-[10px] font-black uppercase opacity-60">Objetivos Estratégicos</Label>
                 <div className="space-y-2">
-                  {localConfig.objectives.map((obj: string, idx: number) => (
+                  {localConfig.objectives?.map((obj: string, idx: number) => (
                     <div key={idx} className="flex gap-2">
                       <Input value={obj} onChange={e => {
                         const newObjs = [...localConfig.objectives];
@@ -131,7 +137,7 @@ export default function AiKnowledgeBasePage() {
                       <Button variant="ghost" size="icon" onClick={() => setLocalConfig({...localConfig, objectives: localConfig.objectives.filter((_:any, i:number) => i !== idx)})} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
                     </div>
                   ))}
-                  <Button variant="outline" size="sm" onClick={() => setLocalConfig({...localConfig, objectives: [...localConfig.objectives, ""]})} className="rounded-xl h-10 w-full border-dashed gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setLocalConfig({...localConfig, objectives: [...(localConfig.objectives || []), ""]})} className="rounded-xl h-10 w-full border-dashed gap-2">
                     <Plus className="w-4 h-4" /> Adicionar Objetivo
                   </Button>
                 </div>
@@ -150,7 +156,7 @@ export default function AiKnowledgeBasePage() {
               <div className="space-y-4">
                 <Label className="text-[10px] font-black uppercase text-green-600 tracking-widest">O que fazer (Do)</Label>
                 <div className="space-y-2">
-                  {localConfig.toneOfVoice.do.map((t: string, idx: number) => (
+                  {localConfig.toneOfVoice?.do.map((t: string, idx: number) => (
                     <div key={idx} className="flex gap-2">
                       <Input value={t} onChange={e => {
                         const newDo = [...localConfig.toneOfVoice.do];
@@ -164,7 +170,7 @@ export default function AiKnowledgeBasePage() {
               <div className="space-y-4">
                 <Label className="text-[10px] font-black uppercase text-destructive tracking-widest">O que evitar (Don't)</Label>
                 <div className="space-y-2">
-                  {localConfig.toneOfVoice.dont.map((t: string, idx: number) => (
+                  {localConfig.toneOfVoice?.dont.map((t: string, idx: number) => (
                     <div key={idx} className="flex gap-2">
                       <Input value={t} onChange={e => {
                         const newDont = [...localConfig.toneOfVoice.dont];
@@ -211,7 +217,7 @@ export default function AiKnowledgeBasePage() {
              </CardHeader>
              <CardContent className="p-0">
                 <div className="divide-y">
-                   {Object.entries(localConfig.userTypes).map(([key, data]: [string, any]) => (
+                   {Object.entries(localConfig.userTypes || {}).map(([key, data]: [string, any]) => (
                      <div key={key} className="p-6 space-y-3">
                         <div className="flex items-center justify-between">
                            <Badge variant="outline" className="font-black uppercase text-[9px] tracking-widest text-secondary border-secondary/20">{key}</Badge>
