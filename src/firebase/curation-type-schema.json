@@ -1,0 +1,11 @@
+{
+  "collection": "events",
+  "description": "Definição do tipo de vínculo entre a Viby e o evento, utilizado para rotulagem na interface.",
+  "fields": {
+    "curationType": {
+      "type": "string",
+      "enum": ["realização", "curadoria"],
+      "description": "Define se o evento é uma realização direta da Viby ou apenas uma curadoria de terceiros."
+    }
+  }
+}

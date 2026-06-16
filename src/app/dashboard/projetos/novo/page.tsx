@@ -130,8 +130,8 @@ export default function NovoEventoPage() {
       (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
       () => setUploadProgress(null), 
       async () => {
-        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-        setFormData(prev => ({ ...prev, image: downloadURL }))
+        const url = await getDownloadURL(uploadTask.snapshot.ref)
+        setFormData(prev => ({ ...prev, image: url }))
         setUploadProgress(null)
       }
     )
@@ -209,13 +209,15 @@ export default function NovoEventoPage() {
       }
 
       toast({ title: "Evento Publicado!" });
-      router.push(`/${currentOrg.username}/${result.slug || result.id}`);
+      router.push(`/eventos/${result.slug || result.id}`);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao publicar", description: error.message });
     } finally {
       setLoading(false);
     }
   }
+
+  const isVibyOfficial = currentOrg?.id === VIBY_OFFICIAL_UID;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -271,6 +273,26 @@ export default function NovoEventoPage() {
                  />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
               </div>
+
+              {isVibyOfficial && (
+                <div className="p-6 bg-secondary/5 rounded-3xl border-2 border-dashed border-secondary/20 space-y-3">
+                   <Label className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
+                      <Star className="w-4 h-4 fill-secondary" /> Tipo de Vínculo (Exclusivo Viby)
+                   </Label>
+                   <Select value={formData.curationType} onValueChange={v => setFormData({...formData, curationType: v})}>
+                      <SelectTrigger className="rounded-xl h-11 bg-white border-none shadow-sm">
+                         <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                         <SelectItem value="realização">Realização Direta</SelectItem>
+                         <SelectItem value="curadoria">Curadoria de Terceiros</SelectItem>
+                      </SelectContent>
+                   </Select>
+                   <p className="text-[9px] font-bold text-muted-foreground uppercase italic px-1">
+                      Define o rótulo exibido acima do nome da marca no card do evento.
+                   </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
