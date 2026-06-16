@@ -23,14 +23,14 @@ interface AgendaTemplateProps {
 }
 
 /**
- * TEMPLATE AUDITADO (VIBY ENGINE v1.2)
- * Adicionado IDs e Classes para Auditoria Real (getBoundingClientRect).
+ * TEMPLATE AUDITADO E ESTRUTURADO (VIBY ENGINE v1.5)
+ * Implementação de cálculo de área útil para impedir transbordamento vertical.
  */
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const config = {
-    stories: { width: 1080, height: 1920, itemHeight: 180, headerMargin: 60, padding: 80, gap: 20 },
-    instagram: { width: 1080, height: 1350, itemHeight: 200, headerMargin: 40, padding: 60, gap: 20 },
-    A4: { width: 1240, height: 1754, itemHeight: 210, headerMargin: 80, padding: 100, gap: 25 }
+    stories: { width: 1080, height: 1920, itemHeight: 180, headerHeight: 250, footerHeight: 120, padding: 80, gap: 20 },
+    instagram: { width: 1080, height: 1350, itemHeight: 200, headerHeight: 200, footerHeight: 100, padding: 60, gap: 20 },
+    A4: { width: 1240, height: 1754, itemHeight: 210, headerHeight: 300, footerHeight: 150, padding: 100, gap: 25 }
   }[format];
 
   const colors = {
@@ -40,8 +40,31 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
     copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', itemBg: 'rgba(255,255,255,0.1)', accent: '#ffdf00' }
   }[theme];
 
+  // CÁLCULO ESTRUTURAL DE CAPACIDADE
+  const availableHeight = config.height - config.headerHeight - config.footerHeight - (config.padding * 2);
+  const maxCards = Math.floor((availableHeight + config.gap) / (config.itemHeight + config.gap));
+  
+  // RENDERIZA APENAS O QUE CABE (BLINDAGEM)
+  const visibleEvents = events.slice(0, maxCards);
+
+  // LOG TÉCNICO DE AUDITORIA
+  React.useEffect(() => {
+    console.group(`Viby Image Engine - Page ${pageNumber}`);
+    console.table({
+      format,
+      theme,
+      templateHeight: config.height,
+      availableHeight,
+      cardHeight: config.itemHeight,
+      gap: config.gap,
+      maxCards,
+      receivedEvents: events.length,
+      renderedEvents: visibleEvents.length
+    });
+    console.groupEnd();
+  }, [format, theme, events.length, visibleEvents.length, pageNumber]);
+
   const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : 'viby.club';
-  const DEBUG_MODE = true; 
 
   return (
     <div 
@@ -58,26 +81,27 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         fontFamily: 'Poppins, sans-serif',
         boxSizing: 'border-box',
         position: 'relative',
-        overflow: 'hidden',
-        border: DEBUG_MODE ? '5px solid red' : 'none'
+        overflow: 'hidden'
       }}
     >
       {/* Background Decor */}
       <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '600px', height: '600px', background: `${colors.accent}15`, borderRadius: '50%', filter: 'blur(100px)' }} />
 
-      {/* Header */}
+      {/* Header - Altura Fixa */}
       <div 
         className="viby-header"
         style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'flex-end', 
-          marginBottom: `${config.headerMargin}px`, 
+          height: `${config.headerHeight}px`,
+          maxHeight: `${config.headerHeight}px`,
           position: 'relative', 
           zIndex: 10, 
           flexShrink: 0, 
           width: '100%', 
-          boxSizing: 'border-box' 
+          boxSizing: 'border-box',
+          marginBottom: '20px'
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
@@ -89,31 +113,30 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
            </h1>
         </div>
         {logoUrl && (
-          <img src={logoUrl} className="viby-logo" style={{ height: '70px', maxWidth: '300px', objectFit: 'contain', flexShrink: 0 }} alt="Logo" />
+          <img src={logoUrl} className="viby-logo" style={{ height: '70px', maxWidth: '300px', objectFit: 'contain', flexShrink: 0, marginBottom: '10px' }} alt="Logo" />
         )}
       </div>
 
-      {/* ÁREA ÚTIL DE EVENTOS */}
+      {/* Container de Eventos - Altura Calculada e Fixa */}
       <div 
         className="viby-events-container"
         style={{ 
           display: 'flex', 
           flexDirection: 'column', 
           gap: `${config.gap}px`, 
-          flex: 1, 
+          height: `${availableHeight}px`,
+          maxHeight: `${availableHeight}px`,
+          width: '100%', 
           position: 'relative', 
           zIndex: 10, 
           overflow: 'hidden', 
-          width: '100%', 
-          boxSizing: 'border-box',
-          border: DEBUG_MODE ? '3px solid blue' : 'none'
+          boxSizing: 'border-box'
         }}
       >
-        {events.map((ev, idx) => (
+        {visibleEvents.map((ev, idx) => (
           <div 
             key={ev.id} 
             className="viby-card"
-            data-index={idx}
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -121,7 +144,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               background: colors.itemBg, 
               padding: '24px', 
               borderRadius: '40px',
-              border: DEBUG_MODE ? '2px solid green' : (theme === 'claro' ? '1px solid #E2E8F0' : '1px solid rgba(255,255,255,0.1)'),
+              border: theme === 'claro' ? '1px solid #E2E8F0' : '1px solid rgba(255,255,255,0.1)',
               boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
               boxSizing: 'border-box',
               width: '100%',
@@ -170,7 +193,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         ))}
       </div>
 
-      {/* Footer */}
+      {/* Footer - Altura Fixa e fora do fluxo de crescimento */}
       <div 
         className="viby-footer"
         style={{ 
@@ -179,7 +202,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
           justifyContent: 'center', 
           alignItems: 'center', 
           gap: '40px', 
-          padding: '30px 0 0 0', 
+          height: `${config.footerHeight}px`,
           position: 'relative', 
           zIndex: 10, 
           flexShrink: 0, 

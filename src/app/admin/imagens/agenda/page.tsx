@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useFirestore, useDoc } from '@/firebase';
-import { collection, query, where, orderBy, limit, addDoc, serverTimestamp, getDocs, doc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,10 +46,11 @@ import { cn } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
 /**
- * CONFIGURAÇÃO DE CAPACIDADE AUDITADA (VIBY V.1)
+ * CONFIGURAÇÃO DE CAPACIDADE AUDITADA (VIBY V.1.5)
+ * Valores sincronizados com os limites de área útil do AgendaTemplate.
  */
 const ITEMS_PER_FORMAT = {
-  stories: 6,
+  stories: 7,
   instagram: 4,
   A4: 5
 };
@@ -69,7 +70,6 @@ export default function AgendaGeneratorPage() {
   const [selectedEvents, setSelectedEvents] = React.useState<any[]>([]);
   const [isSearching, setIsSearching] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
-  const [isAuditing, setIsAuditing] = React.useState(false);
   
   const [format, setFormat] = React.useState<'A4' | 'instagram' | 'stories'>('stories');
   const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa'>('viby');
@@ -80,93 +80,6 @@ export default function AgendaGeneratorPage() {
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
-
-  // MOTOR DE AUDITORIA FORENSE (getBoundingClientRect)
-  const runForensicAudit = React.useCallback(() => {
-    if (!containerRef.current) return;
-    setIsAuditing(true);
-
-    console.clear();
-    console.group(`%c VIBY FORENSIC AUDIT - ${new Date().toLocaleTimeString()} `, 'background: #2C52EE; color: white; font-weight: bold; font-size: 14px;');
-
-    const pages = containerRef.current.querySelectorAll('.viby-export-page');
-    
-    pages.forEach((page, pIdx) => {
-      const pageEl = page as HTMLElement;
-      const rootRect = pageEl.getBoundingClientRect();
-      
-      console.group(`PÁGINA ${pIdx + 1} (${format}) - Escala Preview: ${rootRect.width.toFixed(0)}px`);
-      
-      console.log(`%c [1] DIMENSÕES DO TEMPLATE: `, 'font-weight: bold; color: #6366f1');
-      console.table({
-        'Root': { 
-          width: rootRect.width, 
-          height: rootRect.height, 
-          top: rootRect.top, 
-          bottom: rootRect.bottom 
-        }
-      });
-
-      // Medir Header
-      const header = pageEl.querySelector('.viby-header');
-      if (header) {
-        const hRect = header.getBoundingClientRect();
-        console.log(`%c [2] HEADER: `, 'font-weight: bold; color: #3b82f6');
-        console.table({
-          'Header': { top: hRect.top, bottom: hRect.bottom, height: hRect.height }
-        });
-      }
-
-      // Medir Container de Eventos (Área Azul)
-      const container = pageEl.querySelector('.viby-events-container');
-      if (container) {
-        const cRect = container.getBoundingClientRect();
-        console.log(`%c [3] ÁREA ÚTIL (AZUL): `, 'font-weight: bold; color: #2C52EE');
-        console.table({
-          'Container': { top: cRect.top, bottom: cRect.bottom, height: cRect.height }
-        });
-
-        // Medir cada Card (Área Verde)
-        const cards = container.querySelectorAll('.viby-card');
-        console.log(`%c [4] CARDS RENDERIZADOS: `, 'font-weight: bold; color: #10b981');
-        
-        const cardMetrics: any[] = [];
-        cards.forEach((card, cIdx) => {
-          const cardEl = card as HTMLElement;
-          const rect = cardEl.getBoundingClientRect();
-          const isOverflowing = rect.bottom > (cRect.bottom + 1); // Tolerância de 1px
-          const delta = rect.bottom - cRect.bottom;
-
-          cardMetrics.push({
-            'Index': cIdx + 1,
-            'Top': rect.top.toFixed(1),
-            'Bottom': rect.bottom.toFixed(1),
-            'Height': rect.height.toFixed(1),
-            'Status': isOverflowing ? `EXTRAPOLOU ${delta.toFixed(1)}px` : 'OK'
-          });
-        });
-        console.table(cardMetrics);
-      }
-
-      // Medir Footer
-      const footer = pageEl.querySelector('.viby-footer');
-      if (footer) {
-        const fRect = footer.getBoundingClientRect();
-        console.log(`%c [5] RODAPÉ: `, 'font-weight: bold; color: #8b5cf6');
-        console.table({
-          'Footer': { top: fRect.top, bottom: fRect.bottom, height: fRect.height }
-        });
-        if (fRect.bottom > rootRect.bottom) {
-          console.error(`%c CRITICAL: O RODAPÉ VAZOU PARA FORA DO TEMPLATE POR ${Math.round(fRect.bottom - rootRect.bottom)}px `, 'background: red; color: white');
-        }
-      }
-
-      console.groupEnd();
-    });
-
-    console.groupEnd();
-    setIsAuditing(false);
-  }, [format]);
 
   React.useEffect(() => {
     if (settings?.logoUrl) {
@@ -221,6 +134,7 @@ export default function AgendaGeneratorPage() {
     setSelectedEvents(selectedEvents.filter(e => e.id !== id));
   };
 
+  // LÓGICA DE PAGINAÇÃO SINCRONIZADA COM O CÁLCULO DO TEMPLATE
   const eventPages = React.useMemo(() => {
     const itemsPerPage = ITEMS_PER_FORMAT[format];
     const pages = [];
@@ -354,13 +268,6 @@ export default function AgendaGeneratorPage() {
                    </SelectContent>
                 </Select>
              </div>
-             
-             <Separator className="border-dashed" />
-             
-             <Button onClick={runForensicAudit} disabled={selectedEvents.length === 0} variant="outline" className="w-full h-12 rounded-xl border-dashed gap-2 font-black uppercase text-[10px] border-secondary text-secondary">
-                {isAuditing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Terminal className="w-4 h-4" />}
-                Executar Auditoria Real
-             </Button>
           </CardContent>
         </Card>
       </div>
@@ -368,10 +275,10 @@ export default function AgendaGeneratorPage() {
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
            <div className="space-y-1">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Área de Visualização Auditada</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Área de Visualização Determinística</h3>
               {selectedEvents.length > 0 && (
                 <p className="text-[9px] font-bold text-secondary uppercase italic animate-in fade-in">
-                   {selectedEvents.length} eventos. {selectedEvents.length > ITEMS_PER_FORMAT[format] ? `Distribuídos em ${eventPages.length} artes sequenciais.` : "Cabe em uma única arte."}
+                   {selectedEvents.length} eventos selecionados. Distribuídos em {eventPages.length} artes de {ITEMS_PER_FORMAT[format]} itens cada.
                 </p>
               )}
            </div>
@@ -387,7 +294,7 @@ export default function AgendaGeneratorPage() {
            {isGenerating && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Codificando Pixels...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Gerando Pixels Imutáveis...</p>
              </div>
            )}
 
@@ -427,9 +334,9 @@ export default function AgendaGeneratorPage() {
         <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4 mx-2">
            <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
            <div className="space-y-1">
-              <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Relatório de Auditoria Forense</h4>
+              <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary">Cálculo de Capacidade Ativo</h4>
               <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-                 Para visualizar os números exatos medidos pelo navegador (`getBoundingClientRect`), abra o Console (F12) e clique em **Executar Auditoria Real**. O sistema informará se houver transbordamento em pixels.
+                 O sistema calcula a altura do cabeçalho e rodapé em tempo real para garantir que nenhum card vaze para fora da imagem. Se houver excesso de eventos, novas páginas são criadas automaticamente.
               </p>
            </div>
         </div>
