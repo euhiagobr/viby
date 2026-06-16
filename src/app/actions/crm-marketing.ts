@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -8,7 +7,7 @@ import { sendManualMarketingEmail } from './email';
 /**
  * @fileOverview Server Actions para CRM e Fluxo de Aprovação de IA.
  * 
- * Adicionado: dispatchCrmCampaignAction para processar o envio real para a base filtrada.
+ * Atualizado para suportar mapeamento de públicos reais (Audit v4).
  */
 
 export async function createCrmCampaignAction(data: any, creatorUid: string) {
@@ -75,7 +74,7 @@ export async function approveCrmCampaignAction(campaignId: string, adminUid: str
 
 /**
  * DISPARO REAL DA CAMPANHA
- * Localiza os usuários da base filtrada e envia os e-mails.
+ * Localiza os usuários da base filtrada e envia os e-mails individualizados.
  */
 export async function dispatchCrmCampaignAction(campaignId: string, adminUid: string) {
   const db = getAdminDb();
@@ -90,21 +89,53 @@ export async function dispatchCrmCampaignAction(campaignId: string, adminUid: st
       throw new Error("A campanha precisa estar aprovada para ser disparada.");
     }
 
-    // 1. Identificar Público Alvo com base nos filtros da campanha
-    let usersQuery: admin.firestore.Query = db.collection(campaign.basePublic === 'users' ? 'users' : 
-                                               campaign.basePublic === 'organizers' ? 'organizations' : 
-                                               campaign.basePublic === 'leads' ? 'organizer_leads' : 'users');
+    // 1. Identificar Público Alvo conforme Auditoria
+    let targetCollection = 'users';
+    let filterField = 'email';
 
-    if (campaign.filters?.city && campaign.filters.city !== 'all') {
-      usersQuery = usersQuery.where('city', '==', campaign.filters.city);
+    switch (campaign.basePublic) {
+      case 'organizers':
+        targetCollection = 'organizations';
+        filterField = 'contactEmail';
+        break;
+      case 'leads':
+        targetCollection = 'organizer_leads';
+        filterField = 'email';
+        break;
+      case 'buyers':
+      case 'attendees':
+        targetCollection = 'registrations';
+        filterField = 'userEmail';
+        break;
+      default:
+        targetCollection = 'users';
+        filterField = 'email';
     }
 
-    const targetSnap = await usersQuery.limit(500).get(); // Limite de segurança para MVP
-    const targets = targetSnap.docs.map(d => ({
-      id: d.id,
-      email: d.data().email || d.data().contactEmail,
-      name: d.data().name || d.data().nome || "Membro Viby"
-    })).filter(t => !!t.email);
+    let query: admin.firestore.Query = db.collection(targetCollection);
+
+    // Filtros de Localização
+    if (campaign.filters?.city && campaign.filters.city !== 'all') {
+      query = query.where('city', '==', campaign.filters.city);
+    }
+
+    const targetSnap = await query.limit(1000).get(); 
+    
+    // Extração de destinatários únicos
+    const emailSet = new Set<string>();
+    const targets = targetSnap.docs.map(d => {
+      const data = d.data();
+      const email = data[filterField] || data.email || data.contactEmail || data.userEmail;
+      if (email && !emailSet.has(email.toLowerCase())) {
+        emailSet.add(email.toLowerCase());
+        return {
+          id: d.id,
+          email: email.toLowerCase().trim(),
+          name: data.name || data.nome || data.userName || "Membro Viby"
+        };
+      }
+      return null;
+    }).filter(t => t !== null) as { id: string, email: string, name: string }[];
 
     if (targets.length === 0) {
       throw new Error("Nenhum destinatário localizado com os filtros aplicados.");
@@ -118,11 +149,11 @@ export async function dispatchCrmCampaignAction(campaignId: string, adminUid: st
       targetCount: targets.length
     });
 
-    // 3. Processar Envio (Em loop para MVP)
+    // 3. Processar Envio em Lote (Iterativo para MVP)
     let sentCount = 0;
     for (const target of targets) {
       try {
-        // Personalização básica se houver placeholder
+        // Injeção de Contexto de Personalização
         const personalizedHtml = campaign.contentHtml.replace(/@\[username\]/g, `@${target.name.split(' ')[0].toLowerCase()}`);
         
         await sendManualMarketingEmail({

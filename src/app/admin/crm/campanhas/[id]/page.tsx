@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -22,13 +21,25 @@ import {
   Monitor,
   ShieldCheck,
   Calendar,
-  Zap
+  Zap,
+  Check
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { sendTestEmailAction, approveCrmCampaignAction, dispatchCrmCampaignAction } from '@/app/actions/crm-marketing';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +53,7 @@ export default function CampaignDetailPage() {
 
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [previewMode, setPreviewMode] = React.useState<'mobile' | 'desktop'>('desktop');
+  const [isDispatchOpen, setIsDispatchOpen] = React.useState(false);
 
   const handleSendTest = async () => {
     if (!id || isProcessing) return;
@@ -72,12 +84,15 @@ export default function CampaignDetailPage() {
   };
 
   const handleDispatch = async () => {
-    if (!id || isProcessing || !confirm("Deseja iniciar o disparo real para toda a base filtrada agora?")) return;
+    if (!id || isProcessing) return;
     setIsProcessing(true);
+    setIsDispatchOpen(false);
+    
     try {
       const res = await dispatchCrmCampaignAction(id, user?.uid!);
-      if (res.success) toast({ title: "Disparo Concluído!", description: `${res.sentCount} e-mails foram enviados.` });
-      else throw new Error(res.error);
+      if (res.success) {
+        toast({ title: "Disparo Concluído!", description: `${res.sentCount} e-mails foram enviados para a base.` });
+      } else throw new Error(res.error);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Falha no Disparo", description: e.message });
     } finally {
@@ -100,8 +115,10 @@ export default function CampaignDetailPage() {
             <div className="flex items-center gap-3 mt-1">
                <Badge className={cn(
                  "uppercase text-[9px] font-black h-5 px-2 shadow-sm",
-                 campaign.status === 'concluido' ? "bg-green-600" : 
-                 campaign.status === 'aprovado' ? "bg-blue-600" : "bg-orange-500"
+                 campaign.status === 'concluido' ? "bg-green-600 text-white" : 
+                 campaign.status === 'aprovado' ? "bg-blue-600 text-white" : 
+                 campaign.status === 'enviando' ? "bg-secondary text-white animate-pulse" :
+                 "bg-orange-500 text-white"
                )}>{campaign.status?.replace('_',' ')}</Badge>
                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Criada em {new Date(campaign.createdAt?.seconds * 1000 || campaign.createdAt).toLocaleString('pt-BR')}</span>
             </div>
@@ -109,7 +126,12 @@ export default function CampaignDetailPage() {
         </div>
 
         <div className="flex gap-2">
-           <Button variant="outline" onClick={handleSendTest} disabled={isProcessing || campaign.status === 'concluido'} className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] gap-2 border-primary text-primary">
+           <Button 
+            variant="outline" 
+            onClick={handleSendTest} 
+            disabled={isProcessing || campaign.status === 'concluido' || campaign.status === 'enviando'} 
+            className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] gap-2 border-primary text-primary"
+           >
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Teste (Viby Club)
            </Button>
            
@@ -120,9 +142,53 @@ export default function CampaignDetailPage() {
            )}
 
            {campaign.status === 'aprovado' && (
-             <Button onClick={handleDispatch} disabled={isProcessing} className="bg-secondary text-white rounded-xl h-11 px-10 font-black uppercase italic text-xs shadow-xl shadow-secondary/20 animate-pulse hover:animate-none">
-                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 mr-2 fill-current" />} Disparar para Base
-             </Button>
+             <AlertDialog open={isDispatchOpen} onOpenChange={setIsDispatchOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button className="bg-secondary text-white rounded-xl h-11 px-10 font-black uppercase italic text-xs shadow-xl shadow-secondary/20 animate-pulse hover:animate-none">
+                    <Zap className="w-4 h-4 mr-2 fill-current" /> Disparar para Base
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl overflow-hidden p-0">
+                   <AlertDialogHeader className="p-8 bg-muted/30 border-b">
+                      <div className="flex items-center gap-3 mb-2">
+                         <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Zap className="w-6 h-6 fill-current" /></div>
+                         <AlertDialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Confirmar Disparo Real</AlertDialogTitle>
+                      </div>
+                      <AlertDialogDescription className="font-medium text-foreground/80 leading-relaxed">
+                         Você está prestes a enviar esta campanha para todos os destinatários filtrados. Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                   </AlertDialogHeader>
+                   <div className="p-8 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                         <div className="p-4 bg-muted/20 rounded-2xl border border-dashed">
+                            <p className="text-[8px] font-black uppercase opacity-40">Público Alvo</p>
+                            <p className="text-xs font-bold text-primary uppercase">{campaign.basePublic}</p>
+                         </div>
+                         <div className="p-4 bg-muted/20 rounded-2xl border border-dashed">
+                            <p className="text-[8px] font-black uppercase opacity-40">Filtro Local</p>
+                            <p className="text-xs font-bold text-primary uppercase">{campaign.filters?.city || 'Brasil'}</p>
+                         </div>
+                      </div>
+                      <div className="p-4 bg-orange-50 rounded-2xl border-2 border-dashed border-orange-200 flex items-start gap-3">
+                         <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                         <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed italic">
+                           O sistema processará o envio em lotes. O status mudará para "concluído" assim que todos os e-mails forem entregues ao servidor de saída.
+                         </p>
+                      </div>
+                   </div>
+                   <AlertDialogFooter className="p-8 bg-muted/10 border-t gap-3">
+                      <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px] h-12 mt-0">Desistir</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleDispatch} 
+                        disabled={isProcessing}
+                        className="bg-secondary text-white font-black h-12 rounded-xl shadow-xl uppercase italic flex-1"
+                      >
+                         {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+                         Confirmar Disparo
+                      </AlertDialogAction>
+                   </AlertDialogFooter>
+                </AlertDialogContent>
+             </AlertDialog>
            )}
         </div>
       </div>
@@ -153,14 +219,14 @@ export default function CampaignDetailPage() {
                        <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Período Solicitado</p>
                        <div className="flex items-center gap-2 font-bold text-xs">
                           <Calendar className="w-3.5 h-3.5 text-secondary" />
-                          {formatDate(campaign.audit?.periodoSolicitado?.inicio)} <ArrowRight className="w-3 h-3" /> {formatDate(campaign.audit?.periodoSolicitado?.fim)}
+                          {formatDate(campaign.audit?.periodoSolicitado?.inicio)} <ArrowRight className="w-3.5 h-3.5" /> {formatDate(campaign.audit?.periodoSolicitado?.fim)}
                        </div>
                     </div>
                     <div className="space-y-1">
                        <p className="text-[9px] font-black uppercase text-muted-foreground opacity-40">Período Encontrado</p>
                        <div className="flex items-center gap-2 font-bold text-xs text-primary">
                           <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                          {formatDate(campaign.audit?.periodoEncontrado?.inicio)} <ArrowRight className="w-3 h-3" /> {formatDate(campaign.audit?.periodoEncontrado?.fim)}
+                          {formatDate(campaign.audit?.periodoEncontrado?.inicio)} <ArrowRight className="w-3.5 h-3.5" /> {formatDate(campaign.audit?.periodoEncontrado?.fim)}
                        </div>
                     </div>
                  </div>
