@@ -253,7 +253,8 @@ export default function MeusEventosPage() {
           {events?.map((event: any) => {
             const time = formatTime(event.date);
             const slugOrId = event.slug || event.id;
-            const eventLink = `/eventos/${slugOrId}`;
+            const username = event.organizer?.username || 'evento';
+            const eventLink = `/${username}/${slugOrId}`;
             
             return (
               <Card key={event.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all group rounded-[1.5rem] bg-white">

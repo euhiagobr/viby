@@ -101,7 +101,8 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
   const isEnded = endDate < new Date()
 
   const slugOrId = event.slug || event.id;
-  const eventLink = `/eventos/${slugOrId}`
+  const username = event.organizer?.username || 'evento';
+  const eventLink = `/${username}/${slugOrId}`
 
   // Comentários
   const commentsQuery = useMemoFirebase(() => {
@@ -219,12 +220,18 @@ export function EventTimelineCard({ event }: EventTimelineCardProps) {
       <div className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <EventInterest event={event} showButton={true} variant="default" className="gap-2" />
-          <Button variant="ghost" size="icon" className={cn("h-10 w-10 rounded-full transition-colors", showComments && "text-secondary bg-secondary/10")} onClick={toggleComments}>
+          <button 
+            className={cn("p-2 rounded-full transition-colors", showComments ? "text-secondary bg-secondary/10" : "text-muted-foreground hover:bg-muted")}
+            onClick={toggleComments}
+          >
             <MessageCircle className="w-6 h-6" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={handleShare}>
+          </button>
+          <button 
+            className="p-2 rounded-full text-muted-foreground hover:bg-muted transition-colors"
+            onClick={handleShare}
+          >
             <Share2 className="w-6 h-6" />
-          </Button>
+          </button>
         </div>
         <Badge variant="outline" className={cn("font-black uppercase text-[9px] h-6 px-3", isEnded ? "border-muted text-muted-foreground" : "border-secondary text-secondary")}>{event.isFree ? "Grátis" : "Bilheteria"}</Badge>
       </div>

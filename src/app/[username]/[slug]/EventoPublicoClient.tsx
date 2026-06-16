@@ -181,7 +181,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
       <div className="animate-in fade-in duration-700">
         <div className="relative h-[40vh] md:h-[60vh] w-full overflow-hidden">
           <Image 
-            src={event.image || "https://picsum.photos/seed/vibyevent/1200/800"} 
+            src={event.image || "https://picsum.photos/seed/vibyeventos/1200/800"} 
             alt={event.title} 
             fill 
             className="object-cover"

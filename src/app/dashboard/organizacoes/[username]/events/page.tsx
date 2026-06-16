@@ -367,7 +367,9 @@ function EventRow({
 }: any) {
   const dateValue = event._effectiveDate || event.date || event.startDate;
   const time = formatTime(dateValue);
-  const eventLink = `/${currentOrg?.username}/${event.id}`;
+  const slugOrId = event.slug || event.id;
+  const username = currentOrg?.username || event.organizer?.username || 'evento';
+  const eventLink = `/${username}/${slugOrId}`;
 
   return (
     <Card className={cn(

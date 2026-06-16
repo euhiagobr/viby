@@ -90,7 +90,16 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
   const [currentFormat, setCurrentFormat] = React.useState<Format>('stories');
   
   const renderRef = React.useRef<HTMLDivElement>(null);
-  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}${data.url}${data.url.includes('?') ? '&' : '?'}vsrc=qr`;
+  
+  // Garantir URL Canônica na geração de artes/QR
+  const shareUrl = React.useMemo(() => {
+    if (typeof window === 'undefined') return data.url;
+    // Se a URL já for completa ou começar com /, formatamos
+    const base = window.location.origin;
+    const path = data.url.startsWith('/') ? data.url : `/${data.url}`;
+    const sep = path.includes('?') ? '&' : '?';
+    return `${base}${path}${sep}vsrc=qr`;
+  }, [data.url]);
 
   const trackShare = React.useCallback(async () => {
     if (data.type !== 'event' || !data.eventId) return;
@@ -172,7 +181,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     setCurrentFormat(format);
     setIsGenerating(true);
     
-    // Aguarda processamento de layout
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -180,7 +188,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       const config = FORMAT_CONFIGS[format];
       const node = renderRef.current;
 
-      // FORÇA DECODIFICAÇÃO DE HARDWARE (Essencial para Mobile)
       const images = Array.from(node.querySelectorAll('img'));
       await Promise.all(images.map(img => {
         if (!img.src) return Promise.resolve();
@@ -189,7 +196,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         });
       }));
       
-      // Aguarda o compositor do sistema operacional
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const themeStyle = getThemeStyle(selectedTheme);
@@ -207,7 +213,6 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
         throw new Error("A imagem gerada está vazia.");
       }
 
-      // Fluxo de Download Mobile Estável
       const response = await fetch(dataUrl);
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -221,7 +226,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
       
       setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
       toast({ title: "Arte gerada com sucesso!" });
-      trackShare(); // Consideramos o download como um compartilhamento bem-sucedido
+      trackShare(); 
     } catch (err: any) {
       console.error("[Download Error]", err);
       toast({ 
@@ -413,7 +418,7 @@ export function ShareModal({ isOpen, onOpenChange, data }: ShareModalProps) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-[2.5rem] bg-white border-none flex flex-col md:flex-row h-[95vh] max-h-[900px]">
         
-        {/* Renderizador Off-screen Visível para o Compositor */}
+        {/* Renderizador Off-screen */}
         <div style={{ 
           position: 'fixed', 
           top: 0, 

@@ -34,7 +34,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     });
 
-    // Páginas de Eventos (Nova Estrutura Unificada /eventos/[slug])
+    // Páginas de Eventos (Nova Estrutura Canônica /[username]/[slug])
     const eventsSnap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .get();
@@ -42,6 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     eventsSnap.forEach(doc => {
       const event = doc.data();
       const slug = event.slug || doc.id;
+      const username = event.organizer?.username || 'evento';
       
       let lastMod = new Date();
       if (event.updatedAt) {
@@ -49,7 +50,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
 
       routes.push({
-        url: `${baseUrl}/eventos/${slug}`,
+        url: `${baseUrl}/${username}/${slug}`,
         lastModified: lastMod,
         changeFrequency: 'daily',
         priority: 0.9

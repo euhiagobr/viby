@@ -143,10 +143,12 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
   const slugOrId = event.slug || event.id;
+  const username = event.organizer?.username || 'evento';
+  const canonicalPath = `/${username}/${slugOrId}`;
 
   return (
     <Link 
-      href={`/eventos/${slugOrId}`}
+      href={canonicalPath}
       className={cn(
         "group flex flex-col h-full overflow-hidden border-none shadow-md bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-2xl cursor-pointer relative",
         isSponsored && "ring-1 ring-secondary/20",
