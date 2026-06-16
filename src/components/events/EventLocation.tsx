@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -27,7 +28,8 @@ import {
   searchGlobalAddresses, 
   mapNominatimToAddress,
   reverseGeocode,
-  AddressComponents 
+  AddressComponents,
+  formatFullAddress
 } from "@/lib/location-utils"
 import {
   Select,
@@ -80,7 +82,37 @@ export function EventLocation({ address, onChange, isPublic, className, status }
     return country?.postalLabel || "Postal Code";
   }, [address?.countryCode]);
 
-  // Busca debounced automática
+  // EFEITO: Geocodificação automática reativa baseada nos campos manuais
+  React.useEffect(() => {
+    // Só dispara se o usuário não alterou o PIN manualmente e se temos dados mínimos
+    if (address.isCustomized || !address.addressLine1 || !address.city || isPublic) return;
+
+    const timer = setTimeout(async () => {
+      const searchStr = `${address.addressLine1}, ${address.streetNumber || ''}, ${address.neighborhood || ''}, ${address.city}, ${address.stateRegion || ''}, ${address.country || 'Brasil'}`;
+      
+      try {
+        const coords = await getCoordinatesFromAddress(searchStr);
+        if (coords && (coords.latitude !== address.latitude || coords.longitude !== address.longitude)) {
+          onChange?.({ ...address, ...coords });
+        }
+      } catch (e) {
+        console.warn("[Auto-Geocode] Silent fail.");
+      }
+    }, 1500); // Debounce longo para não estourar cota da API enquanto digita
+
+    return () => clearTimeout(timer);
+  }, [
+    address.addressLine1, 
+    address.streetNumber, 
+    address.neighborhood, 
+    address.city, 
+    address.stateRegion, 
+    address.country,
+    address.isCustomized,
+    isPublic
+  ]);
+
+  // Busca debounced automática para o campo de busca global
   React.useEffect(() => {
     if (!globalSearch || globalSearch.length < 3) {
       setSuggestions([]);
@@ -131,13 +163,13 @@ export function EventLocation({ address, onChange, isPublic, className, status }
           ...result,
           latitude: lat,
           longitude: lng,
-          isCustomized: false
+          isCustomized: true // Marcamos como customizado para parar a auto-geocodificação
         });
       } else {
-        onChange?.({ ...address, latitude: lat, longitude: lng });
+        onChange?.({ ...address, latitude: lat, longitude: lng, isCustomized: true });
       }
     } catch (e) {
-      onChange?.({ ...address, latitude: lat, longitude: lng });
+      onChange?.({ ...address, latitude: lat, longitude: lng, isCustomized: true });
     } finally {
       setIsSearching(false);
     }
@@ -147,7 +179,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
     onChange?.({
       ...address,
       [field]: value,
-      isCustomized: true
+      isCustomized: false // Permitimos que a automação tente re-posicionar o pin
     });
   };
 
@@ -187,8 +219,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
   const missingCoords = !address?.latitude || !address?.longitude;
 
   if (isPublic) {
-    const addrString = address?.formattedAddress || 
-      `${address?.addressLine1 || ''}${address?.streetNumber ? `, ${address?.streetNumber}` : ''} - ${address?.neighborhood || ''} ${address?.city || ''} ${address?.stateRegion || ''}`;
+    const addressLines = formatFullAddress(address);
 
     return (
       <div className={cn("space-y-10", className)}>
@@ -210,15 +241,19 @@ export function EventLocation({ address, onChange, isPublic, className, status }
           </div>
           <CardContent className="p-8 space-y-6">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div className="space-y-1">
-                   <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">
-                     {address?.venueName || "Local do Evento"}
-                   </h3>
-                   <p className="text-sm font-medium text-muted-foreground leading-relaxed">{addrString}</p>
+                <div className="space-y-2">
+                   {addressLines.map((line, idx) => (
+                     <p key={idx} className={cn(
+                       "font-medium leading-tight",
+                       idx === 0 ? "text-xl font-black uppercase italic tracking-tighter text-primary" : "text-sm text-muted-foreground"
+                     )}>
+                       {line}
+                     </p>
+                   ))}
                 </div>
                 <div className="flex gap-2">
                    <Button asChild variant="outline" className="rounded-xl font-black uppercase italic text-[10px] gap-2 border-secondary text-secondary">
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addrString)}`} target="_blank">
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressLines.join(', '))}`} target="_blank">
                          <Navigation className="w-4 h-4" /> GPS
                       </a>
                    </Button>
@@ -236,13 +271,13 @@ export function EventLocation({ address, onChange, isPublic, className, status }
         <CardContent className="p-8 space-y-8">
            <div className="space-y-4 relative z-[110]">
               <div className="flex items-center justify-between">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2 ml-1">
                   <Globe className="w-3.5 h-3.5" /> Busca Global de Endereços
                 </Label>
                 <div className="flex items-center gap-2">
                   {address.isCustomized && (
                     <Badge variant="outline" className="text-[8px] font-black uppercase border-orange-200 text-orange-600 bg-orange-50 gap-1.5 h-6">
-                       <Edit3 className="w-3 h-3" /> Customizado manualmente
+                       <Edit3 className="w-3 h-3" /> Pin posicionado manualmente
                     </Badge>
                   )}
                   {isAtivo && missingCoords && (
@@ -307,9 +342,9 @@ export function EventLocation({ address, onChange, isPublic, className, status }
               <div className="space-y-6">
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">País (ISO Code)</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60">País</Label>
                        <Select 
-                        value={address?.countryCode || ""} 
+                        value={address?.countryCode || "BR"} 
                         onValueChange={val => handleFieldChange('countryCode', val)}
                        >
                           <SelectTrigger className="rounded-xl h-11 bg-white"><SelectValue placeholder="Selecione" /></SelectTrigger>
@@ -330,10 +365,10 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                  </div>
 
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Nome do Local (Venue)</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Nome do Local (Estabelecimento)</Label>
                     <div className="relative">
                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
-                       <Input value={address?.venueName || ""} onChange={e => handleFieldChange('venueName', e.target.value)} placeholder="Ex: Madison Square Garden" className="pl-10 rounded-xl h-11 bg-white" />
+                       <Input value={address?.venueName || ""} onChange={e => handleFieldChange('venueName', e.target.value)} placeholder="Ex: Estádio Beira-Rio" className="pl-10 rounded-xl h-11 bg-white" />
                     </div>
                  </div>
 
@@ -354,16 +389,16 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                  </div>
                  
                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Estado ou Região</Label><Input value={address?.stateRegion || ""} onChange={e => handleFieldChange('stateRegion', e.target.value)} className="rounded-xl h-11 bg-white" /></div>
-                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento / Line 2</Label><Input value={address?.addressLine2 || ""} onChange={e => handleFieldChange('addressLine2', e.target.value)} className="rounded-xl h-11 bg-white" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Estado / UF</Label><Input value={address?.stateRegion || ""} onChange={e => handleFieldChange('stateRegion', e.target.value)} className="rounded-xl h-11 bg-white" /></div>
+                    <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Complemento (Sala, Andar...)</Label><Input value={address?.addressLine2 || ""} onChange={e => handleFieldChange('addressLine2', e.target.value)} className="rounded-xl h-11 bg-white" /></div>
                  </div>
               </div>
 
               <div className="space-y-4">
                  <Label className="text-[10px] font-black uppercase opacity-60 flex justify-between items-center">
-                    Localização Exata (Arraste o PIN)
+                    Confirmação de Pin Geográfico
                     {address.latitude && (
-                      <Badge className="bg-green-500 text-white border-none shadow-sm text-[8px] font-black uppercase h-5 px-2">Mapa Sincronizado</Badge>
+                      <Badge className="bg-green-600 text-white border-none shadow-sm text-[8px] font-black uppercase h-5 px-2">Localizado</Badge>
                     )}
                  </Label>
                  <div className="h-[400px] w-full rounded-[2.5rem] overflow-hidden border-2 border-muted shadow-inner relative group/map bg-white">
@@ -377,7 +412,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                       <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-20 flex items-center justify-center">
                          <div className="p-4 bg-white rounded-2xl shadow-xl flex items-center gap-3">
                             <Loader2 className="w-5 h-5 animate-spin text-secondary" />
-                            <span className="text-[10px] font-black uppercase text-primary">Sincronizando...</span>
+                            <span className="text-[10px] font-black uppercase text-primary">Ajustando Lente...</span>
                          </div>
                       </div>
                     )}
@@ -385,7 +420,7 @@ export function EventLocation({ address, onChange, isPublic, className, status }
                  <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
                     <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                     <p className="text-[9px] text-secondary font-bold uppercase leading-tight italic">
-                       Dica: Você pode digitar o nome de um estabelecimento famoso na busca para localizá-lo instantaneamente.
+                       Dica: O mapa tenta se auto-ajustar conforme você digita o endereço acima. Se precisar de precisão cirúrgica, arraste o PIN para o local exato.
                     </p>
                  </div>
               </div>

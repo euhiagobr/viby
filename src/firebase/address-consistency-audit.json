@@ -1,0 +1,40 @@
+
+{
+  "audit_version": "1.0.0",
+  "existing_fields": [
+    "address.venueName",
+    "address.addressLine1",
+    "address.streetNumber",
+    "address.addressLine2",
+    "address.neighborhood",
+    "address.city",
+    "address.stateRegion",
+    "address.country",
+    "address.countryCode",
+    "address.postalCode",
+    "address.latitude",
+    "address.longitude",
+    "address.formattedAddress",
+    "address.isCustomized",
+    "city (alias)",
+    "location (alias)",
+    "latitude (top-level)",
+    "longitude (top-level)"
+  ],
+  "identified_issues": {
+    "persistence": [
+      "Complemento (addressLine2) era ocasionalmente omitido em transações de atualização rápida.",
+      "O campo streetNumber perdia sincronia com o objeto address em importações de organizações."
+    ],
+    "rendering": [
+      "Páginas públicas utilizavam apenas a string 'location', ignorando os componentes detalhados.",
+      "Sufixo de estado (UF) apresentava hífen vazio quando o dado não estava normalizado."
+    ]
+  },
+  "corrections_applied": [
+    "Implementado hook reativo no formulário de endereço para disparar geocoding em mudanças de campos físicos.",
+    "Criado utilitário 'formatFullAddress' para renderização consistente em 5 níveis (Local, Logradouro, Bairro, Cidade-UF, CEP).",
+    "Garantida persistência redundante (objeto address + campos top-level) para compatibilidade com queries geo-espaciais."
+  ],
+  "automation_flow": "Alteração de Campo -> Debounce 800ms -> Construção de String de Busca -> Fetch Nominatim -> Atualização de Lat/Lng e Centralização do Mapa."
+}

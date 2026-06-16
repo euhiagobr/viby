@@ -1,3 +1,4 @@
+
 'use client';
 
 /**
@@ -179,4 +180,47 @@ export async function getCoordinatesFromAddress(address: string): Promise<Coordi
   } catch (e) {
     return null;
   }
+}
+
+/**
+ * Formata um objeto de endereço para exibição em blocos (multi-linhas).
+ */
+export function formatFullAddress(address: Partial<AddressComponents> | any): string[] {
+  if (!address) return [];
+  
+  const lines: string[] = [];
+  
+  // Linha 1: Nome do Local
+  if (address.venueName) lines.push(address.venueName);
+  
+  // Linha 2: Logradouro + Número
+  let line2 = address.addressLine1 || address.street || "";
+  if (address.streetNumber || address.number) {
+    line2 += `, ${address.streetNumber || address.number}`;
+  }
+  if (line2) lines.push(line2);
+  
+  // Linha 3: Complemento
+  if (address.addressLine2 || address.complement) {
+    lines.push(address.addressLine2 || address.complement);
+  }
+  
+  // Linha 4: Bairro
+  if (address.neighborhood) lines.push(address.neighborhood);
+  
+  // Linha 5: Cidade - Estado
+  let line5 = address.city || "";
+  if (address.stateRegion || address.state) {
+    line5 += ` - ${address.stateRegion || address.state}`;
+  }
+  if (line5) lines.push(line5);
+  
+  // Linha 6: CEP e País
+  let line6 = address.postalCode || address.cep || "";
+  if (address.country && address.country !== "Brasil") {
+    line6 += line6 ? ` • ${address.country}` : address.country;
+  }
+  if (line6) lines.push(line6);
+  
+  return lines;
 }

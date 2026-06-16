@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -36,6 +37,7 @@ import { toast } from "@/hooks/use-toast"
 import dynamic from "next/dynamic"
 import { format, startOfToday, addDays } from "date-fns"
 import { EventActionModal } from "@/components/events/EventActionModal"
+import { formatFullAddress } from "@/lib/location-utils"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
@@ -175,7 +177,13 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                         event.curatorProfile === 'viby' || 
                         (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
 
-    const locationQuery = encodeURIComponent(`${event.location} ${event.city}`);
+    const addressLines = formatFullAddress(event.address || {
+      venueName: event.location,
+      city: event.city,
+      stateRegion: event.state
+    });
+
+    const locationQuery = encodeURIComponent(addressLines.join(' '));
 
     return (
       <div className="animate-in fade-in duration-700">
@@ -232,8 +240,14 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                   <div className="h-64 w-full"><LocationMap latitude={event.latitude} longitude={event.longitude} interactive={false} onChange={() => {}} /></div>
                   <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
                      <div className="space-y-1 text-center md:text-left">
-                        <h4 className="font-black text-xl uppercase italic tracking-tighter text-primary">{event.location}</h4>
-                        <p className="text-xs font-medium text-muted-foreground uppercase">{event.city} - {event.state}</p>
+                        {addressLines.map((line, idx) => (
+                          <p key={idx} className={cn(
+                            "leading-tight uppercase",
+                            idx === 0 ? "font-black text-2xl italic tracking-tighter text-primary" : "text-xs font-medium text-muted-foreground"
+                          )}>
+                            {line}
+                          </p>
+                        ))}
                      </div>
                      <div className="flex flex-col sm:flex-row gap-3">
                         <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
@@ -312,6 +326,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
             username: username,
             url: `/${username}/${effectiveEventData.slug || id}`,
             logoUrl: effectiveEventData.image,
+            bannerUrl: effectiveEventData.image,
             type: 'event',
             organizationId: effectiveEventData.organizationId,
             eventId: id
