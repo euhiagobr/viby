@@ -7,7 +7,6 @@
 
 import { ai, z } from '@/ai/genkit';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { googleAI } from '@genkit-ai/google-genai';
 
 const GerarCampanhaEmailInputSchema = z.object({
   objetivo: z.string().describe('Objetivo da campanha (ex: reativar compradores inativos).'),
@@ -29,7 +28,7 @@ export async function gerarCampanhaEmail(input: z.infer<typeof GerarCampanhaEmai
 
 const prompt = ai.definePrompt({
   name: 'gerarCampanhaEmailPrompt',
-  model: googleAI.model('gemini-1.5-flash'),
+  model: 'openai/gpt-4o',
   input: { schema: GerarCampanhaEmailInputSchema.extend({ eventsContext: z.array(z.any()) }) },
   output: { schema: GerarCampanhaEmailOutputSchema },
   prompt: `Você é o estrategista de marketing da Viby, uma plataforma líder em experiências culturais.
@@ -95,7 +94,7 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
         throw new Error("Não há eventos ativos na plataforma para gerar a campanha.");
       }
 
-      console.log(`[SERVER-AI] Contexto carregado com ${eventsContext.length} eventos. Chamando modelo...`);
+      console.log(`[SERVER-AI] Contexto carregado com ${eventsContext.length} eventos. Chamando modelo OpenAI...`);
 
       const { output } = await prompt({ ...input, eventsContext });
       
@@ -103,7 +102,7 @@ const gerarCampanhaEmailFlow = ai.defineFlow(
         throw new Error("O modelo de IA não retornou uma saída válida.");
       }
 
-      console.log("[SERVER-AI] Geração concluída com sucesso.");
+      console.log("[SERVER-AI] Geração concluída com sucesso via OpenAI.");
       return output;
     } catch (err: any) {
       console.error("[SERVER-AI-ERROR] Falha no fluxo:", err);
