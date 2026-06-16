@@ -32,7 +32,7 @@ import { toast } from '@/hooks/use-toast';
 import { CarouselTemplate } from '@/components/images/CarouselTemplate';
 import { toPng } from 'html-to-image';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
+import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
@@ -74,10 +74,17 @@ export default function CarouselGeneratorPage() {
         collection(db, "events"),
         where("status", "==", "Ativo"),
         orderBy("date", "asc"),
-        limit(10)
+        limit(200)
       );
       const snap = await getDocs(q);
-      const results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const searchNorm = normalizeText(searchTerm);
+      
+      const results = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(ev => {
+           const title = normalizeText(ev.title || "");
+           return title.includes(searchNorm);
+        });
       setSearchResults(results);
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na busca" });
@@ -169,7 +176,7 @@ export default function CarouselGeneratorPage() {
             )}
 
             <div className="space-y-3 pt-4">
-              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Fila do Carrossel ({selectedEvents.length})</Label>
+              <Label className="text-[10px] font-black uppercase ml-1 opacity-60">Fila do Carrossel ({selectedEvents.length})</Label>
               <div className="space-y-2">
                 {selectedEvents.map((ev, i) => (
                   <div key={ev.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50 group animate-in slide-in-from-left-2">

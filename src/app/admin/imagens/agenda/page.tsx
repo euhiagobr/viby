@@ -42,7 +42,7 @@ import { toast } from '@/hooks/use-toast';
 import { AgendaTemplate } from '@/components/images/AgendaTemplate';
 import { toPng } from 'html-to-image';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
+import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
 const ITEMS_PER_FORMAT = {
@@ -86,16 +86,23 @@ export default function AgendaGeneratorPage() {
     if (!db || !searchTerm.trim() || isSearching) return;
     setIsSearching(true);
     try {
+      // Aumentamos o limite para 200 para permitir uma filtragem local por nome mais abrangente
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
         orderBy("date", "asc"),
-        limit(20)
+        limit(200)
       );
       const snap = await getDocs(q);
+      const searchNorm = normalizeText(searchTerm);
+      
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter(ev => ev.title.toLowerCase().includes(searchTerm.toLowerCase()));
+        .filter(ev => {
+          const title = normalizeText(ev.title || "");
+          return title.includes(searchNorm);
+        });
+        
       setSearchResults(results);
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na busca" });
@@ -130,51 +137,6 @@ export default function AgendaGeneratorPage() {
     }
     return pages;
   }, [selectedEvents, format]);
-
-  /**
-   * AUDITORIA FORENSE COMPLETA (Vertical e Horizontal)
-   * Mede via getBoundingClientRect() todos os elementos estruturais do template.
-   */
-  const runForensicAudit = () => {
-    if (!containerRef.current) return;
-    const pages = containerRef.current.querySelectorAll('.viby-template-root');
-    
-    console.group(`VIBY FORENSIC AUDIT - FORMATO: ${format.toUpperCase()}`);
-    
-    pages.forEach((page, pIdx) => {
-      const rootRect = page.getBoundingClientRect();
-      const header = page.querySelector('.viby-header')?.getBoundingClientRect();
-      const container = page.querySelector('.viby-events-container')?.getBoundingClientRect();
-      const footer = page.querySelector('.viby-footer')?.getBoundingClientRect();
-
-      console.log(`PÁGINA ${pIdx + 1} DETALHES:`);
-      console.table({
-        'ROOT': { width: rootRect.width, height: rootRect.height, top: rootRect.top, bottom: rootRect.bottom },
-        'HEADER': { height: header?.height, top: header?.top, bottom: header?.bottom },
-        'CONTAINER': { width: container?.width, height: container?.height, top: container?.top, bottom: container?.bottom },
-        'FOOTER': { height: footer?.height, top: footer?.top, bottom: footer?.bottom }
-      });
-
-      // Validação Crítica: O container invade o footer?
-      if (container && footer && container.bottom > footer.top) {
-        console.warn(`[OVERFLOW DETECTADO] O container azul ultrapassou o footer em ${Math.round(container.bottom - footer.top)}px`);
-      } else {
-        console.log(`[LAYOUT OK] Espaço livre entre container e footer: ${footer ? Math.round(footer.top - (container?.bottom || 0)) : 'N/A'}px`);
-      }
-
-      // Validação de Largura: Algum card "vazou" na direita?
-      const cards = page.querySelectorAll('.viby-card');
-      cards.forEach((card, cIdx) => {
-        const cRect = card.getBoundingClientRect();
-        if (container && cRect.right > container.right + 1) {
-          console.error(`[WIDTH LEAK] Card ${cIdx + 1} vazou na direita por ${Math.round(cRect.right - container.right)}px`);
-        }
-      });
-    });
-    
-    console.groupEnd();
-    toast({ title: "Auditoria finalizada!", description: "Métricas milimétricas enviadas ao console (F12)." });
-  };
 
   const handleDownloadAll = async () => {
     if (!containerRef.current || isGenerating || selectedEvents.length === 0) return;
@@ -278,10 +240,6 @@ export default function AgendaGeneratorPage() {
                    </SelectContent>
                 </Select>
              </div>
-             <Separator className="border-dashed" />
-             <Button variant="outline" onClick={runForensicAudit} className="w-full h-11 rounded-xl border-dashed gap-2 text-[10px] font-black uppercase">
-                <Terminal className="w-4 h-4" /> Executar Auditoria Forense
-             </Button>
           </CardContent>
         </Card>
       </div>

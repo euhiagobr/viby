@@ -23,10 +23,9 @@ interface AgendaTemplateProps {
 }
 
 /**
- * TEMPLATE DE AGENDA AUDITADO (VIBY ENGINE v2.6)
+ * TEMPLATE DE AGENDA (VIBY ENGINE v2.7)
  * - Blindagem horizontal total via box-sizing e maxWidth.
  * - Cálculo determinístico de área útil vertical.
- * - Identificadores para auditoria via getBoundingClientRect().
  */
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -121,7 +120,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         )}
       </div>
 
-      {/* Container de Eventos (Área Útil Auditada) */}
+      {/* Container de Eventos */}
       <div 
         ref={containerRef}
         className="viby-events-container"

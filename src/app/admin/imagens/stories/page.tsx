@@ -31,7 +31,7 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { StoryTemplate } from '@/components/images/StoryTemplate';
 import { toPng } from 'html-to-image';
-import { cn } from '@/lib/utils';
+import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
@@ -72,12 +72,17 @@ export default function StoriesGeneratorPage() {
         collection(db, "events"),
         where("status", "==", "Ativo"),
         orderBy("date", "asc"),
-        limit(10)
+        limit(200)
       );
       const snap = await getDocs(q);
+      const searchNorm = normalizeText(searchTerm);
+      
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter(ev => ev.title.toLowerCase().includes(searchTerm.toLowerCase()));
+        .filter(ev => {
+           const title = normalizeText(ev.title || "");
+           return title.includes(searchNorm);
+        });
       setSearchResults(results);
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na busca" });
@@ -188,7 +193,7 @@ export default function StoriesGeneratorPage() {
                     <p className="text-[9px] font-bold text-muted-foreground uppercase">{selectedEvent.city}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => setSelectedEvent(null)}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setSelectedEvent(null)}>
                   <X className="w-4 h-4" />
                 </Button>
               </div>
