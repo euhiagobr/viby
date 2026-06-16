@@ -2,7 +2,7 @@
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { sendManualMarketingEmail } from './email';
+import { sendCampaignEmailAction } from './email';
 
 /**
  * @fileOverview Server Actions para CRM e Fluxo de Aprovação de IA.
@@ -39,10 +39,10 @@ export async function sendTestEmailAction(campaignId: string) {
     if (!campaignSnap.exists) throw new Error("Campanha não encontrada.");
     const campaign = campaignSnap.data()!;
 
-    await sendManualMarketingEmail({
+    await sendCampaignEmailAction({
       to: testAddress,
       subject: `[TESTE] ${campaign.subject}`,
-      content: campaign.contentHtml
+      html: campaign.contentHtml
     });
 
     await db.collection('crm_campaigns').doc(campaignId).update({
@@ -114,9 +114,13 @@ export async function dispatchCrmCampaignAction(campaignId: string, adminUid: st
 
     let query: admin.firestore.Query = db.collection(targetCollection);
 
-    // Filtros de Localização
+    // Filtros de Localização - Correção de campo por coleção
     if (campaign.filters?.city && campaign.filters.city !== 'all') {
-      query = query.where('city', '==', campaign.filters.city);
+      let cityField = 'city';
+      if (campaign.basePublic === 'leads') cityField = 'cidade';
+      if (campaign.basePublic === 'buyers' || campaign.basePublic === 'attendees') cityField = 'eventCity';
+      
+      query = query.where(cityField, '==', campaign.filters.city);
     }
 
     const targetSnap = await query.limit(1000).get(); 
@@ -125,12 +129,15 @@ export async function dispatchCrmCampaignAction(campaignId: string, adminUid: st
     const emailSet = new Set<string>();
     const targets = targetSnap.docs.map(d => {
       const data = d.data();
+      // Verificação de segurança para capturar e-mails em diferentes estruturas de documento
       const email = data[filterField] || data.email || data.contactEmail || data.userEmail;
-      if (email && !emailSet.has(email.toLowerCase())) {
-        emailSet.add(email.toLowerCase());
+      
+      if (email && typeof email === 'string' && !emailSet.has(email.toLowerCase().trim())) {
+        const cleanEmail = email.toLowerCase().trim();
+        emailSet.add(cleanEmail);
         return {
           id: d.id,
-          email: email.toLowerCase().trim(),
+          email: cleanEmail,
           name: data.name || data.nome || data.userName || "Membro Viby"
         };
       }
@@ -156,10 +163,10 @@ export async function dispatchCrmCampaignAction(campaignId: string, adminUid: st
         // Injeção de Contexto de Personalização
         const personalizedHtml = campaign.contentHtml.replace(/@\[username\]/g, `@${target.name.split(' ')[0].toLowerCase()}`);
         
-        await sendManualMarketingEmail({
+        await sendCampaignEmailAction({
           to: target.email,
           subject: campaign.subject,
-          content: personalizedHtml
+          html: personalizedHtml
         });
         sentCount++;
       } catch (sendError) {

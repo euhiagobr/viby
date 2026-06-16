@@ -130,6 +130,40 @@ export async function sendManualMarketingEmail(data: { to: string; subject: stri
   }
 }
 
+/**
+ * Envia e-mail de campanha sem envolver em template extra (evita double-wrap).
+ */
+export async function sendCampaignEmailAction(data: { to: string; subject: string; html: string }) {
+  try {
+    const branding = await getBranding();
+    const transporter = await getTransporter();
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
+
+    await transporter.sendMail({
+      from: `"${branding.siteName}" <${smtpUser}>`,
+      to: data.to,
+      subject: data.subject,
+      html: data.html
+    });
+
+    await logSentEmail({
+      recipientEmail: data.to,
+      recipientName: "Destinatário Campanha",
+      subject: data.subject,
+      content: data.html,
+      type: "campaign_dispatch",
+      sender: `Viby CRM (${branding.siteName})`
+    });
+
+    return { success: true };
+  } catch (e: any) {
+    console.error("[sendCampaignEmailAction]", e);
+    return { success: false, error: e.message };
+  }
+}
+
 export async function sendOTPRecoveryEmail(data: { to: string; userName: string; otpCode: string }) {
   try {
     const branding = await getBranding();
