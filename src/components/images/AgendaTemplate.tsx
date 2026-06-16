@@ -15,7 +15,7 @@ interface EventItem {
 interface AgendaTemplateProps {
   events: EventItem[];
   format: 'A4' | 'instagram' | 'stories';
-  theme: 'viby' | 'claro' | 'escuro';
+  theme: 'viby' | 'claro' | 'escuro' | 'copa';
   logoUrl?: string;
   pageNumber?: number;
   totalPages?: number;
@@ -23,7 +23,7 @@ interface AgendaTemplateProps {
 
 /**
  * Template oficial "Agenda da Semana"
- * Segue rigorosamente a identidade visual da Viby.
+ * Suporta tema especial Copa do Mundo 2026.
  */
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const config = {
@@ -33,10 +33,13 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
   }[format];
 
   const colors = {
-    viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 100%)', text: '#FFFFFF', itemBg: 'rgba(255,255,255,0.05)' },
-    claro: { bg: '#F8FAFC', text: '#000000', itemBg: '#FFFFFF' },
-    escuro: { bg: '#000000', text: '#FFFFFF', itemBg: '#111111' }
+    viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 100%)', text: '#FFFFFF', itemBg: 'rgba(255,255,255,0.05)', accent: '#2C52EE' },
+    claro: { bg: '#F8FAFC', text: '#000000', itemBg: '#FFFFFF', accent: '#2C52EE' },
+    escuro: { bg: '#000000', text: '#FFFFFF', itemBg: '#111111', accent: '#2C52EE' },
+    copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', itemBg: 'rgba(255,255,255,0.1)', accent: '#ffdf00' }
   }[theme];
+
+  const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : 'viby.club';
 
   return (
     <div 
@@ -56,23 +59,23 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
       }}
     >
       {/* Background Decor */}
-      <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '600px', height: '600px', background: 'rgba(44, 82, 238, 0.1)', borderRadius: '50%', filter: 'blur(100px)' }} />
+      <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '600px', height: '600px', background: `${colors.accent}15`, borderRadius: '50%', filter: 'blur(100px)' }} />
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '80px', position: 'relative', zIndex: 10 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-           <div style={{ background: '#2C52EE', color: '#FFFFFF', padding: '10px 25px', borderRadius: '50px', width: 'fit-content', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
+           <div style={{ background: colors.accent, color: theme === 'copa' ? '#002776' : '#FFFFFF', padding: '10px 25px', borderRadius: '50px', width: 'fit-content', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
               Agenda
            </div>
            <h1 style={{ fontSize: '100px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, lineHeight: 0.8, letterSpacing: '-4px' }}>
-              DA <span style={{ color: theme === 'claro' ? '#2C52EE' : '#FFFFFF', opacity: theme === 'claro' ? 1 : 0.4 }}>SEMANA</span>
+              DA <span style={{ color: theme === 'claro' ? colors.accent : '#FFFFFF', opacity: theme === 'claro' ? 1 : 0.4 }}>SEMANA</span>
            </h1>
            {totalPages && totalPages > 1 && (
              <p style={{ fontSize: '18px', fontWeight: 800, opacity: 0.5, margin: '10px 0 0 5px' }}>PÁGINA {pageNumber} DE {totalPages}</p>
            )}
         </div>
         {logoUrl && (
-          <img src={logoUrl} style={{ height: '80px', objectFit: 'contain', filter: theme === 'viby' || theme === 'escuro' ? 'brightness(0) invert(1)' : 'none' }} alt="Logo" />
+          <img src={logoUrl} style={{ height: '80px', objectFit: 'contain' }} alt="Logo" />
         )}
       </div>
 
@@ -98,7 +101,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
              
              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                   <span style={{ fontSize: '24px', fontWeight: 900, color: '#2C52EE', fontStyle: 'italic' }}>{formatTemplateDate(ev.date)}</span>
+                   <span style={{ fontSize: '24px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(ev.date)}</span>
                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: colors.text, opacity: 0.3 }} />
                    <span style={{ fontSize: '20px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date)}</span>
                 </div>
@@ -116,7 +119,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                 </div>
              </div>
 
-             <div style={{ padding: '20px', background: '#2C52EE', borderRadius: '25px', color: '#FFF' }}>
+             <div style={{ padding: '20px', background: colors.accent, borderRadius: '25px', color: theme === 'copa' ? '#002776' : '#FFF' }}>
                 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
                    <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
@@ -129,7 +132,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
       <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', padding: '40px 0', position: 'relative', zIndex: 10 }}>
          <div style={{ flex: 1, height: '2px', background: colors.text, opacity: 0.1 }} />
          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
-            <p style={{ fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>viby.club</p>
+            <p style={{ fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>{siteUrl}</p>
             <p style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', opacity: 0.4, letterSpacing: '4px', margin: 0 }}>O AGORA É AQUI</p>
          </div>
          <div style={{ flex: 1, height: '2px', background: colors.text, opacity: 0.1 }} />

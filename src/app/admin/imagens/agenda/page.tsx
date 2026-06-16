@@ -23,7 +23,8 @@ import {
   CheckCircle2,
   Info,
   X,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Trophy
 } from 'lucide-react';
 import { 
   Select, 
@@ -34,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from '@/hooks/use-toast';
 import { AgendaTemplate } from '@/components/images/AgendaTemplate';
-import { toPng, toJpeg } from 'html-to-image';
+import { toPng } from 'html-to-image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,8 @@ const ITEMS_PER_FORMAT = {
   A4: 7
 };
 
+const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
+
 export default function AgendaGeneratorPage() {
   const db = useFirestore();
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -55,11 +58,12 @@ export default function AgendaGeneratorPage() {
   const [isGenerating, setIsGenerating] = React.useState(false);
   
   const [format, setFormat] = React.useState<'A4' | 'instagram' | 'stories'>('stories');
-  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro'>('viby');
+  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa'>('viby');
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
+  const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -69,6 +73,10 @@ export default function AgendaGeneratorPage() {
         if (res.success) setLogoBase64(res.data || null);
       });
     }
+    // Pre-load Copa Logo
+    fetchImageAsBase64(COPA_LOGO).then(res => {
+      if (res.success) setCopaLogoBase64(res.data || null);
+    });
   }, [settings?.logoUrl]);
 
   const handleSearch = async () => {
@@ -111,7 +119,6 @@ export default function AgendaGeneratorPage() {
     setSelectedEvents(selectedEvents.filter(e => e.id !== id));
   };
 
-  // Lógica de Chunking para Múltiplas Páginas
   const eventPages = React.useMemo(() => {
     const itemsPerPage = ITEMS_PER_FORMAT[format];
     const pages = [];
@@ -125,7 +132,6 @@ export default function AgendaGeneratorPage() {
     if (!containerRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    // Pequeno delay para garantir renderização final do DOM no canvas
     await new Promise(r => setTimeout(r, 800));
 
     try {
@@ -136,20 +142,17 @@ export default function AgendaGeneratorPage() {
         const dataUrl = await toPng(pageElement, {
           pixelRatio: 2,
           cacheBust: true,
-          quality: 0.95,
-          backgroundColor: theme === 'claro' ? '#F8FAFC' : '#000000'
+          quality: 0.95
         });
 
         const link = document.createElement('a');
-        link.download = `viby-agenda-p${i + 1}-${Date.now()}.png`;
+        link.download = `viby-agenda-${theme}-p${i + 1}-${Date.now()}.png`;
         link.href = dataUrl;
         link.click();
         
-        // Pequena pausa entre downloads para o navegador não bloquear
         await new Promise(r => setTimeout(r, 300));
       }
 
-      // Logar geração para o histórico
       if (db) {
         await addDoc(collection(db, "generated_images_logs"), {
           templateId: 'agenda',
@@ -164,7 +167,7 @@ export default function AgendaGeneratorPage() {
 
       toast({ title: "Todas as páginas geradas!", description: `${pages.length} arquivos baixados.` });
     } catch (err) {
-      toast({ variant: "destructive", title: "Erro na exportação", description: "Verifique se as mídias carregaram corretamente." });
+      toast({ variant: "destructive", title: "Erro na exportação" });
     } finally {
       setIsGenerating(false);
     }
@@ -172,12 +175,11 @@ export default function AgendaGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* Coluna de Controles */}
       <div className="lg:col-span-4 space-y-8">
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Seleção de Eventos</CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase">Adicione quantos eventos desejar. O sistema criará novas páginas automaticamente.</CardDescription>
+            <CardDescription className="text-[10px] font-bold uppercase">Adicione quantos eventos desejar.</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
             <div className="flex gap-2">
@@ -226,12 +228,6 @@ export default function AgendaGeneratorPage() {
                     <button onClick={() => removeEvent(ev.id)} className="p-1.5 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10 rounded-lg transition-all"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ))}
-                {selectedEvents.length === 0 && (
-                  <div className="py-10 text-center border-2 border-dashed rounded-3xl opacity-20 flex flex-col items-center gap-2">
-                     <Plus className="w-8 h-8" />
-                     <p className="text-[9px] font-black uppercase">Adicione eventos acima</p>
-                  </div>
-                )}
               </div>
             </div>
           </CardContent>
@@ -256,7 +252,10 @@ export default function AgendaGeneratorPage() {
                 <Select value={theme} onValueChange={(v:any) => setTheme(v)}>
                    <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                    <SelectContent className="rounded-xl">
-                      <SelectItem value="viby">Viby (Azul Noturno)</SelectItem>
+                      <SelectItem value="viby">Viby (Padrão)</SelectItem>
+                      <SelectItem value="copa" className="font-bold text-[#002776]">
+                        <div className="flex items-center gap-2"><Trophy className="w-3.5 h-3.5 text-[#ffdf00]" /> Copa do Mundo 2026</div>
+                      </SelectItem>
                       <SelectItem value="claro">Minimalista Claro</SelectItem>
                       <SelectItem value="escuro">Deep Black</SelectItem>
                    </SelectContent>
@@ -264,14 +263,8 @@ export default function AgendaGeneratorPage() {
              </div>
           </CardContent>
         </Card>
-
-        <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/10 flex items-start gap-3">
-           <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-           <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed italic">Atualmente você está gerando {eventPages.length} {eventPages.length > 1 ? 'páginas' : 'página'} de arte.</p>
-        </div>
       </div>
 
-      {/* Área de Preview e Download */}
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Pré-visualização do Estúdio</h3>
@@ -308,20 +301,13 @@ export default function AgendaGeneratorPage() {
                           events={pageEvents} 
                           format={format} 
                           theme={theme} 
-                          logoUrl={logoBase64 || undefined}
+                          logoUrl={(theme === 'copa' ? copaLogoBase64 : logoBase64) || undefined}
                           pageNumber={idx + 1}
                           totalPages={eventPages.length}
                        />
                     </div>
                   </div>
                 ))}
-
-                {selectedEvents.length === 0 && (
-                  <div className="flex flex-col items-center justify-center opacity-30 gap-4 py-40">
-                     <ImageIcon className="w-16 h-16" />
-                     <p className="font-black uppercase tracking-[0.4em] text-sm">Adicione eventos para visualizar</p>
-                  </div>
-                )}
               </div>
            </ScrollArea>
         </div>
