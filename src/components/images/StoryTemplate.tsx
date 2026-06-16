@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -12,6 +11,9 @@ interface StoryTemplateProps {
   logoUrl?: string;
 }
 
+/**
+ * Template de Story ajustado para centralização absoluta.
+ */
 export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
   const colors = {
     viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 100%)', text: '#FFFFFF', accent: '#2C52EE', qrBg: '#FFFFFF' },
@@ -33,6 +35,7 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
         color: colors.text,
         display: 'flex',
         flexDirection: 'column',
+        alignItems: 'center', // Centraliza tudo horizontalmente
         fontFamily: 'Poppins, sans-serif',
         boxSizing: 'border-box',
         position: 'relative',
@@ -50,30 +53,40 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
       />
 
       {/* Header */}
-      <div style={{ padding: '80px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10 }}>
-        <div style={{ background: colors.accent, color: theme === 'copa' ? '#002776' : '#FFFFFF', padding: '12px 30px', borderRadius: '50px', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
+      <div style={{ width: '100%', padding: '80px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10, boxSizing: 'border-box' }}>
+        <div style={{ background: colors.accent, color: theme === 'copa' ? '#002776' : '#FFFFFF', padding: '12px 36px', borderRadius: '50px', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
           Destaque
         </div>
         {logoUrl && <img src={logoUrl} style={{ height: '70px', objectFit: 'contain' }} alt="Logo" />}
       </div>
 
       {/* Main Image */}
-      <div style={{ padding: '0 80px', position: 'relative', zIndex: 10 }}>
-        <div style={{ width: '100%', aspectRatio: '1/1', borderRadius: '60px', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.5)', border: '10px solid rgba(255,255,255,0.1)' }}>
+      <div style={{ width: '100%', padding: '0 80px', position: 'relative', zIndex: 10, boxSizing: 'border-box', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ width: '100%', aspectRatio: '1/1', borderRadius: '60px', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.5)', border: '12px solid rgba(255,255,255,0.1)' }}>
           <img src={event.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ padding: '60px 80px', position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '30px' }}>
+      <div style={{ width: '100%', padding: '60px 80px', position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '30px', boxSizing: 'border-box' }}>
          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <span style={{ fontSize: '42px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(event.date)}</span>
+            <span style={{ fontSize: '46px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(event.date)}</span>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.accent }} />
             <span style={{ fontSize: '32px', fontWeight: 700, opacity: 0.8 }}>{formatTemplateTime(event.date)}</span>
          </div>
 
-         <h1 style={{ fontSize: '110px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', lineHeight: 0.85, margin: 0, letterSpacing: '-6px' }}>
-           {shortenTitle(event.title, 25)}
+         <h1 style={{ 
+           fontSize: '110px', 
+           fontWeight: 900, 
+           textTransform: 'uppercase', 
+           fontStyle: 'italic', 
+           lineHeight: 0.85, 
+           margin: 0, 
+           letterSpacing: '-6px',
+           width: '100%',
+           overflow: 'hidden'
+         }}>
+           {shortenTitle(event.title, 30)}
          </h1>
 
          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', opacity: 0.7 }}>
@@ -81,18 +94,18 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
               <circle cx="12" cy="10" r="3" />
             </svg>
-            <span style={{ fontSize: '32px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px' }}>{event.city}</span>
+            <span style={{ fontSize: '32px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{event.city}</span>
          </div>
       </div>
 
       {/* QR Code Footer */}
-      <div style={{ marginTop: 'auto', padding: '80px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 10, background: 'rgba(0,0,0,0.2)', backdropBlur: '10px' }}>
+      <div style={{ width: '100%', marginTop: 'auto', padding: '80px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 10, background: 'rgba(0,0,0,0.2)', backdropBlur: '10px', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
            <p style={{ fontSize: '32px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>{siteUrl}</p>
            <p style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '6px', margin: 0 }}>Escaneie para acessar</p>
         </div>
         <div style={{ padding: '15px', background: '#FFFFFF', borderRadius: '30px', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
-           <QRCodeSVG value={qrUrl} size={150} level="H" />
+           <QRCodeSVG value={qrUrl} size={160} level="H" />
         </div>
       </div>
     </div>

@@ -38,11 +38,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 
-// Limite estrito de itens por página para evitar transbordamento
 const ITEMS_PER_FORMAT = {
   stories: 6,
   instagram: 4,
   A4: 6
+};
+
+const FORMAT_DIMENSIONS = {
+  stories: { width: 1080, height: 1920 },
+  instagram: { width: 1080, height: 1080 },
+  A4: { width: 1240, height: 1754 }
 };
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
@@ -131,25 +136,28 @@ export default function AgendaGeneratorPage() {
     if (!containerRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 1000));
 
     try {
       const pages = containerRef.current.querySelectorAll('.viby-export-page');
+      const dimensions = FORMAT_DIMENSIONS[format];
       
       for (let i = 0; i < pages.length; i++) {
         const pageElement = pages[i] as HTMLElement;
         const dataUrl = await toPng(pageElement, {
           pixelRatio: 2,
           cacheBust: true,
-          quality: 0.95
+          quality: 1,
+          width: dimensions.width,
+          height: dimensions.height
         });
 
         const link = document.createElement('a');
-        link.download = `viby-agenda-${theme}-p${i + 1}-${Date.now()}.png`;
+        link.download = `viby-agenda-${theme}-${format}-p${i + 1}.png`;
         link.href = dataUrl;
         link.click();
         
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 500));
       }
 
       if (db) {
@@ -164,7 +172,7 @@ export default function AgendaGeneratorPage() {
         });
       }
 
-      toast({ title: "Todas as páginas geradas!", description: `${pages.length} arquivos baixados.` });
+      toast({ title: "Exportação concluída!" });
     } catch (err) {
       toast({ variant: "destructive", title: "Erro na exportação" });
     } finally {
@@ -275,16 +283,16 @@ export default function AgendaGeneratorPage() {
            </div>
         </div>
 
-        <div className="relative bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] border-none shadow-2xl overflow-hidden">
+        <div className="relative bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] border-none shadow-2xl overflow-hidden flex flex-col items-center">
            {isGenerating && (
-             <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
+             <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Exportando lote de imagens...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Codificando Pixels...</p>
              </div>
            )}
 
-           <ScrollArea className="h-full">
-              <div className="flex flex-col items-center gap-20 py-10" ref={containerRef}>
+           <ScrollArea className="h-full w-full">
+              <div className="flex flex-col items-center gap-20 py-10 w-full" ref={containerRef}>
                 {eventPages.length === 0 ? (
                   <div className="text-center opacity-20 py-40">
                      <ImageIcon className="w-20 h-20 mx-auto mb-4" />
@@ -299,7 +307,7 @@ export default function AgendaGeneratorPage() {
                     
                     <div className={cn(
                       "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
-                      format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[608px]" : "scale-[0.3] h-[526px]"
+                      format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[486px]" : "scale-[0.3] h-[526px]"
                     )}>
                        <AgendaTemplate 
                           events={pageEvents} 
