@@ -1,0 +1,29 @@
+
+{
+  "audit_report": {
+    "issue": "O PIN do mapa muda de posição ou pula para São Paulo (fallback) após salvar o evento.",
+    "analysis_flow": "Seleção de Endereço -> Geocodificação Reativa -> Persistência Firestore -> Loader Página Pública -> Renderização Mapa",
+    "findings": {
+      "campos_envolvidos": {
+        "formulario": "formData.address.latitude / longitude (objeto aninhado)",
+        "firestore": "latitude / longitude (top-level) E address.latitude / longitude (aninhado)",
+        "pagina_publica": "event.latitude / longitude (top-level)",
+        "diferenca": "A página pública consome os campos de primeiro nível, enquanto o formulário de edição opera principalmente sobre o objeto de endereço. Registros legados ou importados podem ter apenas o objeto 'address' preenchido, causando o salto para o fallback (0,0 ou São Paulo) na visualização pública."
+      },
+      "causa_raiz_identificada": {
+        "trigger": "Geocodificação Automática Reativa em EventLocation.tsx",
+        "logic": "O componente possui um useEffect que dispara busca de coordenadas sempre que campos de endereço mudam e 'isCustomized' é falso.",
+        "bug_de_estado": "No arquivo src/components/events/EventLocation.tsx (função handleFieldChange), qualquer alteração em campos como 'Complemento' ou 'Nome do Local' reseta o estado 'isCustomized' para false. Isso dispara o auto-geocoder, que busca o endereço textual no Nominatim.",
+        "consequencia": "O Nominatim retorna coordenadas genéricas de rua ou bairro para a string de busca, sobrescrevendo as coordenadas precisas de um local específico (POI) que o usuário selecionou originalmente. O usuário salva o evento com esse dado 'sobrescrito' sem perceber.",
+        "bug_de_inicializacao": "No arquivo src/app/dashboard/evento/[id]/editar/page.tsx (Linha 123), o uso de '||' na inicialização (latitude: legacyAddress.latitude || event.latitude || null) trata a coordenada 0 como falsa, causando falhas em eventos localizados na linha do Equador ou Meridiano de Greenwich."
+      }
+    },
+    "arquivos_afetados": [
+      "src/components/events/EventLocation.tsx",
+      "src/app/dashboard/evento/[id]/editar/page.tsx",
+      "src/app/[username]/[slug]/EventoPublicoClient.tsx",
+      "src/app/actions/events.ts"
+    ],
+    "conclusao": "O PIN move-se porque a lógica de geocodificação reativa é agressiva demais e apaga dados precisos em favor de resultados textuais genéricos durante o preenchimento do formulário. A visualização pública falha ao não realizar o merge dos campos redundantes (top-level vs nested)."
+  }
+}
