@@ -104,12 +104,27 @@ FORMATO OBRIGATÓRIO
 
     console.log(
       '[CITY COVER API] OPENAI DATA',
-      response.data
+      JSON.stringify(response.data, null, 2)
     );
 
     console.log(
-      '[CITY COVER API] ITEM 0',
-      response.data?.[0]
+      '[CITY COVER API] OPENAI ITEM 0',
+      JSON.stringify(response.data?.[0], null, 2)
+    );
+
+    console.log(
+      '[CITY COVER API] URL FIELD',
+      response.data?.[0]?.url
+    );
+
+    console.log(
+      '[CITY COVER API] B64 FIELD EXISTS',
+      !!response.data?.[0]?.b64_json
+    );
+
+    console.log(
+      '[CITY COVER API] REVISED PROMPT',
+      response.data?.[0]?.revised_prompt
     );
 
     const openaiUrl = response.data[0]?.url;
