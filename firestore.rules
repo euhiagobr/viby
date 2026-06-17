@@ -78,10 +78,10 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Páginas de Cidade
+    // Páginas de Cidade - Correção de Permissão (Explícita)
     match /cityPages/{cityId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
     }
 
     // CRM e Leads
@@ -253,11 +253,11 @@ service cloud.firestore {
 
       match /setores/{sectorId} {
         allow read: if true;
-        allow write: if isAdmin() || (isSignedIn() && isOrgMember(resource.data.organizationId));
+        allow write: if isAdmin() || (isSignedIn() && isOrgMember(request.resource.data.organizationId));
         
         match /assentos/{seatId} {
           allow read: if true;
-          allow write: if isAdmin() || (isSignedIn() && isOrgMember(resource.data.organizationId));
+          allow write: if isAdmin() || (isSignedIn() && isOrgMember(request.resource.data.organizationId));
         }
       }
     }

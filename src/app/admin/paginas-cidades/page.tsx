@@ -1,8 +1,9 @@
+
 'use client';
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, getDocs, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, deleteDoc, where, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,13 +19,20 @@ import {
   ExternalLink,
   Zap,
   CheckCircle2,
-  Inbox
+  Inbox,
+  Info,
+  Sparkles
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { generateAndPersistCityCover } from '@/app/actions/city-pages';
 import Link from 'next/link';
+
+/**
+ * @fileOverview Painel de gestão das capas de cidades geradas por IA.
+ * NOTA: Estas imagens são destinadas às Landing Pages das cidades, NÃO aos eventos individuais.
+ */
 
 export default function AdminCityPagesManager() {
   const db = useFirestore();
@@ -48,11 +56,11 @@ export default function AdminCityPagesManager() {
   const handleForceGenerate = async (city: any) => {
     setIsGenerating(city.id);
     try {
-      // Busca eventos para pegar as categorias
+      // Busca eventos para pegar as categorias populares daquela cidade
       const eventsSnap = await getDocs(query(
         collection(db!, "events"), 
         where("city", "==", city.city),
-        limit(5)
+        limit(10)
       ));
       const categories = Array.from(new Set(eventsSnap.docs.map(d => d.data().categoryName).filter(Boolean)));
 
@@ -65,10 +73,10 @@ export default function AdminCityPagesManager() {
       });
 
       if (res) {
-        toast({ title: "Imagem gerada com sucesso!" });
-      } else throw new Error("Falha na geração");
+        toast({ title: "Capa da cidade gerada com sucesso!" });
+      } else throw new Error("A IA não retornou uma imagem válida.");
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro na IA", description: e.message });
+      toast({ variant: "destructive", title: "Falha na Geração IA", description: e.message });
     } finally {
       setIsGenerating(null);
     }
@@ -89,16 +97,27 @@ export default function AdminCityPagesManager() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
-            <Map className="w-8 h-8 text-secondary" /> Gestão de Cidades
+            <Map className="w-8 h-8 text-secondary" /> Capas de Cidades
           </h1>
-          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Capas Geradas por IA e Metadados SEO</p>
+          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Identidade Visual para Landing Pages Regionais</p>
         </div>
+      </div>
+
+      <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-start gap-4">
+         <Sparkles className="w-6 h-6 text-secondary shrink-0 mt-1" />
+         <div className="space-y-1">
+            <h4 className="font-black uppercase text-xs italic text-primary">Inteligência de Divulgação Regional</h4>
+            <p className="text-[10px] text-muted-foreground font-bold uppercase leading-relaxed">
+               As capas geradas aqui são utilizadas no topo da página de cada cidade (ex: viby.club/o-que-fazer-em/br-rs/porto-alegre). 
+               Elas são otimizadas para SEO e compartilhamento social, representando o ecossistema cultural de toda a região, não apenas de um evento específico.
+            </p>
+         </div>
       </div>
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input 
-          placeholder="Buscar cidade..." 
+          placeholder="Filtrar cidades cadastradas..." 
           value={search} 
           onChange={e => setSearch(e.target.value)} 
           className="pl-10 h-12 rounded-xl" 
@@ -110,14 +129,14 @@ export default function AdminCityPagesManager() {
           <div className="col-span-full py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
         ) : filtered.length > 0 ? (
           filtered.map(city => (
-            <Card key={city.id} className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white group">
+            <Card key={city.id} className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white group border-b-4 border-transparent hover:border-secondary transition-all">
                <div className="relative h-40 bg-muted">
                   {city.coverImage ? (
                     <img src={city.coverImage} className="w-full h-full object-cover transition-transform group-hover:scale-105" alt="" />
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full opacity-20">
+                    <div className="flex flex-col items-center justify-center h-full opacity-20 bg-muted/50">
                        <ImageIcon className="w-10 h-10 mb-1" />
-                       <p className="text-[8px] font-black uppercase">Sem Imagem</p>
+                       <p className="text-[8px] font-black uppercase">Sem Imagem de Capa</p>
                     </div>
                   )}
                   <div className="absolute top-3 left-3">
@@ -151,7 +170,7 @@ export default function AdminCityPagesManager() {
                   <div className="flex items-center justify-between pt-4 border-t border-dashed">
                      <div className="flex items-center gap-1.5 text-green-600">
                         <CheckCircle2 className="w-3 h-3" />
-                        <span className="text-[8px] font-black uppercase tracking-widest">SEO OK</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest">Página de Destino Ativa</span>
                      </div>
                      <button onClick={() => handleDeletePage(city.id)} className="text-destructive opacity-20 hover:opacity-100 transition-opacity">
                         <Trash2 className="w-3.5 h-3.5" />
@@ -168,12 +187,13 @@ export default function AdminCityPagesManager() {
         )}
       </div>
 
-      <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
-         <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
+      <div className="p-6 bg-muted/10 rounded-3xl border border-border flex items-start gap-4">
+         <Info className="w-6 h-6 text-muted-foreground shrink-0 mt-0.5" />
          <div className="space-y-1">
-            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary italic">Como as cidades aparecem aqui?</h4>
+            <h4 className="font-black uppercase text-[10px] tracking-widest text-primary italic">Processo de Automação</h4>
             <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-               O sistema cadastra automaticamente uma nova cidade assim que o primeiro evento nela é publicado ou acessado. A IA gera a imagem apenas se o campo "Capa" estiver vazio.
+               O sistema cadastra automaticamente uma nova cidade assim que o primeiro evento nela é publicado ou acessado. 
+               A IA gera a imagem apenas se o campo "Capa" estiver vazio. Estas imagens são armazenadas no seu Firebase Storage em "city-covers/".
             </p>
          </div>
       </div>
