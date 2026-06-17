@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -54,8 +53,6 @@ export async function generateAndPersistCityCover(params: {
   country: string;
   categories?: string[];
 }) {
-  // Chamada direta ao serviço (Server-to-Server)
-  // Não utilizamos fetch aqui para evitar problemas de URL absoluta e autenticação de Workstation
   return processCityCoverGeneration(params);
 }
 
@@ -69,4 +66,20 @@ export async function forceGenerateCityCoverAction(cityData: any) {
     state: cityData.state,
     country: cityData.country
   });
+}
+
+/**
+ * Permite atualização manual de metadados e URL de capa.
+ */
+export async function updateCityPageAction(slug: string, data: any) {
+  const db = getAdminDb();
+  try {
+    await db.collection('cityPages').doc(slug).update({
+      ...data,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }
