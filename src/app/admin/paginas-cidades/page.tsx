@@ -20,7 +20,8 @@ import {
   CheckCircle2,
   Inbox,
   Info,
-  Sparkles
+  Sparkles,
+  AlertTriangle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
@@ -30,7 +31,6 @@ import Link from 'next/link';
 
 /**
  * @fileOverview Painel de gestão das capas de cidades geradas por IA.
- * NOTA: Estas imagens são destinadas às Landing Pages das cidades, NÃO aos eventos individuais.
  */
 
 export default function AdminCityPagesManager() {
@@ -54,7 +54,6 @@ export default function AdminCityPagesManager() {
 
   const handleForceGenerate = async (city: any) => {
     setIsGenerating(city.id);
-    console.log(`[Admin UI] Iniciando solicitação de geração para: ${city.city}`);
     try {
       // Busca eventos para pegar as categorias populares daquela cidade
       const eventsSnap = await getDocs(query(
@@ -72,15 +71,16 @@ export default function AdminCityPagesManager() {
         categories: categories as string[]
       });
 
-      if (res) {
-        toast({ title: "Capa da cidade gerada com sucesso!" });
-      } else throw new Error("A IA não retornou uma imagem válida.");
+      if (typeof res === 'object' && 'error' in res) {
+        throw new Error(res.error);
+      }
+
+      toast({ title: "Capa da cidade gerada!", description: "A imagem foi salva no Storage." });
     } catch (e: any) {
-      console.error("[Admin UI] Erro detalhado na geração:", e);
       toast({ 
         variant: "destructive", 
         title: "Falha na Geração IA", 
-        description: e.message || "Erro desconhecido. Verifique o console do servidor." 
+        description: e.message || "Verifique as cotas da OpenAI." 
       });
     } finally {
       setIsGenerating(null);
@@ -113,8 +113,8 @@ export default function AdminCityPagesManager() {
          <div className="space-y-1">
             <h4 className="font-black uppercase text-xs italic text-primary">Inteligência de Divulgação Regional</h4>
             <p className="text-[10px] text-muted-foreground font-bold uppercase leading-relaxed">
-               As capas geradas aqui são utilizadas no topo da página de cada cidade (ex: viby.club/o-que-fazer-em/br-rs/porto-alegre). 
-               Elas são otimizadas para SEO e compartilhamento social, representando o ecossistema cultural de toda a região, não apenas de um evento específico.
+               As capas geradas aqui são utilizadas no topo da página de cada cidade. 
+               Elas são otimizadas para SEO, representando o ecossistema cultural de toda a região.
             </p>
          </div>
       </div>
@@ -198,7 +198,7 @@ export default function AdminCityPagesManager() {
             <h4 className="font-black uppercase text-[10px] tracking-widest text-primary italic">Processo de Automação</h4>
             <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
                O sistema cadastra automaticamente uma nova cidade assim que o primeiro evento nela é publicado ou acessado. 
-               A IA gera a imagem apenas se o campo "Capa" estiver vazio. Estas imagens são armazenadas no seu Firebase Storage em "city-covers/".
+               A IA gera a imagem apenas se o campo "Capa" estiver vazio.
             </p>
          </div>
       </div>

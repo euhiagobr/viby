@@ -54,6 +54,7 @@ export async function generateAndPersistCityCover(params: {
   const cityPageRef = db.collection('cityPages').doc(params.slug);
 
   try {
+    // 1. Garantir que o documento existe antes de começar (status pendente)
     await cityPageRef.set({
       slug: params.slug,
       city: params.city,
@@ -64,6 +65,7 @@ export async function generateAndPersistCityCover(params: {
 
     console.log(`[City Engine] Iniciando geração IA para: ${params.city}...`);
 
+    // 2. Chamar o fluxo de geração (pode demorar +20s)
     const imageUrl = await gerarCapaCidade({
       city: params.city,
       state: params.state,
@@ -71,6 +73,7 @@ export async function generateAndPersistCityCover(params: {
       topCategories: params.categories || []
     });
 
+    // 3. Download e persistência no Storage
     console.log(`[City Engine] Baixando imagem da URL temporária...`);
     const response = await fetch(imageUrl);
     if (!response.ok) throw new Error(`Falha ao baixar imagem da OpenAI: ${response.statusText}`);
@@ -89,6 +92,7 @@ export async function generateAndPersistCityCover(params: {
       }
     });
 
+    // 4. Tornar pública e atualizar Firestore
     await file.makePublic();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
@@ -98,18 +102,19 @@ export async function generateAndPersistCityCover(params: {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    console.log(`[City Engine] Processo concluído para ${params.city}: ${publicUrl}`);
+    console.log(`[City Engine] Concluído para ${params.city}: ${publicUrl}`);
     return publicUrl;
   } catch (error: any) {
-    console.error(`[City Engine FATAL FAILURE] ${params.slug}:`, error);
+    console.error(`[City Engine FATAL FAILURE] ${params.city}:`, error.message);
     
     await logSystemError({
-      error,
+      error: error,
       type: 'city_cover_generation_failure',
       severity: 'error',
       metadata: { city: params.city, slug: params.slug }
     });
 
-    throw error; // Re-throw para capturar na UI
+    // Retorna o erro estruturado para a UI
+    return { success: false, error: error.message };
   }
 }

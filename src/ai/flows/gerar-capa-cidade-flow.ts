@@ -62,39 +62,41 @@ const gerarCapaCidadeFlow = ai.defineFlow(
     - Não adicionar elementos políticos
     - Não adicionar conteúdo ofensivo`;
 
-    console.log(`[AI Flow] Enviando prompt para DALL-E 3 (${input.city})...`);
+    console.log(`[AI Flow] Solicitando DALL-E 3 para: ${input.city}`);
 
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "dall-e-3",
-        prompt: prompt,
-        n: 1,
-        size: "1792x1024",
-        quality: "hd",
-        style: "vivid"
-      })
-    });
+    try {
+      const response = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: "dall-e-3",
+          prompt: prompt,
+          n: 1,
+          size: "1024x1024" // Formato estável para DALL-E 3
+        })
+      });
 
-    if (!response.ok) {
-      const err = await response.json();
-      console.error("[AI Flow CRITICAL ERROR]", JSON.stringify(err, null, 2));
-      throw new Error(`OpenAI Image Error: ${err.error?.message || response.statusText}`);
+      if (!response.ok) {
+        const err = await response.json();
+        console.error("[AI Flow CRITICAL ERROR]", JSON.stringify(err, null, 2));
+        throw new Error(err.error?.message || "Erro desconhecido na API da OpenAI.");
+      }
+
+      const data = await response.json();
+      const url = data.data[0]?.url;
+
+      if (!url) {
+        throw new Error("A OpenAI não retornou uma URL válida no corpo da resposta.");
+      }
+
+      console.log(`[AI Flow SUCCESS] URL gerada com sucesso.`);
+      return url;
+    } catch (error: any) {
+      console.error("[AI Flow EXCEPTION]", error.message);
+      throw error;
     }
-
-    const data = await response.json();
-    const url = data.data[0]?.url;
-
-    if (!url) {
-      console.error("[AI Flow ERROR] OpenAI retornou 200 mas sem URL de imagem.");
-      throw new Error("A OpenAI não retornou uma URL válida.");
-    }
-
-    console.log(`[AI Flow SUCCESS] URL gerada para ${input.city}`);
-    return url;
   }
 );
