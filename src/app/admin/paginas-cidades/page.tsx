@@ -2,9 +2,9 @@
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp, useUser, useAuth } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useAuth, storage } from '@/firebase';
 import { collection, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,12 +48,6 @@ export default function AdminCityPagesManager() {
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
-  const app = useFirebaseApp();
-  
-  const storage = React.useMemo(() => {
-    if (!app) return null;
-    return getStorage(app);
-  }, [app]);
 
   const [search, setSearch] = React.useState("");
   const [isGenerating, setIsGenerating] = React.useState<string | null>(null);
@@ -83,9 +77,9 @@ export default function AdminCityPagesManager() {
       return;
     }
 
-    // Sincronização explícita: garante que o Firebase reconheça o usuário antes do upload
+    // Sincronização obrigatória de Auth
     if (!auth.currentUser) {
-      toast({ variant: "destructive", title: "Erro de sessão", description: "Sua autenticação ainda não foi propagada. Tente recarregar." });
+      toast({ variant: "destructive", title: "Sessão não identificada", description: "O Firebase ainda não reconheceu sua sessão. Tente recarregar a página." });
       return;
     }
 
@@ -113,8 +107,8 @@ export default function AdminCityPagesManager() {
           console.error("[Upload Error Detailed]", error);
           toast({ 
             variant: "destructive", 
-            title: "Erro no upload (403)", 
-            description: "Permissão negada. Verifique se você está logado corretamente." 
+            title: "Acesso Negado (403)", 
+            description: "Verifique se você está logado corretamente como administrador." 
           }); 
           setUploadProgress(null); 
         },
@@ -122,7 +116,7 @@ export default function AdminCityPagesManager() {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           setEditingCity((prev: any) => ({ ...prev, coverImage: downloadURL }));
           setUploadProgress(null);
-          toast({ title: "Imagem carregada!" });
+          toast({ title: "Imagem carregada com sucesso!" });
         }
       );
     } catch (err: any) { 
@@ -272,7 +266,9 @@ export default function AdminCityPagesManager() {
           ))
         ) : (
           <div className="col-span-full py-32 text-center bg-white rounded-[3rem] border-2 border-dashed opacity-20 flex flex-col items-center gap-4">
-             <Inbox className="w-12 h-12" />
+             <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                <Inbox className="w-6 h-6" />
+             </div>
              <p className="text-xs font-black uppercase tracking-[0.3em]">Nenhuma cidade encontrada</p>
           </div>
         )}
