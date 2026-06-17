@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -65,7 +66,7 @@ export async function generateAndPersistCityCover(params: {
 
     console.log(`[City Engine] Iniciando geração IA para: ${params.city}...`);
 
-    // 2. Chamar o fluxo de geração (pode demorar +20s)
+    // 2. Chamar o fluxo de geração
     const imageUrl = await gerarCapaCidade({
       city: params.city,
       state: params.state,
@@ -114,7 +115,7 @@ export async function generateAndPersistCityCover(params: {
       metadata: { city: params.city, slug: params.slug }
     });
 
-    // Retorna o erro estruturado para a UI
+    // Retorna o erro estruturado para a UI capturar no console/toast
     return { success: false, error: error.message };
   }
 }
