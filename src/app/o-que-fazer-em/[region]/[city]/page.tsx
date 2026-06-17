@@ -64,7 +64,7 @@ async function getCityData(regionParam: string, citySlugParam: string) {
 
       events = allActiveSnap.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter((e: any) => {
+        .filter((e: any, idx) => {
           const eCity = e.city || e.address?.city || "";
           const eState = e.state || e.address?.stateRegion || "";
           const eCountryCode = (e.countryCode || e.address?.countryCode || "br").toLowerCase();
@@ -75,9 +75,14 @@ async function getCityData(regionParam: string, citySlugParam: string) {
 
           const matches = targetCitySlug === normalizedCity && targetRegionSlug === normalizedRegion;
           
-          if (matches) {
-            console.log(`Match Found via Text Filter: "${e.title}"`);
+          // Log dos primeiros 5 itens e de qualquer match encontrado
+          if (idx < 5 || matches) {
+            console.log(`Checking Event: "${e.title}"`);
+            console.log(` - Raw City: "${eCity}", State: "${eState}"`);
+            console.log(` - Computed Slugs: city="${targetCitySlug}", region="${targetRegionSlug}"`);
+            console.log(` - Match Result: ${matches}`);
           }
+          
           return matches;
         });
     }
@@ -87,7 +92,7 @@ async function getCityData(regionParam: string, citySlugParam: string) {
       return null;
     }
 
-    // 3. Auditoria de Datas (Onde a maioria dos 404 acontece em dados de teste)
+    // 3. Auditoria de Datas
     console.log(`Total Matches Found: ${events.length}. Filtering by date...`);
     
     const futureEvents = events.filter((e: any) => {
