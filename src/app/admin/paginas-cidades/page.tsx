@@ -1,8 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp, useUser, useAuth } from '@/firebase';
 import { collection, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,9 @@ import {
   Sparkles,
   Edit,
   Save,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Upload,
+  Camera
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,18 +37,26 @@ import {
   DialogHeader, 
   DialogTitle 
 } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { forceGenerateCityCoverAction, updateCityPageAction } from '@/app/actions/city-pages';
+import { cn } from "@/lib/utils";
 
 export default function AdminCityPagesManager() {
   const db = useFirestore();
+  const auth = useAuth();
+  const { user } = useUser(auth);
+  const app = useFirebaseApp();
+  const storage = React.useMemo(() => app ? getStorage(app) : null, [app]);
+
   const [search, setSearch] = React.useState("");
   const [isGenerating, setIsGenerating] = React.useState<string | null>(null);
   
   // Estado para Edição Manual
   const [editingCity, setEditingCity] = React.useState<any>(null);
   const [isSaving, setIsSaving] = React.useState(false);
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
 
   const cityPagesQuery = useMemoFirebase(() => 
     db ? query(collection(db, "cityPages"), orderBy("city", "asc")) : null, 
@@ -60,6 +71,36 @@ export default function AdminCityPagesManager() {
       p.slug?.toLowerCase().includes(search.toLowerCase())
     );
   }, [cityPages, search]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !storage || !user || !editingCity) return;
+
+    setUploadProgress(0);
+    try {
+      const fileName = `city-covers-manual/${editingCity.slug || editingCity.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      const storageRef = ref(storage, fileName);
+      const uploadTask = uploadBytesResumable(storageRef, file, {
+        cacheControl: 'public,max-age=31536000,immutable',
+      });
+
+      uploadTask.on('state_changed', 
+        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+        () => { 
+          toast({ variant: "destructive", title: "Erro no upload" }); 
+          setUploadProgress(null); 
+        },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          setEditingCity((prev: any) => ({ ...prev, coverImage: downloadURL }));
+          setUploadProgress(null);
+          toast({ title: "Imagem carregada com sucesso!" });
+        }
+      );
+    } catch (err) { 
+      setUploadProgress(null); 
+    }
+  };
 
   const handleForceGenerate = async (city: any) => {
     setIsGenerating(city.id);
@@ -210,14 +251,14 @@ export default function AdminCityPagesManager() {
 
       {/* DIALOG DE EDIÇÃO MANUAL */}
       <Dialog open={!!editingCity} onOpenChange={(v) => !v && setEditingCity(null)}>
-         <DialogContent className="max-w-md rounded-[2.5rem]">
+         <DialogContent className="max-w-md rounded-[2.5rem] max-h-[90vh] overflow-y-auto">
             <form onSubmit={handleSaveManual} className="space-y-6">
                <DialogHeader>
                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Editar Cidade</DialogTitle>
                   <DialogDescription className="text-xs font-bold uppercase opacity-60">Troca manual de imagem e metadados.</DialogDescription>
                </DialogHeader>
 
-               <div className="space-y-4">
+               <div className="space-y-6">
                   <div className="space-y-2">
                      <Label className="text-[10px] font-black uppercase opacity-60">Nome da Cidade</Label>
                      <Input 
@@ -226,8 +267,36 @@ export default function AdminCityPagesManager() {
                        className="rounded-xl h-11"
                      />
                   </div>
+
+                  <div className="space-y-3">
+                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                       <Upload className="w-3 h-3" /> Upload de Imagem
+                     </Label>
+                     <div 
+                        className={cn(
+                          "relative h-32 bg-muted rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer group transition-all",
+                          uploadProgress !== null && "opacity-50 pointer-events-none"
+                        )}
+                        onClick={() => document.getElementById('city-image-upload')?.click()}
+                      >
+                        {editingCity?.coverImage ? (
+                          <img src={editingCity.coverImage} className="w-full h-full object-cover" alt="Preview" />
+                        ) : (
+                          <div className="text-center opacity-40">
+                             <Camera className="w-8 h-8 mx-auto mb-2" />
+                             <p className="text-[8px] font-black uppercase">Clique para selecionar</p>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                           <Upload className="text-white w-6 h-6" />
+                        </div>
+                        {uploadProgress !== null && <Progress value={uploadProgress} className="absolute bottom-0 left-0 right-0 h-1 rounded-none" />}
+                      </div>
+                      <input id="city-image-upload" type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                  </div>
+
                   <div className="space-y-2">
-                     <Label className="text-[10px] font-black uppercase opacity-60">URL da Imagem de Capa</Label>
+                     <Label className="text-[10px] font-black uppercase opacity-60">Ou URL Direta</Label>
                      <div className="relative">
                         <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 text-secondary" />
                         <Input 
@@ -238,15 +307,10 @@ export default function AdminCityPagesManager() {
                         />
                      </div>
                   </div>
-                  {editingCity?.coverImage && (
-                    <div className="relative aspect-video rounded-2xl overflow-hidden border shadow-inner bg-muted">
-                       <img src={editingCity.coverImage} className="w-full h-full object-cover" alt="Preview" />
-                    </div>
-                  )}
                </div>
 
                <DialogFooter>
-                  <Button type="submit" disabled={isSaving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
+                  <Button type="submit" disabled={isSaving || uploadProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
                      {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                      Salvar Alterações
                   </Button>
