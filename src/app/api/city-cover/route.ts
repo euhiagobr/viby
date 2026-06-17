@@ -96,6 +96,22 @@ FORMATO OBRIGATÓRIO
       size: "1536x1024"
     });
 
+    // AUDITORIA DA RESPOSTA OPENAI
+    console.log(
+      '[CITY COVER API] OPENAI RAW RESPONSE',
+      JSON.stringify(response, null, 2)
+    );
+
+    console.log(
+      '[CITY COVER API] OPENAI DATA',
+      response.data
+    );
+
+    console.log(
+      '[CITY COVER API] ITEM 0',
+      response.data?.[0]
+    );
+
     const openaiUrl = response.data[0]?.url;
     if (!openaiUrl) throw new Error("A OpenAI não retornou uma URL válida.");
 
