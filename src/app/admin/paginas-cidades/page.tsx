@@ -66,7 +66,7 @@ export default function AdminCityPagesManager() {
     try {
       const result = await forceGenerateCityCoverAction(city);
       if (result.success) {
-        toast({ title: "Capa da cidade gerada!", description: "A imagem foi atualizada com um novo ponto turístico." });
+        toast({ title: "Capa da cidade gerada!", description: `Nova imagem obtida para ${city.city}.` });
       } else {
         throw new Error(result.error);
       }
@@ -83,7 +83,7 @@ export default function AdminCityPagesManager() {
 
     setIsSaving(true);
     try {
-      const res = await updateCityPageAction(editingCity.slug, {
+      const res = await updateCityPageAction(editingCity.slug || editingCity.id, {
         city: editingCity.city,
         coverImage: editingCity.coverImage,
         cityCoverUrl: editingCity.coverImage
@@ -126,7 +126,7 @@ export default function AdminCityPagesManager() {
          <div className="space-y-1">
             <h4 className="font-black uppercase text-xs italic text-primary">Inteligência de Divulgação Regional</h4>
             <p className="text-[10px] text-muted-foreground font-bold uppercase leading-relaxed">
-               As capas representam o ecossistema cultural de toda a região. Você pode regerar automaticamente ou trocar a imagem manualmente informando uma URL.
+               As capas representam o ecossistema cultural de toda a região. Adicionamos desambiguação por Estado e Seed aleatório para garantir imagens únicas.
             </p>
          </div>
       </div>
@@ -189,7 +189,7 @@ export default function AdminCityPagesManager() {
                   
                   <div className="flex items-center justify-between pt-4 border-t border-dashed">
                      <Button variant="ghost" size="sm" asChild className="h-6 px-2 font-black uppercase text-[8px] gap-1.5 opacity-40 hover:opacity-100">
-                        <Link href={`/o-que-fazer-em/br-${city.state?.toLowerCase()}/${city.slug.split('-').pop()}`} target="_blank">
+                        <Link href={`/o-que-fazer-em/${city.slug}`} target="_blank">
                            <ExternalLink className="w-2.5 h-2.5" /> Ver Página
                         </Link>
                      </Button>

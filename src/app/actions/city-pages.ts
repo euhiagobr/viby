@@ -35,6 +35,9 @@ export async function getOrTriggerCityCover(params: {
       }, { merge: true });
     }
 
+    // Gatilho silencioso de background para primeira visualização
+    processCityCoverGeneration(params).catch(e => console.warn("[Background City Cover] Silent fail trigger."));
+
     return null;
   } catch (e) {
     console.error('[CITY COVER ACTION ERROR]', e);
@@ -43,8 +46,7 @@ export async function getOrTriggerCityCover(params: {
 }
 
 /**
- * Disparador de geração de capa.
- * Chamado internamente por outras Server Actions para evitar overhead de rede.
+ * Exportação obrigatória para compatibilidade com o sistema de eventos.
  */
 export async function generateAndPersistCityCover(params: {
   slug: string;
@@ -61,10 +63,10 @@ export async function generateAndPersistCityCover(params: {
  */
 export async function forceGenerateCityCoverAction(cityData: any) {
   return processCityCoverGeneration({
-    slug: cityData.slug,
+    slug: cityData.slug || cityData.id,
     city: cityData.city,
     state: cityData.state,
-    country: cityData.country
+    country: cityData.country || "Brasil"
   });
 }
 

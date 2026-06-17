@@ -15,25 +15,38 @@ export async function processCityCoverGeneration(params: {
   city: string;
   state: string;
   country: string;
+  categories?: string[];
 }) {
-  const { city, slug } = params;
+  const { city, slug, state, country } = params;
 
   try {
-    console.log(`[CITY COVER SERVICE] Buscando ponto turístico icônico para: ${city}`);
+    console.log(`[CITY COVER SERVICE] Iniciando geração para: ${city}, ${state}`);
     
-    // 1. Termos de busca refinados para capturar marcos famosos (Ex: Cristo no Rio, Gasômetro em POA)
-    const searchTerms = `${city.replace(/\s+/g, ',')},landmark,famous,monument,tourism,cityscape`;
-    const searchUrl = `https://loremflickr.com/1920/1080/${encodeURIComponent(searchTerms)}/all`;
+    // 1. Termos de busca refinados. 
+    // Usar o nome da cidade + estado + landmark garante maior precisão geográfica.
+    const searchTerms = `${city},${state},landmark,tourism`.toLowerCase().replace(/\s+/g, ',');
+    
+    // Adicionamos um seed aleatório (lock) para evitar que o serviço retorne a mesma imagem 
+    // de fallback para requisições similares em sequência.
+    const seed = Math.floor(Math.random() * 1000000);
+    const searchUrl = `https://loremflickr.com/1920/1080/${encodeURIComponent(searchTerms)}/all?lock=${seed}`;
+
+    console.log(`[CITY COVER SERVICE] Fetching: ${searchUrl}`);
 
     const response = await fetch(searchUrl, {
       cache: 'no-store',
-      headers: { 'User-Agent': 'VibyCityPageEngine/1.3' }
+      headers: { 
+        'User-Agent': 'VibyCityPageEngine/1.4',
+        'Accept': 'image/*'
+      }
     });
 
-    if (!response.ok) throw new Error("Falha ao acessar repositório de imagens.");
+    if (!response.ok) throw new Error(`Falha no fetch: ${response.status}`);
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.length < 5000) throw new Error("Imagem inválida ou muito pequena.");
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    if (buffer.length < 5000) throw new Error("Imagem retornada é inválida ou muito pequena.");
 
     // 2. Salvar no Storage
     const app = getAdminApp();
@@ -44,22 +57,33 @@ export async function processCityCoverGeneration(params: {
     await file.save(buffer, {
       metadata: {
         contentType: 'image/jpeg',
-        cacheControl: 'public, max-age=31536000, immutable'
+        cacheControl: 'public, max-age=31536000, immutable',
+        customMetadata: {
+          city,
+          state,
+          generatedAt: new Date().toISOString()
+        }
       }
     });
 
     await file.makePublic();
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+    
+    // Adicionamos timestamp na URL para forçar o refresh no cliente após regerar
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}?v=${Date.now()}`;
 
     // 3. Atualizar Firestore
     const db = getAdminDb();
     await db.collection('cityPages').doc(slug).set({
       coverImage: publicUrl,
       cityCoverUrl: publicUrl,
+      city,
+      state,
+      country,
+      coverGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    console.log(`[CITY COVER SERVICE] Capa gerada com sucesso: ${publicUrl}`);
+    console.log(`[CITY COVER SERVICE] Sucesso: ${publicUrl}`);
     return { success: true, url: publicUrl };
 
   } catch (error: any) {
