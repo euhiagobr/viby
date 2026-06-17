@@ -22,7 +22,9 @@ import {
   Inbox,
   Eye,
   Camera,
-  Send
+  Send,
+  CheckCircle2,
+  Monitor
 } from 'lucide-react';
 import { 
   Select, 
@@ -39,6 +41,7 @@ import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { isEventVisible } from '@/lib/event-scoring-utils';
 import { sendAgendaRequestAction } from '@/app/actions/email';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
@@ -46,6 +49,8 @@ export default function CarouselGeneratorPage() {
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
+  const isMobile = useIsMobile();
+
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
   const [selectedEvents, setSelectedEvents] = React.useState<any[]>([]);
@@ -62,6 +67,7 @@ export default function CarouselGeneratorPage() {
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
+  const [capturingSlide, setCapturingSlide] = React.useState<any | null>(null);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -121,101 +127,86 @@ export default function CarouselGeneratorPage() {
     setSelectedEvents(selectedEvents.filter(e => e.id !== id));
   };
 
-  const captureSlidesAsBase64 = async () => {
-    if (!hiddenRenderRef.current) return [];
+  // LÓGICA DE CAPTURA SEQUENCIAL (FILA) PARA MOBILE
+  const processExportQueue = async (action: 'download' | 'email') => {
+    if (isGenerating || isSendingEmail || selectedEvents.length === 0) return;
     
-    // @ts-ignore
-    if (document.fonts) await document.fonts.ready;
-
-    const slides = hiddenRenderRef.current.querySelectorAll('.viby-carousel-slide');
+    const actionSetter = action === 'download' ? setIsGenerating : setIsSendingEmail;
+    actionSetter(true);
     const base64Images: string[] = [];
 
-    for (let i = 0; i < slides.length; i++) {
-      const slideElement = slides[i] as HTMLElement;
+    console.log(`[Mobile Export] Carousel Sequential Export. Slides: ${selectedEvents.length}`);
 
-      const imgs = Array.from(slideElement.querySelectorAll('img'));
-      await Promise.all(imgs.map(async (img) => {
-         if (img.src) {
-           try {
-              if (!img.complete) {
-                 await new Promise(r => { img.onload = r; img.onerror = r; });
-              }
-             await img.decode();
-           } catch (e) {}
-         }
-      }));
-
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-      const dataUrl = await toPng(slideElement, {
-        pixelRatio: 2,
-        cacheBust: true,
-        quality: 1,
-        skipFonts: false
-      });
-      base64Images.push(dataUrl);
-    }
-    return base64Images;
-  };
-
-  const handleDownloadAll = async () => {
-    if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
-    setIsGenerating(true);
-    
     try {
-      const images = await captureSlidesAsBase64();
-      
-      for (let i = 0; i < images.length; i++) {
-        const response = await fetch(images[i]);
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
+      if (document.fonts) await document.fonts.ready;
 
-        const link = document.createElement('a');
-        link.download = `viby-carousel-${theme}-slide${i + 1}.png`;
-        link.href = blobUrl;
-        link.rel = "noopener";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      for (let i = 0; i < selectedEvents.length; i++) {
+        const ev = selectedEvents[i];
+        setCapturingSlide({ event: ev, idx: i + 1 });
         
-        URL.revokeObjectURL(blobUrl);
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 600));
+
+        const node = hiddenRenderRef.current?.querySelector('.viby-carousel-slide') as HTMLElement;
+        if (!node) throw new Error("Falha no motor de renderização.");
+
+        const imgs = Array.from(node.querySelectorAll('img'));
+        await Promise.all(imgs.map(async (img) => {
+          if (img.src) {
+             try {
+               if (!img.complete) await new Promise(r => { img.onload = r; img.onerror = r; });
+               await img.decode();
+             } catch (e) {}
+          }
+        }));
+
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+        const dataUrl = await toPng(node, {
+          pixelRatio: 2,
+          cacheBust: true,
+          quality: 1,
+          skipFonts: false
+        });
+
+        if (action === 'download') {
+           const response = await fetch(dataUrl);
+           const blob = await response.blob();
+           const blobUrl = URL.createObjectURL(blob);
+           const link = document.createElement('a');
+           link.download = `viby-carousel-${theme}-slide${i + 1}.png`;
+           link.href = blobUrl;
+           link.rel = "noopener";
+           document.body.appendChild(link);
+           link.click();
+           document.body.removeChild(link);
+           setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+        } else {
+           base64Images.push(dataUrl);
+        }
+
+        setCapturingSlide(null);
+        await new Promise(r => setTimeout(r, 300));
       }
 
-      toast({ title: "Carrossel exportado com sucesso!" });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Erro na exportação", description: "Falha ao processar artes." });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleSendToViby = async () => {
-    if (selectedEvents.length === 0 || !user || isSendingEmail) return;
-    setIsSendingEmail(true);
-    try {
-      toast({ title: "Processando carrossel...", description: "Preparando as lâminas para anexo." });
-      
-      const base64Images = await captureSlidesAsBase64();
-      if (base64Images.length === 0) throw new Error("Falha ao gerar imagens.");
-
-      const res = await sendAgendaRequestAction({
-        images: base64Images,
-        theme,
-        format: `carousel_${aspectRatio}`,
-        userEmail: user.email!,
-        userName: user.displayName || "Admin"
-      });
-
-      if (res.success) {
-        toast({ title: "Artes enviadas!", description: "O carrossel completo foi enviado para viby@viby.club." });
+      if (action === 'email') {
+        const res = await sendAgendaRequestAction({
+          images: base64Images,
+          theme,
+          format: `carousel_${aspectRatio}`,
+          userEmail: user?.email!,
+          userName: user?.displayName || "Admin"
+        });
+        if (res.success) toast({ title: "Artes enviadas para seu e-mail!" });
+        else throw new Error(res.error);
       } else {
-        throw new Error(res.error);
+        toast({ title: "Carrossel baixado com sucesso!" });
       }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro no envio", description: e.message });
+
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Erro na geração", description: err.message });
     } finally {
-      setIsSendingEmail(false);
+      actionSetter(false);
+      setCapturingSlide(null);
     }
   };
 
@@ -223,11 +214,12 @@ export default function CarouselGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      {/* NÓ DE RENDERIZAÇÃO OFF-SCREEN (SEQUENCIAL) */}
       <div 
         ref={hiddenRenderRef} 
         style={{ 
           position: 'fixed', 
-          left: '0', 
+          left: '-10000px', 
           top: '0', 
           zIndex: -1, 
           pointerEvents: 'none', 
@@ -235,17 +227,16 @@ export default function CarouselGeneratorPage() {
           visibility: 'visible' 
         }}
       >
-         {selectedEvents.map((ev, idx) => (
+         {capturingSlide && (
            <CarouselTemplate 
-              key={`hidden-slide-${idx}`}
-              event={ev} 
+              event={capturingSlide.event} 
               aspectRatio={aspectRatio} 
               theme={theme} 
               logoUrl={activeLogo || undefined}
-              slideNumber={idx + 1}
+              slideNumber={capturingSlide.idx}
               totalSlides={selectedEvents.length}
            />
-         ))}
+         )}
       </div>
 
       <div className="lg:col-span-4 space-y-8">
@@ -331,7 +322,7 @@ export default function CarouselGeneratorPage() {
            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview do Layout</h3>
            <div className="flex gap-2">
               <Button 
-                onClick={handleSendToViby} 
+                onClick={() => processExportQueue('email')} 
                 disabled={isSendingEmail || selectedEvents.length === 0} 
                 variant="outline"
                 className="rounded-xl h-11 px-6 font-black uppercase italic text-xs gap-2 border-secondary text-secondary"
@@ -339,9 +330,9 @@ export default function CarouselGeneratorPage() {
                  {isSendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} 
                  Enviar p/ E-mail
               </Button>
-              <Button onClick={handleDownloadAll} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
+              <Button onClick={() => processExportQueue('download')} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
-                 Baixar Todas as Lâminas
+                 Baixar Tudo
               </Button>
            </div>
         </div>
@@ -350,7 +341,9 @@ export default function CarouselGeneratorPage() {
            {(isGenerating || isSendingEmail) && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Processando Carrossel...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">
+                  {capturingSlide ? `Exportando Slide ${capturingSlide.idx}...` : 'Processando Fila Gráfica...'}
+                </p>
              </div>
            )}
            <ScrollArea className="h-full">
@@ -360,24 +353,44 @@ export default function CarouselGeneratorPage() {
                      <Layers className="w-20 h-20 mx-auto mb-4" />
                      <p className="text-sm font-black uppercase italic">Adicione eventos para iniciar o carrossel</p>
                   </div>
-                ) : selectedEvents.map((ev, idx) => (
-                  <div key={ev.id} className="relative group/preview flex flex-col items-center gap-4">
-                    <Badge className="bg-white/90 text-primary border-none shadow-md px-4 py-1.5 font-black uppercase text-[10px]">Slide {idx + 1}</Badge>
-                    <div className={cn(
-                      "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
-                      aspectRatio === '1:1' ? "scale-[0.5] h-[540px]" : "scale-[0.4] h-[540px]"
-                    )}>
-                       <CarouselTemplate 
-                          event={ev} 
-                          aspectRatio={aspectRatio} 
-                          theme={theme} 
-                          logoUrl={activeLogo || undefined}
-                          slideNumber={idx + 1}
-                          totalSlides={selectedEvents.length}
-                       />
-                    </div>
+                ) : isMobile ? (
+                  /* PREVIEW SIMPLIFICADO PARA MOBILE */
+                  <div className="w-full max-w-sm space-y-4 animate-in fade-in">
+                    <Card className="border-none shadow-sm rounded-3xl bg-white p-8 text-center space-y-4">
+                       <div className="p-4 bg-secondary/10 rounded-2xl w-fit mx-auto text-secondary"><Monitor className="w-8 h-8" /></div>
+                       <div className="space-y-1">
+                          <h3 className="font-black uppercase italic text-primary">Prévia Otimizada</h3>
+                          <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">O carrossel será montado slide a slide no momento da exportação para garantir qualidade e economia de dados.</p>
+                       </div>
+                    </Card>
+                    {selectedEvents.map((ev, i) => (
+                      <div key={i} className="p-4 bg-white/40 rounded-2xl border border-dashed flex items-center gap-3">
+                         <Badge variant="outline" className="text-[8px] font-black h-5">Slide {i+1}</Badge>
+                         <span className="text-[10px] font-bold uppercase truncate">{ev.title}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  /* PREVIEW COMPLETO PARA DESKTOP */
+                  selectedEvents.map((ev, idx) => (
+                    <div key={ev.id} className="relative group/preview flex flex-col items-center gap-4">
+                      <Badge className="bg-white/90 text-primary border-none shadow-md px-4 py-1.5 font-black uppercase text-[10px]">Slide {idx + 1}</Badge>
+                      <div className={cn(
+                        "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
+                        aspectRatio === '1:1' ? "scale-[0.5] h-[540px]" : "scale-[0.4] h-[540px]"
+                      )}>
+                        <CarouselTemplate 
+                            event={ev} 
+                            aspectRatio={aspectRatio} 
+                            theme={theme} 
+                            logoUrl={activeLogo || undefined}
+                            slideNumber={idx + 1}
+                            totalSlides={selectedEvents.length}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
            </ScrollArea>
         </div>

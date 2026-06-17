@@ -27,7 +27,10 @@ import {
   Zap,
   RefreshCw,
   Eye,
-  Send
+  Send,
+  Monitor,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   Select, 
@@ -46,6 +49,7 @@ import { Separator } from '@/components/ui/separator';
 import { isEventVisible } from '@/lib/event-scoring-utils';
 import { COPA_TAGS, LGBT_TAGS, LGBT_CATEGORY_IDS } from '@/lib/constants';
 import { sendAgendaRequestAction } from '@/app/actions/email';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const ITEMS_PER_FORMAT = {
   stories: 7,
@@ -65,6 +69,8 @@ export default function AgendaGeneratorPage() {
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
+  const isMobile = useIsMobile();
+  
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
   const [selectedEvents, setSelectedEvents] = React.useState<any[]>([]);
@@ -81,6 +87,8 @@ export default function AgendaGeneratorPage() {
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
+  // Estado para controle de fila de renderização mobile
+  const [capturingPage, setCapturingPage] = React.useState<any | null>(null);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -195,106 +203,97 @@ export default function AgendaGeneratorPage() {
     return pages;
   }, [selectedEvents, format]);
 
-  const capturePagesAsBase64 = async () => {
-    if (!hiddenRenderRef.current) return [];
+  // LÓGICA DE CAPTURA SEQUENCIAL (FILA) PARA MOBILE
+  const processExportQueue = async (action: 'download' | 'email') => {
+    if (isGenerating || isSendingEmail || selectedEvents.length === 0) return;
     
-    // Força sincronização de fontes antes da captura
-    // @ts-ignore
-    if (document.fonts) await document.fonts.ready;
-
-    const pages = hiddenRenderRef.current.querySelectorAll('.viby-template-root');
-    const dimensions = FORMAT_DIMENSIONS[format];
+    const isMobileExport = !!isMobile;
+    const actionStateSetter = action === 'download' ? setIsGenerating : setIsSendingEmail;
+    
+    actionStateSetter(true);
     const base64Images: string[] = [];
+    const dimensions = FORMAT_DIMENSIONS[format];
 
-    for (let i = 0; i < pages.length; i++) {
-      const pageElement = pages[i] as HTMLElement;
-      
-      const imgs = Array.from(pageElement.querySelectorAll('img'));
-      await Promise.all(imgs.map(async (img) => {
-         if (img.src) {
-           try {
-             if (!img.complete) {
-                await new Promise(resolve => {
-                  img.onload = resolve;
-                  img.onerror = resolve;
-                });
-             }
-             await img.decode();
-           } catch (e) {}
-         }
-      }));
+    console.log(`[Mobile Export] Starting sequential queue. Pages: ${eventPages.length}`);
 
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-      const dataUrl = await toPng(pageElement, {
-        pixelRatio: 2,
-        cacheBust: true,
-        quality: 1,
-        width: dimensions.width,
-        height: dimensions.height,
-        skipFonts: false
-      });
-      base64Images.push(dataUrl);
-    }
-    return base64Images;
-  };
-
-  const handleDownloadAll = async () => {
-    if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
-    setIsGenerating(true);
-    
     try {
-      const images = await capturePagesAsBase64();
-      
-      for (let i = 0; i < images.length; i++) {
-        const response = await fetch(images[i]);
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
+      // 1. Garantir fontes prontas
+      if (document.fonts) await document.fonts.ready;
 
-        const link = document.createElement('a');
-        link.download = `viby-agenda-${theme}-${format}-p${i + 1}.png`;
-        link.href = blobUrl;
-        link.rel = "noopener";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      // 2. Processar cada página individualmente
+      for (let i = 0; i < eventPages.length; i++) {
+        const pageEvents = eventPages[i];
+        setCapturingPage({ events: pageEvents, idx: i + 1 });
         
-        URL.revokeObjectURL(blobUrl);
-        await new Promise(r => setTimeout(r, 1000));
+        // Pequena pausa para o React montar o nó off-screen
+        await new Promise(r => setTimeout(r, 600));
+
+        const node = hiddenRenderRef.current?.querySelector('.viby-template-root') as HTMLElement;
+        if (!node) throw new Error("Falha ao localizar nó de renderização.");
+
+        // Validar mídias no nó
+        const imgs = Array.from(node.querySelectorAll('img'));
+        await Promise.all(imgs.map(async (img) => {
+          if (img.src) {
+            try {
+              if (!img.complete) await new Promise(r => { img.onload = r; img.onerror = r; });
+              await img.decode();
+            } catch (e) {}
+          }
+        }));
+
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+        const dataUrl = await toPng(node, {
+          pixelRatio: 2,
+          cacheBust: true,
+          quality: 1,
+          width: dimensions.width,
+          height: dimensions.height,
+          skipFonts: false
+        });
+
+        if (action === 'download') {
+           const response = await fetch(dataUrl);
+           const blob = await response.blob();
+           const blobUrl = URL.createObjectURL(blob);
+           const link = document.createElement('a');
+           link.download = `viby-agenda-${theme}-${format}-p${i + 1}.png`;
+           link.href = blobUrl;
+           link.rel = "noopener";
+           document.body.appendChild(link);
+           link.click();
+           document.body.removeChild(link);
+           setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+        } else {
+           base64Images.push(dataUrl);
+        }
+
+        // Limpar página atual para liberar memória antes da próxima
+        setCapturingPage(null);
+        await new Promise(r => setTimeout(r, 300));
       }
-      toast({ title: "Artes geradas com sucesso!" });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Erro na geração", description: "Falha ao processar mídias." });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
-  const handleSendToViby = async () => {
-    if (selectedEvents.length === 0 || !user || isSendingEmail) return;
-    setIsSendingEmail(true);
-    try {
-      toast({ title: "Processando arte...", description: "Isso pode levar alguns segundos." });
-      
-      const base64Images = await capturePagesAsBase64();
-      
-      const res = await sendAgendaRequestAction({
-        images: base64Images,
-        theme,
-        format,
-        userEmail: user.email!,
-        userName: user.displayName || "Admin"
-      });
-
-      if (res.success) {
-        toast({ title: "Arte enviada com sucesso!", description: "O PNG original foi enviado para viby@viby.club." });
+      if (action === 'email') {
+        const res = await sendAgendaRequestAction({
+          images: base64Images,
+          theme,
+          format,
+          userEmail: user?.email!,
+          userName: user?.displayName || "Admin"
+        });
+        if (res.success) toast({ title: "Arte enviada para seu e-mail!" });
+        else throw new Error(res.error);
       } else {
-        throw new Error(res.error);
+        toast({ title: "Todas as páginas foram baixadas!" });
       }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro no envio", description: e.message });
+
+    } catch (err: any) {
+      console.error("[Mobile Export Error]", err);
+      toast({ variant: "destructive", title: "Erro na geração", description: err.message });
     } finally {
-      setIsSendingEmail(false);
+      actionStateSetter(false);
+      setCapturingPage(null);
     }
   };
 
@@ -302,11 +301,12 @@ export default function AgendaGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      {/* NÓ DE RENDERIZAÇÃO OFF-SCREEN (SEQUENCIAL) */}
       <div 
         ref={hiddenRenderRef} 
         style={{ 
           position: 'fixed', 
-          left: '0', 
+          left: '-10000px', 
           top: '0', 
           zIndex: -1, 
           pointerEvents: 'none', 
@@ -314,17 +314,16 @@ export default function AgendaGeneratorPage() {
           visibility: 'visible' 
         }}
       >
-        {eventPages.map((pageEvents, idx) => (
+        {capturingPage && (
           <AgendaTemplate 
-            key={`hidden-p${idx}`} 
-            events={pageEvents} 
+            events={capturingPage.events} 
             format={format} 
             theme={theme} 
             logoUrl={activeLogo || undefined} 
-            pageNumber={idx + 1} 
+            pageNumber={capturingPage.idx} 
             totalPages={eventPages.length} 
           />
-        ))}
+        )}
       </div>
 
       <div className="lg:col-span-4 space-y-8">
@@ -419,7 +418,7 @@ export default function AgendaGeneratorPage() {
            </div>
            <div className="flex gap-2">
               <Button 
-                onClick={handleSendToViby} 
+                onClick={() => processExportQueue('email')} 
                 disabled={isSendingEmail || selectedEvents.length === 0} 
                 variant="outline"
                 className="rounded-xl h-11 px-6 font-black uppercase italic text-xs gap-2 border-secondary text-secondary"
@@ -427,7 +426,7 @@ export default function AgendaGeneratorPage() {
                  {isSendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} 
                  Enviar p/ E-mail
               </Button>
-              <Button onClick={handleDownloadAll} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
+              <Button onClick={() => processExportQueue('download')} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
                  Baixar PNG
               </Button>
@@ -438,7 +437,9 @@ export default function AgendaGeneratorPage() {
            {(isGenerating || isSendingEmail) && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Processando Imagens...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">
+                  {capturingPage ? `Processando Página ${capturingPage.idx}...` : 'Iniciando Fila Gráfica...'}
+                </p>
              </div>
            )}
            <ScrollArea className="h-full w-full">
@@ -448,16 +449,36 @@ export default function AgendaGeneratorPage() {
                      <ImageIcon className="w-20 h-20 mx-auto mb-4" />
                      <p className="text-sm font-black uppercase italic">Adicione eventos para gerar a agenda</p>
                   </div>
-                ) : eventPages.map((pageEvents, idx) => (
-                  <div key={idx} className="relative flex flex-col items-center gap-4">
-                    <div className={cn(
-                      "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
-                      format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[486px]" : "scale-[0.3] h-[526px]"
-                    )}>
-                       <AgendaTemplate events={pageEvents} format={format} theme={theme} logoUrl={activeLogo || undefined} pageNumber={idx + 1} totalPages={eventPages.length} />
-                    </div>
+                ) : isMobile ? (
+                  /* PREVIEW SIMPLIFICADO PARA MOBILE (POUPAR MEMÓRIA) */
+                  <div className="w-full max-w-sm space-y-4 animate-in fade-in">
+                     <Card className="border-none shadow-sm rounded-3xl bg-white p-8 text-center space-y-4">
+                        <div className="p-4 bg-secondary/10 rounded-2xl w-fit mx-auto text-secondary"><Monitor className="w-8 h-8" /></div>
+                        <div className="space-y-1">
+                           <h3 className="font-black uppercase italic text-primary">Prévia Otimizada</h3>
+                           <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">No mobile, renderizamos a arte real apenas durante o download para garantir máxima fidelidade.</p>
+                        </div>
+                     </Card>
+                     {eventPages.map((p, i) => (
+                       <div key={i} className="p-4 bg-white/40 rounded-2xl border border-dashed flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase opacity-40">Lâmina #{i+1}</span>
+                          <Badge variant="outline" className="text-[8px] font-black uppercase">{p.length} Eventos</Badge>
+                       </div>
+                     ))}
                   </div>
-                ))}
+                ) : (
+                  /* PREVIEW COMPLETO PARA DESKTOP */
+                  eventPages.map((pageEvents, idx) => (
+                    <div key={idx} className="relative flex flex-col items-center gap-4">
+                      <div className={cn(
+                        "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
+                        format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[486px]" : "scale-[0.3] h-[526px]"
+                      )}>
+                        <AgendaTemplate events={pageEvents} format={format} theme={theme} logoUrl={activeLogo || undefined} pageNumber={idx + 1} totalPages={eventPages.length} />
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
            </ScrollArea>
         </div>

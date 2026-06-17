@@ -22,7 +22,9 @@ import {
   Info,
   Eye,
   Camera,
-  Send
+  Send,
+  CheckCircle2,
+  Monitor
 } from 'lucide-react';
 import { 
   Select, 
@@ -38,6 +40,7 @@ import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { isEventVisible } from '@/lib/event-scoring-utils';
 import { sendAgendaRequestAction } from '@/app/actions/email';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
@@ -45,6 +48,8 @@ export default function StoriesGeneratorPage() {
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
+  const isMobile = useIsMobile();
+
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
   const [selectedEvent, setSelectedEvent] = React.useState<any | null>(null);
@@ -60,6 +65,7 @@ export default function StoriesGeneratorPage() {
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
+  const [isMobileCapturing, setIsMobileCapturing] = React.useState(false);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -117,22 +123,24 @@ export default function StoriesGeneratorPage() {
     setIsSearching(false);
   };
 
-  const captureStoryAsBase64 = async () => {
+  const captureSingleAsBase64 = async () => {
     if (!hiddenRenderRef.current || !selectedEvent) return null;
     
+    // Inicia modo de renderização física
+    setIsMobileCapturing(true);
+    await new Promise(r => setTimeout(r, 600));
+
     // @ts-ignore
     if (document.fonts) await document.fonts.ready;
 
-    const node = hiddenRenderRef.current.firstChild as HTMLElement;
+    const node = hiddenRenderRef.current.querySelector('.viby-export-page') as HTMLElement;
     if (!node) return null;
 
     const imgs = Array.from(node.querySelectorAll('img'));
     await Promise.all(imgs.map(async (img) => {
       if (img.src) {
          try {
-           if (!img.complete) {
-              await new Promise(r => { img.onload = r; img.onerror = r; });
-           }
+           if (!img.complete) await new Promise(r => { img.onload = r; img.onerror = r; });
            await img.decode();
          } catch (e) {}
       }
@@ -140,7 +148,7 @@ export default function StoriesGeneratorPage() {
 
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-    return await toPng(node, {
+    const result = await toPng(node, {
       pixelRatio: 2,
       cacheBust: true,
       quality: 1,
@@ -148,14 +156,18 @@ export default function StoriesGeneratorPage() {
       height: 1920,
       skipFonts: false
     });
+
+    setIsMobileCapturing(false);
+    return result;
   };
 
   const handleDownload = async () => {
-    if (!hiddenRenderRef.current || isGenerating || !selectedEvent) return;
+    if (!selectedEvent || isGenerating) return;
     setIsGenerating(true);
     
     try {
-      const dataUrl = await captureStoryAsBase64();
+      console.log("[Mobile Export] Starting story capture.");
+      const dataUrl = await captureSingleAsBase64();
       if (!dataUrl) throw new Error("Falha ao gerar PNG.");
 
       const response = await fetch(dataUrl);
@@ -170,10 +182,10 @@ export default function StoriesGeneratorPage() {
       link.click();
       document.body.removeChild(link);
 
-      URL.revokeObjectURL(blobUrl);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
       toast({ title: "Story gerado com sucesso!" });
     } catch (err) {
-      toast({ variant: "destructive", title: "Erro na exportação", description: "Falha ao renderizar arte." });
+      toast({ variant: "destructive", title: "Erro na exportação" });
     } finally {
       setIsGenerating(false);
     }
@@ -185,7 +197,7 @@ export default function StoriesGeneratorPage() {
     try {
       toast({ title: "Gerando arte...", description: "Preparando anexo em alta resolução." });
       
-      const base64 = await captureStoryAsBase64();
+      const base64 = await captureSingleAsBase64();
       if (!base64) throw new Error("Falha na captura gráfica.");
 
       const res = await sendAgendaRequestAction({
@@ -196,11 +208,8 @@ export default function StoriesGeneratorPage() {
         userName: user.displayName || "Admin"
       });
 
-      if (res.success) {
-        toast({ title: "Arte enviada!", description: "O PNG original foi enviado para viby@viby.club." });
-      } else {
-        throw new Error(res.error);
-      }
+      if (res.success) toast({ title: "Arte enviada para seu e-mail!" });
+      else throw new Error(res.error);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro no envio", description: e.message });
     } finally {
@@ -212,11 +221,12 @@ export default function StoriesGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      {/* NÓ DE RENDERIZAÇÃO OFF-SCREEN (SEQUENCIAL) */}
       <div 
         ref={hiddenRenderRef} 
         style={{ 
           position: 'fixed', 
-          left: '0', 
+          left: '-10000px', 
           top: '0', 
           zIndex: -1, 
           pointerEvents: 'none', 
@@ -224,7 +234,7 @@ export default function StoriesGeneratorPage() {
           visibility: 'visible' 
         }}
       >
-         {selectedEvent && (
+         {(isMobileCapturing || !isMobile) && selectedEvent && (
            <StoryTemplate 
               event={selectedEvent} 
               theme={theme} 
@@ -305,9 +315,7 @@ export default function StoriesGeneratorPage() {
                    <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                    <SelectContent className="rounded-xl">
                       <SelectItem value="viby">Viby (Padrão)</SelectItem>
-                      <SelectItem value="copa" className="font-bold text-[#002776]">
-                        <div className="flex items-center gap-2"><Trophy className="w-3.5 h-3.5 text-[#ffdf00]" /> Copa do Mundo 2026</div>
-                      </SelectItem>
+                      <SelectItem value="copa">Copa do Mundo 2026</SelectItem>
                       <SelectItem value="pride">Pride / Diversidade</SelectItem>
                       <SelectItem value="claro">Minimalista Claro</SelectItem>
                       <SelectItem value="escuro">Deep Black</SelectItem>
@@ -345,9 +353,9 @@ export default function StoriesGeneratorPage() {
 
         <div className="relative bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] flex flex-col items-center justify-center overflow-hidden">
            {(isGenerating || isSendingEmail) && (
-             <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
+             <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Processando Arte...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Codificando Pixels...</p>
              </div>
            )}
 
@@ -356,6 +364,15 @@ export default function StoriesGeneratorPage() {
                <Smartphone className="w-20 h-20 mx-auto" />
                <p className="text-sm font-black uppercase italic">Selecione um evento para visualizar</p>
              </div>
+           ) : isMobile ? (
+              <Card className="border-none shadow-sm rounded-3xl bg-white p-8 text-center space-y-4 max-w-sm">
+                <div className="p-4 bg-secondary/10 rounded-2xl w-fit mx-auto text-secondary"><Monitor className="w-8 h-8" /></div>
+                <div className="space-y-1">
+                    <h3 className="font-black uppercase italic text-primary">Prévia Otimizada</h3>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">O story será renderizado em alta resolução no momento do download.</p>
+                </div>
+                <Badge variant="outline" className="text-[8px] font-black uppercase">Pronto para exportar</Badge>
+              </Card>
            ) : (
              <div className="scale-[0.35] md:scale-[0.4] origin-center shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white">
                 <StoryTemplate 
