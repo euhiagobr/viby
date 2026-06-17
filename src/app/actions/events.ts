@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -64,19 +63,29 @@ async function triggerCityCoverGeneration(eventData: any) {
   const cityPageId = `${regionSlug}-${citySlug}`;
 
   const db = getAdminDb();
-  const cityPageSnap = await db.collection('cityPages').doc(cityPageId).get();
+  const cityPageRef = db.collection('cityPages').doc(cityPageId);
+  const cityPageSnap = await cityPageRef.get();
+
+  // Garante o registro da cidade no banco para visibilidade administrativa
+  if (!cityPageSnap.exists) {
+    await cityPageRef.set({
+      slug: cityPageId,
+      city,
+      state,
+      country,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
 
   if (!cityPageSnap.exists || !cityPageSnap.data()?.coverImage) {
-    // Busca categorias populares da cidade para o prompt
-    const recentEvents = await db.collection('events')
+    const eventsSnap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .where('citySlug', '==', citySlug)
       .limit(5)
       .get();
     
-    const categories = Array.from(new Set(recentEvents.docs.map(d => d.data().categoryName).filter(Boolean)));
+    const categories = Array.from(new Set(eventsSnap.docs.map(d => d.data().categoryName).filter(Boolean)));
 
-    // Gera em background
     generateAndPersistCityCover({
       slug: cityPageId,
       city,
@@ -142,7 +151,6 @@ export async function createEventAction(params: {
 
     await eventRef.set(finalData);
     
-    // Gatilho para capa da cidade
     triggerCityCoverGeneration(finalData);
 
     revalidatePath('/');
@@ -204,7 +212,6 @@ export async function updateEventAction(params: {
 
     await eventRef.update(updatePayload);
     
-    // Gatilho para capa da cidade
     triggerCityCoverGeneration(updatePayload);
 
     revalidatePath('/');
@@ -236,73 +243,8 @@ export async function cancelEventAction(eventId: string) {
   }
 }
 
-export async function updateEventSlugAction(params: {
-  eventId: string;
-  orgId: string;
-  newTitle?: string;
-  manualSlug?: string;
-}) {
-  const db = getAdminDb();
-  try {
-    const eventRef = db.collection('events').doc(params.eventId);
-    const eventSnap = await eventRef.get();
-    if (!eventSnap.exists) throw new Error("Evento não encontrado.");
-    const eventData = eventSnap.data()!;
-
-    const source = params.manualSlug || params.newTitle || eventData.title;
-    const slug = await generateUniqueSlug(db, source, params.eventId, params.manualSlug);
-
-    await eventRef.update({ slug, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-    return { success: true, slug };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function transferEventAction(params: {
-  eventId: string;
-  targetOrgUsername: string;
-  adminUid: string;
-  adminName: string;
-}) {
-  const db = getAdminDb();
-  const { eventId, targetOrgUsername, adminUid, adminName } = params;
-
-  try {
-    const cleanUsername = targetOrgUsername.toLowerCase().trim().replace('@', '');
-    return await db.runTransaction(async (transaction) => {
-      const orgRef = db.collection('organizations').where('username', '==', cleanUsername).limit(1);
-      const orgSnap = await transaction.get(orgRef);
-      if (orgSnap.empty) throw new Error("Organização destino não localizada.");
-      const targetOrg = { id: orgSnap.docs[0].id, ...orgSnap.docs[0].data() } as any;
-
-      const eventRef = db.collection('events').doc(eventId);
-      const eventSnap = await transaction.get(eventRef);
-      if (!eventSnap.exists) throw new Error("Evento não localizado.");
-      const eventData = eventSnap.data()!;
-
-      transaction.update(eventRef, {
-        organizationId: targetOrg.id,
-        organizerId: targetOrg.ownerId || eventData.organizerId,
-        organizer: {
-          id: targetOrg.id,
-          name: targetOrg.name,
-          username: targetOrg.username,
-          avatar: targetOrg.avatar || ""
-        },
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      return { success: true, newUrl: `/${targetOrg.username}/${eventData.slug}` };
-    });
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
 /**
- * Manutenção: Atualiza os campos regionSlug e citySlug de todos os eventos ativos.
- * Essencial para habilitar SEO em registros legados.
+ * Manutenção: Atualiza slugs de localização e registra cidades no cityPages.
  */
 export async function backfillEventLocationSlugsAction() {
   const db = getAdminDb();
@@ -310,17 +252,21 @@ export async function backfillEventLocationSlugsAction() {
     const snap = await db.collection('events').where('status', '==', 'Ativo').get();
     let count = 0;
     const batch = db.batch();
+    const cityPagesRef = db.collection('cityPages');
+    const processedCities = new Set<string>();
 
     for (const doc of snap.docs) {
       const data = doc.data();
       const city = data.city || data.address?.city;
       const state = data.state || data.address?.stateRegion;
+      const country = data.country || data.address?.country || "Brasil";
       const countryCode = (data.countryCode || data.address?.countryCode || "br").toLowerCase();
 
       if (city && state) {
         const citySlug = slugifyLocation(city);
         const stateSlug = slugifyLocation(state);
         const regionSlug = `${countryCode}-${stateSlug}`;
+        const cityId = `${regionSlug}-${citySlug}`;
 
         batch.update(doc.ref, {
           citySlug,
@@ -329,6 +275,19 @@ export async function backfillEventLocationSlugsAction() {
           regionSlug,
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
+
+        // Registrar a cidade se ainda não processada neste loop
+        if (!processedCities.has(cityId)) {
+          batch.set(cityPagesRef.doc(cityId), {
+            slug: cityId,
+            city,
+            state,
+            country,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          processedCities.add(cityId);
+        }
+
         count++;
       }
     }

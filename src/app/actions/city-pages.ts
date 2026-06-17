@@ -22,11 +22,19 @@ export async function getOrTriggerCityCover(params: {
   try {
     const snap = await cityPageRef.get();
     
-    if (snap.exists && snap.data()?.coverImage) {
-      return snap.data()?.coverImage;
+    // Se não existir o registro, cria o metadado básico agora para aparecer no admin
+    if (!snap.exists) {
+      await cityPageRef.set({
+        slug: params.slug,
+        city: params.city,
+        state: params.state,
+        country: params.country,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      return null;
     }
 
-    return null;
+    return snap.data()?.coverImage || null;
   } catch (e) {
     return null;
   }
@@ -34,6 +42,7 @@ export async function getOrTriggerCityCover(params: {
 
 /**
  * Gera e persiste a capa da cidade.
+ * Garante a criação do documento antes da chamada lenta da IA.
  */
 export async function generateAndPersistCityCover(params: {
   slug: string;
@@ -46,9 +55,18 @@ export async function generateAndPersistCityCover(params: {
   const cityPageRef = db.collection('cityPages').doc(params.slug);
 
   try {
-    console.log(`[City Engine] Inciando geração para: ${params.city}...`);
+    // 1. Garantir que o registro base existe para visibilidade no Admin
+    await cityPageRef.set({
+      slug: params.slug,
+      city: params.city,
+      state: params.state,
+      country: params.country,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
 
-    // 1. Gerar via OpenAI
+    console.log(`[City Engine] Iniciando geração IA para: ${params.city}...`);
+
+    // 2. Gerar via OpenAI
     const imageUrl = await gerarCapaCidade({
       city: params.city,
       state: params.state,
@@ -56,7 +74,7 @@ export async function generateAndPersistCityCover(params: {
       topCategories: params.categories || []
     });
 
-    // 2. Baixar imagem e subir para Storage
+    // 3. Baixar imagem e subir para Storage
     const response = await fetch(imageUrl);
     const buffer = Buffer.from(await response.arrayBuffer());
     
@@ -74,20 +92,14 @@ export async function generateAndPersistCityCover(params: {
     await file.makePublic();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
-    // 3. Persistir no Firestore
-    const cityData = {
-      slug: params.slug,
-      city: params.city,
-      state: params.state,
-      country: params.country,
+    // 4. Atualizar o documento com a URL final
+    await cityPageRef.update({
       coverImage: publicUrl,
       coverGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    };
+    });
 
-    await cityPageRef.set(cityData, { merge: true });
-
-    console.log(`[City Engine] Capa gerada e salva com sucesso para ${params.city}`);
+    console.log(`[City Engine] Capa persistida para ${params.city}: ${publicUrl}`);
     return publicUrl;
   } catch (error: any) {
     console.error(`[City Engine Failure] ${params.slug}:`, error.message);
