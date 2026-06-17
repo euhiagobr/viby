@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -36,7 +35,9 @@ import {
   Send,
   Trash2,
   History,
-  Target
+  Target,
+  Globe,
+  Map
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -96,6 +97,7 @@ export default function AdminLayout({
     { title: 'CRM & Marketing', url: '/admin/crm', icon: Mail, permission: 'marketing.emails' as any },
     { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays, permission: 'events.view' as any },
     { title: 'Recorrentes', url: '/admin/eventos-recorrentes', icon: RefreshCw, permission: 'events.view' as any },
+    { title: 'Páginas de Cidades', url: '/admin/paginas-cidades', icon: Map, permission: 'events.view' as any },
     { title: 'Páginas', url: '/admin/paginas', icon: Building2, permission: 'organizations.view' as any },
     { title: 'Usuários', url: '/admin/usuarios', icon: Users, permission: 'users.view' as any },
     { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket, permission: 'tickets.view' as any },

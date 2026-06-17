@@ -1,9 +1,9 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { gerarCapaCidade } from '@/ai/flows/gerar-capa-cidade-flow';
+import { logSystemError } from '@/lib/error-manager';
 
 /**
  * @fileOverview Server Actions para gestão de metadados e capas de cidades.
@@ -26,8 +26,6 @@ export async function getOrTriggerCityCover(params: {
       return snap.data()?.coverImage;
     }
 
-    // Se não existe, disparamos a geração em background (sem await se chamado de certos contextos)
-    // Para esta implementação, o chamador decide se aguarda ou não.
     return null;
   } catch (e) {
     return null;
@@ -48,6 +46,8 @@ export async function generateAndPersistCityCover(params: {
   const cityPageRef = db.collection('cityPages').doc(params.slug);
 
   try {
+    console.log(`[City Engine] Inciando geração para: ${params.city}...`);
+
     // 1. Gerar via OpenAI
     const imageUrl = await gerarCapaCidade({
       city: params.city,
@@ -87,9 +87,18 @@ export async function generateAndPersistCityCover(params: {
 
     await cityPageRef.set(cityData, { merge: true });
 
+    console.log(`[City Engine] Capa gerada e salva com sucesso para ${params.city}`);
     return publicUrl;
-  } catch (error) {
-    console.error(`[City Cover Generation Failed] ${params.slug}:`, error);
+  } catch (error: any) {
+    console.error(`[City Engine Failure] ${params.slug}:`, error.message);
+    
+    await logSystemError({
+      error,
+      type: 'city_cover_generation_failure',
+      severity: 'error',
+      metadata: { city: params.city, slug: params.slug }
+    });
+
     return null;
   }
 }
