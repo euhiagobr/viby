@@ -33,7 +33,8 @@ import {
   MousePointer2,
   Navigation,
   Globe,
-  FileText
+  FileText,
+  ImageIcon
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -184,7 +185,7 @@ export default function OrganizationDashboardPage() {
         <div className="flex items-center gap-3">
           <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary/5 transition-all">
             <Link href={`/viby/${currentOrg.id}`}>
-              <FileText className="w-4 h-4" /> Material de Marca
+              <ImageIcon className="w-4 h-4" /> Material de Marca
             </Link>
           </Button>
         </div>
@@ -317,51 +318,23 @@ export default function OrganizationDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Estatísticas de Divulgação QR */}
-        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
-           <CardHeader className="bg-muted/30 border-b pb-4">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                 <QrCode className="w-5 h-5 text-secondary" /> Inteligência de Tráfego QR
+        {/* Card de Material de Marca */}
+        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white border-t-8 border-secondary">
+           <CardHeader className="p-8 pb-4">
+              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                 <ImageIcon className="w-6 h-6 text-secondary" /> Media Kit
               </CardTitle>
-              <CardDescription>Escaneamentos de agenda e materiais físicos.</CardDescription>
+              <CardDescription className="font-medium">Gestão de arquivos e mídias oficiais para parceiros.</CardDescription>
            </CardHeader>
-           <CardContent className="p-8 space-y-8">
-              <div className="grid grid-cols-2 gap-6">
-                 <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground opacity-60">Últimos 7 dias</p>
-                    <p className="text-2xl font-black text-primary">{qrStats.last7Days}</p>
-                 </div>
-                 <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground opacity-60">Últimos 30 dias</p>
-                    <p className="text-2xl font-black text-primary">{qrStats.last30Days}</p>
-                 </div>
-              </div>
-              
-              <Separator className="border-dashed" />
-
-              <div className="space-y-4">
-                 <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Último Acesso via QR</h4>
-                 {qrStats.lastScan ? (
-                   <div className="p-4 bg-muted/20 rounded-2xl border flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                         <div className="p-2 bg-white rounded-lg"><Clock className="w-3.5 h-3.5 text-secondary" /></div>
-                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold uppercase">{qrStats.lastScan.scanType === 'event' ? 'Página de Evento' : 'Agenda Pública'}</span>
-                            <span className="text-[9px] text-muted-foreground">{new Date(qrStats.lastScan.scannedAt?.seconds * 1000 || qrStats.lastScan.scannedAt).toLocaleString('pt-BR')}</span>
-                         </div>
-                      </div>
-                      <Badge variant="outline" className="text-[8px] font-black uppercase border-dashed">D+0</Badge>
-                   </div>
-                 ) : (
-                   <div className="p-10 text-center opacity-30 italic text-[10px] uppercase font-bold">Nenhum scan registrado.</div>
-                 )}
-              </div>
-
-              <div className="pt-2">
-                 <Button asChild className="w-full bg-secondary text-white font-black h-12 rounded-xl uppercase italic text-[10px] shadow-lg gap-2">
-                    <Link href={`/${currentOrg.username}`} target="_blank">Gerar Novos QR Codes <ArrowRight className="w-4 h-4" /></Link>
-                 </Button>
-              </div>
+           <CardContent className="p-8 space-y-6">
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                 Disponibilize logos, ícones e manuais de identidade visual em uma página pública exclusiva para facilitar o trabalho de imprensa e co-realizadores.
+              </p>
+              <Button asChild className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm hover:scale-[1.02] transition-transform gap-2">
+                 <Link href={`/viby/${currentOrg.id}`}>
+                    Acessar Media Kit <ArrowRight className="w-4 h-4" />
+                 </Link>
+              </Button>
            </CardContent>
         </Card>
       </div>

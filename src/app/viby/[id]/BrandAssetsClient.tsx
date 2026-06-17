@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -63,6 +64,7 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
+import { useAdminPermissions } from "@/hooks/use-admin-permissions"
 
 const CATEGORIES = [
   { value: 'logos', label: 'Logos', icon: ImageIcon },
@@ -80,15 +82,19 @@ export default function BrandAssetsClient({ organization }: BrandAssetsClientPro
   const auth = useAuth();
   const storage = useStorage();
   const { user } = useUser(auth);
-  const { organizations, loading: orgLoading } = useCurrentOrganization();
+  const { organizations } = useCurrentOrganization();
+  const { adminProfile } = useAdminPermissions();
+
+  const isSystemAdmin = adminProfile !== null;
 
   const isOrgAdmin = React.useMemo(() => {
+    if (isSystemAdmin) return true;
     if (!user || !organization) return false;
     const org = organizations.find(o => o.id === organization.id);
     if (!org) return false;
     const role = org._memberData?.role || (org.ownerId === user.uid ? 'owner' : null);
     return ['owner', 'admin'].includes(role || '');
-  }, [user, organization, organizations]);
+  }, [user, organization, organizations, isSystemAdmin]);
 
   const assetsQuery = useMemoFirebase(() => 
     db ? query(collection(db, "organizations", organization.id, "brand_assets"), orderBy("sortOrder", "asc"), orderBy("createdAt", "desc")) : null, 
