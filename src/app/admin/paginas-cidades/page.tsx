@@ -42,6 +42,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { forceGenerateCityCoverAction, updateCityPageAction } from '@/app/actions/city-pages';
+import { backfillEventLocationSlugsAction } from '@/app/actions/events';
 import { cn } from "@/lib/utils";
 
 export default function AdminCityPagesManager() {
@@ -52,6 +53,7 @@ export default function AdminCityPagesManager() {
 
   const [search, setSearch] = React.useState("");
   const [isGenerating, setIsGenerating] = React.useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = React.useState(false);
   
   // Estado para Edição Manual
   const [editingCity, setEditingCity] = React.useState<any>(null);
@@ -72,29 +74,36 @@ export default function AdminCityPagesManager() {
     );
   }, [cityPages, search]);
 
+  const handleSyncCidades = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await backfillEventLocationSlugsAction();
+      if (res.success) {
+        toast({ title: "Sincronização concluída!", description: `${res.count} cidades mapeadas através dos eventos.` });
+      } else throw new Error(res.error);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro na sincronização", description: e.message });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !storage || !user || !editingCity) {
       return;
     }
 
-    // Sincronização obrigatória de Auth
     if (!auth.currentUser) {
-      console.warn("[CityCover-Upload] Falha: Usuário não autenticado no SDK.");
-      toast({ variant: "destructive", title: "Sessão expirada", description: "Por favor, recarregue a página e tente novamente." });
+      toast({ variant: "destructive", title: "Sessão expirada", description: "Por favor, recarregue a página." });
       return;
     }
 
-    console.log("[CityCover-Upload] Usuário Autenticado UID:", auth.currentUser.uid);
     setUploadProgress(0);
     
     try {
       const cityId = editingCity.slug || editingCity.id;
       const fileName = `city-covers-manual/${cityId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-      
-      console.log("[CityCover-Upload] Bucket:", storage.app.options.storageBucket);
-      console.log("[CityCover-Upload] Destino:", fileName);
-
       const storageRef = ref(storage, fileName);
       
       const uploadTask = uploadBytesResumable(storageRef, file, {
@@ -111,24 +120,18 @@ export default function AdminCityPagesManager() {
           setUploadProgress(progress);
         },
         (error) => { 
-          console.error("[CityCover-Upload] ERRO 403/Forbidden:", error);
-          toast({ 
-            variant: "destructive", 
-            title: "Erro de Permissão", 
-            description: "O servidor recusou o upload. Verifique as regras de segurança." 
-          }); 
+          console.error("[CityCover-Upload] Error:", error);
+          toast({ variant: "destructive", title: "Erro no upload", description: "Verifique suas permissões." }); 
           setUploadProgress(null); 
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          console.log("[CityCover-Upload] SUCESSO:", downloadURL);
           setEditingCity((prev: any) => ({ ...prev, coverImage: downloadURL }));
           setUploadProgress(null);
           toast({ title: "Imagem carregada com sucesso!" });
         }
       );
     } catch (err: any) { 
-      console.error("[CityCover-Upload] Erro Crítico:", err);
       setUploadProgress(null); 
       toast({ variant: "destructive", title: "Falha técnica", description: err.message });
     }
@@ -192,14 +195,20 @@ export default function AdminCityPagesManager() {
           </h1>
           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Identidade Visual para Landing Pages Regionais</p>
         </div>
+        <div className="flex items-center gap-3">
+           <Button variant="outline" onClick={handleSyncCidades} disabled={isSyncing} className="rounded-xl h-11 border-dashed gap-2 font-black uppercase text-[10px] border-secondary text-secondary">
+              {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Sincronizar Cidades
+           </Button>
+        </div>
       </div>
 
       <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-start gap-4">
          <Sparkles className="w-6 h-6 text-secondary shrink-0 mt-1" />
          <div className="space-y-1">
-            <h4 className="font-black uppercase text-xs italic text-primary">Inteligência de Divulgação Regional</h4>
+            <h4 className="font-black uppercase text-xs italic text-primary">Gestão Regional</h4>
             <p className="text-[10px] text-muted-foreground font-bold uppercase leading-relaxed">
-               As capas representam o ecossistema cultural de toda a região. Adicionamos desambiguação por Estado e Seed aleatório para garantir imagens únicas.
+               As capas são geradas automaticamente para cada cidade que possui eventos ativos. Clique em sincronizar para mapear novas cidades cadastradas recentemente.
             </p>
          </div>
       </div>
@@ -283,7 +292,6 @@ export default function AdminCityPagesManager() {
         )}
       </div>
 
-      {/* DIALOG DE EDIÇÃO MANUAL */}
       <Dialog open={!!editingCity} onOpenChange={(v) => !v && setEditingCity(null)}>
          <DialogContent className="max-w-md rounded-[2.5rem] max-h-[90vh] overflow-y-auto">
             <form onSubmit={handleSaveManual} className="space-y-6">
