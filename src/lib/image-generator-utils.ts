@@ -73,17 +73,35 @@ export function formatTemplateTime(dateValue: any, endDateValue?: any): string {
 }
 
 /**
- * Gatilho de download para arquivos PNG/Blob
+ * Gatilho de download robusto para mobile via Blob/ObjectUrl.
+ * Resolve falhas de download silencioso em strings DataURL longas.
  */
-export function triggerVisualProofDownload(dataUrl: string, fileName: string) {
+export async function triggerVisualProofDownload(dataUrl: string, fileName: string) {
   if (!dataUrl) return;
-  const link = document.createElement('a');
-  link.download = fileName;
-  link.href = dataUrl;
-  link.rel = "noopener";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  
+  try {
+    // Converte Data URL para Blob para evitar limites de URL no mobile
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.style.display = 'none';
+    link.href = url;
+    link.download = fileName;
+    link.rel = "noopener";
+    
+    document.body.appendChild(link);
+    link.click();
+    
+    // Pequeno atraso para garantir o trigger antes da remoção
+    setTimeout(() => {
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    }, 200);
+  } catch (e) {
+    console.error("[Download Utility Error]", e);
+  }
 }
 
 /**
@@ -92,13 +110,9 @@ export function triggerVisualProofDownload(dataUrl: string, fileName: string) {
 export async function auditAndPrepareImages(container: HTMLElement) {
   const images = Array.from(container.querySelectorAll('img'));
   
-  // MOSTRAR: Quantidade de tags IMG no DOM
   console.log(`[Visual Proof] Tags IMG detectadas no DOM: ${images.length}`);
 
   const results = await Promise.all(images.map(async (img, idx) => {
-    // MOSTRAR: SRC Real de cada IMG antes da conversão
-    console.log(`[Visual Proof] IMG [${idx}] SRC ORIGINAL: ${img.src.substring(0, 80)}...`);
-
     try {
       if (img.src.startsWith('data:')) {
         return true;
@@ -114,8 +128,7 @@ export async function auditAndPrepareImages(container: HTMLElement) {
       });
 
       img.src = dataUrl;
-      // MOSTRAR: Confirmação de substituição
-      console.log(`[Visual Proof] IMG [${idx}] SUBSTITUÍDA POR BASE64 (Size: ${dataUrl.length})`);
+      console.log(`[Visual Proof] IMG [${idx}] CONVERTIDA PARA BASE64`);
       return true;
     } catch (err) {
       console.warn(`[Visual Proof] Falha na conversão da Imagem ${idx}:`, err);

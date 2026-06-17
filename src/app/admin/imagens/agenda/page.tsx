@@ -218,23 +218,21 @@ export default function AgendaGeneratorPage() {
         const pageEvents = eventPages[i];
         setCapturingPage({ events: pageEvents, idx: i + 1 });
         
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(r => setTimeout(r, 1000));
 
         const node = hiddenRenderRef.current?.querySelector('.viby-template-root') as HTMLElement;
         if (!node) throw new Error("Falha ao localizar nó de renderização.");
 
-        // PROVA VISUAL 1: Antes de qualquer processamento
         if (isMobile) {
           const beforeData = await toPng(node, { pixelRatio: 1, width: dimensions.width, height: dimensions.height });
-          triggerVisualProofDownload(beforeData, `before-export-p${i+1}.png`);
+          await triggerVisualProofDownload(beforeData, `before-export-p${i+1}.png`);
         }
 
         await auditAndPrepareImages(node);
 
-        // PROVA VISUAL 2: Após conversão para Base64
         if (isMobile) {
           const afterData = await toPng(node, { pixelRatio: 1, width: dimensions.width, height: dimensions.height });
-          triggerVisualProofDownload(afterData, `after-base64-p${i+1}.png`);
+          await triggerVisualProofDownload(afterData, `after-base64-p${i+1}.png`);
         }
 
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -249,13 +247,13 @@ export default function AgendaGeneratorPage() {
         });
 
         if (action === 'download') {
-           triggerVisualProofDownload(dataUrl, `final-export-p${i+1}.png`);
+           await triggerVisualProofDownload(dataUrl, `final-export-p${i+1}.png`);
         } else {
            base64Images.push(dataUrl);
         }
 
         setCapturingPage(null);
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 600));
       }
 
       if (action === 'email') {

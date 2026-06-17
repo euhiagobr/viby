@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { 
   Search, 
   Loader2, 
@@ -23,7 +24,8 @@ import {
   Camera,
   Send,
   CheckCircle2,
-  Monitor
+  Monitor,
+  ImageIcon
 } from 'lucide-react';
 import { 
   Select, 
@@ -146,23 +148,21 @@ export default function CarouselGeneratorPage() {
         const ev = selectedEvents[i];
         setCapturingSlide({ event: ev, idx: i + 1 });
         
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(r => setTimeout(r, 1000));
 
         const node = hiddenRenderRef.current?.querySelector('.viby-carousel-slide') as HTMLElement;
         if (!node) throw new Error("Falha no motor de renderização.");
 
-        // PROVA VISUAL 1: Antes de Base64
         if (isMobile) {
           const beforeData = await toPng(node, { pixelRatio: 1, width: config.width, height: config.height });
-          triggerVisualProofDownload(beforeData, `before-export-carrossel-s${i+1}.png`);
+          await triggerVisualProofDownload(beforeData, `before-export-carrossel-s${i+1}.png`);
         }
 
         await auditAndPrepareImages(node);
 
-        // PROVA VISUAL 2: Após Base64
         if (isMobile) {
           const afterData = await toPng(node, { pixelRatio: 1, width: config.width, height: config.height });
-          triggerVisualProofDownload(afterData, `after-base64-carrossel-s${i+1}.png`);
+          await triggerVisualProofDownload(afterData, `after-base64-carrossel-s${i+1}.png`);
         }
 
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -175,13 +175,13 @@ export default function CarouselGeneratorPage() {
         });
 
         if (action === 'download') {
-           triggerVisualProofDownload(dataUrl, `final-export-carrossel-s${i+1}.png`);
+           await triggerVisualProofDownload(dataUrl, `final-export-carrossel-s${i+1}.png`);
         } else {
            base64Images.push(dataUrl);
         }
 
         setCapturingSlide(null);
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 600));
       }
 
       if (action === 'email') {
@@ -261,7 +261,7 @@ export default function CarouselGeneratorPage() {
               <div className="p-2 bg-muted/20 rounded-2xl border border-dashed animate-in slide-in-from-top-2">
                  {searchResults.map(ev => (
                    <button key={ev.id} onClick={() => addEvent(ev)} className="w-full flex items-center gap-3 p-3 hover:bg-white rounded-xl text-left transition-all">
-                      <img src={ev.image} className="h-10 w-10 rounded-lg object-cover" />
+                      <img src={ev.image} className="h-10 w-10 rounded-lg object-cover" alt="" />
                       <div className="flex-1 min-w-0"><p className="text-xs font-bold truncate uppercase">{ev.title}</p></div>
                       <Plus className="w-4 h-4 text-secondary" />
                    </button>
@@ -275,7 +275,7 @@ export default function CarouselGeneratorPage() {
                 {selectedEvents.map((ev, i) => (
                   <div key={ev.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50 group animate-in slide-in-from-left-2">
                     <div className="opacity-20"><GripVertical className="w-4 h-4" /></div>
-                    <img src={ev.image} className="h-8 w-8 rounded-lg object-cover" />
+                    <img src={ev.image} className="h-8 w-8 rounded-lg object-cover" alt="" />
                     <span className="flex-1 text-xs font-bold uppercase truncate">{ev.title}</span>
                     <button onClick={() => removeEvent(ev.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded-lg"><X className="w-3.5 h-3.5" /></button>
                   </div>
@@ -349,7 +349,6 @@ export default function CarouselGeneratorPage() {
                      <p className="text-sm font-black uppercase italic">Adicione eventos para iniciar o carrossel</p>
                   </div>
                 ) : isMobile ? (
-                  /* PREVIEW SIMPLIFICADO PARA MOBILE */
                   <div className="w-full max-w-sm space-y-4 animate-in fade-in">
                     <Card className="border-none shadow-sm rounded-3xl bg-white p-8 text-center space-y-4">
                        <div className="p-4 bg-secondary/10 rounded-2xl w-fit mx-auto text-secondary"><Monitor className="w-8 h-8" /></div>
@@ -366,7 +365,6 @@ export default function CarouselGeneratorPage() {
                     ))}
                   </div>
                 ) : (
-                  /* PREVIEW COMPLETO PARA DESKTOP */
                   selectedEvents.map((ev, idx) => (
                     <div key={ev.id} className="relative group/preview flex flex-col items-center gap-4">
                       <Badge className="bg-white/90 text-primary border-none shadow-md px-4 py-1.5 font-black uppercase text-[10px]">Slide {idx + 1}</Badge>

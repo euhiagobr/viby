@@ -96,7 +96,7 @@ export default function ImagensDashboard() {
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
           <CardContent className="p-0">
              {loading ? (
-               <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
+               <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary w-10 h-10" /></div>
              ) : logs && logs.length > 0 ? (
                <div className="divide-y">
                  {logs.map((log: any) => (

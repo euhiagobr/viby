@@ -137,7 +137,7 @@ export default function AdminSolicitacoesPropriedade() {
                 <TableCell className="text-center">
                   <Badge className={cn(
                     "text-[8px] font-black uppercase h-5",
-                    req.status === 'aprovado' ? "bg-green-600" : req.status === 'rejeitado' ? "bg-red-500" : "bg-orange-50"
+                    req.status === 'aprovado' ? "bg-green-600 text-white" : req.status === 'rejeitado' ? "bg-red-500 text-white" : "bg-orange-50 text-orange-600 border-orange-200"
                   )}>{req.status}</Badge>
                 </TableCell>
                 <TableCell className="p-6 text-right">

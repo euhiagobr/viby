@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { 
   Search, 
   Loader2, 
@@ -127,7 +128,7 @@ export default function StoriesGeneratorPage() {
     if (!hiddenRenderRef.current || !selectedEvent) return null;
     
     setIsMobileCapturing(true);
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 1000));
 
     // @ts-ignore
     if (document.fonts) await document.fonts.ready;
@@ -135,18 +136,16 @@ export default function StoriesGeneratorPage() {
     const node = hiddenRenderRef.current.querySelector('.viby-export-page') as HTMLElement;
     if (!node) return null;
 
-    // PROVA VISUAL 1: Antes de Base64
     if (isMobile) {
       const beforeData = await toPng(node, { pixelRatio: 1, width: 1080, height: 1920 });
-      triggerVisualProofDownload(beforeData, 'before-export-story.png');
+      await triggerVisualProofDownload(beforeData, 'before-export-story.png');
     }
 
     await auditAndPrepareImages(node);
 
-    // PROVA VISUAL 2: Após Base64
     if (isMobile) {
       const afterData = await toPng(node, { pixelRatio: 1, width: 1080, height: 1920 });
-      triggerVisualProofDownload(afterData, 'after-base64-story.png');
+      await triggerVisualProofDownload(afterData, 'after-base64-story.png');
     }
 
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -172,7 +171,7 @@ export default function StoriesGeneratorPage() {
       const dataUrl = await captureSingleAsBase64();
       if (!dataUrl) throw new Error("Falha ao gerar PNG.");
 
-      triggerVisualProofDownload(dataUrl, `final-export-story-${selectedEvent.id}.png`);
+      await triggerVisualProofDownload(dataUrl, `final-export-story-${selectedEvent.id}.png`);
       toast({ title: "Story gerado com sucesso!" });
     } catch (err) {
       toast({ variant: "destructive", title: "Erro na exportação" });
