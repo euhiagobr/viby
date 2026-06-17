@@ -22,7 +22,6 @@ export async function getOrTriggerCityCover(params: {
   try {
     const snap = await cityPageRef.get();
     
-    // Se não existir o registro, cria o metadado básico agora para aparecer no admin
     if (!snap.exists) {
       await cityPageRef.set({
         slug: params.slug,
@@ -55,7 +54,6 @@ export async function generateAndPersistCityCover(params: {
   const cityPageRef = db.collection('cityPages').doc(params.slug);
 
   try {
-    // 1. Garantir que o registro base existe para visibilidade no Admin
     await cityPageRef.set({
       slug: params.slug,
       city: params.city,
@@ -66,7 +64,6 @@ export async function generateAndPersistCityCover(params: {
 
     console.log(`[City Engine] Iniciando geração IA para: ${params.city}...`);
 
-    // 2. Gerar via OpenAI
     const imageUrl = await gerarCapaCidade({
       city: params.city,
       state: params.state,
@@ -74,14 +71,17 @@ export async function generateAndPersistCityCover(params: {
       topCategories: params.categories || []
     });
 
-    // 3. Baixar imagem e subir para Storage
+    console.log(`[City Engine] Baixando imagem da URL temporária...`);
     const response = await fetch(imageUrl);
+    if (!response.ok) throw new Error(`Falha ao baixar imagem da OpenAI: ${response.statusText}`);
+    
     const buffer = Buffer.from(await response.arrayBuffer());
     
     const bucket = admin.storage().bucket();
     const filePath = `city-covers/${params.slug}.png`;
     const file = bucket.file(filePath);
 
+    console.log(`[City Engine] Salvando no Storage: ${filePath}`);
     await file.save(buffer, {
       metadata: {
         contentType: 'image/png',
@@ -92,17 +92,16 @@ export async function generateAndPersistCityCover(params: {
     await file.makePublic();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
-    // 4. Atualizar o documento com a URL final
     await cityPageRef.update({
       coverImage: publicUrl,
       coverGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    console.log(`[City Engine] Capa persistida para ${params.city}: ${publicUrl}`);
+    console.log(`[City Engine] Processo concluído para ${params.city}: ${publicUrl}`);
     return publicUrl;
   } catch (error: any) {
-    console.error(`[City Engine Failure] ${params.slug}:`, error.message);
+    console.error(`[City Engine FATAL FAILURE] ${params.slug}:`, error);
     
     await logSystemError({
       error,
@@ -111,6 +110,6 @@ export async function generateAndPersistCityCover(params: {
       metadata: { city: params.city, slug: params.slug }
     });
 
-    return null;
+    throw error; // Re-throw para capturar na UI
   }
 }

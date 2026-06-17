@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -55,6 +54,7 @@ export default function AdminCityPagesManager() {
 
   const handleForceGenerate = async (city: any) => {
     setIsGenerating(city.id);
+    console.log(`[Admin UI] Iniciando solicitação de geração para: ${city.city}`);
     try {
       // Busca eventos para pegar as categorias populares daquela cidade
       const eventsSnap = await getDocs(query(
@@ -76,7 +76,12 @@ export default function AdminCityPagesManager() {
         toast({ title: "Capa da cidade gerada com sucesso!" });
       } else throw new Error("A IA não retornou uma imagem válida.");
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Falha na Geração IA", description: e.message });
+      console.error("[Admin UI] Erro detalhado na geração:", e);
+      toast({ 
+        variant: "destructive", 
+        title: "Falha na Geração IA", 
+        description: e.message || "Erro desconhecido. Verifique o console do servidor." 
+      });
     } finally {
       setIsGenerating(null);
     }

@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Fluxo Genkit para geração de imagem de capa de cidades.
@@ -63,8 +62,8 @@ const gerarCapaCidadeFlow = ai.defineFlow(
     - Não adicionar elementos políticos
     - Não adicionar conteúdo ofensivo`;
 
-    // Utilizando a API da OpenAI diretamente via fetch para garantir compatibilidade com DALL-E 3
-    // reusando a chave configurada no Genkit.
+    console.log(`[AI Flow] Enviando prompt para DALL-E 3 (${input.city})...`);
+
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: {
@@ -75,7 +74,7 @@ const gerarCapaCidadeFlow = ai.defineFlow(
         model: "dall-e-3",
         prompt: prompt,
         n: 1,
-        size: "1792x1024", // Formato aproximado 16:9
+        size: "1792x1024",
         quality: "hd",
         style: "vivid"
       })
@@ -83,10 +82,19 @@ const gerarCapaCidadeFlow = ai.defineFlow(
 
     if (!response.ok) {
       const err = await response.json();
+      console.error("[AI Flow CRITICAL ERROR]", JSON.stringify(err, null, 2));
       throw new Error(`OpenAI Image Error: ${err.error?.message || response.statusText}`);
     }
 
     const data = await response.json();
-    return data.data[0].url;
+    const url = data.data[0]?.url;
+
+    if (!url) {
+      console.error("[AI Flow ERROR] OpenAI retornou 200 mas sem URL de imagem.");
+      throw new Error("A OpenAI não retornou uma URL válida.");
+    }
+
+    console.log(`[AI Flow SUCCESS] URL gerada para ${input.city}`);
+    return url;
   }
 );
