@@ -2,7 +2,7 @@
 /**
  * @fileOverview Fluxo Genkit para geração de imagem de capa de cidades.
  * 
- * - gerarCapaCidade - Gera uma imagem premium da cidade via OpenAI DALL-E 3.
+ * - gerarCapaCidade - Gera uma imagem premium da cidade via OpenAI gpt-image-1.
  */
 
 import { ai, z } from '@/ai/genkit';
@@ -77,7 +77,7 @@ const gerarCapaCidadeFlow = ai.defineFlow(
         project: process.env.OPENAI_PROJECT_ID,
       });
 
-      const model = "dall-e-3";
+      const model = "gpt-image-1";
 
       // LOGS DE AUDITORIA OPENAI
       console.log('[OPENAI] MODELO CONFIGURADO:', model);
@@ -89,7 +89,6 @@ const gerarCapaCidadeFlow = ai.defineFlow(
       const response = await openai.images.generate({
         model: model,
         prompt: promptText,
-        n: 1,
         size: "1792x1024",
       });
 
