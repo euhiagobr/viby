@@ -4,7 +4,6 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import CityPageClient from './CityPageClient';
 import { notFound } from 'next/navigation';
 import { parseRegionParam } from '@/lib/city-utils';
-import { getVersionedImageUrl } from '@/lib/image-utils';
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
@@ -12,6 +11,8 @@ function serializeData(data: any): any {
   if (data instanceof Date) return data.toISOString();
   if (Array.isArray(data)) return data.map(item => serializeData(item));
   if (typeof data === 'object') {
+    const proto = Object.getPrototypeOf(data);
+    if (proto !== null && proto !== Object.prototype) return String(data);
     const serialized: any = {};
     for (const key in data) {
       if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -41,7 +42,6 @@ async function getCityData(regionParam: string, citySlug: string) {
       .get();
 
     if (snap.empty) {
-      // Tenta achar pelo menos o nome real da cidade em eventos passados para não dar 404 se a página existe no histórico
       const fallbackSnap = await db.collection('events')
         .where('regionSlug', '==', regionParam.toLowerCase())
         .where('citySlug', '==', citySlug.toLowerCase())
@@ -69,7 +69,6 @@ async function getCityData(regionParam: string, citySlug: string) {
       country: example.country || "Brasil"
     });
   } catch (e) {
-    console.error(e);
     return null;
   }
 }
