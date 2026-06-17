@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -139,19 +138,21 @@ export default function CityPageClient({ initialEvents, cityName, regionLabel, r
 
   return (
     <div className="space-y-0">
-      {/* HERO / CAPA GERADA POR IA */}
-      <header className="relative min-h-[60vh] flex flex-col justify-end bg-black text-white overflow-hidden">
+      {/* HERO / CAPA REAL DA CIDADE */}
+      <header className="relative min-h-[60vh] flex flex-col justify-end bg-black text-white overflow-hidden w-full">
         {coverImage && (
           <Image 
             src={coverImage} 
             alt={`O que fazer em ${cityName}`} 
             fill 
-            className="object-cover opacity-60 scale-105"
+            className="object-cover opacity-70"
+            sizes="100vw"
             priority
             unoptimized
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+        {/* Camada de Gradiente para legibilidade do conteúdo */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-black/20 to-transparent" />
         
         <div className="container mx-auto px-4 py-20 relative z-10 space-y-6 text-center md:text-left">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
