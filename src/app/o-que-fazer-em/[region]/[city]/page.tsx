@@ -7,8 +7,11 @@ import { slugifyLocation } from '@/lib/city-utils';
 
 /**
  * @fileOverview Rota dinâmica para páginas de cidades.
- * Implementa fallback para dados legados que ainda não possuem índices de slug.
+ * Força a execução dinâmica para garantir que as atualizações de manutenção reflitam imediatamente.
  */
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
@@ -33,8 +36,8 @@ async function getCityData(regionParam: string, citySlug: string) {
   try {
     const db = getAdminDb();
     const now = new Date();
-    const normalizedRegion = regionParam.toLowerCase();
-    const normalizedCity = citySlug.toLowerCase();
+    const normalizedRegion = regionParam.toLowerCase().trim();
+    const normalizedCity = citySlug.toLowerCase().trim();
 
     // 1. Tentar consulta otimizada por índice de slugs (Performática)
     const officialSnap = await db.collection('events')
@@ -49,7 +52,7 @@ async function getCityData(regionParam: string, citySlug: string) {
       events = officialSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } else {
       // 2. FALLBACK RESILIENTE: Buscar todos os ativos e filtrar em memória
-      // Essencial para eventos criados antes da implementação dos slugs de busca.
+      // Essencial enquanto o cache de busca do Next.js ou do Firestore não propaga o backfill.
       const allActiveSnap = await db.collection('events')
         .where('status', '==', 'Ativo')
         .get();
@@ -59,7 +62,7 @@ async function getCityData(regionParam: string, citySlug: string) {
         .filter((e: any) => {
           const eCity = e.city || e.address?.city || "";
           const eState = e.state || e.address?.stateRegion || "";
-          const eCountryCode = (e.countryCode || e.address?.countryCode || "BR").toLowerCase();
+          const eCountryCode = (e.countryCode || e.address?.countryCode || "br").toLowerCase();
           
           if (!eCity || !eState) return false;
 
@@ -73,14 +76,18 @@ async function getCityData(regionParam: string, citySlug: string) {
 
     if (events.length === 0) return null;
 
-    // Filtro temporal: Exibe eventos futuros ou que iniciaram há menos de 6 horas
+    // Filtro temporal: Exibe eventos que ainda não terminaram (Tolerância de 6h)
     const futureEvents = events.filter((e: any) => {
-      const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      const dateVal = e.date || e.startDate;
+      const d = dateVal?.toDate ? dateVal.toDate() : new Date(dateVal);
+      if (isNaN(d.getTime())) return false;
       const visibilityThreshold = new Date(d.getTime() + 6 * 60 * 60 * 1000);
       return visibilityThreshold >= now;
     }).sort((a: any, b: any) => {
-      const dA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
-      const dB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
+      const dateA = a.date || a.startDate;
+      const dateB = b.date || b.startDate;
+      const dA = dateA?.toDate ? dateA.toDate() : new Date(dateA);
+      const dB = dateB?.toDate ? dateB.toDate() : new Date(dateB);
       return dA.getTime() - dB.getTime();
     });
 
@@ -118,6 +125,7 @@ export async function generateMetadata({ params }: { params: Promise<{ region: s
       description,
       url,
       siteName: 'Viby',
+      images: [{ url: 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417', width: 1200, height: 630 }],
       type: 'website',
       locale: 'pt_BR',
     },
