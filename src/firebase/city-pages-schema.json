@@ -1,12 +1,14 @@
+
 {
-  "collection": "events",
-  "description": "Campos para suporte a páginas de cidades e SEO local.",
+  "collection": "cityPages",
+  "description": "Armazenamento de capas geradas por IA e metadados para páginas de destino de cidades.",
   "fields": {
-    "citySlug": "string (ex: porto-alegre)",
-    "stateSlug": "string (ex: rs)",
-    "countrySlug": "string (ex: br)",
-    "regionSlug": "string (ex: br-rs)",
-    "city": "string",
-    "state": "string"
+    "slug": "string (ID do documento: br-rs-porto-alegre)",
+    "country": "string (ex: Brasil)",
+    "state": "string (ex: RS)",
+    "city": "string (ex: Porto Alegre)",
+    "coverImage": "string (URL do Firebase Storage)",
+    "coverGeneratedAt": "timestamp",
+    "updatedAt": "timestamp"
   }
 }

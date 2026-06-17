@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -6,6 +7,7 @@ import { slugify } from '@/lib/slug-utils';
 import { normalizeEventDates } from '@/lib/utils';
 import { slugifyLocation, buildRegionParam } from '@/lib/city-utils';
 import { revalidatePath } from 'next/cache';
+import { generateAndPersistCityCover } from './city-pages';
 
 /**
  * Server Actions para gestão de eventos Viby.
@@ -45,6 +47,43 @@ async function generateUniqueSlug(db: admin.firestore.Firestore, title: string, 
     slug = `${baseSlug}-${counter}`;
     counter++;
     if (counter > 20) return `${baseSlug}-${Math.random().toString(36).substring(2, 7)}`;
+  }
+}
+
+async function triggerCityCoverGeneration(eventData: any) {
+  const city = eventData.address?.city || eventData.city;
+  const state = eventData.address?.stateRegion || eventData.state;
+  const country = eventData.address?.country || eventData.country || "Brasil";
+  const countryCode = (eventData.address?.countryCode || eventData.countryCode || "br").toLowerCase();
+
+  if (!city || !state) return;
+
+  const citySlug = slugifyLocation(city);
+  const stateSlug = slugifyLocation(state);
+  const regionSlug = `${countryCode}-${stateSlug}`;
+  const cityPageId = `${regionSlug}-${citySlug}`;
+
+  const db = getAdminDb();
+  const cityPageSnap = await db.collection('cityPages').doc(cityPageId).get();
+
+  if (!cityPageSnap.exists || !cityPageSnap.data()?.coverImage) {
+    // Busca categorias populares da cidade para o prompt
+    const recentEvents = await db.collection('events')
+      .where('status', '==', 'Ativo')
+      .where('citySlug', '==', citySlug)
+      .limit(5)
+      .get();
+    
+    const categories = Array.from(new Set(recentEvents.docs.map(d => d.data().categoryName).filter(Boolean)));
+
+    // Gera em background
+    generateAndPersistCityCover({
+      slug: cityPageId,
+      city,
+      state,
+      country,
+      categories: categories as string[]
+    }).catch(err => console.error("[Background City Cover Error]", err));
   }
 }
 
@@ -103,6 +142,9 @@ export async function createEventAction(params: {
 
     await eventRef.set(finalData);
     
+    // Gatilho para capa da cidade
+    triggerCityCoverGeneration(finalData);
+
     revalidatePath('/');
     revalidatePath(`/o-que-fazer-em/${regionSlug}/${citySlug}`);
     
@@ -162,6 +204,9 @@ export async function updateEventAction(params: {
 
     await eventRef.update(updatePayload);
     
+    // Gatilho para capa da cidade
+    triggerCityCoverGeneration(updatePayload);
+
     revalidatePath('/');
     revalidatePath(`/o-que-fazer-em/${regionSlug}/${citySlug}`);
     if (oldRegionSlug !== regionSlug || oldCitySlug !== citySlug) {

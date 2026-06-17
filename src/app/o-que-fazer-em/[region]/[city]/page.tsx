@@ -1,17 +1,16 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 import CityPageClient from './CityPageClient';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { slugifyLocation } from '@/lib/city-utils';
-
-/**
- * @fileOverview Rota dinâmica para páginas de cidades.
- * Unifica busca por índice e fallback textual para compatibilidade legado.
- */
+import { generateAndPersistCityCover } from '@/app/actions/city-pages';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const DEFAULT_CITY_COVER = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
@@ -37,9 +36,14 @@ async function getCityData(regionParam: string, citySlugParam: string) {
   const now = new Date();
   const normalizedRegion = regionParam.toLowerCase().trim();
   const normalizedCity = citySlugParam.toLowerCase().trim();
+  const citySlugId = `${normalizedRegion}-${normalizedCity}`;
 
   try {
-    // 1. Tentar consulta por índice (Otimizada para novos registros)
+    // 1. Buscar metadados da página (incluindo capa)
+    const cityPageSnap = await db.collection('cityPages').doc(citySlugId).get();
+    let cityMeta = cityPageSnap.exists ? cityPageSnap.data() : null;
+
+    // 2. Buscar eventos
     const officialSnap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .where('regionSlug', '==', normalizedRegion)
@@ -50,7 +54,6 @@ async function getCityData(regionParam: string, citySlugParam: string) {
     if (!officialSnap.empty) {
       events = officialSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } else {
-      // 2. FALLBACK: Filtro manual para registros legados ou não sincronizados
       const allActiveSnap = await db.collection('events')
         .where('status', '==', 'Ativo')
         .get();
@@ -61,29 +64,18 @@ async function getCityData(regionParam: string, citySlugParam: string) {
           const eCity = e.city || e.address?.city || "";
           const eState = e.state || e.address?.stateRegion || "";
           const eCountryCode = (e.countryCode || e.address?.countryCode || "br").toLowerCase();
-          
           const targetCitySlug = slugifyLocation(eCity);
           const targetStateSlug = slugifyLocation(eState);
           const targetRegionSlug = `${eCountryCode}-${targetStateSlug}`;
-
           return targetCitySlug === normalizedCity && 
                  (targetRegionSlug === normalizedRegion || eState.toLowerCase() === normalizedRegion.split('-')[1]);
         });
     }
 
-    if (events.length === 0) return null;
-
-    // 3. Filtro Temporal (Eventos Futuros + 6h de tolerância)
     const futureEvents = events.filter((e: any) => {
       const dateVal = e.date || e.startDate;
       if (!dateVal) return false;
-
-      let d: Date;
-      if (dateVal.toDate) d = dateVal.toDate();
-      else d = new Date(dateVal);
-
-      if (isNaN(d.getTime())) return false;
-
+      let d: Date = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
       const visibilityThreshold = new Date(d.getTime() + 6 * 60 * 60 * 1000);
       return visibilityThreshold >= now;
     }).sort((a: any, b: any) => {
@@ -95,14 +87,31 @@ async function getCityData(regionParam: string, citySlugParam: string) {
     if (futureEvents.length === 0) return null;
 
     const referenceEvent = futureEvents[0];
+    const cityName = referenceEvent.city || referenceEvent.address?.city || "Cidade";
+    const state = referenceEvent.state || referenceEvent.address?.stateRegion || "UF";
+    const country = referenceEvent.country || referenceEvent.address?.country || "Brasil";
+
+    // 3. Gatilho de Geração de Capa (Background se faltar)
+    if (!cityMeta?.coverImage) {
+      const categories = Array.from(new Set(futureEvents.map((e: any) => e.categoryName).filter(Boolean)));
+      // Dispara em background
+      generateAndPersistCityCover({
+        slug: citySlugId,
+        city: cityName,
+        state: state,
+        country: country,
+        categories: categories as string[]
+      }).catch(() => {});
+    }
+
     return serializeData({
       events: futureEvents,
-      cityName: referenceEvent.city || referenceEvent.address?.city || "Cidade",
-      state: referenceEvent.state || referenceEvent.address?.stateRegion || "UF",
-      country: referenceEvent.country || referenceEvent.address?.country || "Brasil"
+      cityName,
+      state,
+      country,
+      coverImage: cityMeta?.coverImage || DEFAULT_CITY_COVER
     });
   } catch (e: any) {
-    console.error("[CITY_DATA_ERROR]", e.message);
     return null;
   }
 }
@@ -113,8 +122,9 @@ export async function generateMetadata({ params }: { params: Promise<{ region: s
   
   if (!data) return { title: 'Eventos não encontrados | Viby', robots: { index: false } };
 
-  const title = `O que fazer em ${data.cityName} - Eventos, Shows e Festas | Viby`;
-  const description = `Confira os próximos eventos em ${data.cityName}. Shows, festas, feiras, experiências e muito mais na Viby.`;
+  const title = `O que fazer em ${data.cityName} - Eventos, Shows, Festas e Programação | Viby`;
+  const description = `Confira os próximos eventos em ${data.cityName}. Shows, festas, feiras, experiências, cultura, gastronomia e muito mais na Viby.`;
+  const image = data.coverImage || DEFAULT_CITY_COVER;
 
   return {
     title,
@@ -125,9 +135,15 @@ export async function generateMetadata({ params }: { params: Promise<{ region: s
       description,
       url: `https://viby.club/o-que-fazer-em/${region}/${city}`,
       siteName: 'Viby',
-      images: [{ url: 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417', width: 1200, height: 630 }],
+      images: [{ url: image, width: 1200, height: 630, alt: `O que fazer em ${data.cityName}` }],
       type: 'website',
       locale: 'pt_BR',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [image],
     },
     robots: { index: true, follow: true }
   };
@@ -142,12 +158,15 @@ export default async function CityDynamicPage({ params }: { params: Promise<{ re
   const regionLabel = `${data.country} - ${data.state}`;
 
   return (
-    <CityPageClient 
-      initialEvents={data.events} 
-      cityName={data.cityName}
-      citySlug={city}
-      regionSlug={region}
-      regionLabel={regionLabel}
-    />
+    <>
+      <CityPageClient 
+        initialEvents={data.events} 
+        cityName={data.cityName}
+        citySlug={city}
+        regionSlug={region}
+        regionLabel={regionLabel}
+        coverImage={data.coverImage}
+      />
+    </>
   );
 }

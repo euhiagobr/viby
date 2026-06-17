@@ -17,7 +17,8 @@ import {
   Search, 
   FilterX, 
   Clock,
-  Navigation
+  Navigation,
+  Sparkles
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import Link from "next/link";
+import Image from "next/image";
 import { cn, normalizeText, safeParseDate } from "@/lib/utils";
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils";
 import { isEventVisible, calculateDistanceMeters } from "@/lib/event-scoring-utils";
@@ -39,20 +41,19 @@ interface CityPageClientProps {
   regionLabel: string;
   regionSlug: string;
   citySlug: string;
+  coverImage?: string;
 }
 
-export default function CityPageClient({ initialEvents, cityName, regionLabel, regionSlug, citySlug }: CityPageClientProps) {
+export default function CityPageClient({ initialEvents, cityName, regionLabel, regionSlug, citySlug, coverImage }: CityPageClientProps) {
   const db = useFirestore();
   const [mounted, setMounted] = React.useState(false);
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null);
   
-  // Estados de Filtro
   const [search, setSearch] = React.useState("");
   const [searchLocal, setSearchLocal] = React.useState("");
   const [dateFilter, setDateFilter] = React.useState<"all" | "today" | "tomorrow" | "week" | "custom">("all");
   const [customDate, setCustomDate] = React.useState<Date | undefined>(undefined);
 
-  // Estados de Paginação
   const [rawEvents, setRawEvents] = React.useState(initialEvents);
   const [lastVisible, setLastVisible] = React.useState<DocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = React.useState(initialEvents.length >= 12);
@@ -98,19 +99,15 @@ export default function CityPageClient({ initialEvents, cityName, regionLabel, r
     const localNorm = normalizeText(searchLocal);
 
     return rawEvents.filter(e => {
-      // 1. Visibilidade Básica
       if (!isEventVisible(e)) return false;
 
-      // 2. Filtro de Nome/Tags
       const matchesSearch = !search || 
         normalizeText(e.title || "").includes(searchNorm) ||
         (e.tags && e.tags.some(t => normalizeText(t).includes(searchNorm)));
 
-      // 3. Filtro de Local/Bairro
       const eventLocal = normalizeText(`${e.location || ""} ${e.address?.neighborhood || ""} ${e.address?.venueName || ""}`);
       const matchesLocal = !searchLocal || eventLocal.includes(localNorm);
 
-      // 4. Filtro de Data
       let matchesDate = true;
       const eventDate = safeParseDate(e.date);
       
@@ -141,25 +138,49 @@ export default function CityPageClient({ initialEvents, cityName, regionLabel, r
   if (!mounted) return null;
 
   return (
-    <div className="space-y-12">
-      <header className="bg-white border-b py-16 md:py-24 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
-          <Globe className="w-[800px] h-[800px] absolute -right-20 -top-20" />
-        </div>
-        <div className="container mx-auto px-4 text-center relative z-10 space-y-6">
-          <Badge variant="secondary" className="font-black uppercase text-[10px] px-4 h-6 tracking-widest bg-secondary/10 text-secondary border-none">
-            {regionLabel}
-          </Badge>
-          <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.85] text-primary">
-            O que fazer em <span className="text-secondary">{cityName}</span>
-          </h1>
+    <div className="space-y-0">
+      {/* HERO / CAPA GERADA POR IA */}
+      <header className="relative min-h-[60vh] flex flex-col justify-end bg-black text-white overflow-hidden">
+        {coverImage && (
+          <Image 
+            src={coverImage} 
+            alt={`O que fazer em ${cityName}`} 
+            fill 
+            className="object-cover opacity-60 scale-105"
+            priority
+            unoptimized
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+        
+        <div className="container mx-auto px-4 py-20 relative z-10 space-y-6 text-center md:text-left">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+            <div className="space-y-4">
+              <Badge variant="secondary" className="font-black uppercase text-[10px] px-4 h-6 tracking-widest bg-secondary text-white border-none shadow-lg">
+                {regionLabel}
+              </Badge>
+              <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.85] text-white drop-shadow-2xl">
+                O que fazer em <br /><span className="text-secondary">{cityName}</span>
+              </h1>
+              <p className="text-lg md:text-xl font-bold uppercase tracking-wide opacity-90 drop-shadow-md">
+                Encontre os próximos eventos, festas, shows e experiências acontecendo em {cityName}.
+              </p>
+            </div>
+
+            <div className="hidden lg:flex flex-col items-end gap-2 opacity-60">
+               <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                  <Sparkles className="w-4 h-4" /> Viby City Engine
+               </div>
+               <div className="h-px w-32 bg-white/20" />
+            </div>
+          </div>
           
-          <div className="max-w-4xl mx-auto mt-12 bg-white/80 backdrop-blur-xl border border-border/40 rounded-[2.5rem] p-6 shadow-2xl flex flex-wrap gap-3 items-center">
+          <div className="max-w-4xl bg-white/10 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-6 shadow-2xl flex flex-wrap gap-3 items-center mt-10">
              <div className="flex-1 min-w-[240px] relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
                 <Input 
                   placeholder="O que você quer viver?" 
-                  className="pl-10 h-12 rounded-2xl bg-white border-none shadow-inner"
+                  className="pl-10 h-12 rounded-2xl bg-white/5 border-white/10 text-white placeholder:text-white/30"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
@@ -169,7 +190,7 @@ export default function CityPageClient({ initialEvents, cityName, regionLabel, r
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
                 <Input 
                   placeholder="Local ou Bairro" 
-                  className="pl-10 h-12 rounded-2xl bg-white border-none shadow-inner"
+                  className="pl-10 h-12 rounded-2xl bg-white/5 border-white/10 text-white placeholder:text-white/30"
                   value={searchLocal}
                   onChange={e => setSearchLocal(e.target.value)}
                 />
@@ -177,7 +198,7 @@ export default function CityPageClient({ initialEvents, cityName, regionLabel, r
 
              <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("rounded-2xl h-12 border-dashed gap-2 font-black text-[10px] uppercase transition-all px-6", dateFilter !== 'all' && "bg-secondary/10 border-secondary text-secondary")}>
+                  <Button variant="outline" className={cn("rounded-2xl h-12 border-white/10 gap-2 font-black text-[10px] uppercase transition-all px-6 bg-white/5 text-white hover:bg-white/10", dateFilter !== 'all' && "bg-secondary text-white border-secondary")}>
                     <CalendarIcon className="h-4 w-4" />
                     {dateFilter === 'today' ? 'Hoje' :
                      dateFilter === 'tomorrow' ? 'Amanhã' :
@@ -203,7 +224,7 @@ export default function CityPageClient({ initialEvents, cityName, regionLabel, r
              </Popover>
 
              {(search || searchLocal || dateFilter !== 'all') && (
-               <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl text-destructive hover:bg-destructive/10" onClick={clearFilters}>
+               <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl text-white hover:bg-white/10" onClick={clearFilters}>
                  <FilterX className="w-4 h-4" />
                </Button>
              )}
@@ -211,11 +232,11 @@ export default function CityPageClient({ initialEvents, cityName, regionLabel, r
         </div>
       </header>
 
-      <main className="container mx-auto px-4 space-y-20 pb-24">
+      <main className="container mx-auto px-4 space-y-20 pb-24 pt-16">
         <section className="space-y-12">
           <div className="flex flex-col md:flex-row md:items-center justify-between px-2 gap-4">
              <div className="space-y-1">
-                <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Próximas Experiências</h2>
+                <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Agenda em {cityName}</h2>
                 <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest flex items-center gap-2">
                   <Clock className="w-4 h-4 text-secondary" /> Calendário Atualizado: {format(new Date(), "HH:mm")}
                 </p>
@@ -294,4 +315,3 @@ export default function CityPageClient({ initialEvents, cityName, regionLabel, r
     </div>
   );
 }
-

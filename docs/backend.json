@@ -44,6 +44,20 @@
         "footerTemplate": { "type": "string" },
         "version": { "type": "number" }
       }
+    },
+    "CityPage": {
+      "title": "Página de Cidade",
+      "description": "Metadados e mídias de páginas de destino de cidades para SEO.",
+      "type": "object",
+      "properties": {
+        "slug": { "type": "string" },
+        "country": { "type": "string" },
+        "state": { "type": "string" },
+        "city": { "type": "string" },
+        "coverImage": { "type": "string" },
+        "coverGeneratedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -61,6 +75,10 @@
     "/settings/ai_config": {
       "schema": "object",
       "description": "Configurações de modelos e prompts globais."
+    },
+    "/cityPages/{cityId}": {
+      "schema": "CityPage",
+      "description": "Armazenamento de capas e metadados de cidades."
     }
   }
 }
