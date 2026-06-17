@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import * as admin from 'firebase-admin';
+import { getAdminDb, getAdminApp } from '@/lib/firebase/admin';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Aumentar para 60 segundos para permitir geração e upload
 
 export async function POST(req: Request) {
   console.log('[CITY COVER API] START');
@@ -7,7 +12,11 @@ export async function POST(req: Request) {
     const input = await req.json();
     console.log('[CITY COVER API] INPUT', input);
 
-    const { city, state, country, topCategories = [] } = input;
+    const { city, state, country, topCategories = [], slug } = input;
+
+    if (!slug || !city) {
+      throw new Error("Slug e Cidade são obrigatórios.");
+    }
 
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY missing");
@@ -15,8 +24,6 @@ export async function POST(req: Request) {
 
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
-      organization: process.env.OPENAI_ORGANIZATION,
-      project: process.env.OPENAI_PROJECT_ID,
     });
 
     const categoriesText = topCategories.length > 0 
@@ -85,13 +92,45 @@ FORMATO OBRIGATÓRIO
       size: "1536x1024"
     });
 
-    const url = response.data[0]?.url;
-    if (!url) throw new Error("No URL returned from OpenAI");
+    const openaiUrl = response.data[0]?.url;
+    if (!openaiUrl) throw new Error("No URL returned from OpenAI");
 
-    console.log('[CITY COVER API] SUCCESS');
-    return NextResponse.json({ url });
+    console.log('[CITY COVER API] DOWNLOADING IMAGE');
+    const imageFetch = await fetch(openaiUrl);
+    if (!imageFetch.ok) throw new Error("Falha ao baixar imagem da OpenAI");
+    const buffer = Buffer.from(await imageFetch.arrayBuffer());
+
+    console.log('[CITY COVER API] STORAGE UPLOAD');
+    const app = getAdminApp();
+    const bucket = admin.storage(app).bucket();
+    const filePath = `city-covers/${slug}.png`;
+    const file = bucket.file(filePath);
+
+    await file.save(buffer, {
+      metadata: {
+        contentType: 'image/png',
+        cacheControl: 'public, max-age=31536000, immutable'
+      }
+    });
+
+    await file.makePublic();
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+
+    console.log('[CITY COVER API] DB UPDATE');
+    const db = getAdminDb();
+    await db.collection('cityPages').doc(slug).update({
+      coverImage: publicUrl,
+      coverGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    console.log('[CITY COVER API] SUCCESS URL:', publicUrl);
+    return NextResponse.json({ url: publicUrl });
   } catch (error: any) {
     console.error('[CITY COVER API ERROR]', error);
-    return NextResponse.json({ error: true, message: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: true, 
+      message: error.message || "Erro interno na API de geração" 
+    }, { status: 500 });
   }
 }

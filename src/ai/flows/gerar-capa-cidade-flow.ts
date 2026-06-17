@@ -1,18 +1,9 @@
 'use server';
 /**
  * @fileOverview [DEPRECATED] Este fluxo foi substituído pela API Route /api/city-cover
- * para evitar timeouts de execução em Server Actions.
+ * para evitar timeouts de execução em Server Actions e Genkit.
  */
 
-import { z } from '@/ai/genkit';
-
-const GerarCapaCidadeInputSchema = z.object({
-  city: z.string(),
-  state: z.string(),
-  country: z.string(),
-  topCategories: z.array(z.string())
-});
-
-export async function gerarCapaCidade(input: z.infer<typeof GerarCapaCidadeInputSchema>): Promise<string> {
+export async function gerarCapaCidade(): Promise<string> {
   throw new Error("Este fluxo está depreciado. Utilize a API Route /api/city-cover.");
 }

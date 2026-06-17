@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { generateAndPersistCityCover } from '@/app/actions/city-pages';
 import Link from 'next/link';
 
 export default function AdminCityPagesManager() {
@@ -60,19 +59,28 @@ export default function AdminCityPagesManager() {
       ));
       const categories = Array.from(new Set(eventsSnap.docs.map(d => d.data().categoryName).filter(Boolean)));
       
-      console.log('[CITY COVER] ACTION CHAMADA NO CLIENTE');
-      const res = await generateAndPersistCityCover({
-        slug: city.slug,
-        city: city.city,
-        state: city.state,
-        country: city.country,
-        categories: categories as string[]
+      console.log('[CITY COVER] FETCH API ROUTE INICIADO');
+      
+      const response = await fetch('/api/city-cover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: city.slug,
+          city: city.city,
+          state: city.state,
+          country: city.country,
+          topCategories: categories
+        })
       });
 
-      if (!res.success) {
-        throw new Error(res.error);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Erro na resposta da API");
       }
 
+      const result = await response.json();
+      console.log('[CITY COVER] API SUCESSO:', result.url);
+      
       toast({ title: "Capa da cidade gerada!", description: "A imagem foi salva no Storage." });
     } catch (e: any) {
       console.error('[CITY COVER ERROR]', e);
@@ -198,7 +206,7 @@ export default function AdminCityPagesManager() {
             <h4 className="font-black uppercase text-[10px] tracking-widest text-primary italic">Processo de Automação</h4>
             <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
                O sistema cadastra automaticamente uma nova cidade assim que o primeiro evento nela é publicado ou acessado. 
-               A IA gera a imagem apenas se o campo "Capa" estiver vazio.
+               A IA gera a imagem apenas se o campo "Capa" estiver vazio ou via regeneração manual.
             </p>
          </div>
       </div>
