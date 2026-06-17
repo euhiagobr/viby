@@ -46,20 +46,21 @@ export default function AdminCityPagesManager() {
   }, [cityPages, search]);
 
   const handleForceGenerate = async (city: any) => {
-    console.log('[Admin UI] Botão de geração clicado para:', city.city);
+    console.log('[CITY COVER] BOTAO CLICADO');
+    console.log('[CITY COVER] CIDADE SELECIONADA:', city.city);
+    
     setIsGenerating(city.id);
     
     try {
-      console.log('[Admin UI] Consultando categorias populares...');
+      console.log('[CITY COVER] BUSCANDO CATEGORIAS PARA O PROMPT...');
       const eventsSnap = await getDocs(query(
         collection(db!, "events"), 
         where("city", "==", city.city),
         limit(10)
       ));
       const categories = Array.from(new Set(eventsSnap.docs.map(d => d.data().categoryName).filter(Boolean)));
-      console.log('[Admin UI] Categorias localizadas:', categories);
-
-      console.info('[Admin UI] Chamando Server Action: generateAndPersistCityCover');
+      
+      console.log('[CITY COVER] ACTION CHAMADA NO CLIENTE');
       const res = await generateAndPersistCityCover({
         slug: city.slug,
         city: city.city,
@@ -72,10 +73,9 @@ export default function AdminCityPagesManager() {
         throw new Error(res.error);
       }
 
-      console.info('[Admin UI] Geração concluída com sucesso!');
       toast({ title: "Capa da cidade gerada!", description: "A imagem foi salva no Storage." });
     } catch (e: any) {
-      console.error('[Admin UI] Erro capturado na interface:', e.message);
+      console.error('[CITY COVER ERROR]', e);
       toast({ 
         variant: "destructive", 
         title: "Falha na Geração IA", 
@@ -92,6 +92,7 @@ export default function AdminCityPagesManager() {
       await deleteDoc(doc(db!, "cityPages", id));
       toast({ title: "Metadados removidos." });
     } catch (e) {
+      console.error('[CITY COVER ERROR]', e);
       toast({ variant: "destructive", title: "Erro ao remover" });
     }
   };

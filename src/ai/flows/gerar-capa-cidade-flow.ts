@@ -26,14 +26,8 @@ const gerarCapaCidadeFlow = ai.defineFlow(
     outputSchema: z.string().describe("URL da imagem gerada pela OpenAI."),
   },
   async (input) => {
-    // AUDITORIA OBRIGATÓRIA
-    console.log('OPENAI_PROVIDER_ENCONTRADO');
-    console.log('ARQUIVO: src/ai/flows/gerar-capa-cidade-flow.ts');
-    console.log('FUNÇÃO: gerarCapaCidadeFlow');
-    console.log('MODELO_UTILIZADO: dall-e-3');
-
-    console.log('[CITY_COVER] Provider: OpenAI SDK');
-    console.log('[CITY_COVER] Modelo: dall-e-3');
+    console.log('[CITY COVER] FLOW INICIADO');
+    console.log('[CITY COVER] PARAMS', input);
 
     const categoriesText = input.topCategories.length > 0 
       ? `Considere as categorias mais populares de eventos atualmente cadastradas: ${input.topCategories.join(", ")}.` 
@@ -72,8 +66,6 @@ const gerarCapaCidadeFlow = ai.defineFlow(
     - Não adicionar elementos políticos
     - Não adicionar conteúdo ofensivo`;
 
-    console.log('[CITY_COVER] Enviando prompt para OpenAI');
-
     try {
       if (!process.env.OPENAI_API_KEY) {
         throw new Error("OPENAI_API_KEY não configurada no ambiente.");
@@ -83,6 +75,7 @@ const gerarCapaCidadeFlow = ai.defineFlow(
         apiKey: process.env.OPENAI_API_KEY,
       });
 
+      console.log('[CITY COVER] CHAMANDO OPENAI');
       const response = await openai.images.generate({
         model: "dall-e-3",
         prompt: promptText,
@@ -91,7 +84,7 @@ const gerarCapaCidadeFlow = ai.defineFlow(
         quality: "standard"
       });
 
-      console.log('[CITY_COVER] Resposta recebida da OpenAI');
+      console.log('[CITY COVER] OPENAI RESPONDEU');
       const url = response.data[0]?.url;
 
       if (!url) {
@@ -100,7 +93,7 @@ const gerarCapaCidadeFlow = ai.defineFlow(
 
       return url;
     } catch (error: any) {
-      console.error('[CITY_COVER] Erro na OpenAI:', error.message);
+      console.error('[CITY COVER ERROR]', error);
       throw error;
     }
   }
