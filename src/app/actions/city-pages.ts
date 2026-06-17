@@ -51,12 +51,15 @@ export async function generateAndPersistCityCover(params: {
   country: string;
   categories?: string[];
 }) {
-  console.log(`[City Action] Iniciando processo para: ${params.city}`);
+  console.log('[CITY_COVER] Iniciando geração');
+  console.log('[CITY_COVER] Cidade:', params.city);
+  console.log('[CITY_COVER] Estado:', params.state);
+
   const db = getAdminDb();
   const cityPageRef = db.collection('cityPages').doc(params.slug);
 
   try {
-    // 1. Garantir que o documento existe antes de começar (status pendente)
+    // 1. Garantir que o documento existe antes de começar
     await cityPageRef.set({
       slug: params.slug,
       city: params.city,
@@ -65,8 +68,6 @@ export async function generateAndPersistCityCover(params: {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    console.log(`[City Action] Chamando AI Flow...`);
-
     // 2. Chamar o fluxo de geração
     const imageUrl = await gerarCapaCidade({
       city: params.city,
@@ -74,8 +75,6 @@ export async function generateAndPersistCityCover(params: {
       country: params.country,
       topCategories: params.categories || []
     });
-
-    console.log(`[City Action] AI retornou URL temporária. Iniciando persistência no Storage...`);
 
     // 3. Download e persistência no Storage
     const response = await fetch(imageUrl);
@@ -87,7 +86,6 @@ export async function generateAndPersistCityCover(params: {
     const filePath = `city-covers/${params.slug}.png`;
     const file = bucket.file(filePath);
 
-    console.log(`[City Action] Salvando buffer no Bucket...`);
     await file.save(buffer, {
       metadata: {
         contentType: 'image/png',
@@ -105,10 +103,12 @@ export async function generateAndPersistCityCover(params: {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    console.log(`[City Action] CONCLUÍDO com sucesso para ${params.city}: ${publicUrl}`);
+    console.log('[CITY_COVER] Upload concluído');
+    console.log('[CITY_COVER] URL:', publicUrl);
+
     return { success: true, url: publicUrl };
   } catch (error: any) {
-    console.error(`[City Action ERROR] Falha fatal para ${params.city}:`, error.message);
+    console.error('[CITY_COVER] Erro:', error);
     
     await logSystemError({
       error: error,
@@ -116,8 +116,7 @@ export async function generateAndPersistCityCover(params: {
       severity: 'error',
       metadata: { 
         city: params.city, 
-        slug: params.slug,
-        fullError: JSON.stringify(error, null, 2)
+        slug: params.slug
       }
     });
 
