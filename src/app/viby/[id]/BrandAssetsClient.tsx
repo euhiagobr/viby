@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -8,6 +7,7 @@ import {
   query, 
   orderBy, 
   doc, 
+  updateDoc,
   setDoc, 
   deleteDoc, 
   serverTimestamp,
@@ -37,7 +37,8 @@ import {
   AlertTriangle,
   BadgeCheck,
   Star,
-  Info
+  Info,
+  Megaphone
 } from "lucide-react"
 import { 
   Dialog, 
@@ -57,6 +58,7 @@ import {
   SelectValue 
 } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
+import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -79,7 +81,6 @@ export default function BrandAssetsClient({ organization }: BrandAssetsClientPro
   const { user } = useUser(auth);
   const { organizations, loading: orgLoading } = useCurrentOrganization();
 
-  // Permissões
   const isOrgAdmin = React.useMemo(() => {
     if (!user || !organization) return false;
     const org = organizations.find(o => o.id === organization.id);
@@ -88,14 +89,13 @@ export default function BrandAssetsClient({ organization }: BrandAssetsClientPro
     return ['owner', 'admin'].includes(role || '');
   }, [user, organization, organizations]);
 
-  // Assets Query
   const assetsQuery = useMemoFirebase(() => 
     db ? query(collection(db, "organizations", organization.id, "brand_assets"), orderBy("sortOrder", "asc"), orderBy("createdAt", "desc")) : null, 
     [db, organization.id]
   );
   const { data: assets, loading: assetsLoading } = useCollection<any>(assetsQuery);
 
-  const [isUploadOpen, setIsInviteOpen] = React.useState(false);
+  const [isUploadOpen, setIsUploadOpen] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState<any>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
@@ -157,7 +157,7 @@ export default function BrandAssetsClient({ organization }: BrandAssetsClientPro
 
       await addDoc(collection(db, "organizations", organization.id, "brand_assets"), assetData);
       toast({ title: "Asset adicionado!" });
-      setIsInviteOpen(false);
+      setIsUploadOpen(false);
       setNewAsset({ name: "", category: "logos", isFeatured: false, fileUrl: "", storagePath: "", mimeType: "", size: 0 });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao salvar" });
@@ -214,7 +214,6 @@ export default function BrandAssetsClient({ organization }: BrandAssetsClientPro
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
-      {/* HEADER DA MARCA */}
       <section className="relative rounded-[3rem] overflow-hidden bg-primary text-white shadow-2xl">
          <div className="absolute inset-0 opacity-10 pointer-events-none">
             <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/media/1920/1080')] bg-cover bg-center grayscale" />
@@ -237,14 +236,13 @@ export default function BrandAssetsClient({ organization }: BrandAssetsClientPro
                </p>
             </div>
             {isOrgAdmin && (
-              <Button onClick={() => setIsInviteOpen(true)} className="bg-secondary text-white font-black rounded-2xl h-14 px-10 shadow-xl uppercase italic hover:scale-105 transition-all shrink-0">
+              <Button onClick={() => setIsUploadOpen(true)} className="bg-secondary text-white font-black rounded-2xl h-14 px-10 shadow-xl uppercase italic hover:scale-105 transition-all shrink-0">
                  <Plus className="w-5 h-5 mr-2" /> Upload de Material
               </Button>
             )}
          </div>
       </section>
 
-      {/* LISTAGEM DE ARQUIVOS */}
       <div className="grid grid-cols-1 gap-16">
          {CATEGORIES.map(cat => (
            <section key={cat.value} className="space-y-8">
@@ -278,8 +276,7 @@ export default function BrandAssetsClient({ organization }: BrandAssetsClientPro
          ))}
       </div>
 
-      {/* MODAL: UPLOAD */}
-      <Dialog open={isUploadOpen} onOpenChange={setIsInviteOpen}>
+      <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
          <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden">
             <DialogHeader className="p-8 border-b bg-muted/30">
                <div className="flex items-center gap-3">
@@ -345,7 +342,6 @@ export default function BrandAssetsClient({ organization }: BrandAssetsClientPro
          </DialogContent>
       </Dialog>
 
-      {/* MODAL: EDIÇÃO */}
       <Dialog open={!!isEditing} onOpenChange={(v) => !v && setIsEditing(null)}>
          <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden">
             <DialogHeader className="p-8 border-b bg-muted/30">
