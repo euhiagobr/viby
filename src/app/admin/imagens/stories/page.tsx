@@ -53,7 +53,6 @@ export default function StoriesGeneratorPage() {
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
-  const containerRef = React.useRef<HTMLDivElement>(null);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -115,18 +114,20 @@ export default function StoriesGeneratorPage() {
     if (!hiddenRenderRef.current || isGenerating || !selectedEvent) return;
     setIsGenerating(true);
     
+    // Delay para garantir sincronização do nó oculto
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     try {
       const node = hiddenRenderRef.current.firstChild as HTMLElement;
-      
+      if (!node) throw new Error("Nó de captura não localizado.");
+
       const imgs = Array.from(node.querySelectorAll('img'));
       await Promise.all(imgs.map(async (img) => {
         if (img.src) {
            try {
              await img.decode();
            } catch (e) {
-             console.warn("[Render Engine] Stories decode fail");
+             console.warn("[Render Engine] Decode fail in background");
            }
         }
       }));
@@ -164,10 +165,10 @@ export default function StoriesGeneratorPage() {
       }
 
       URL.revokeObjectURL(blobUrl);
-      toast({ title: "Story gerado!" });
+      toast({ title: "Story gerado com sucesso!" });
     } catch (err) {
       console.error("[Export Error]", err);
-      toast({ variant: "destructive", title: "Erro na exportação", description: "Tente novamente." });
+      toast({ variant: "destructive", title: "Erro na exportação", description: "Falha ao renderizar arte em segundo plano." });
     } finally {
       setIsGenerating(false);
     }
@@ -177,8 +178,11 @@ export default function StoriesGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* RENDERIZADOR OFF-SCREEN */}
-      <div ref={hiddenRenderRef} style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none', zIndex: -1 }}>
+      {/* RENDERIZADOR OFF-SCREEN (STRICTLY HIDDEN CAPTURE) */}
+      <div 
+        ref={hiddenRenderRef} 
+        style={{ position: 'fixed', left: '-10000px', top: 0, zIndex: -1, pointerEvents: 'none', opacity: 0.01 }}
+      >
          {selectedEvent && (
            <StoryTemplate 
               event={selectedEvent} 
@@ -280,7 +284,7 @@ export default function StoriesGeneratorPage() {
 
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview 9:16 HD</h3>
+           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview de Interatividade</h3>
            <Button onClick={handleDownload} disabled={isGenerating || !selectedEvent} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
               {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
               Baixar PNG
@@ -291,7 +295,7 @@ export default function StoriesGeneratorPage() {
            {isGenerating && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest">Codificando Pixels...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest">Renderizando em escala real...</p>
              </div>
            )}
 
@@ -302,13 +306,12 @@ export default function StoriesGeneratorPage() {
              </div>
            ) : (
              <div className="scale-[0.35] md:scale-[0.4] origin-center shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white">
-                <div ref={containerRef}>
-                  <StoryTemplate 
-                    event={selectedEvent} 
-                    theme={theme} 
-                    logoUrl={activeLogo || undefined}
-                  />
-                </div>
+                {/* PREVIEW VISUAL (O QUE O USUÁRIO VÊ NA TELA) */}
+                <StoryTemplate 
+                  event={selectedEvent} 
+                  theme={theme} 
+                  logoUrl={activeLogo || undefined}
+                />
              </div>
            )}
         </div>

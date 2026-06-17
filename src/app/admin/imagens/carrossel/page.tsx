@@ -18,7 +18,8 @@ import {
   X,
   Trophy,
   GripVertical,
-  Inbox
+  Inbox,
+  Eye
 } from 'lucide-react';
 import { 
   Select, 
@@ -54,7 +55,6 @@ export default function CarouselGeneratorPage() {
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
-  const containerRef = React.useRef<HTMLDivElement>(null);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -118,7 +118,7 @@ export default function CarouselGeneratorPage() {
     if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 2000));
 
     try {
       const slides = hiddenRenderRef.current.querySelectorAll('.viby-carousel-slide');
@@ -126,14 +126,13 @@ export default function CarouselGeneratorPage() {
       for (let i = 0; i < slides.length; i++) {
         const slideElement = slides[i] as HTMLElement;
 
-        // Forçar decodificação de todas as imagens do slide para garantir renderização mobile
         const imgs = Array.from(slideElement.querySelectorAll('img'));
         await Promise.all(imgs.map(async (img) => {
            if (img.src) {
              try {
                await img.decode();
              } catch (e) {
-               console.warn("[Render Engine] Slide decode fail");
+               console.warn("[Render Engine] Background slide decode fail");
              }
            }
         }));
@@ -161,10 +160,10 @@ export default function CarouselGeneratorPage() {
         await new Promise(r => setTimeout(r, 1000));
       }
 
-      toast({ title: "Carrossel exportado!" });
+      toast({ title: "Carrossel exportado com sucesso!" });
     } catch (err) {
       console.error("[Carousel Export Error]", err);
-      toast({ variant: "destructive", title: "Erro na exportação", description: "Verifique seu sinal e tente novamente." });
+      toast({ variant: "destructive", title: "Erro na exportação", description: "O processamento em segundo plano falhou." });
     } finally {
       setIsGenerating(false);
     }
@@ -174,8 +173,11 @@ export default function CarouselGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* RENDERIZADOR OFF-SCREEN PARA CARROSSEL */}
-      <div ref={hiddenRenderRef} style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none', zIndex: -1 }}>
+      {/* RENDERIZADOR OFF-SCREEN (TOTALMENTE INDEPENDENTE DO PREVIEW) */}
+      <div 
+        ref={hiddenRenderRef} 
+        style={{ position: 'fixed', left: '-10000px', top: 0, zIndex: -1, pointerEvents: 'none', opacity: 0.01 }}
+      >
          {selectedEvents.map((ev, idx) => (
            <CarouselTemplate 
               key={`hidden-slide-${idx}`}
@@ -269,7 +271,7 @@ export default function CarouselGeneratorPage() {
 
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2">Sequência do Carrossel</h3>
+           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview do Layout</h3>
            <Button onClick={handleDownloadAll} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
               {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
               Baixar Todas as Lâminas
@@ -280,11 +282,11 @@ export default function CarouselGeneratorPage() {
            {isGenerating && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Sincronizando Mídias...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Codificando pixels...</p>
              </div>
            )}
            <ScrollArea className="h-full">
-              <div className="flex flex-col items-center gap-20 py-10" ref={containerRef}>
+              <div className="flex flex-col items-center gap-20 py-10">
                 {selectedEvents.length === 0 ? (
                   <div className="text-center opacity-20 py-40">
                      <Layers className="w-20 h-20 mx-auto mb-4" />
@@ -295,8 +297,9 @@ export default function CarouselGeneratorPage() {
                     <Badge className="bg-white/90 text-primary border-none shadow-md px-4 py-1.5 font-black uppercase text-[10px]">Slide {idx + 1}</Badge>
                     <div className={cn(
                       "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
-                      aspectRatio === '1:1' ? "scale-[0.5] h-[1080px]" : "scale-[0.4] h-[1350px]"
+                      aspectRatio === '1:1' ? "scale-[0.5] h-[540px]" : "scale-[0.4] h-[540px]"
                     )}>
+                       {/* PREVIEW VISUAL */}
                        <CarouselTemplate 
                           event={ev} 
                           aspectRatio={aspectRatio} 

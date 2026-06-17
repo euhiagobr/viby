@@ -194,7 +194,7 @@ export default function AgendaGeneratorPage() {
     if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    // Pequeno delay para garantir sincronização de fontes e scripts
+    // Pequeno delay para garantir que o nó oculto foi montado no DOM
     await new Promise(r => setTimeout(r, 1500));
 
     try {
@@ -204,14 +204,14 @@ export default function AgendaGeneratorPage() {
       for (let i = 0; i < pages.length; i++) {
         const pageElement = pages[i] as HTMLElement;
         
-        // Mobile-Safe: Garantir decodificação total de imagens (bitmaps carregados na memória)
+        // Mobile-Safe: Forçar decodificação total de imagens no nó oculto antes de capturar
         const imgs = Array.from(pageElement.querySelectorAll('img'));
         await Promise.all(imgs.map(async (img) => {
            if (img.src) {
              try {
                await img.decode();
              } catch (e) {
-               console.warn("[Render Engine] Decode fail for image:", img.src.substring(0, 50));
+               console.warn("[Render Engine] Decode fail for hidden image");
              }
            }
         }));
@@ -225,7 +225,6 @@ export default function AgendaGeneratorPage() {
           skipFonts: false
         });
 
-        // Conversão para Blob para evitar bloqueios de segurança em navegadores móveis
         const response = await fetch(dataUrl);
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
@@ -239,14 +238,12 @@ export default function AgendaGeneratorPage() {
         document.body.removeChild(link);
         
         URL.revokeObjectURL(blobUrl);
-        
-        // Delay incremental para liberar a thread e a GPU entre as páginas
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 800));
       }
-      toast({ title: "Exportação concluída!" });
+      toast({ title: "Artes geradas com sucesso!" });
     } catch (err) {
       console.error("[Export Error]", err);
-      toast({ variant: "destructive", title: "Erro na geração", description: "Ocorreu um erro ao processar as imagens." });
+      toast({ variant: "destructive", title: "Erro na geração", description: "Ocorreu um erro ao processar as mídias em segundo plano." });
     } finally {
       setIsGenerating(false);
     }
@@ -256,10 +253,10 @@ export default function AgendaGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* RENDERIZADOR OFF-SCREEN PARA CAPTURA (SEM SCALING) */}
+      {/* RENDERIZADOR OFF-SCREEN (OCULTO MAS ATIVO NO DOM PARA MOBILE) */}
       <div 
         ref={hiddenRenderRef} 
-        style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none', zIndex: -1 }}
+        style={{ position: 'fixed', left: '-10000px', top: 0, zIndex: -1, pointerEvents: 'none', opacity: 0.01 }}
       >
         {eventPages.map((pageEvents, idx) => (
           <AgendaTemplate 
@@ -277,7 +274,7 @@ export default function AgendaGeneratorPage() {
       <div className="lg:col-span-4 space-y-8">
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
-            <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Seleção de Conteúdo</CardTitle>
+            <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Conteúdo da Agenda</CardTitle>
             <CardDescription className="text-[10px] font-bold uppercase">Busque eventos ou use um preset.</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
@@ -392,6 +389,7 @@ export default function AgendaGeneratorPage() {
                       "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
                       format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[486px]" : "scale-[0.3] h-[526px]"
                     )}>
+                       {/* TEMPLATE DE PREVIEW (SÓ PARA O USUÁRIO VER) */}
                        <AgendaTemplate events={pageEvents} format={format} theme={theme} logoUrl={activeLogo || undefined} pageNumber={idx + 1} totalPages={eventPages.length} />
                     </div>
                   </div>
