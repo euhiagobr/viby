@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Fluxo Genkit para geração de imagem de capa de cidades.
@@ -76,6 +75,7 @@ const gerarCapaCidadeFlow = ai.defineFlow(
     console.log('[CITY_COVER] Enviando prompt');
 
     try {
+      // Instanciação direta para garantir que o Genkit não injete parâmetros de texto/chat (como response_format)
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
@@ -85,6 +85,7 @@ const gerarCapaCidadeFlow = ai.defineFlow(
         prompt: promptText,
         n: 1,
         size: "1792x1024", 
+        quality: "standard"
       });
 
       console.log('[CITY_COVER] Resposta recebida');

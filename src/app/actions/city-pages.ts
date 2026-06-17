@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -41,8 +40,7 @@ export async function getOrTriggerCityCover(params: {
 }
 
 /**
- * Gera e persiste a capa da cidade.
- * Garante a criação do documento antes da chamada lenta da IA.
+ * Gera e persiste a capa da cidade com logs obrigatórios de auditoria.
  */
 export async function generateAndPersistCityCover(params: {
   slug: string;
@@ -68,7 +66,7 @@ export async function generateAndPersistCityCover(params: {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    // 2. Chamar o fluxo de geração
+    // 2. Chamar o fluxo de geração (Logs internos no flow)
     const imageUrl = await gerarCapaCidade({
       city: params.city,
       state: params.state,
@@ -116,7 +114,8 @@ export async function generateAndPersistCityCover(params: {
       severity: 'error',
       metadata: { 
         city: params.city, 
-        slug: params.slug
+        slug: params.slug,
+        errorMessage: error.message
       }
     });
 
