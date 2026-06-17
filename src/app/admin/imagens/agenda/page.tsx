@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -50,7 +51,7 @@ import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { COPA_TAGS, LGBT_TAGS, LGBT_CATEGORY_IDS } from '@/lib/constants';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence } from '@/lib/image-generator-utils';
+import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence, formatTemplateDate } from '@/lib/image-generator-utils';
 import { startOfToday, addDays, format } from "date-fns";
 
 const ITEMS_PER_FORMAT = {
@@ -80,7 +81,7 @@ export default function AgendaGeneratorPage() {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   
-  const [format, setFormat] = React.useState<'A4' | 'instagram' | 'stories'>('stories');
+  const [imageFormat, setImageFormat] = React.useState<'A4' | 'instagram' | 'stories'>('stories');
   const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
@@ -129,8 +130,6 @@ export default function AgendaGeneratorPage() {
         .map(ev => {
            const schedule = resolveNextOccurrence(ev, allOccurrences, now);
            const included = !!schedule;
-           
-           console.log(`[Image Studio Audit] ${ev.title} | nextDate: ${schedule?.nextDate || 'null'} | futureDates: ${schedule?.additionalCount || 0} | included: ${included}`);
            
            if (!included) return null;
 
@@ -217,13 +216,13 @@ export default function AgendaGeneratorPage() {
   };
 
   const eventPages = React.useMemo(() => {
-    const itemsPerPage = ITEMS_PER_FORMAT[format];
+    const itemsPerPage = ITEMS_PER_FORMAT[imageFormat];
     const pages = [];
     for (let i = 0; i < selectedEvents.length; i += itemsPerPage) {
       pages.push(selectedEvents.slice(i, i + itemsPerPage));
     }
     return pages;
-  }, [selectedEvents, format]);
+  }, [selectedEvents, imageFormat]);
 
   const processExportQueue = async (action: 'download' | 'email') => {
     if (isGenerating || isSendingEmail || selectedEvents.length === 0) return;
@@ -231,7 +230,7 @@ export default function AgendaGeneratorPage() {
     const actionStateSetter = action === 'download' ? setIsGenerating : setIsSendingEmail;
     actionStateSetter(true);
     const base64Images: string[] = [];
-    const dimensions = FORMAT_DIMENSIONS[format];
+    const dimensions = FORMAT_DIMENSIONS[imageFormat];
 
     try {
       if (document.fonts) await document.fonts.ready;
@@ -271,7 +270,7 @@ export default function AgendaGeneratorPage() {
         const res = await sendAgendaRequestAction({
           images: base64Images,
           theme,
-          format,
+          format: imageFormat,
           userEmail: user?.email!,
           userName: user?.displayName || "Admin"
         });
@@ -308,7 +307,7 @@ export default function AgendaGeneratorPage() {
         {capturingPage && (
           <AgendaTemplate 
             events={capturingPage.events} 
-            format={format} 
+            format={imageFormat} 
             theme={theme} 
             logoUrl={activeLogo || undefined} 
             pageNumber={capturingPage.idx} 
@@ -385,9 +384,9 @@ export default function AgendaGeneratorPage() {
              <div className="space-y-4">
                 <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Layout className="w-3.5 h-3.5" /> Formato Global</Label>
                 <div className="grid grid-cols-3 gap-2">
-                   <FormatBtn active={format === 'stories'} onClick={() => setFormat('stories')} icon={Smartphone} label="Stories" />
-                   <FormatBtn active={format === 'instagram'} onClick={() => setFormat('instagram')} icon={Layout} label="Feed" />
-                   <FormatBtn active={format === 'A4'} onClick={() => setFormat('A4')} icon={Maximize2} label="A4" />
+                   <FormatBtn active={imageFormat === 'stories'} onClick={() => setImageFormat('stories')} icon={Smartphone} label="Stories" />
+                   <FormatBtn active={imageFormat === 'instagram'} onClick={() => setImageFormat('instagram')} icon={Layout} label="Feed" />
+                   <FormatBtn active={imageFormat === 'A4'} onClick={() => setImageFormat('A4')} icon={Maximize2} label="A4" />
                 </div>
              </div>
              <div className="space-y-4">
@@ -467,9 +466,9 @@ export default function AgendaGeneratorPage() {
                     <div key={idx} className="relative flex flex-col items-center gap-4">
                       <div className={cn(
                         "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
-                        format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[486px]" : "scale-[0.3] h-[526px]"
+                        imageFormat === 'stories' ? "scale-[0.35] h-[672px]" : imageFormat === 'instagram' ? "scale-[0.45] h-[486px]" : "scale-[0.3] h-[526px]"
                       )}>
-                        <AgendaTemplate events={pageEvents} format={format} theme={theme} logoUrl={activeLogo || undefined} pageNumber={idx + 1} totalPages={eventPages.length} />
+                        <AgendaTemplate events={pageEvents} format={imageFormat} theme={theme} logoUrl={activeLogo || undefined} pageNumber={idx + 1} totalPages={eventPages.length} />
                       </div>
                     </div>
                   ))

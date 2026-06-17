@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -40,7 +41,7 @@ import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence } from '@/lib/image-generator-utils';
+import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence, formatTemplateDate } from '@/lib/image-generator-utils';
 import { startOfToday, addDays, format } from "date-fns";
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
@@ -106,8 +107,6 @@ export default function StoriesGeneratorPage() {
         .map(ev => {
            const schedule = resolveNextOccurrence(ev, allOccurrences, now);
            const included = !!schedule;
-           
-           console.log(`[Image Studio Audit] ${ev.title} | nextDate: ${schedule?.nextDate || 'null'} | futureDates: ${schedule?.additionalCount || 0} | included: ${included}`);
            
            if (!included) return null;
 
@@ -256,9 +255,7 @@ export default function StoriesGeneratorPage() {
                       className="pl-10 h-11 rounded-xl"
                     />
                   </div>
-                  <Button onClick={handleSearch} disabled={isSearching} className="h-11 px-4 rounded-xl font-bold bg-secondary text-white">
-                    {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "OK"}
-                  </Button>
+                  <Button onClick={handleSearch} disabled={isSearching} className="h-11 px-4 rounded-xl font-bold bg-secondary text-white">{isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buscar"}</Button>
                 </div>
 
                 {searchResults.length > 0 && (

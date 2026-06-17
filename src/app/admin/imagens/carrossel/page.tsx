@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -37,12 +38,11 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { CarouselTemplate } from '@/components/images/CarouselTemplate';
 import { toPng } from 'html-to-image';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence } from '@/lib/image-generator-utils';
+import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence, formatTemplateDate } from '@/lib/image-generator-utils';
 import { startOfToday, addDays, format } from "date-fns";
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
@@ -111,8 +111,6 @@ export default function CarouselGeneratorPage() {
            const schedule = resolveNextOccurrence(ev, allOccurrences, now);
            const included = !!schedule;
            
-           console.log(`[Image Studio Audit] ${ev.title} | nextDate: ${schedule?.nextDate || 'null'} | futureDates: ${schedule?.additionalCount || 0} | included: ${included}`);
-           
            if (!included) return null;
 
            return { 
@@ -156,10 +154,6 @@ export default function CarouselGeneratorPage() {
     const actionSetter = action === 'download' ? setIsGenerating : setIsSendingEmail;
     actionSetter(true);
     const base64Images: string[] = [];
-    const config = {
-      '1:1': { width: 1080, height: 1080 },
-      '4:5': { width: 1080, height: 1350 }
-    }[aspectRatio];
 
     try {
       if (document.fonts) await document.fonts.ready;
@@ -356,54 +350,53 @@ export default function CarouselGeneratorPage() {
                 </p>
              </div>
            )}
-           <ScrollArea className="h-full">
-              <div className="flex flex-col items-center gap-20 py-10">
-                {selectedEvents.length === 0 ? (
-                  <div className="text-center opacity-20 py-40">
-                     <Layers className="w-20 h-20 mx-auto mb-4" />
-                     <p className="text-sm font-black uppercase italic">Adicione eventos para iniciar o carrossel</p>
+
+           {!selectedEvents || selectedEvents.length === 0 ? (
+             <div className="text-center opacity-20 py-40">
+                <Layers className="w-20 h-20 mx-auto mb-4" />
+                <p className="text-sm font-black uppercase italic">Adicione eventos para iniciar o carrossel</p>
+             </div>
+           ) : isMobile ? (
+              <div className="w-full max-w-sm space-y-4 animate-in fade-in">
+                <Card className="border-none shadow-sm rounded-3xl bg-white p-8 text-center space-y-4">
+                   <div className="p-4 bg-secondary/10 rounded-2xl w-fit mx-auto text-secondary"><Monitor className="w-8 h-8" /></div>
+                   <div className="space-y-1">
+                      <h3 className="font-black uppercase italic text-primary">Prévia Otimizada</h3>
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">O carrossel será montado slide a slide no momento da exportação.</p>
+                   </div>
+                </Card>
+                {selectedEvents.map((ev, i) => (
+                  <div key={i} className="p-4 bg-white/40 rounded-2xl border border-dashed flex items-center justify-between">
+                     <div className="flex items-center gap-3 min-w-0">
+                        <Badge variant="outline" className="text-[8px] font-black h-5">Slide {i+1}</Badge>
+                        <span className="text-[10px] font-bold uppercase truncate">{ev.title}</span>
+                     </div>
+                     <span className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</span>
                   </div>
-                ) : isMobile ? (
-                  <div className="w-full max-w-sm space-y-4 animate-in fade-in">
-                    <Card className="border-none shadow-sm rounded-3xl bg-white p-8 text-center space-y-4">
-                       <div className="p-4 bg-secondary/10 rounded-2xl w-fit mx-auto text-secondary"><Monitor className="w-8 h-8" /></div>
-                       <div className="space-y-1">
-                          <h3 className="font-black uppercase italic text-primary">Prévia Otimizada</h3>
-                          <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">O carrossel será montado slide a slide no momento da exportação.</p>
-                       </div>
-                    </Card>
-                    {selectedEvents.map((ev, i) => (
-                      <div key={i} className="p-4 bg-white/40 rounded-2xl border border-dashed flex items-center justify-between">
-                         <div className="flex items-center gap-3 min-w-0">
-                            <Badge variant="outline" className="text-[8px] font-black h-5">Slide {i+1}</Badge>
-                            <span className="text-[10px] font-bold uppercase truncate">{ev.title}</span>
-                         </div>
-                         <span className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  selectedEvents.map((ev, idx) => (
-                    <div key={ev.id} className="relative group/preview flex flex-col items-center gap-4">
-                      <Badge className="bg-white/90 text-primary border-none shadow-md px-4 py-1.5 font-black uppercase text-[10px]">Slide {idx + 1}</Badge>
-                      <div className={cn(
-                        "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
-                        aspectRatio === '1:1' ? "scale-[0.5] h-[540px]" : "scale-[0.4] h-[540px]"
-                      )}>
-                        <CarouselTemplate 
-                            event={ev} 
-                            aspectRatio={aspectRatio} 
-                            theme={theme} 
-                            logoUrl={activeLogo || undefined}
-                            slideNumber={idx + 1}
-                            totalSlides={selectedEvents.length}
-                        />
-                      </div>
-                    </div>
-                  ))
-                )}
+                ))}
               </div>
-           </ScrollArea>
+           ) : (
+             <div className="flex flex-col items-center gap-20 py-10">
+                {selectedEvents.map((ev, idx) => (
+                  <div key={ev.id} className="relative group/preview flex flex-col items-center gap-4">
+                    <Badge className="bg-white/90 text-primary border-none shadow-md px-4 py-1.5 font-black uppercase text-[10px]">Slide {idx + 1}</Badge>
+                    <div className={cn(
+                      "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
+                      aspectRatio === '1:1' ? "scale-[0.5] h-[540px]" : "scale-[0.4] h-[540px]"
+                    )}>
+                      <CarouselTemplate 
+                          event={ev} 
+                          aspectRatio={aspectRatio} 
+                          theme={theme} 
+                          logoUrl={activeLogo || undefined}
+                          slideNumber={idx + 1}
+                          totalSlides={selectedEvents.length}
+                      />
+                    </div>
+                  </div>
+                ))}
+             </div>
+           )}
         </div>
       </div>
     </div>
