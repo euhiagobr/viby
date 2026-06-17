@@ -45,7 +45,7 @@ export default function CarouselGeneratorPage() {
   const [isSearching, setIsSearching] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
   
-  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa'>('viby');
+  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
   const [aspectRatio, setAspectRatio] = React.useState<'1:1' | '4:5'>('1:1');
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
@@ -55,6 +55,7 @@ export default function CarouselGeneratorPage() {
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (settings?.logoUrl) {
@@ -114,32 +115,33 @@ export default function CarouselGeneratorPage() {
   };
 
   const handleDownloadAll = async () => {
-    if (!containerRef.current || isGenerating || selectedEvents.length === 0) return;
+    if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    // Sincronização estendida para garantir carga de mídias e fontes
     await new Promise(r => setTimeout(r, 1500));
 
     try {
-      const slides = containerRef.current.querySelectorAll('.viby-carousel-slide');
+      const slides = hiddenRenderRef.current.querySelectorAll('.viby-carousel-slide');
       
       for (let i = 0; i < slides.length; i++) {
         const slideElement = slides[i] as HTMLElement;
 
-        // Garantir decodificação total de todas as imagens antes da conversão para PNG
+        // Forçar decodificação de todas as imagens do slide para garantir renderização mobile
         const imgs = Array.from(slideElement.querySelectorAll('img'));
-        await Promise.all(imgs.map(img => {
-          if (img.complete) return Promise.resolve();
-          return new Promise(resolve => {
-            img.onload = resolve;
-            img.onerror = resolve;
-          });
+        await Promise.all(imgs.map(async (img) => {
+           if (img.src) {
+             try {
+               await img.decode();
+             } catch (e) {
+               console.warn("[Render Engine] Slide decode fail");
+             }
+           }
         }));
 
         const dataUrl = await toPng(slideElement, {
           pixelRatio: 2,
           cacheBust: true,
-          quality: 0.95,
+          quality: 1,
           skipFonts: false
         });
 
@@ -156,10 +158,10 @@ export default function CarouselGeneratorPage() {
         document.body.removeChild(link);
         
         URL.revokeObjectURL(blobUrl);
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(r => setTimeout(r, 1000));
       }
 
-      toast({ title: "Carrossel exportado!", description: `${slides.length} arquivos baixados.` });
+      toast({ title: "Carrossel exportado!" });
     } catch (err) {
       console.error("[Carousel Export Error]", err);
       toast({ variant: "destructive", title: "Erro na exportação", description: "Verifique seu sinal e tente novamente." });
@@ -172,6 +174,21 @@ export default function CarouselGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      {/* RENDERIZADOR OFF-SCREEN PARA CARROSSEL */}
+      <div ref={hiddenRenderRef} style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none', zIndex: -1 }}>
+         {selectedEvents.map((ev, idx) => (
+           <CarouselTemplate 
+              key={`hidden-slide-${idx}`}
+              event={ev} 
+              aspectRatio={aspectRatio} 
+              theme={theme} 
+              logoUrl={activeLogo || undefined}
+              slideNumber={idx + 1}
+              totalSlides={selectedEvents.length}
+           />
+         ))}
+      </div>
+
       <div className="lg:col-span-4 space-y-8">
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
@@ -239,11 +256,8 @@ export default function CarouselGeneratorPage() {
                    <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                    <SelectContent className="rounded-xl">
                       <SelectItem value="viby">Viby (Padrão)</SelectItem>
-                      <SelectItem value="copa">
-                         <div className="flex items-center gap-2 text-[#002776] font-bold">
-                            <Trophy className="w-3.5 h-3.5 text-[#ffdf00]" /> Copa do Mundo
-                         </div>
-                      </SelectItem>
+                      <SelectItem value="copa">Copa do Mundo 2026</SelectItem>
+                      <SelectItem value="pride">Pride / Diversidade</SelectItem>
                       <SelectItem value="claro">Claro</SelectItem>
                       <SelectItem value="escuro">Escuro</SelectItem>
                    </SelectContent>
@@ -263,6 +277,12 @@ export default function CarouselGeneratorPage() {
         </div>
 
         <div className="bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] border-none shadow-2xl overflow-hidden">
+           {isGenerating && (
+             <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
+                <Loader2 className="w-12 h-12 animate-spin text-secondary" />
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Sincronizando Mídias...</p>
+             </div>
+           )}
            <ScrollArea className="h-full">
               <div className="flex flex-col items-center gap-20 py-10" ref={containerRef}>
                 {selectedEvents.length === 0 ? (

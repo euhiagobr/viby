@@ -10,13 +10,20 @@ export async function fetchImageAsBase64(url: string): Promise<{ success: boolea
   if (!url) return { success: false, error: "URL ausente" };
   
   try {
-    // Preserva parâmetros essenciais do Firebase (token e alt=media)
+    // Adiciona timeout e headers de aceitação para maior compatibilidade
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const response = await fetch(url, {
       cache: 'no-cache',
       headers: {
-        'Accept': 'image/*'
-      }
+        'Accept': 'image/*',
+        'User-Agent': 'VibyImageEngine/1.1'
+      },
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`Falha ao buscar imagem: ${response.status}`);

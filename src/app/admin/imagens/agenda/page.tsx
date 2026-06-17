@@ -75,6 +75,7 @@ export default function AgendaGeneratorPage() {
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (settings?.logoUrl) {
@@ -190,38 +191,41 @@ export default function AgendaGeneratorPage() {
   }, [selectedEvents, format]);
 
   const handleDownloadAll = async () => {
-    if (!containerRef.current || isGenerating || selectedEvents.length === 0) return;
+    if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    // Sincronização estendida para mídias e fontes
-    await new Promise(r => setTimeout(r, 2000));
+    // Pequeno delay para garantir sincronização de fontes e scripts
+    await new Promise(r => setTimeout(r, 1500));
 
     try {
-      const pages = containerRef.current.querySelectorAll('.viby-template-root');
+      const pages = hiddenRenderRef.current.querySelectorAll('.viby-template-root');
       const dimensions = FORMAT_DIMENSIONS[format];
       
       for (let i = 0; i < pages.length; i++) {
         const pageElement = pages[i] as HTMLElement;
         
-        // Mobile-Safe: Garantir que todas as imagens no slide estão totalmente carregadas
+        // Mobile-Safe: Garantir decodificação total de imagens (bitmaps carregados na memória)
         const imgs = Array.from(pageElement.querySelectorAll('img'));
-        await Promise.all(imgs.map(img => {
-          if (img.complete) return Promise.resolve();
-          return new Promise(resolve => {
-            img.onload = resolve;
-            img.onerror = resolve;
-          });
+        await Promise.all(imgs.map(async (img) => {
+           if (img.src) {
+             try {
+               await img.decode();
+             } catch (e) {
+               console.warn("[Render Engine] Decode fail for image:", img.src.substring(0, 50));
+             }
+           }
         }));
 
         const dataUrl = await toPng(pageElement, {
           pixelRatio: 2,
           cacheBust: true,
-          quality: 0.95,
+          quality: 1,
           width: dimensions.width,
           height: dimensions.height,
           skipFonts: false
         });
 
+        // Conversão para Blob para evitar bloqueios de segurança em navegadores móveis
         const response = await fetch(dataUrl);
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
@@ -235,12 +239,14 @@ export default function AgendaGeneratorPage() {
         document.body.removeChild(link);
         
         URL.revokeObjectURL(blobUrl);
-        await new Promise(r => setTimeout(r, 800));
+        
+        // Delay incremental para liberar a thread e a GPU entre as páginas
+        await new Promise(r => setTimeout(r, 1000));
       }
       toast({ title: "Exportação concluída!" });
     } catch (err) {
       console.error("[Export Error]", err);
-      toast({ variant: "destructive", title: "Erro na geração", description: "Verifique sua conexão e tente novamente." });
+      toast({ variant: "destructive", title: "Erro na geração", description: "Ocorreu um erro ao processar as imagens." });
     } finally {
       setIsGenerating(false);
     }
@@ -250,6 +256,24 @@ export default function AgendaGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      {/* RENDERIZADOR OFF-SCREEN PARA CAPTURA (SEM SCALING) */}
+      <div 
+        ref={hiddenRenderRef} 
+        style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none', zIndex: -1 }}
+      >
+        {eventPages.map((pageEvents, idx) => (
+          <AgendaTemplate 
+            key={`hidden-p${idx}`} 
+            events={pageEvents} 
+            format={format} 
+            theme={theme} 
+            logoUrl={activeLogo || undefined} 
+            pageNumber={idx + 1} 
+            totalPages={eventPages.length} 
+          />
+        ))}
+      </div>
+
       <div className="lg:col-span-4 space-y-8">
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
@@ -258,12 +282,12 @@ export default function AgendaGeneratorPage() {
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
             <div className="grid grid-cols-2 gap-2 mb-4">
-               <Button variant="outline" onClick={() => loadPreset('copa')} disabled={isSearching} className="h-12 rounded-xl border-dashed gap-2 font-black uppercase text-[9px] text-[#002776] border-[#ffdf00] bg-[#ffdf00]/5">
+               <button onClick={() => loadPreset('copa')} disabled={isSearching} className="h-12 rounded-xl border-2 border-dashed gap-2 font-black uppercase text-[9px] text-[#002776] border-[#ffdf00] bg-[#ffdf00]/5 flex items-center justify-center transition-all hover:bg-[#ffdf00]/10">
                   <Trophy className="w-3.5 h-3.5 fill-[#ffdf00]" /> Preset Copa
-               </Button>
-               <Button variant="outline" onClick={() => loadPreset('lgbt')} disabled={isSearching} className="h-12 rounded-xl border-dashed gap-2 font-black uppercase text-[9px] text-pink-600 border-pink-200 bg-pink-50/50">
+               </button>
+               <button onClick={() => loadPreset('lgbt')} disabled={isSearching} className="h-12 rounded-xl border-2 border-dashed gap-2 font-black uppercase text-[9px] text-pink-600 border-pink-200 bg-pink-50/50 flex items-center justify-center transition-all hover:bg-pink-100/50">
                   <Heart className="w-3.5 h-3.5 fill-pink-500" /> Preset Pride
-               </Button>
+               </button>
             </div>
 
             <Separator className="border-dashed" />
@@ -352,7 +376,7 @@ export default function AgendaGeneratorPage() {
            {isGenerating && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Renderizando Camadas...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Exportando Alta Resolução...</p>
              </div>
            )}
            <ScrollArea className="h-full w-full">
@@ -388,4 +412,3 @@ function FormatBtn({ active, onClick, icon: Icon, label }: any) {
     </button>
   );
 }
-

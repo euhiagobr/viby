@@ -18,7 +18,8 @@ import {
   X,
   Trophy,
   ChevronRight,
-  Info
+  Info,
+  Eye
 } from 'lucide-react';
 import { 
   Select, 
@@ -44,7 +45,7 @@ export default function StoriesGeneratorPage() {
   const [isSearching, setIsSearching] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
   
-  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa'>('viby');
+  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
   const { data: settings } = useDoc<any>(settingsRef);
@@ -52,7 +53,8 @@ export default function StoriesGeneratorPage() {
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
-  const renderRef = React.useRef<HTMLDivElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (settings?.logoUrl) {
@@ -110,27 +112,31 @@ export default function StoriesGeneratorPage() {
   };
 
   const handleDownload = async () => {
-    if (!renderRef.current || isGenerating || !selectedEvent) return;
+    if (!hiddenRenderRef.current || isGenerating || !selectedEvent) return;
     setIsGenerating(true);
     
-    // Pequeno delay para garantir sincronização de fontes
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     try {
-      // Garantir decodificação total da mídia antes de disparar o canvas
-      const imgs = Array.from(renderRef.current.querySelectorAll('img'));
-      await Promise.all(imgs.map(img => {
-        if (img.complete) return Promise.resolve();
-        return new Promise(resolve => {
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
+      const node = hiddenRenderRef.current.firstChild as HTMLElement;
+      
+      const imgs = Array.from(node.querySelectorAll('img'));
+      await Promise.all(imgs.map(async (img) => {
+        if (img.src) {
+           try {
+             await img.decode();
+           } catch (e) {
+             console.warn("[Render Engine] Stories decode fail");
+           }
+        }
       }));
 
-      const dataUrl = await toPng(renderRef.current, {
+      const dataUrl = await toPng(node, {
         pixelRatio: 2,
         cacheBust: true,
-        quality: 0.95,
+        quality: 1,
+        width: 1080,
+        height: 1920,
         skipFonts: false
       });
 
@@ -171,6 +177,17 @@ export default function StoriesGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      {/* RENDERIZADOR OFF-SCREEN */}
+      <div ref={hiddenRenderRef} style={{ position: 'fixed', left: '-9999px', top: 0, pointerEvents: 'none', zIndex: -1 }}>
+         {selectedEvent && (
+           <StoryTemplate 
+              event={selectedEvent} 
+              theme={theme} 
+              logoUrl={activeLogo || undefined}
+           />
+         )}
+      </div>
+
       <div className="lg:col-span-4 space-y-8">
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
@@ -246,6 +263,7 @@ export default function StoriesGeneratorPage() {
                       <SelectItem value="copa" className="font-bold text-[#002776]">
                         <div className="flex items-center gap-2"><Trophy className="w-3.5 h-3.5 text-[#ffdf00]" /> Copa do Mundo 2026</div>
                       </SelectItem>
+                      <SelectItem value="pride">Pride / Diversidade</SelectItem>
                       <SelectItem value="claro">Minimalista Claro</SelectItem>
                       <SelectItem value="escuro">Deep Black</SelectItem>
                    </SelectContent>
@@ -262,7 +280,7 @@ export default function StoriesGeneratorPage() {
 
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview 9:16 HD</h3>
+           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview 9:16 HD</h3>
            <Button onClick={handleDownload} disabled={isGenerating || !selectedEvent} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
               {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
               Baixar PNG
@@ -273,7 +291,7 @@ export default function StoriesGeneratorPage() {
            {isGenerating && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest">Exportando pixels...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest">Codificando Pixels...</p>
              </div>
            )}
 
@@ -284,7 +302,7 @@ export default function StoriesGeneratorPage() {
              </div>
            ) : (
              <div className="scale-[0.35] md:scale-[0.4] origin-center shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white">
-                <div ref={renderRef}>
+                <div ref={containerRef}>
                   <StoryTemplate 
                     event={selectedEvent} 
                     theme={theme} 
