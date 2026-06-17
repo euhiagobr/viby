@@ -7,15 +7,20 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
- * @fileOverview API Route para geração de imagens de capa de cidades.
- * Isolado para evitar timeouts de Server Actions.
+ * @fileOverview API Route para geração de imagens de capa de cidades com auditoria de performance.
  */
 export async function POST(req: Request) {
-  console.log('[CITY COVER API] START');
-  try {
-    const input = await req.json();
-    console.log('[CITY COVER API] INPUT', input);
+  console.log('[STEP 1] REQUEST RECEBIDA');
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.warn('[CITY COVER API] EXCEDEU 60s - ABORTANDO');
+    controller.abort();
+  }, 60000);
 
+  try {
+    console.log('[STEP 2] VALIDANDO PAYLOAD');
+    const input = await req.json();
     const { city, state, country, topCategories = [], slug } = input;
 
     if (!slug || !city) {
@@ -35,109 +40,43 @@ export async function POST(req: Request) {
       : "manter foco geral em turismo e vida urbana.";
 
     const promptText = `Crie uma imagem fotorealista premium em formato de banner horizontal representando a cidade de ${city}, ${state}, ${country}.
-
 A imagem deve ser usada como capa oficial de uma plataforma de eventos e experiências chamada Viby.
+FOCO PRINCIPAL: cultura local, turismo urbano, eventos e experiências.
+FORMATO OBRIGATÓRIO: 1536x1024 (horizontal). Estilo editorial premium. SEM TEXTOS.`;
 
-FOCO PRINCIPAL
-Representar visualmente o que fazer na cidade através de:
-* cultura local
-* turismo urbano
-* vida noturna (se aplicável)
-* eventos e experiências
-* arquitetura e pontos icônicos reais da cidade
+    console.log('[STEP 3] INICIANDO OPENAI');
+    console.time('OPENAI_IMAGE_GENERATION');
 
-COMPOSIÇÃO VISUAL
-* Estilo fotorealista ultra detalhado
-* Iluminação cinematográfica natural (golden hour ou blue hour)
-* Profundidade de campo suave
-* Atmosfera vibrante e moderna
-* Sensação de cidade viva e ativa
-* Estética de capa de portal global de eventos e turismo
+    let response;
+    try {
+      response = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: promptText,
+        size: "1536x1024"
+      }, { signal: controller.signal });
+    } catch (apiErr: any) {
+      if (apiErr.name === 'AbortError') {
+        console.timeEnd('OPENAI_IMAGE_GENERATION');
+        return NextResponse.json({ error: true, message: 'OpenAI timeout' }, { status: 504 });
+      }
+      throw apiErr;
+    }
 
-ELEMENTOS DA CIDADE
-Incluir referências visuais reais e reconhecíveis de ${city} quando possível, como:
-* skyline
-* pontos turísticos
-* áreas culturais
-* regiões urbanas icônicas
-* paisagens naturais próximas
+    console.timeEnd('OPENAI_IMAGE_GENERATION');
+    console.log('[STEP 4] OPENAI FINALIZOU');
 
-CATEGORIAS DE EVENTOS (INFLUÊNCIA VISUAL)
-${categoriesText}
-
-IDENTIDADE VIBY
-Integrar de forma extremamente sutil:
-* sensação de plataforma moderna de eventos
-* lifestyle urbano contemporâneo
-* não incluir logos visíveis
-* não incluir textos
-* não incluir marcas d’água
-
-RESTRIÇÕES ABSOLUTAS
-* NÃO adicionar texto
-* NÃO adicionar logotipos
-* NÃO adicionar QR codes
-* NÃO adicionar preços
-* NÃO adicionar datas
-* NÃO adicionar banners promocionais
-* NÃO adicionar elementos políticos
-* NÃO adicionar conteúdo ofensivo
-* NÃO estilizar como propaganda explícita
-
-FORMATO OBRIGATÓRIO
-* 1536x1024 (horizontal)
-* estilo editorial premium
-* qualidade publicitária global`;
-
-    console.log('[CITY COVER API] OPENAI CALLED');
-    const response = await openai.images.generate({
-      model: "gpt-image-1",
-      prompt: promptText,
-      size: "1536x1024"
-    });
-
-    // AUDITORIA DA RESPOSTA OPENAI
-    console.log(
-      '[CITY COVER API] OPENAI RAW RESPONSE',
-      JSON.stringify(response, null, 2)
-    );
-
-    console.log(
-      '[CITY COVER API] OPENAI DATA',
-      JSON.stringify(response.data, null, 2)
-    );
-
-    console.log(
-      '[CITY COVER API] OPENAI ITEM 0',
-      JSON.stringify(response.data?.[0], null, 2)
-    );
-
-    console.log(
-      '[CITY COVER API] URL FIELD',
-      response.data?.[0]?.url
-    );
-
-    console.log(
-      '[CITY COVER API] B64 FIELD EXISTS',
-      !!response.data?.[0]?.b64_json
-    );
-
-    console.log(
-      '[CITY COVER API] REVISED PROMPT',
-      response.data?.[0]?.revised_prompt
-    );
-
+    console.log('[STEP 5] PROCESSANDO RESPOSTA');
     const openaiUrl = response.data[0]?.url;
     if (!openaiUrl) throw new Error("A OpenAI não retornou uma URL válida.");
 
-    console.log('[CITY COVER API] DOWNLOADING IMAGE');
-    const imageFetch = await fetch(openaiUrl);
+    console.log('[STEP 6] DOWNLOAD DA IMAGEM INICIADO');
+    const imageFetch = await fetch(openaiUrl, { signal: controller.signal });
     if (!imageFetch.ok) throw new Error("Falha ao baixar imagem da OpenAI");
     const buffer = Buffer.from(await imageFetch.arrayBuffer());
+    console.log('[STEP 6] DOWNLOAD DA IMAGEM FINALIZADO');
 
-    console.log('[CITY COVER API] STORAGE UPLOAD');
+    console.log('[STEP 7] UPLOAD FIREBASE INICIADO');
     const app = getAdminApp();
-    // CORREÇÃO: Definição explícita do bucket para evitar falha do Admin SDK
     const bucket = admin.storage(app).bucket('vibyeventos.firebasestorage.app');
     const filePath = `city-covers/${slug}.png`;
     const file = bucket.file(filePath);
@@ -151,8 +90,9 @@ FORMATO OBRIGATÓRIO
 
     await file.makePublic();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+    console.log('[STEP 7] UPLOAD FIREBASE FINALIZADO');
 
-    console.log('[CITY COVER API] DB UPDATE');
+    console.log('[STEP 8] SALVANDO NO BANCO');
     const db = getAdminDb();
     await db.collection('cityPages').doc(slug).update({
       coverImage: publicUrl,
@@ -160,10 +100,16 @@ FORMATO OBRIGATÓRIO
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    console.log('[CITY COVER API] SUCCESS URL:', publicUrl);
+    clearTimeout(timeoutId);
+    console.log('[STEP 9] RETORNANDO RESPONSE');
     return NextResponse.json({ url: publicUrl });
+
   } catch (error: any) {
-    console.error('[CITY COVER API ERROR]', error);
+    clearTimeout(timeoutId);
+    console.error('[CITY COVER FATAL ERROR]');
+    console.error(error);
+    if (error.stack) console.error(error.stack);
+    
     return NextResponse.json({ 
       error: true, 
       message: error.message || "Erro interno na API de geração" 
