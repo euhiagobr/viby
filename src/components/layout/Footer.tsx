@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -89,7 +90,7 @@ export default function Footer() {
                   alt={siteName} 
                   width={120} 
                   height={32} 
-                  style={{ height: '32px', width: 'auto' }}
+                  style={{ width: 'auto', height: '32px' }}
                   className="object-contain" 
                   unoptimized 
                 />

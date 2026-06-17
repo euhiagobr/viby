@@ -2,7 +2,7 @@
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useCollection, useMemoFirebase, useUser, useAuth, storage } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useAuth, useStorage } from '@/firebase';
 import { collection, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils";
 export default function AdminCityPagesManager() {
   const db = useFirestore();
   const auth = useAuth();
+  const storage = useStorage();
   const { user } = useUser(auth);
 
   const [search, setSearch] = React.useState("");
@@ -79,7 +80,7 @@ export default function AdminCityPagesManager() {
 
     // Sincronização obrigatória de Auth
     if (!auth.currentUser) {
-      toast({ variant: "destructive", title: "Sessão não identificada", description: "O Firebase ainda não reconheceu sua sessão. Tente recarregar a página." });
+      toast({ variant: "destructive", title: "Sessão não identificada", description: "Aguarde a sincronização de rede ou recarregue a página." });
       return;
     }
 
@@ -88,6 +89,10 @@ export default function AdminCityPagesManager() {
     try {
       const cityId = editingCity.slug || editingCity.id;
       const fileName = `city-covers-manual/${cityId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      
+      console.log("[CityCover-Upload] Iniciando envio para bucket:", storage.app.options.storageBucket);
+      console.log("[CityCover-Upload] Destino:", fileName);
+
       const storageRef = ref(storage, fileName);
       
       const uploadTask = uploadBytesResumable(storageRef, file, {
@@ -107,7 +112,7 @@ export default function AdminCityPagesManager() {
           console.error("[Upload Error Detailed]", error);
           toast({ 
             variant: "destructive", 
-            title: "Acesso Negado (403)", 
+            title: "Erro de Permissão (403)", 
             description: "Verifique se você está logado corretamente como administrador." 
           }); 
           setUploadProgress(null); 
