@@ -1,0 +1,21 @@
+
+{
+  "collection": "organizations",
+  "subcollection": "brand_assets",
+  "description": "Repositório de arquivos e mídias oficiais da marca (Media Kit).",
+  "fields": {
+    "id": "string (auto-id)",
+    "organizationId": "string (ref:organizations)",
+    "name": "string (Nome do arquivo)",
+    "category": "logos | icons | marketing | others",
+    "fileUrl": "url string",
+    "storagePath": "string",
+    "mimeType": "string",
+    "size": "number (bytes)",
+    "isFeatured": "boolean",
+    "sortOrder": "number",
+    "createdAt": "timestamp",
+    "updatedAt": "timestamp",
+    "createdBy": "string (UID)"
+  }
+}

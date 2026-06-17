@@ -51,6 +51,14 @@ service cloud.firestore {
       );
     }
 
+    function isOrgAdmin(orgId) {
+      return isSignedIn() && (
+        get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId == request.auth.uid ||
+        (exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'])
+      );
+    }
+
     // --- REGRAS DE EXCLUSIVIDADE ---
     function isPartner() {
       return getUserData().isPartner == true;
@@ -225,6 +233,11 @@ service cloud.firestore {
       match /members/{memberId} {
         allow read: if isSignedIn() || isAdmin();
         allow create, update, delete: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId == request.auth.uid);
+      }
+
+      match /brand_assets/{assetId} {
+        allow read: if true;
+        allow write: if isAdmin() || isOrgAdmin(orgId);
       }
     }
 

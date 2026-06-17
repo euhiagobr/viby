@@ -4,8 +4,12 @@ service firebase.storage {
   match /b/{bucket}/o {
     
     // --- REGRAS DE CAPAS DE CIDADES (PRIORIDADE MÁXIMA) ---
-    // Permite escrita para qualquer usuário autenticado (Admin/Organizador)
-    match /city-covers/{allPaths=**} {
+    match /city-covers/{cityId}/{file} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /city-covers-manual/{cityId}/{file} {
       allow read: if true;
       allow write: if request.auth != null;
     }
@@ -29,6 +33,14 @@ service firebase.storage {
       );
     }
 
+    function isOrgAdmin(orgId) {
+      return isSignedIn() && (
+        firestore.get(/databases/(default)/documents/organizations/$(orgId)).data.ownerId == request.auth.uid ||
+        (firestore.exists(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)) &&
+         firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in ['owner', 'admin'])
+      );
+    }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -48,6 +60,11 @@ service firebase.storage {
     match /organizations/{orgId}/{type} {
       allow read: if true;
       allow write: if isSignedIn() || isAdmin();
+    }
+
+    match /organizations/{orgId}/brand-assets/{file} {
+      allow read: if true;
+      allow write: if isAdmin() || isOrgAdmin(orgId);
     }
 
     match /events/{userId}/{allPaths=**} {

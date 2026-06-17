@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -31,7 +32,8 @@ import {
   Calendar,
   MousePointer2,
   Navigation,
-  Globe
+  Globe,
+  FileText
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -171,12 +173,21 @@ export default function OrganizationDashboardPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
-          <LayoutGrid className="w-8 h-8 text-secondary" />
-          Dashboard da Marca
-        </h1>
-        <p className="text-muted-foreground font-medium">Gestão centralizada de <strong>{currentOrg.name}</strong>.</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
+            <LayoutGrid className="w-8 h-8 text-secondary" />
+            Dashboard da Marca
+          </h1>
+          <p className="text-muted-foreground font-medium">Gestão centralizada de <strong>{currentOrg.name}</strong>.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary/5 transition-all">
+            <Link href={`/viby/${currentOrg.id}`}>
+              <FileText className="w-4 h-4" /> Material de Marca
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
