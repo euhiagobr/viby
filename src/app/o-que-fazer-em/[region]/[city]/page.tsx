@@ -6,7 +6,8 @@ import { notFound, redirect } from 'next/navigation';
 import { slugifyLocation } from '@/lib/city-utils';
 
 /**
- * @fileOverview Rota dinâmica para páginas de cidades com auditoria profunda.
+ * @fileOverview Rota dinâmica para páginas de cidades.
+ * Unifica busca por índice e fallback textual para compatibilidade legado.
  */
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +39,7 @@ async function getCityData(regionParam: string, citySlugParam: string) {
   const normalizedCity = citySlugParam.toLowerCase().trim();
 
   try {
-    // 1. Tentar consulta por índice (Otimizada)
+    // 1. Tentar consulta por índice (Otimizada para novos registros)
     const officialSnap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .where('regionSlug', '==', normalizedRegion)
@@ -49,7 +50,7 @@ async function getCityData(regionParam: string, citySlugParam: string) {
     if (!officialSnap.empty) {
       events = officialSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } else {
-      // 2. FALLBACK: Busca manual em todos os ativos (Resiliência)
+      // 2. FALLBACK: Filtro manual para registros legados ou não sincronizados
       const allActiveSnap = await db.collection('events')
         .where('status', '==', 'Ativo')
         .get();
@@ -65,22 +66,24 @@ async function getCityData(regionParam: string, citySlugParam: string) {
           const targetStateSlug = slugifyLocation(eState);
           const targetRegionSlug = `${eCountryCode}-${targetStateSlug}`;
 
-          return targetCitySlug === normalizedCity && targetRegionSlug === normalizedRegion;
+          return targetCitySlug === normalizedCity && 
+                 (targetRegionSlug === normalizedRegion || eState.toLowerCase() === normalizedRegion.split('-')[1]);
         });
     }
 
     if (events.length === 0) return null;
 
-    // 3. Auditoria de Datas
+    // 3. Filtro Temporal (Eventos Futuros + 6h de tolerância)
     const futureEvents = events.filter((e: any) => {
       const dateVal = e.date || e.startDate;
-      let d: Date | null = null;
-      if (dateVal?.toDate) d = dateVal.toDate();
+      if (!dateVal) return false;
+
+      let d: Date;
+      if (dateVal.toDate) d = dateVal.toDate();
       else d = new Date(dateVal);
 
-      if (!d || isNaN(d.getTime())) return false;
+      if (isNaN(d.getTime())) return false;
 
-      // Tolerância de 6h para eventos em andamento
       const visibilityThreshold = new Date(d.getTime() + 6 * 60 * 60 * 1000);
       return visibilityThreshold >= now;
     }).sort((a: any, b: any) => {
@@ -99,7 +102,7 @@ async function getCityData(regionParam: string, citySlugParam: string) {
       country: referenceEvent.country || referenceEvent.address?.country || "Brasil"
     });
   } catch (e: any) {
-    console.error("[CITY_PAGE_ERROR]", e.message);
+    console.error("[CITY_DATA_ERROR]", e.message);
     return null;
   }
 }

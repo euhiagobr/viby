@@ -7,6 +7,8 @@ import { EventCard } from "@/components/events/EventCard";
 import { Button } from "@/components/ui/button";
 import { Loader2, Inbox, Calendar, MapPin, ChevronRight, Globe, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -151,13 +153,13 @@ export default function CityPageClient({ initialEvents, cityName, regionLabel, r
 
              <Card className="border-none shadow-sm rounded-3xl bg-white p-8 space-y-6">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
-                  <MapPin className="w-4 h-4" /> Outras Cidades em {regionLabel.split(' - ')[1]}
+                  <MapPin className="w-4 h-4" /> Outras Cidades Relacionadas
                 </h4>
                 <div className="flex flex-wrap gap-2">
                    <Link href={`/o-que-fazer-em/${regionSlug}/${citySlug}`} className="px-4 py-2 bg-secondary text-white rounded-xl text-xs font-bold uppercase italic">
                      {cityName}
                    </Link>
-                   <span className="text-xs font-bold text-muted-foreground p-2 uppercase opacity-40 italic">Mais cidades em breve...</span>
+                   <span className="text-xs font-bold text-muted-foreground p-2 uppercase opacity-40 italic">Mapeando rede urbana...</span>
                 </div>
              </Card>
           </div>
