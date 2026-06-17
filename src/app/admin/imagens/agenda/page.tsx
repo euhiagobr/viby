@@ -31,7 +31,8 @@ import {
   Send,
   Monitor,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  ChevronRight
 } from 'lucide-react';
 import { 
   Select, 
@@ -223,18 +224,7 @@ export default function AgendaGeneratorPage() {
         const node = hiddenRenderRef.current?.querySelector('.viby-template-root') as HTMLElement;
         if (!node) throw new Error("Falha ao localizar nó de renderização.");
 
-        if (isMobile) {
-          const beforeData = await toPng(node, { pixelRatio: 1, width: dimensions.width, height: dimensions.height });
-          await triggerVisualProofDownload(beforeData, `before-export-p${i+1}.png`);
-        }
-
         await auditAndPrepareImages(node);
-
-        if (isMobile) {
-          const afterData = await toPng(node, { pixelRatio: 1, width: dimensions.width, height: dimensions.height });
-          await triggerVisualProofDownload(afterData, `after-base64-p${i+1}.png`);
-        }
-
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
         const dataUrl = await toPng(node, {

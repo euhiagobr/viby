@@ -156,7 +156,7 @@ export default function CrmCampaignsPage() {
 
   return (
     <div className="space-y-8 pb-20">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar campanha..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11 rounded-xl" />
@@ -271,7 +271,7 @@ export default function CrmCampaignsPage() {
                                   <SelectItem value="30dias">Próximos 30 dias</SelectItem>
                                   <SelectItem value="mes_atual">Este Mês</SelectItem>
                                   <SelectItem value="proximo_mes">Próximo Mês</SelectItem>
-                               </SelectContent>
+                                </SelectContent>
                             </Select>
                          </div>
                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60 ml-1">Título da Campanha</Label><Input value={campaignTitle} onChange={e => setCampaignTitle(e.target.value)} required className="rounded-xl h-11" placeholder="Ex: Destaques da Semana" /></div>

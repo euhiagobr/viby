@@ -23,8 +23,6 @@ interface AgendaTemplateProps {
 }
 
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
-  const containerRef = React.useRef<HTMLDivElement>(null);
-
   const config = {
     stories: { 
       width: 1080, 
@@ -71,7 +69,11 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
   const visibleEvents = events.slice(0, maxCards);
 
   const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : 'viby.club';
-  const subTitleText = theme === 'pride' ? 'DIVERSIDADE' : 'SEMANA';
+  
+  // Customização dinâmica de títulos por tema
+  const badgeText = theme === 'copa' ? 'Onde assistir' : 'Agenda';
+  const connectorText = theme === 'copa' ? 'O' : 'DA';
+  const subTitleText = theme === 'pride' ? 'DIVERSIDADE' : theme === 'copa' ? 'BRASIL' : 'SEMANA';
 
   return (
     <div 
@@ -108,10 +110,10 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
            <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride') ? '#000000' : '#FFFFFF', padding: '8px 24px', borderRadius: '50px', width: 'fit-content', fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
-              Agenda
+              {badgeText}
            </div>
            <h1 style={{ fontSize: '90px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, lineHeight: 0.8, letterSpacing: '-4px' }}>
-              DA <span style={{ opacity: 0.4 }}>{subTitleText}</span>
+              {connectorText} <span style={{ opacity: 0.4 }}>{subTitleText}</span>
            </h1>
         </div>
         {logoUrl && (
