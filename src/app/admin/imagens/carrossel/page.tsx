@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -42,12 +41,14 @@ import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { isEventVisible } from '@/lib/event-scoring-utils';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { auditAndPrepareImages } from '@/lib/image-generator-utils';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
 export default function CarouselGeneratorPage() {
   const db = useFirestore();
   const auth = useAuth();
+  const app = useFirebaseApp();
   const { user } = useUser(auth);
   const isMobile = useIsMobile();
 
@@ -127,15 +128,12 @@ export default function CarouselGeneratorPage() {
     setSelectedEvents(selectedEvents.filter(e => e.id !== id));
   };
 
-  // LÓGICA DE CAPTURA SEQUENCIAL (FILA) PARA MOBILE
   const processExportQueue = async (action: 'download' | 'email') => {
     if (isGenerating || isSendingEmail || selectedEvents.length === 0) return;
     
     const actionSetter = action === 'download' ? setIsGenerating : setIsSendingEmail;
     actionSetter(true);
     const base64Images: string[] = [];
-
-    console.log(`[Mobile Export] Carousel Sequential Export. Slides: ${selectedEvents.length}`);
 
     try {
       if (document.fonts) await document.fonts.ready;
@@ -149,15 +147,8 @@ export default function CarouselGeneratorPage() {
         const node = hiddenRenderRef.current?.querySelector('.viby-carousel-slide') as HTMLElement;
         if (!node) throw new Error("Falha no motor de renderização.");
 
-        const imgs = Array.from(node.querySelectorAll('img'));
-        await Promise.all(imgs.map(async (img) => {
-          if (img.src) {
-             try {
-               if (!img.complete) await new Promise(r => { img.onload = r; img.onerror = r; });
-               await img.decode();
-             } catch (e) {}
-          }
-        }));
+        // AUDITORIA E PREPARAÇÃO MOBILE
+        await auditAndPrepareImages(node);
 
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
@@ -214,7 +205,6 @@ export default function CarouselGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* NÓ DE RENDERIZAÇÃO OFF-SCREEN (SEQUENCIAL) */}
       <div 
         ref={hiddenRenderRef} 
         style={{ 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -54,7 +53,7 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '60px', position: 'relative', zIndex: 10, width: '100%', boxSizing: 'border-box' }}>
-        {logoUrl ? <img src={logoUrl} style={{ width: '220px', height: '60px', objectFit: 'contain' }} alt="Logo" /> : <span style={{ fontSize: '32px', fontWeight: 900, fontStyle: 'italic' }}>VIBY</span>}
+        {logoUrl ? <img src={logoUrl} crossOrigin="anonymous" style={{ width: '220px', height: '60px', objectFit: 'contain' }} alt="Logo" /> : <span style={{ fontSize: '32px', fontWeight: 900, fontStyle: 'italic' }}>VIBY</span>}
         {totalSlides && totalSlides > 1 && (
           <div style={{ background: 'rgba(255,255,255,0.1)', padding: '8px 24px', borderRadius: '50px', fontSize: '18px', fontWeight: 900 }}>
              {slideNumber} / {totalSlides}
@@ -65,7 +64,7 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
       {/* Image & Main Info Container */}
       <div style={{ display: 'flex', gap: '40px', flex: 1, alignItems: 'center', width: '100%', position: 'relative', zIndex: 10, boxSizing: 'border-box' }}>
         <div style={{ width: '450px', height: '450px', borderRadius: '40px', overflow: 'hidden', boxShadow: '0 30px 60px rgba(0,0,0,0.3)', flexShrink: 0, border: '8px solid rgba(255,255,255,0.1)' }}>
-          <img src={event.image} style={{ width: '450px', height: '450px', objectFit: 'cover' }} alt="" />
+          <img src={event.image} crossOrigin="anonymous" style={{ width: '450px', height: '450px', objectFit: 'cover' }} alt="" />
         </div>
         
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, overflow: 'hidden' }}>

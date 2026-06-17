@@ -1,6 +1,6 @@
 /**
  * @fileOverview Utilitários para o Gerador de Imagens Viby.
- * Implementa lógica de encurtamento inteligente de títulos.
+ * Implementa lógica de encurtamento inteligente de títulos e auditoria de renderização.
  */
 
 const NOISY_WORDS = [
@@ -70,4 +70,57 @@ export function formatTemplateTime(dateValue: any, endDateValue?: any): string {
   } catch (e) {
     return "";
   }
+}
+
+/**
+ * AUDITORIA E CONVERSÃO DE IMAGENS PARA BASE64 (MOBILE STABILITY)
+ */
+export async function auditAndPrepareImages(container: HTMLElement) {
+  const images = Array.from(container.querySelectorAll('img'));
+  console.log(`[Mobile Export] Auditoria iniciada. Encontradas ${images.length} imagens.`);
+
+  const results = await Promise.all(images.map(async (img, idx) => {
+    const audit = {
+      idx,
+      src: img.src,
+      currentSrc: img.currentSrc,
+      complete: img.complete,
+      naturalWidth: img.naturalWidth,
+      naturalHeight: img.naturalHeight,
+      crossOrigin: img.crossOrigin,
+      isFirebase: img.src.includes('firebasestorage.googleapis.com')
+    };
+    
+    console.log(`[Mobile Export] Imagem ${idx}:`, audit);
+
+    // Tentar converter para Base64 para garantir desenho no Canvas
+    try {
+      if (img.src.startsWith('data:')) {
+        console.log(`[Mobile Export] Imagem ${idx} já é Base64.`);
+        return true;
+      }
+
+      const response = await fetch(img.src);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      img.src = dataUrl;
+      console.log(`[Mobile Export] Imagem ${idx} convertida p/ Base64 com sucesso.`);
+      return true;
+    } catch (err) {
+      console.warn(`[Mobile Export] Falha na conversão da Imagem ${idx}:`, err);
+      return false;
+    }
+  }));
+
+  const successCount = results.filter(r => r).length;
+  console.log(`[Mobile Export] Auditoria finalizada. ${successCount}/${images.length} imagens prontas para Canvas.`);
+  
+  // Garantir decodificação final
+  await Promise.all(images.map(img => img.decode().catch(() => {})));
 }

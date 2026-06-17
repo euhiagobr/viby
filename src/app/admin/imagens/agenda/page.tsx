@@ -50,6 +50,7 @@ import { isEventVisible } from '@/lib/event-scoring-utils';
 import { COPA_TAGS, LGBT_TAGS, LGBT_CATEGORY_IDS } from '@/lib/constants';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { auditAndPrepareImages } from '@/lib/image-generator-utils';
 
 const ITEMS_PER_FORMAT = {
   stories: 7,
@@ -222,15 +223,8 @@ export default function AgendaGeneratorPage() {
         const node = hiddenRenderRef.current?.querySelector('.viby-template-root') as HTMLElement;
         if (!node) throw new Error("Falha ao localizar nó de renderização.");
 
-        const imgs = Array.from(node.querySelectorAll('img'));
-        await Promise.all(imgs.map(async (img) => {
-          if (img.src) {
-            try {
-              if (!img.complete) await new Promise(r => { img.onload = r; img.onerror = r; });
-              await img.decode();
-            } catch (e) {}
-          }
-        }));
+        // AUDITORIA E PREPARAÇÃO MOBILE
+        await auditAndPrepareImages(node);
 
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 

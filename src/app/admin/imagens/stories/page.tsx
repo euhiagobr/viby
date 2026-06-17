@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -41,6 +40,7 @@ import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { isEventVisible } from '@/lib/event-scoring-utils';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { auditAndPrepareImages } from '@/lib/image-generator-utils';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
@@ -136,15 +136,8 @@ export default function StoriesGeneratorPage() {
     const node = hiddenRenderRef.current.querySelector('.viby-export-page') as HTMLElement;
     if (!node) return null;
 
-    const imgs = Array.from(node.querySelectorAll('img'));
-    await Promise.all(imgs.map(async (img) => {
-      if (img.src) {
-         try {
-           if (!img.complete) await new Promise(r => { img.onload = r; img.onerror = r; });
-           await img.decode();
-         } catch (e) {}
-      }
-    }));
+    // AUDITORIA E PREPARAÇÃO MOBILE
+    await auditAndPrepareImages(node);
 
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
@@ -221,7 +214,6 @@ export default function StoriesGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* NÓ DE RENDERIZAÇÃO OFF-SCREEN (SEQUENCIAL) */}
       <div 
         ref={hiddenRenderRef} 
         style={{ 

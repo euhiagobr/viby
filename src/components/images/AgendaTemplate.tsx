@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -116,7 +115,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
            </h1>
         </div>
         {logoUrl && (
-          <img src={logoUrl} style={{ width: '220px', height: '70px', objectFit: 'contain', marginBottom: '10px' }} alt="Logo" />
+          <img src={logoUrl} crossOrigin="anonymous" style={{ width: '220px', height: '70px', objectFit: 'contain', marginBottom: '10px' }} alt="Logo" />
         )}
       </div>
 
@@ -155,7 +154,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
             }}
           >
              <div className="viby-card-image" style={{ width: '130px', height: '130px', borderRadius: '25px', overflow: 'hidden', flexShrink: 0 }}>
-                <img src={ev.image} style={{ width: '130px', height: '130px', objectFit: 'cover' }} alt="" />
+                <img src={ev.image} crossOrigin="anonymous" style={{ width: '130px', height: '130px', objectFit: 'cover' }} alt="" />
              </div>
              
              <div className="viby-card-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, overflow: 'hidden', boxSizing: 'border-box' }}>
