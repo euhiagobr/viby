@@ -1,8 +1,7 @@
-
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useDoc } from '@/firebase';
+import { useFirestore, useDoc, useAuth, useUser } from '@/firebase';
 import { collection, query, where, orderBy, limit, addDoc, serverTimestamp, getDocs, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +20,8 @@ import {
   ChevronRight,
   Info,
   Eye,
-  Camera
+  Camera,
+  Send
 } from 'lucide-react';
 import { 
   Select, 
@@ -36,16 +36,20 @@ import { toPng } from 'html-to-image';
 import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { isEventVisible } from '@/lib/event-scoring-utils';
+import { sendAgendaRequestAction } from '@/app/actions/email';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
 export default function StoriesGeneratorPage() {
   const db = useFirestore();
+  const auth = useAuth();
+  const { user } = useUser(auth);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
   const [selectedEvent, setSelectedEvent] = React.useState<any | null>(null);
   const [isSearching, setIsSearching] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   
   const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
 
@@ -116,7 +120,6 @@ export default function StoriesGeneratorPage() {
     if (!hiddenRenderRef.current || isGenerating || !selectedEvent) return;
     setIsGenerating(true);
     
-    // Warm-up necessário para mobile
     await new Promise(resolve => setTimeout(resolve, 2500));
 
     try {
@@ -181,11 +184,39 @@ export default function StoriesGeneratorPage() {
     }
   };
 
+  const handleSendToViby = async () => {
+    if (!selectedEvent || !user || isSendingEmail) return;
+    setIsSendingEmail(true);
+    try {
+      const res = await sendAgendaRequestAction({
+        events: [{
+          title: selectedEvent.title,
+          city: selectedEvent.city,
+          date: new Date(selectedEvent.date).toLocaleDateString('pt-BR'),
+          image: selectedEvent.image.startsWith('data:') ? 'Imagem em anexo' : selectedEvent.image
+        }],
+        theme,
+        format: 'stories',
+        userEmail: user.email!,
+        userName: user.displayName || "Admin"
+      });
+
+      if (res.success) {
+        toast({ title: "Solicitação enviada!", description: "A equipe Viby processará seu Story." });
+      } else {
+        throw new Error(res.error);
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro no envio", description: e.message });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   const activeLogo = theme === 'copa' ? copaLogoBase64 : logoBase64;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* RENDERIZADOR OFF-SCREEN (VISÍVEL MAS FORA DO VIEWPORT PARA MOBILE) */}
       <div 
         ref={hiddenRenderRef} 
         style={{ 
@@ -300,10 +331,21 @@ export default function StoriesGeneratorPage() {
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview de Interatividade</h3>
-           <Button onClick={handleDownload} disabled={isGenerating || !selectedEvent} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
-              Baixar PNG
-           </Button>
+           <div className="flex gap-2">
+              <Button 
+                onClick={handleSendToViby} 
+                disabled={isSendingEmail || !selectedEvent} 
+                variant="outline"
+                className="rounded-xl h-11 px-6 font-black uppercase italic text-xs gap-2 border-secondary text-secondary"
+              >
+                 {isSendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} 
+                 Enviar p/ E-mail
+              </Button>
+              <Button onClick={handleDownload} disabled={isGenerating || !selectedEvent} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
+                 {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
+                 Baixar PNG
+              </Button>
+           </div>
         </div>
 
         <div className="relative bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] flex flex-col items-center justify-center overflow-hidden">
@@ -321,7 +363,6 @@ export default function StoriesGeneratorPage() {
              </div>
            ) : (
              <div className="scale-[0.35] md:scale-[0.4] origin-center shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white">
-                {/* PREVIEW VISUAL (O QUE O USUÁRIO VÊ NA TELA) */}
                 <StoryTemplate 
                   event={selectedEvent} 
                   theme={theme} 

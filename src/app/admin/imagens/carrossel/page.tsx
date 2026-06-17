@@ -1,8 +1,7 @@
-
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useDoc } from '@/firebase';
+import { useFirestore, useDoc, useAuth, useUser } from '@/firebase';
 import { collection, query, where, orderBy, limit, addDoc, serverTimestamp, getDocs, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +20,8 @@ import {
   GripVertical,
   Inbox,
   Eye,
-  Camera
+  Camera,
+  Send
 } from 'lucide-react';
 import { 
   Select, 
@@ -37,16 +37,20 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { isEventVisible } from '@/lib/event-scoring-utils';
+import { sendAgendaRequestAction } from '@/app/actions/email';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
 export default function CarouselGeneratorPage() {
   const db = useFirestore();
+  const auth = useAuth();
+  const { user } = useUser(auth);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
   const [selectedEvents, setSelectedEvents] = React.useState<any[]>([]);
   const [isSearching, setIsSearching] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   
   const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
   const [aspectRatio, setAspectRatio] = React.useState<'1:1' | '4:5'>('1:1');
@@ -120,7 +124,6 @@ export default function CarouselGeneratorPage() {
     if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    // Warm-up necessário para mobile
     await new Promise(r => setTimeout(r, 2500));
 
     try {
@@ -177,11 +180,41 @@ export default function CarouselGeneratorPage() {
     }
   };
 
+  const handleSendToViby = async () => {
+    if (selectedEvents.length === 0 || !user || isSendingEmail) return;
+    setIsSendingEmail(true);
+    try {
+      const simplifiedEvents = selectedEvents.map(ev => ({
+        title: ev.title,
+        city: ev.city,
+        date: new Date(ev.date).toLocaleDateString('pt-BR'),
+        image: ev.image.startsWith('data:') ? 'Imagem em anexo' : ev.image
+      }));
+
+      const res = await sendAgendaRequestAction({
+        events: simplifiedEvents,
+        theme,
+        format: `carousel_${aspectRatio}`,
+        userEmail: user.email!,
+        userName: user.displayName || "Admin"
+      });
+
+      if (res.success) {
+        toast({ title: "Solicitação enviada!", description: "A equipe Viby processará seu Carrossel." });
+      } else {
+        throw new Error(res.error);
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro no envio", description: e.message });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   const activeLogo = theme === 'copa' ? copaLogoBase64 : logoBase64;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* RENDERIZADOR OFF-SCREEN (VISÍVEL MAS FORA DO VIEWPORT PARA MOBILE) */}
       <div 
         ref={hiddenRenderRef} 
         style={{ 
@@ -288,10 +321,21 @@ export default function CarouselGeneratorPage() {
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview do Layout</h3>
-           <Button onClick={handleDownloadAll} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
-              Baixar Todas as Lâminas
-           </Button>
+           <div className="flex gap-2">
+              <Button 
+                onClick={handleSendToViby} 
+                disabled={isSendingEmail || selectedEvents.length === 0} 
+                variant="outline"
+                className="rounded-xl h-11 px-6 font-black uppercase italic text-xs gap-2 border-secondary text-secondary"
+              >
+                 {isSendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} 
+                 Enviar p/ E-mail
+              </Button>
+              <Button onClick={handleDownloadAll} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
+                 {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
+                 Baixar Todas as Lâminas
+              </Button>
+           </div>
         </div>
 
         <div className="bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] border-none shadow-2xl overflow-hidden">
@@ -315,7 +359,6 @@ export default function CarouselGeneratorPage() {
                       "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
                       aspectRatio === '1:1' ? "scale-[0.5] h-[540px]" : "scale-[0.4] h-[540px]"
                     )}>
-                       {/* PREVIEW VISUAL */}
                        <CarouselTemplate 
                           event={ev} 
                           aspectRatio={aspectRatio} 

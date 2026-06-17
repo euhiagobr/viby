@@ -1,8 +1,7 @@
-
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useDoc } from '@/firebase';
+import { useFirestore, useDoc, useAuth, useUser } from '@/firebase';
 import { collection, query, where, orderBy, limit, getDocs, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,8 @@ import {
   Heart,
   Zap,
   RefreshCw,
-  Eye
+  Eye,
+  Send
 } from 'lucide-react';
 import { 
   Select, 
@@ -44,6 +44,7 @@ import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { Separator } from '@/components/ui/separator';
 import { isEventVisible } from '@/lib/event-scoring-utils';
 import { COPA_TAGS, LGBT_TAGS, LGBT_CATEGORY_IDS } from '@/lib/constants';
+import { sendAgendaRequestAction } from '@/app/actions/email';
 
 const ITEMS_PER_FORMAT = {
   stories: 7,
@@ -61,11 +62,14 @@ const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.fireb
 
 export default function AgendaGeneratorPage() {
   const db = useFirestore();
+  const auth = useAuth();
+  const { user } = useUser(auth);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
   const [selectedEvents, setSelectedEvents] = React.useState<any[]>([]);
   const [isSearching, setIsSearching] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   
   const [format, setFormat] = React.useState<'A4' | 'instagram' | 'stories'>('stories');
   const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
@@ -194,7 +198,6 @@ export default function AgendaGeneratorPage() {
     if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    // Warm-up prolongado para mobile
     await new Promise(r => setTimeout(r, 2500));
 
     try {
@@ -204,7 +207,6 @@ export default function AgendaGeneratorPage() {
       for (let i = 0; i < pages.length; i++) {
         const pageElement = pages[i] as HTMLElement;
         
-        // Mobile-Safe Paint: Forçar decodificação e aguardar repintura da GPU
         const imgs = Array.from(pageElement.querySelectorAll('img'));
         await Promise.all(imgs.map(async (img) => {
            if (img.src) {
@@ -222,7 +224,6 @@ export default function AgendaGeneratorPage() {
            }
         }));
 
-        // Pequeno delay para garantir sincronização do DOM
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
         const dataUrl = await toPng(pageElement, {
@@ -258,11 +259,41 @@ export default function AgendaGeneratorPage() {
     }
   };
 
+  const handleSendToViby = async () => {
+    if (selectedEvents.length === 0 || !user || isSendingEmail) return;
+    setIsSendingEmail(true);
+    try {
+      const simplifiedEvents = selectedEvents.map(ev => ({
+        title: ev.title,
+        city: ev.city,
+        date: new Date(ev.date).toLocaleDateString('pt-BR'),
+        image: ev.image.startsWith('data:') ? 'Imagem em anexo' : ev.image
+      }));
+
+      const res = await sendAgendaRequestAction({
+        events: simplifiedEvents,
+        theme,
+        format,
+        userEmail: user.email!,
+        userName: user.displayName || "Admin"
+      });
+
+      if (res.success) {
+        toast({ title: "Solicitação enviada!", description: "A equipe Viby processará sua arte." });
+      } else {
+        throw new Error(res.error);
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro no envio", description: e.message });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   const activeLogo = theme === 'copa' ? copaLogoBase64 : logoBase64;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* RENDERIZADOR OFF-SCREEN (VISÍVEL PARA A GPU MAS FORA DA VISTA DO USUÁRIO) */}
       <div 
         ref={hiddenRenderRef} 
         style={{ 
@@ -379,6 +410,15 @@ export default function AgendaGeneratorPage() {
               {selectedEvents.length > 0 && <p className="text-[9px] font-bold text-secondary uppercase italic animate-in fade-in">Total: {eventPages.length} página(s).</p>}
            </div>
            <div className="flex gap-2">
+              <Button 
+                onClick={handleSendToViby} 
+                disabled={isSendingEmail || selectedEvents.length === 0} 
+                variant="outline"
+                className="rounded-xl h-11 px-6 font-black uppercase italic text-xs gap-2 border-secondary text-secondary"
+              >
+                 {isSendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} 
+                 Enviar p/ E-mail
+              </Button>
               <Button onClick={handleDownloadAll} disabled={isGenerating || selectedEvents.length === 0} className="rounded-xl h-11 px-8 font-black uppercase italic text-xs bg-primary text-white gap-2 shadow-lg">
                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} 
                  Baixar PNG
@@ -406,7 +446,6 @@ export default function AgendaGeneratorPage() {
                       "shadow-[0_40px_100px_rgba(0,0,0,0.3)] bg-white origin-top transition-all duration-500",
                       format === 'stories' ? "scale-[0.35] h-[672px]" : format === 'instagram' ? "scale-[0.45] h-[486px]" : "scale-[0.3] h-[526px]"
                     )}>
-                       {/* TEMPLATE DE PREVIEW (SÓ PARA O USUÁRIO VER) */}
                        <AgendaTemplate events={pageEvents} format={format} theme={theme} logoUrl={activeLogo || undefined} pageNumber={idx + 1} totalPages={eventPages.length} />
                     </div>
                   </div>
