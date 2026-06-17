@@ -40,7 +40,6 @@ import { toPng } from 'html-to-image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
-import { isEventVisible } from '@/lib/event-scoring-utils';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { auditAndPrepareImages, triggerVisualProofDownload } from '@/lib/image-generator-utils';
@@ -96,7 +95,6 @@ export default function CarouselGeneratorPage() {
       );
       const snap = await getDocs(q);
       const searchNorm = normalizeText(searchTerm);
-      const now = new Date();
       
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -105,8 +103,8 @@ export default function CarouselGeneratorPage() {
            const tags = (ev.tags || []).map(t => normalizeText(t));
            const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
            const isNotListed = !selectedEvents.some(s => s.id === ev.id);
-           const isVisible = isEventVisible(ev, now);
-           return matchesSearch && isNotListed && isVisible;
+           // Removido filtro de visibilidade temporal
+           return matchesSearch && isNotListed;
         });
       setSearchResults(results);
     } catch (e) {
@@ -148,23 +146,12 @@ export default function CarouselGeneratorPage() {
         const ev = selectedEvents[i];
         setCapturingSlide({ event: ev, idx: i + 1 });
         
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 1500));
 
         const node = hiddenRenderRef.current?.querySelector('.viby-carousel-slide') as HTMLElement;
         if (!node) throw new Error("Falha no motor de renderização.");
 
-        if (isMobile) {
-          const beforeData = await toPng(node, { pixelRatio: 1, width: config.width, height: config.height });
-          await triggerVisualProofDownload(beforeData, `before-export-carrossel-s${i+1}.png`);
-        }
-
         await auditAndPrepareImages(node);
-
-        if (isMobile) {
-          const afterData = await toPng(node, { pixelRatio: 1, width: config.width, height: config.height });
-          await triggerVisualProofDownload(afterData, `after-base64-carrossel-s${i+1}.png`);
-        }
-
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
         const dataUrl = await toPng(node, {

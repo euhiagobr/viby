@@ -47,7 +47,6 @@ import { toPng } from 'html-to-image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
-import { isEventVisible } from '@/lib/event-scoring-utils';
 import { COPA_TAGS, LGBT_TAGS, LGBT_CATEGORY_IDS } from '@/lib/constants';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -115,7 +114,6 @@ export default function AgendaGeneratorPage() {
       );
       const snap = await getDocs(q);
       const searchNorm = normalizeText(searchTerm);
-      const now = new Date();
       
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -124,8 +122,8 @@ export default function AgendaGeneratorPage() {
           const tags = (ev.tags || []).map(t => normalizeText(t));
           const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
           const isNotListed = !selectedEvents.some(s => s.id === ev.id);
-          const isVisible = isEventVisible(ev, now);
-          return matchesSearch && isNotListed && isVisible;
+          // Removido filtro de visibilidade temporal para permitir que o admin ache eventos que acabaram de ocorrer
+          return matchesSearch && isNotListed;
         });
         
       setSearchResults(results);
@@ -147,11 +145,9 @@ export default function AgendaGeneratorPage() {
         limit(200)
       );
       const snap = await getDocs(q);
-      const now = new Date();
       
       const filtered = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter(ev => isEventVisible(ev, now))
         .filter(ev => {
           if (type === 'copa') {
             return ev.tags?.some(t => COPA_TAGS.includes(t.toLowerCase()));
@@ -219,7 +215,7 @@ export default function AgendaGeneratorPage() {
         const pageEvents = eventPages[i];
         setCapturingPage({ events: pageEvents, idx: i + 1 });
         
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 1500));
 
         const node = hiddenRenderRef.current?.querySelector('.viby-template-root') as HTMLElement;
         if (!node) throw new Error("Falha ao localizar nó de renderização.");

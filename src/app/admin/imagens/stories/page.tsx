@@ -38,7 +38,6 @@ import { StoryTemplate } from '@/components/images/StoryTemplate';
 import { toPng } from 'html-to-image';
 import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
-import { isEventVisible } from '@/lib/event-scoring-utils';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { auditAndPrepareImages, triggerVisualProofDownload } from '@/lib/image-generator-utils';
@@ -92,7 +91,6 @@ export default function StoriesGeneratorPage() {
       );
       const snap = await getDocs(q);
       const searchNorm = normalizeText(searchTerm);
-      const now = new Date();
       
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -101,8 +99,8 @@ export default function StoriesGeneratorPage() {
           const tags = (ev.tags || []).map(t => normalizeText(t));
           const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
           const isNotSelected = ev.id !== selectedEvent?.id;
-          const isVisible = isEventVisible(ev, now);
-          return matchesSearch && isNotSelected && isVisible;
+          // Removido filtro de visibilidade temporal
+          return matchesSearch && isNotSelected;
         });
       setSearchResults(results);
     } catch (e) {
@@ -136,18 +134,7 @@ export default function StoriesGeneratorPage() {
     const node = hiddenRenderRef.current.querySelector('.viby-export-page') as HTMLElement;
     if (!node) return null;
 
-    if (isMobile) {
-      const beforeData = await toPng(node, { pixelRatio: 1, width: 1080, height: 1920 });
-      await triggerVisualProofDownload(beforeData, 'before-export-story.png');
-    }
-
     await auditAndPrepareImages(node);
-
-    if (isMobile) {
-      const afterData = await toPng(node, { pixelRatio: 1, width: 1080, height: 1920 });
-      await triggerVisualProofDownload(afterData, 'after-base64-story.png');
-    }
-
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
     const result = await toPng(node, {
@@ -319,7 +306,7 @@ export default function StoriesGeneratorPage() {
 
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview de Interatividade</h3>
+           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview de Interatividade</h3>
            <div className="flex gap-2">
               <Button 
                 onClick={handleSendToViby} 
