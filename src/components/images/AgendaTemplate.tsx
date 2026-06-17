@@ -71,9 +71,13 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
   const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : 'viby.club';
   
   // Customização dinâmica de títulos por tema
-  const badgeText = theme === 'copa' ? 'Onde assistir' : 'Agenda';
-  const connectorText = theme === 'copa' ? 'O' : 'DA';
-  const subTitleText = theme === 'pride' ? 'DIVERSIDADE' : theme === 'copa' ? 'BRASIL' : 'SEMANA';
+  const isCopa = theme === 'copa';
+  const isPride = theme === 'pride';
+  
+  const badgeText = isCopa ? 'COPA 2026' : 'Agenda';
+  const mainTitle = isCopa ? 'ONDE ASSISTIR' : 'AGENDA';
+  const connectorText = isCopa ? 'O' : 'DA';
+  const subTitleText = isPride ? 'DIVERSIDADE' : isCopa ? 'BRASIL' : 'SEMANA';
 
   return (
     <div 
@@ -109,11 +113,11 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-           <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride') ? '#000000' : '#FFFFFF', padding: '8px 24px', borderRadius: '50px', width: 'fit-content', fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
+           <div style={{ background: colors.accent, color: (isCopa || isPride) ? '#000000' : '#FFFFFF', padding: '8px 24px', borderRadius: '50px', width: 'fit-content', fontSize: '20px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
               {badgeText}
            </div>
            <h1 style={{ fontSize: '90px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, lineHeight: 0.8, letterSpacing: '-4px' }}>
-              {connectorText} <span style={{ opacity: 0.4 }}>{subTitleText}</span>
+              {mainTitle} <span style={{ opacity: 0.4 }}>{connectorText} {subTitleText}</span>
            </h1>
         </div>
         {logoUrl && (

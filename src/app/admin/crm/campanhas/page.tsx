@@ -359,23 +359,3 @@ export default function CrmCampaignsPage() {
     </div>
   );
 }
-
-function KPICard({ label, value, icon: Icon, color, loading }: any) {
-  const colors: any = {
-    blue: "bg-blue-50 text-blue-500",
-    green: "bg-green-50 text-green-600",
-    orange: "bg-orange-50 text-orange-500",
-    secondary: "bg-secondary/5 text-secondary"
-  };
-  return (
-    <Card className="border-none shadow-sm rounded-3xl bg-white">
-       <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-             <div className={cn("p-2.5 rounded-2xl", colors[color])}><Icon className="w-5 h-5" /></div>
-          </div>
-          <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">{label}</p>
-          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <p className="text-2xl font-black text-primary">{value.toLocaleString()}</p>}
-       </CardContent>
-    </Card>
-  );
-}

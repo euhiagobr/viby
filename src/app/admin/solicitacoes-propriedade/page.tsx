@@ -173,7 +173,7 @@ export default function AdminSolicitacoesPropriedade() {
                     <div className="p-4 bg-muted/20 rounded-2xl border text-sm italic">"{selectedReq?.justification || "Sem justificativa informada."}"</div>
                  </div>
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Parecer Administrativo</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Parecer Administrativo</Label>
                     <Input value={adminNotes} onChange={e => setAdminNotes(e.target.value)} placeholder="Motivo da decisão..." className="rounded-xl h-12" />
                  </div>
               </div>

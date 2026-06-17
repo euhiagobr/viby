@@ -319,7 +319,7 @@ export default function AdminEventosPage() {
                             <ExternalLink className="w-4 h-4" />
                           </Link>
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteEvent(event.id, event.title)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleDeleteEvent(event.id, event.title)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>

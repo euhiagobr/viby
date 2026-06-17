@@ -51,6 +51,7 @@ import { COPA_TAGS, LGBT_TAGS, LGBT_CATEGORY_IDS } from '@/lib/constants';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { auditAndPrepareImages, triggerVisualProofDownload } from '@/lib/image-generator-utils';
+import { isEventVisible } from '@/lib/event-scoring-utils';
 
 const ITEMS_PER_FORMAT = {
   stories: 7,
@@ -114,6 +115,7 @@ export default function AgendaGeneratorPage() {
       );
       const snap = await getDocs(q);
       const searchNorm = normalizeText(searchTerm);
+      const now = new Date();
       
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -122,8 +124,9 @@ export default function AgendaGeneratorPage() {
           const tags = (ev.tags || []).map(t => normalizeText(t));
           const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
           const isNotListed = !selectedEvents.some(s => s.id === ev.id);
-          // Removido filtro de visibilidade temporal para permitir que o admin ache eventos que acabaram de ocorrer
-          return matchesSearch && isNotListed;
+          const visible = isEventVisible(ev, now);
+          
+          return matchesSearch && isNotListed && visible;
         });
         
       setSearchResults(results);

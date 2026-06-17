@@ -18,6 +18,7 @@ export function calculateDistanceMeters(coords1: Coordinates, coords2: Coordinat
 /**
  * Define se um evento deve ser exibido nas vitrines públicas.
  * Regra: Eventos ativos cujo horário de encerramento ainda não passou.
+ * Atualizado: Para eventos recorrentes, considera a data final da série.
  */
 export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   if (!event || event.status === 'Excluído') return false;
@@ -27,19 +28,26 @@ export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   
   const now = nowOverride ? nowOverride.getTime() : new Date().getTime();
   
-  const startDate = safeParseDate(event.date);
-  if (!startDate) return true; 
+  let endMs: number;
 
-  const startMs = startDate.getTime();
-  const endDate = safeParseDate(event.endDate);
-  
-  // Se não houver data de fim, usamos um padrão de 6h após o início para manter visível no dia
-  let endMs = endDate ? endDate.getTime() : (startMs + 6 * 60 * 60 * 1000);
-  
-  // Tratamento de virada de noite (ex: 22h às 04h)
-  if (endDate && endMs <= startMs) {
-    if (startDate.toDateString() === endDate.toDateString()) {
-      endMs += 24 * 60 * 60 * 1000;
+  if (event.isRecurring && event.recurringEndDate) {
+    const recurEnd = safeParseDate(event.recurringEndDate);
+    endMs = recurEnd ? recurEnd.getTime() : 0;
+  } else {
+    const startDate = safeParseDate(event.date);
+    if (!startDate) return true; 
+
+    const startMs = startDate.getTime();
+    const endDate = safeParseDate(event.endDate);
+    
+    // Se não houver data de fim, usamos um padrão de 6h após o início para manter visível no dia
+    endMs = endDate ? endDate.getTime() : (startMs + 6 * 60 * 60 * 1000);
+    
+    // Tratamento de virada de noite (ex: 22h às 04h)
+    if (endDate && endMs <= startMs) {
+      if (startDate.toDateString() === endDate.toDateString()) {
+        endMs += 24 * 60 * 60 * 1000;
+      }
     }
   }
 
