@@ -137,7 +137,7 @@ export default function CampaignDetailPage() {
            
            {campaign.status === 'teste_enviado' && (
              <Button onClick={handleApprove} disabled={isProcessing} className="bg-primary text-white rounded-xl h-11 px-8 font-black uppercase italic text-xs shadow-lg">
-                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />} Aprovar Campanha
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />} Aprovar Campanha
              </Button>
            )}
 
@@ -206,7 +206,6 @@ export default function CampaignDetailPage() {
              </Card>
            )}
 
-           {/* Auditoria de Datas */}
            <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
               <CardHeader className="bg-muted/30 border-b p-8">
                  <CardTitle className="text-lg font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">

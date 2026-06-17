@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -8,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { 
   Search, 
   Loader2, 
@@ -87,7 +87,6 @@ export default function AgendaGeneratorPage() {
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
-  // Estado para controle de fila de renderização mobile
   const [capturingPage, setCapturingPage] = React.useState<any | null>(null);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
@@ -203,35 +202,26 @@ export default function AgendaGeneratorPage() {
     return pages;
   }, [selectedEvents, format]);
 
-  // LÓGICA DE CAPTURA SEQUENCIAL (FILA) PARA MOBILE
   const processExportQueue = async (action: 'download' | 'email') => {
     if (isGenerating || isSendingEmail || selectedEvents.length === 0) return;
     
-    const isMobileExport = !!isMobile;
     const actionStateSetter = action === 'download' ? setIsGenerating : setIsSendingEmail;
-    
     actionStateSetter(true);
     const base64Images: string[] = [];
     const dimensions = FORMAT_DIMENSIONS[format];
 
-    console.log(`[Mobile Export] Starting sequential queue. Pages: ${eventPages.length}`);
-
     try {
-      // 1. Garantir fontes prontas
       if (document.fonts) await document.fonts.ready;
 
-      // 2. Processar cada página individualmente
       for (let i = 0; i < eventPages.length; i++) {
         const pageEvents = eventPages[i];
         setCapturingPage({ events: pageEvents, idx: i + 1 });
         
-        // Pequena pausa para o React montar o nó off-screen
         await new Promise(r => setTimeout(r, 600));
 
         const node = hiddenRenderRef.current?.querySelector('.viby-template-root') as HTMLElement;
         if (!node) throw new Error("Falha ao localizar nó de renderização.");
 
-        // Validar mídias no nó
         const imgs = Array.from(node.querySelectorAll('img'));
         await Promise.all(imgs.map(async (img) => {
           if (img.src) {
@@ -269,7 +259,6 @@ export default function AgendaGeneratorPage() {
            base64Images.push(dataUrl);
         }
 
-        // Limpar página atual para liberar memória antes da próxima
         setCapturingPage(null);
         await new Promise(r => setTimeout(r, 300));
       }
@@ -289,7 +278,6 @@ export default function AgendaGeneratorPage() {
       }
 
     } catch (err: any) {
-      console.error("[Mobile Export Error]", err);
       toast({ variant: "destructive", title: "Erro na geração", description: err.message });
     } finally {
       actionStateSetter(false);
@@ -301,7 +289,6 @@ export default function AgendaGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* NÓ DE RENDERIZAÇÃO OFF-SCREEN (SEQUENCIAL) */}
       <div 
         ref={hiddenRenderRef} 
         style={{ 
@@ -450,7 +437,6 @@ export default function AgendaGeneratorPage() {
                      <p className="text-sm font-black uppercase italic">Adicione eventos para gerar a agenda</p>
                   </div>
                 ) : isMobile ? (
-                  /* PREVIEW SIMPLIFICADO PARA MOBILE (POUPAR MEMÓRIA) */
                   <div className="w-full max-w-sm space-y-4 animate-in fade-in">
                      <Card className="border-none shadow-sm rounded-3xl bg-white p-8 text-center space-y-4">
                         <div className="p-4 bg-secondary/10 rounded-2xl w-fit mx-auto text-secondary"><Monitor className="w-8 h-8" /></div>
@@ -467,7 +453,6 @@ export default function AgendaGeneratorPage() {
                      ))}
                   </div>
                 ) : (
-                  /* PREVIEW COMPLETO PARA DESKTOP */
                   eventPages.map((pageEvents, idx) => (
                     <div key={idx} className="relative flex flex-col items-center gap-4">
                       <div className={cn(

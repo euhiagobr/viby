@@ -1,8 +1,8 @@
-
 'use client';
 
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { 
   Send, 
   Users, 
@@ -20,7 +20,6 @@ import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, getCountFromServer, where } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/financial-utils';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
 export default function CrmDashboard() {

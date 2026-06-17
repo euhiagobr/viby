@@ -156,7 +156,7 @@ export default function CrmCampaignsPage() {
 
   return (
     <div className="space-y-8 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar campanha..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11 rounded-xl" />
@@ -356,25 +356,5 @@ export default function CrmCampaignsPage() {
         )}
       </div>
     </div>
-  );
-}
-
-function KPICard({ label, value, icon: Icon, color, loading }: any) {
-  const colors: any = {
-    blue: "bg-blue-50 text-blue-500",
-    green: "bg-green-50 text-green-600",
-    orange: "bg-orange-50 text-orange-500",
-    secondary: "bg-secondary/5 text-secondary"
-  };
-  return (
-    <Card className="border-none shadow-sm rounded-3xl bg-white">
-       <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-             <div className={cn("p-2.5 rounded-2xl", colors[color])}><Icon className="w-5 h-5" /></div>
-          </div>
-          <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">{label}</p>
-          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <p className="text-2xl font-black text-primary">{value.toLocaleString()}</p>}
-       </CardContent>
-    </Card>
   );
 }

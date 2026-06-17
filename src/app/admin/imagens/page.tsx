@@ -25,7 +25,7 @@ const TEMPLATES = [
   {
     id: 'agenda',
     title: 'Agenda da Semana',
-    description: 'Lista vertical de eventos com fotos e datas.',
+    description: 'Lista vertical de eventos com fotos e das.',
     icon: CalendarDays,
     url: '/admin/imagens/agenda',
     color: 'text-secondary',

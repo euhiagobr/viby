@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -32,6 +31,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { 
   Dialog, 
   DialogContent, 
@@ -96,7 +96,7 @@ export default function AdminSolicitacoesPropriedade() {
   if (loading) return <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <UserCheck className="w-8 h-8 text-secondary" /> Solicitações de Propriedade
@@ -137,7 +137,7 @@ export default function AdminSolicitacoesPropriedade() {
                 <TableCell className="text-center">
                   <Badge className={cn(
                     "text-[8px] font-black uppercase h-5",
-                    req.status === 'aprovado' ? "bg-green-600" : req.status === 'rejeitado' ? "bg-red-500" : "bg-orange-500"
+                    req.status === 'aprovado' ? "bg-green-600" : req.status === 'rejeitado' ? "bg-red-500" : "bg-orange-50"
                   )}>{req.status}</Badge>
                 </TableCell>
                 <TableCell className="p-6 text-right">
