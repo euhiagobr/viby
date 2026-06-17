@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -120,42 +121,52 @@ export default function CarouselGeneratorPage() {
     setSelectedEvents(selectedEvents.filter(e => e.id !== id));
   };
 
+  const captureSlidesAsBase64 = async () => {
+    if (!hiddenRenderRef.current) return [];
+    
+    // @ts-ignore
+    if (document.fonts) await document.fonts.ready;
+
+    const slides = hiddenRenderRef.current.querySelectorAll('.viby-carousel-slide');
+    const base64Images: string[] = [];
+
+    for (let i = 0; i < slides.length; i++) {
+      const slideElement = slides[i] as HTMLElement;
+
+      const imgs = Array.from(slideElement.querySelectorAll('img'));
+      await Promise.all(imgs.map(async (img) => {
+         if (img.src) {
+           try {
+              if (!img.complete) {
+                 await new Promise(r => { img.onload = r; img.onerror = r; });
+              }
+             await img.decode();
+           } catch (e) {}
+         }
+      }));
+
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      const dataUrl = await toPng(slideElement, {
+        pixelRatio: 2,
+        cacheBust: true,
+        quality: 1,
+        skipFonts: false
+      });
+      base64Images.push(dataUrl);
+    }
+    return base64Images;
+  };
+
   const handleDownloadAll = async () => {
     if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    await new Promise(r => setTimeout(r, 2500));
-
     try {
-      const slides = hiddenRenderRef.current.querySelectorAll('.viby-carousel-slide');
+      const images = await captureSlidesAsBase64();
       
-      for (let i = 0; i < slides.length; i++) {
-        const slideElement = slides[i] as HTMLElement;
-
-        const imgs = Array.from(slideElement.querySelectorAll('img'));
-        await Promise.all(imgs.map(async (img) => {
-           if (img.src) {
-             try {
-                if (!img.complete) {
-                   await new Promise(r => { img.onload = r; img.onerror = r; });
-                }
-               await img.decode();
-             } catch (e) {
-               console.warn("[Render Engine] Decode skip");
-             }
-           }
-        }));
-
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-        const dataUrl = await toPng(slideElement, {
-          pixelRatio: 2,
-          cacheBust: true,
-          quality: 1,
-          skipFonts: false
-        });
-
-        const response = await fetch(dataUrl);
+      for (let i = 0; i < images.length; i++) {
+        const response = await fetch(images[i]);
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
 
@@ -168,12 +179,11 @@ export default function CarouselGeneratorPage() {
         document.body.removeChild(link);
         
         URL.revokeObjectURL(blobUrl);
-        await new Promise(r => setTimeout(r, 1200));
+        await new Promise(r => setTimeout(r, 1000));
       }
 
       toast({ title: "Carrossel exportado com sucesso!" });
     } catch (err) {
-      console.error("[Carousel Export Error]", err);
       toast({ variant: "destructive", title: "Erro na exportação", description: "Falha ao processar artes." });
     } finally {
       setIsGenerating(false);
@@ -184,15 +194,13 @@ export default function CarouselGeneratorPage() {
     if (selectedEvents.length === 0 || !user || isSendingEmail) return;
     setIsSendingEmail(true);
     try {
-      const simplifiedEvents = selectedEvents.map(ev => ({
-        title: ev.title,
-        city: ev.city,
-        date: new Date(ev.date).toLocaleDateString('pt-BR'),
-        image: ev.image.startsWith('data:') ? 'Imagem em anexo' : ev.image
-      }));
+      toast({ title: "Processando carrossel...", description: "Preparando as lâminas para anexo." });
+      
+      const base64Images = await captureSlidesAsBase64();
+      if (base64Images.length === 0) throw new Error("Falha ao gerar imagens.");
 
       const res = await sendAgendaRequestAction({
-        events: simplifiedEvents,
+        images: base64Images,
         theme,
         format: `carousel_${aspectRatio}`,
         userEmail: user.email!,
@@ -200,7 +208,7 @@ export default function CarouselGeneratorPage() {
       });
 
       if (res.success) {
-        toast({ title: "Solicitação enviada!", description: "A equipe Viby processará seu Carrossel." });
+        toast({ title: "Artes enviadas!", description: "O carrossel completo foi enviado para viby@viby.club." });
       } else {
         throw new Error(res.error);
       }
@@ -219,11 +227,11 @@ export default function CarouselGeneratorPage() {
         ref={hiddenRenderRef} 
         style={{ 
           position: 'fixed', 
-          left: '-12000px', 
-          top: 0, 
+          left: '0', 
+          top: '0', 
           zIndex: -1, 
           pointerEvents: 'none', 
-          opacity: 0.05,
+          opacity: 0.01,
           visibility: 'visible' 
         }}
       >
@@ -338,11 +346,11 @@ export default function CarouselGeneratorPage() {
            </div>
         </div>
 
-        <div className="bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] border-none shadow-2xl overflow-hidden">
-           {isGenerating && (
+        <div className="bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] border-none shadow-2xl overflow-hidden relative">
+           {(isGenerating || isSendingEmail) && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Codificando pixels...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Processando Carrossel...</p>
              </div>
            )}
            <ScrollArea className="h-full">

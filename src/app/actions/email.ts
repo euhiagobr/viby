@@ -1,3 +1,4 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -94,6 +95,83 @@ function getEmailTemplate(branding: any, content: string) {
 </body>
 </html>
   `.trim();
+}
+
+/**
+ * Envia a arte real gerada para o suporte Viby e Hiago.
+ */
+export async function sendAgendaRequestAction(data: {
+  images: string[]; // Array de base64 strings
+  theme: string;
+  format: string;
+  userEmail: string;
+  userName: string;
+}) {
+  try {
+    const branding = await getBranding();
+    const transporter = await getTransporter();
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
+
+    const attachments = data.images.map((base64, index) => ({
+      filename: `arte-${index + 1}.png`,
+      content: base64.split('base64,')[1],
+      encoding: 'base64',
+      cid: `arte-${index + 1}` // Permite embutir no HTML
+    }));
+
+    const imagesHtml = data.images.map((_, index) => `
+      <div style="margin-bottom: 30px; text-align: center;">
+        <p style="font-size: 10px; font-weight: 900; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px;">Lâmina #${index + 1}</p>
+        <img src="cid:arte-${index + 1}" style="width: 100%; max-width: 400px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);" />
+      </div>
+    `).join('');
+
+    const content = `
+      <div style="text-align: center; margin-bottom: 30px;">
+        <div style="background: #2C52EE; color: white; padding: 10px 20px; border-radius: 50px; display: inline-block; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Arte Gerada</div>
+        <h2 style="margin: 15px 0 5px 0; font-style: italic; font-weight: 900; text-transform: uppercase;">Solicitação de Publicação</h2>
+        <p style="margin: 0; font-size: 12px; color: #64748b;">Enviado por: <strong>${data.userName}</strong> (${data.userEmail})</p>
+        <p style="margin: 5px 0 0 0; font-size: 10px; color: #2C52EE; font-weight: 700;">Tema: ${data.theme} | Formato: ${data.format}</p>
+      </div>
+
+      <div style="background: #f8fafc; border-radius: 20px; padding: 30px; border: 1px solid #e2e8f0;">
+        ${imagesHtml}
+      </div>
+
+      <div style="margin-top: 30px; text-align: center;">
+        <p style="font-size: 11px; color: #94a3b8; line-height: 1.5;">Esta mensagem contém as artes finais geradas pelo Estúdio de Imagens Viby em anexo.</p>
+      </div>
+    `;
+
+    const htmlContent = getEmailTemplate(branding, content);
+    const subject = `🎨 ARTE GERADA: ${data.theme.toUpperCase()} - ${data.userName}`;
+
+    await transporter.sendMail({
+      from: `"Viby Studio" <${smtpUser}>`,
+      to: "viby@viby.club",
+      cc: "hiago@viby.club",
+      replyTo: data.userEmail,
+      subject,
+      html: htmlContent,
+      attachments
+    });
+
+    await logSentEmail({
+      recipientEmail: "viby@viby.club, hiago@viby.club",
+      recipientName: "Viby Suporte & Hiago",
+      subject,
+      content: "Arte PNG enviada em anexo via sistema.",
+      type: "generated_art_dispatch",
+      sender: "Viby Studio Engine"
+    });
+
+    return { success: true };
+  } catch (e: any) {
+    console.error("[sendAgendaRequestAction] Fatal Error:", e);
+    return { success: false, error: e.message };
+  }
 }
 
 export async function sendManualMarketingEmail(data: { to: string; subject: string; content: string }) {
@@ -565,80 +643,4 @@ export async function resendLoggedEmail(data: { recipientEmail: string; recipien
 
     return { success: true };
   } catch (e: any) { return { success: false, error: e.message }; }
-}
-
-/**
- * Solicitação de geração de arte via servidor.
- * Envia um e-mail formatado para a administração com os dados da agenda selecionada.
- */
-export async function sendAgendaRequestAction(data: {
-  events: any[];
-  theme: string;
-  format: string;
-  userEmail: string;
-  userName: string;
-}) {
-  try {
-    const branding = await getBranding();
-    const transporter = await getTransporter();
-    const db = getAdminDb();
-    const emailSettingsSnap = await db.collection('settings').doc('email').get();
-    const smtpUser = emailSettingsSnap.data()?.smtpUser;
-
-    const eventsHtml = data.events.map(ev => `
-      <div style="padding: 15px; border-bottom: 1px dashed #e2e8f0; display: flex; align-items: center; gap: 15px;">
-        <img src="${ev.image}" style="width: 60px; height: 60px; border-radius: 10px; object-fit: cover;" />
-        <div>
-          <p style="margin: 0; font-size: 14px; font-weight: 800; color: #1e293b; text-transform: uppercase;">${ev.title}</p>
-          <p style="margin: 2px 0; font-size: 11px; color: #2C52EE; font-weight: 700;">${ev.city} • ${ev.date}</p>
-        </div>
-      </div>
-    `).join('');
-
-    const content = `
-      <div style="text-align: center; margin-bottom: 30px;">
-        <div style="background: #2C52EE; color: white; padding: 10px 20px; border-radius: 50px; display: inline-block; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px;">Solicitação de Arte</div>
-        <h2 style="margin: 15px 0 5px 0; font-style: italic; font-weight: 900; text-transform: uppercase;">Agenda da Semana</h2>
-        <p style="margin: 0; font-size: 12px; color: #64748b;">Solicitado por: <strong>${data.userName}</strong> (${data.userEmail})</p>
-      </div>
-
-      <div style="background: #f8fafc; border-radius: 20px; padding: 10px; border: 1px solid #e2e8f0;">
-        <div style="padding: 15px; border-bottom: 2px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 10px; font-black: 900; text-transform: uppercase; color: #94a3b8;">Configurações</span>
-          <span style="font-size: 10px; font-black: 900; text-transform: uppercase; color: #2C52EE;">Tema: ${data.theme} | Formato: ${data.format}</span>
-        </div>
-        ${eventsHtml}
-      </div>
-
-      <div style="margin-top: 30px; text-align: center;">
-        <p style="font-size: 11px; color: #94a3b8; line-height: 1.5;">Esta solicitação foi enviada automaticamente via painel administrativo mobile para contornar limitações de renderização local.</p>
-      </div>
-    `;
-
-    const htmlContent = getEmailTemplate(branding, content);
-    const subject = `🎨 Solicitação de Arte: Agenda (${data.theme}) - ${data.userName}`;
-
-    await transporter.sendMail({
-      from: `"Viby Studio" <${smtpUser}>`,
-      to: "viby@viby.club",
-      cc: "hiago@viby.club",
-      replyTo: data.userEmail,
-      subject,
-      html: htmlContent
-    });
-
-    await logSentEmail({
-      recipientEmail: "viby@viby.club, hiago@viby.club",
-      recipientName: "Viby Suporte & Hiago",
-      subject,
-      content: htmlContent,
-      type: "agenda_request",
-      sender: "Viby Studio Server"
-    });
-
-    return { success: true };
-  } catch (e: any) {
-    console.error("[sendAgendaRequestAction]", e);
-    return { success: false, error: e.message };
-  }
 }

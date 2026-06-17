@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -194,48 +195,59 @@ export default function AgendaGeneratorPage() {
     return pages;
   }, [selectedEvents, format]);
 
+  const capturePagesAsBase64 = async () => {
+    if (!hiddenRenderRef.current) return [];
+    
+    // Força sincronização de fontes antes da captura
+    // @ts-ignore
+    if (document.fonts) await document.fonts.ready;
+
+    const pages = hiddenRenderRef.current.querySelectorAll('.viby-template-root');
+    const dimensions = FORMAT_DIMENSIONS[format];
+    const base64Images: string[] = [];
+
+    for (let i = 0; i < pages.length; i++) {
+      const pageElement = pages[i] as HTMLElement;
+      
+      const imgs = Array.from(pageElement.querySelectorAll('img'));
+      await Promise.all(imgs.map(async (img) => {
+         if (img.src) {
+           try {
+             if (!img.complete) {
+                await new Promise(resolve => {
+                  img.onload = resolve;
+                  img.onerror = resolve;
+                });
+             }
+             await img.decode();
+           } catch (e) {}
+         }
+      }));
+
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      const dataUrl = await toPng(pageElement, {
+        pixelRatio: 2,
+        cacheBust: true,
+        quality: 1,
+        width: dimensions.width,
+        height: dimensions.height,
+        skipFonts: false
+      });
+      base64Images.push(dataUrl);
+    }
+    return base64Images;
+  };
+
   const handleDownloadAll = async () => {
     if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    await new Promise(r => setTimeout(r, 2500));
-
     try {
-      const pages = hiddenRenderRef.current.querySelectorAll('.viby-template-root');
-      const dimensions = FORMAT_DIMENSIONS[format];
+      const images = await capturePagesAsBase64();
       
-      for (let i = 0; i < pages.length; i++) {
-        const pageElement = pages[i] as HTMLElement;
-        
-        const imgs = Array.from(pageElement.querySelectorAll('img'));
-        await Promise.all(imgs.map(async (img) => {
-           if (img.src) {
-             try {
-               if (!img.complete) {
-                  await new Promise(resolve => {
-                    img.onload = resolve;
-                    img.onerror = resolve;
-                  });
-               }
-               await img.decode();
-             } catch (e) {
-               console.warn("[Render Engine] Decode skip");
-             }
-           }
-        }));
-
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-        const dataUrl = await toPng(pageElement, {
-          pixelRatio: 2,
-          cacheBust: true,
-          quality: 1,
-          width: dimensions.width,
-          height: dimensions.height,
-          skipFonts: false
-        });
-
-        const response = await fetch(dataUrl);
+      for (let i = 0; i < images.length; i++) {
+        const response = await fetch(images[i]);
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
 
@@ -248,11 +260,10 @@ export default function AgendaGeneratorPage() {
         document.body.removeChild(link);
         
         URL.revokeObjectURL(blobUrl);
-        await new Promise(r => setTimeout(r, 1200));
+        await new Promise(r => setTimeout(r, 1000));
       }
       toast({ title: "Artes geradas com sucesso!" });
     } catch (err) {
-      console.error("[Export Error]", err);
       toast({ variant: "destructive", title: "Erro na geração", description: "Falha ao processar mídias." });
     } finally {
       setIsGenerating(false);
@@ -263,15 +274,12 @@ export default function AgendaGeneratorPage() {
     if (selectedEvents.length === 0 || !user || isSendingEmail) return;
     setIsSendingEmail(true);
     try {
-      const simplifiedEvents = selectedEvents.map(ev => ({
-        title: ev.title,
-        city: ev.city,
-        date: new Date(ev.date).toLocaleDateString('pt-BR'),
-        image: ev.image.startsWith('data:') ? 'Imagem em anexo' : ev.image
-      }));
-
+      toast({ title: "Processando arte...", description: "Isso pode levar alguns segundos." });
+      
+      const base64Images = await capturePagesAsBase64();
+      
       const res = await sendAgendaRequestAction({
-        events: simplifiedEvents,
+        images: base64Images,
         theme,
         format,
         userEmail: user.email!,
@@ -279,7 +287,7 @@ export default function AgendaGeneratorPage() {
       });
 
       if (res.success) {
-        toast({ title: "Solicitação enviada!", description: "A equipe Viby processará sua arte." });
+        toast({ title: "Arte enviada com sucesso!", description: "O PNG original foi enviado para viby@viby.club." });
       } else {
         throw new Error(res.error);
       }
@@ -298,11 +306,11 @@ export default function AgendaGeneratorPage() {
         ref={hiddenRenderRef} 
         style={{ 
           position: 'fixed', 
-          left: '-12000px', 
-          top: 0, 
+          left: '0', 
+          top: '0', 
           zIndex: -1, 
           pointerEvents: 'none', 
-          opacity: 0.05,
+          opacity: 0.01,
           visibility: 'visible' 
         }}
       >
@@ -427,10 +435,10 @@ export default function AgendaGeneratorPage() {
         </div>
 
         <div className="relative bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] border-none shadow-2xl overflow-hidden flex flex-col items-center">
-           {isGenerating && (
+           {(isGenerating || isSendingEmail) && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Exportando Alta Resolução...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Processando Imagens...</p>
              </div>
            )}
            <ScrollArea className="h-full w-full">

@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -116,40 +117,46 @@ export default function StoriesGeneratorPage() {
     setIsSearching(false);
   };
 
+  const captureStoryAsBase64 = async () => {
+    if (!hiddenRenderRef.current || !selectedEvent) return null;
+    
+    // @ts-ignore
+    if (document.fonts) await document.fonts.ready;
+
+    const node = hiddenRenderRef.current.firstChild as HTMLElement;
+    if (!node) return null;
+
+    const imgs = Array.from(node.querySelectorAll('img'));
+    await Promise.all(imgs.map(async (img) => {
+      if (img.src) {
+         try {
+           if (!img.complete) {
+              await new Promise(r => { img.onload = r; img.onerror = r; });
+           }
+           await img.decode();
+         } catch (e) {}
+      }
+    }));
+
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    return await toPng(node, {
+      pixelRatio: 2,
+      cacheBust: true,
+      quality: 1,
+      width: 1080,
+      height: 1920,
+      skipFonts: false
+    });
+  };
+
   const handleDownload = async () => {
     if (!hiddenRenderRef.current || isGenerating || !selectedEvent) return;
     setIsGenerating(true);
     
-    await new Promise(resolve => setTimeout(resolve, 2500));
-
     try {
-      const node = hiddenRenderRef.current.firstChild as HTMLElement;
-      if (!node) throw new Error("Nó de captura não localizado.");
-
-      const imgs = Array.from(node.querySelectorAll('img'));
-      await Promise.all(imgs.map(async (img) => {
-        if (img.src) {
-           try {
-             if (!img.complete) {
-                await new Promise(r => { img.onload = r; img.onerror = r; });
-             }
-             await img.decode();
-           } catch (e) {
-             console.warn("[Render Engine] Decode skip");
-           }
-        }
-      }));
-
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-      const dataUrl = await toPng(node, {
-        pixelRatio: 2,
-        cacheBust: true,
-        quality: 1,
-        width: 1080,
-        height: 1920,
-        skipFonts: false
-      });
+      const dataUrl = await captureStoryAsBase64();
+      if (!dataUrl) throw new Error("Falha ao gerar PNG.");
 
       const response = await fetch(dataUrl);
       const blob = await response.blob();
@@ -163,21 +170,9 @@ export default function StoriesGeneratorPage() {
       link.click();
       document.body.removeChild(link);
 
-      if (db) {
-        addDoc(collection(db, "generated_images_logs"), {
-          templateId: 'story_unico',
-          templateName: 'Story Único',
-          format: 'stories',
-          theme,
-          eventTitle: selectedEvent.title,
-          createdAt: serverTimestamp()
-        });
-      }
-
       URL.revokeObjectURL(blobUrl);
       toast({ title: "Story gerado com sucesso!" });
     } catch (err) {
-      console.error("[Export Error]", err);
       toast({ variant: "destructive", title: "Erro na exportação", description: "Falha ao renderizar arte." });
     } finally {
       setIsGenerating(false);
@@ -188,13 +183,13 @@ export default function StoriesGeneratorPage() {
     if (!selectedEvent || !user || isSendingEmail) return;
     setIsSendingEmail(true);
     try {
+      toast({ title: "Gerando arte...", description: "Preparando anexo em alta resolução." });
+      
+      const base64 = await captureStoryAsBase64();
+      if (!base64) throw new Error("Falha na captura gráfica.");
+
       const res = await sendAgendaRequestAction({
-        events: [{
-          title: selectedEvent.title,
-          city: selectedEvent.city,
-          date: new Date(selectedEvent.date).toLocaleDateString('pt-BR'),
-          image: selectedEvent.image.startsWith('data:') ? 'Imagem em anexo' : selectedEvent.image
-        }],
+        images: [base64],
         theme,
         format: 'stories',
         userEmail: user.email!,
@@ -202,7 +197,7 @@ export default function StoriesGeneratorPage() {
       });
 
       if (res.success) {
-        toast({ title: "Solicitação enviada!", description: "A equipe Viby processará seu Story." });
+        toast({ title: "Arte enviada!", description: "O PNG original foi enviado para viby@viby.club." });
       } else {
         throw new Error(res.error);
       }
@@ -221,11 +216,11 @@ export default function StoriesGeneratorPage() {
         ref={hiddenRenderRef} 
         style={{ 
           position: 'fixed', 
-          left: '-12000px', 
-          top: 0, 
+          left: '0', 
+          top: '0', 
           zIndex: -1, 
           pointerEvents: 'none', 
-          opacity: 0.05,
+          opacity: 0.01,
           visibility: 'visible' 
         }}
       >
@@ -349,10 +344,10 @@ export default function StoriesGeneratorPage() {
         </div>
 
         <div className="relative bg-[#e2e8f0] rounded-[3rem] p-10 min-h-[800px] flex flex-col items-center justify-center overflow-hidden">
-           {isGenerating && (
+           {(isGenerating || isSendingEmail) && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Renderizando em escala real...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Processando Arte...</p>
              </div>
            )}
 
