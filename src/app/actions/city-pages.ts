@@ -51,6 +51,7 @@ export async function generateAndPersistCityCover(params: {
   country: string;
   categories?: string[];
 }) {
+  console.log(`[City Action] Iniciando processo para: ${params.city}`);
   const db = getAdminDb();
   const cityPageRef = db.collection('cityPages').doc(params.slug);
 
@@ -64,7 +65,7 @@ export async function generateAndPersistCityCover(params: {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    console.log(`[City Engine] Iniciando geração IA para: ${params.city}...`);
+    console.log(`[City Action] Chamando AI Flow...`);
 
     // 2. Chamar o fluxo de geração
     const imageUrl = await gerarCapaCidade({
@@ -74,8 +75,9 @@ export async function generateAndPersistCityCover(params: {
       topCategories: params.categories || []
     });
 
+    console.log(`[City Action] AI retornou URL temporária. Iniciando persistência no Storage...`);
+
     // 3. Download e persistência no Storage
-    console.log(`[City Engine] Baixando imagem da URL temporária...`);
     const response = await fetch(imageUrl);
     if (!response.ok) throw new Error(`Falha ao baixar imagem da OpenAI: ${response.statusText}`);
     
@@ -85,7 +87,7 @@ export async function generateAndPersistCityCover(params: {
     const filePath = `city-covers/${params.slug}.png`;
     const file = bucket.file(filePath);
 
-    console.log(`[City Engine] Salvando no Storage: ${filePath}`);
+    console.log(`[City Action] Salvando buffer no Bucket...`);
     await file.save(buffer, {
       metadata: {
         contentType: 'image/png',
@@ -103,19 +105,22 @@ export async function generateAndPersistCityCover(params: {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    console.log(`[City Engine] Concluído para ${params.city}: ${publicUrl}`);
-    return publicUrl;
+    console.log(`[City Action] CONCLUÍDO com sucesso para ${params.city}: ${publicUrl}`);
+    return { success: true, url: publicUrl };
   } catch (error: any) {
-    console.error(`[City Engine FATAL FAILURE] ${params.city}:`, error.message);
+    console.error(`[City Action ERROR] Falha fatal para ${params.city}:`, error.message);
     
     await logSystemError({
       error: error,
       type: 'city_cover_generation_failure',
       severity: 'error',
-      metadata: { city: params.city, slug: params.slug }
+      metadata: { 
+        city: params.city, 
+        slug: params.slug,
+        fullError: JSON.stringify(error, null, 2)
+      }
     });
 
-    // Retorna o erro estruturado para a UI capturar no console/toast
     return { success: false, error: error.message };
   }
 }

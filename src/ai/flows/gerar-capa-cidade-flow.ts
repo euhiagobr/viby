@@ -3,10 +3,11 @@
 /**
  * @fileOverview Fluxo Genkit para geração de imagem de capa de cidades.
  * 
- * - gerarCapaCidade - Gera uma imagem premium da cidade via DALL-E 3.
+ * - gerarCapaCidade - Gera uma imagem premium da cidade via OpenAI DALL-E 3.
  */
 
 import { ai, z } from '@/ai/genkit';
+import OpenAI from 'openai';
 
 const GerarCapaCidadeInputSchema = z.object({
   city: z.string().describe("Nome da cidade."),
@@ -23,9 +24,12 @@ const gerarCapaCidadeFlow = ai.defineFlow(
   {
     name: 'gerarCapaCidadeFlow',
     inputSchema: GerarCapaCidadeInputSchema,
-    outputSchema: z.string().describe("URL da imagem gerada pela OpenAI (temporária)."),
+    outputSchema: z.string().describe("URL da imagem gerada pela OpenAI."),
   },
   async (input) => {
+    console.log("--- [AI_FLOW_START] Geração de Capa ---");
+    console.log("Input recebido:", JSON.stringify(input, null, 2));
+
     const categoriesText = input.topCategories.length > 0 
       ? `Considere as categorias mais populares de eventos atualmente cadastradas: ${input.topCategories.join(", ")}.` 
       : "";
@@ -63,31 +67,48 @@ const gerarCapaCidadeFlow = ai.defineFlow(
     - Não adicionar elementos políticos
     - Não adicionar conteúdo ofensivo`;
 
-    console.log(`[AI Flow] Solicitando Geração de Imagem para: ${input.city}`);
+    console.log("[AI_FLOW] Prompt construído:", promptText);
 
     try {
-      // Utilizamos a infraestrutura Genkit OpenAI já configurada
-      // O identificador do modelo para o plugin genkitx-openai é 'openai/dall-e-3'
-      const response = await ai.generate({
-        model: 'openai/dall-e-3',
-        prompt: promptText,
+      /**
+       * Erro detectado: Genkit ai.generate com 'openai/dall-e-3' está injetando 'response_format',
+       * o que causa erro 400 na API da OpenAI para este modelo específico.
+       * 
+       * Solução: Utilizamos o cliente nativo da OpenAI (já presente no projeto) 
+       * garantindo compatibilidade total com os parâmetros do DALL-E 3.
+       */
+      console.log("[AI_FLOW] Inicializando cliente OpenAI nativo para DALL-E 3...");
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
       });
 
-      const url = response.media?.url;
+      console.log("[AI_FLOW] Enviando requisição para images.generate...");
+      const response = await openai.images.generate({
+        model: "dall-e-3",
+        prompt: promptText,
+        n: 1,
+        size: "1792x1024", // Formato 16:9 horizontal conforme objetivo
+        quality: "standard",
+      });
+
+      const url = response.data[0]?.url;
 
       if (!url) {
-        // Fallback: Se o plugin não retornar via media, tentamos extrair o erro ou retorno bruto
-        throw new Error("A API de Imagem da OpenAI não retornou uma mídia válida. Verifique se o modelo 'dall-e-3' está disponível na sua conta.");
+        console.error("[AI_FLOW_ERROR] Resposta da OpenAI não contém URL:", JSON.stringify(response, null, 2));
+        throw new Error("A API de Imagem da OpenAI não retornou uma URL válida.");
       }
 
-      console.log(`[AI Flow SUCCESS] URL gerada com sucesso.`);
+      console.log("[AI_FLOW_SUCCESS] URL gerada:", url);
+      console.log("--- [AI_FLOW_END] ---");
       return url;
     } catch (error: any) {
-      console.error("[AI Flow EXCEPTION]", error.message);
-      
-      // Tratamento específico para erro de modelo inexistente
-      if (error.message.includes('does not exist')) {
-        throw new Error("Erro: O modelo 'dall-e-3' não foi localizado ou não está habilitado nesta chave de API da OpenAI.");
+      console.error("--- [AI_FLOW_EXCEPTION] ---");
+      console.error("Mensagem:", error.message);
+      if (error.response) {
+        console.error("Status:", error.response.status);
+        console.error("Data:", JSON.stringify(error.response.data, null, 2));
+      } else {
+        console.error("Error Object:", JSON.stringify(error, null, 2));
       }
       
       throw error;
