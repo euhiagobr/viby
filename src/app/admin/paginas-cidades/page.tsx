@@ -80,17 +80,19 @@ export default function AdminCityPagesManager() {
 
     // Sincronização obrigatória de Auth
     if (!auth.currentUser) {
-      toast({ variant: "destructive", title: "Sessão não identificada", description: "Aguarde a sincronização de rede ou recarregue a página." });
+      console.warn("[CityCover-Upload] Falha: Usuário não autenticado no SDK.");
+      toast({ variant: "destructive", title: "Sessão expirada", description: "Por favor, recarregue a página e tente novamente." });
       return;
     }
 
+    console.log("[CityCover-Upload] Usuário Autenticado UID:", auth.currentUser.uid);
     setUploadProgress(0);
     
     try {
       const cityId = editingCity.slug || editingCity.id;
       const fileName = `city-covers-manual/${cityId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
       
-      console.log("[CityCover-Upload] Iniciando envio para bucket:", storage.app.options.storageBucket);
+      console.log("[CityCover-Upload] Bucket:", storage.app.options.storageBucket);
       console.log("[CityCover-Upload] Destino:", fileName);
 
       const storageRef = ref(storage, fileName);
@@ -98,7 +100,7 @@ export default function AdminCityPagesManager() {
       const uploadTask = uploadBytesResumable(storageRef, file, {
         cacheControl: 'public,max-age=31536000,immutable',
         customMetadata: {
-          uploadedBy: user.uid,
+          uploadedBy: auth.currentUser.uid,
           cityId: cityId
         }
       });
@@ -109,22 +111,24 @@ export default function AdminCityPagesManager() {
           setUploadProgress(progress);
         },
         (error) => { 
-          console.error("[Upload Error Detailed]", error);
+          console.error("[CityCover-Upload] ERRO 403/Forbidden:", error);
           toast({ 
             variant: "destructive", 
-            title: "Erro de Permissão (403)", 
-            description: "Verifique se você está logado corretamente como administrador." 
+            title: "Erro de Permissão", 
+            description: "O servidor recusou o upload. Verifique as regras de segurança." 
           }); 
           setUploadProgress(null); 
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          console.log("[CityCover-Upload] SUCESSO:", downloadURL);
           setEditingCity((prev: any) => ({ ...prev, coverImage: downloadURL }));
           setUploadProgress(null);
           toast({ title: "Imagem carregada com sucesso!" });
         }
       );
     } catch (err: any) { 
+      console.error("[CityCover-Upload] Erro Crítico:", err);
       setUploadProgress(null); 
       toast({ variant: "destructive", title: "Falha técnica", description: err.message });
     }
@@ -307,7 +311,7 @@ export default function AdminCityPagesManager() {
                           "relative h-32 bg-muted rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center overflow-hidden cursor-pointer group transition-all",
                           uploadProgress !== null && "opacity-50 pointer-events-none"
                         )}
-                        onClick={() => document.getElementById('city-image-upload')?.click()}
+                        onClick={() => document.getElementById('city-image-upload-direct')?.click()}
                       >
                         {editingCity?.coverImage ? (
                           <img src={editingCity.coverImage} className="w-full h-full object-cover" alt="Preview" />
@@ -322,7 +326,7 @@ export default function AdminCityPagesManager() {
                         </div>
                         {uploadProgress !== null && <Progress value={uploadProgress} className="absolute bottom-0 left-0 right-0 h-1 rounded-none" />}
                       </div>
-                      <input id="city-image-upload" type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                      <input id="city-image-upload-direct" type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                   </div>
 
                   <div className="space-y-2">

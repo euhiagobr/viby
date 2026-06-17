@@ -22,16 +22,15 @@ service firebase.storage {
     }
 
     // --- REGRAS DE CAPAS DE CIDADES (Alta Prioridade) ---
-    
-    // Permissão direta para usuários autenticados nas pastas de capas (Resolve Erro 403 recorrente)
-    match /city-covers/{allPaths=**} {
+    // Permissão direta para usuários autenticados (Admin ou Organizador)
+    match /city-covers/{cityId}/{file} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if request.auth != null;
     }
 
-    match /city-covers-manual/{allPaths=**} {
+    match /city-covers-manual/{cityId}/{file} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if request.auth != null;
     }
 
     // --- REGRAS PÚBLICAS (Mídias de Feed) ---
