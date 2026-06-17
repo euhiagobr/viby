@@ -4,8 +4,12 @@ import * as admin from 'firebase-admin';
 import { getAdminDb, getAdminApp } from '@/lib/firebase/admin';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Aumentar para 60 segundos para permitir geração e upload
+export const maxDuration = 60;
 
+/**
+ * @fileOverview API Route para geração de imagens de capa de cidades.
+ * Isolado para evitar timeouts de Server Actions.
+ */
 export async function POST(req: Request) {
   console.log('[CITY COVER API] START');
   try {
@@ -19,7 +23,7 @@ export async function POST(req: Request) {
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY missing");
+      throw new Error("OPENAI_API_KEY não localizada no ambiente.");
     }
 
     const openai = new OpenAI({
@@ -93,7 +97,7 @@ FORMATO OBRIGATÓRIO
     });
 
     const openaiUrl = response.data[0]?.url;
-    if (!openaiUrl) throw new Error("No URL returned from OpenAI");
+    if (!openaiUrl) throw new Error("A OpenAI não retornou uma URL válida.");
 
     console.log('[CITY COVER API] DOWNLOADING IMAGE');
     const imageFetch = await fetch(openaiUrl);
@@ -102,7 +106,8 @@ FORMATO OBRIGATÓRIO
 
     console.log('[CITY COVER API] STORAGE UPLOAD');
     const app = getAdminApp();
-    const bucket = admin.storage(app).bucket();
+    // CORREÇÃO: Definição explícita do bucket para evitar falha do Admin SDK
+    const bucket = admin.storage(app).bucket('vibyeventos.firebasestorage.app');
     const filePath = `city-covers/${slug}.png`;
     const file = bucket.file(filePath);
 

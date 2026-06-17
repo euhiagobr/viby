@@ -59,7 +59,7 @@ export default function AdminCityPagesManager() {
       ));
       const categories = Array.from(new Set(eventsSnap.docs.map(d => d.data().categoryName).filter(Boolean)));
       
-      console.log('[CITY COVER] FETCH API ROUTE INICIADO');
+      console.log('[CITY COVER] CHAMADA API INICIADA');
       
       const response = await fetch('/api/city-cover', {
         method: 'POST',
@@ -75,19 +75,19 @@ export default function AdminCityPagesManager() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || "Erro na resposta da API");
+        throw new Error(errorData.message || `Erro HTTP ${response.status}`);
       }
 
       const result = await response.json();
       console.log('[CITY COVER] API SUCESSO:', result.url);
       
-      toast({ title: "Capa da cidade gerada!", description: "A imagem foi salva no Storage." });
+      toast({ title: "Capa da cidade gerada!", description: "A imagem foi salva e vinculada com sucesso." });
     } catch (e: any) {
       console.error('[CITY COVER ERROR]', e);
       toast({ 
         variant: "destructive", 
-        title: "Falha na Geração IA", 
-        description: e.message || "Erro desconhecido." 
+        title: "Falha na Geração", 
+        description: e.message || "Verifique o console para mais detalhes." 
       });
     } finally {
       setIsGenerating(null);

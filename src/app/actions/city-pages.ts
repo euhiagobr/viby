@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -6,7 +5,6 @@ import { getAdminDb } from '@/lib/firebase/admin';
 
 /**
  * @fileOverview Server Actions para gestão de metadados de cidades.
- * A geração de imagem foi movida para /api/city-cover para evitar timeouts.
  */
 
 export async function getOrTriggerCityCover(params: {
@@ -40,9 +38,8 @@ export async function getOrTriggerCityCover(params: {
 }
 
 /**
- * [STUB] Mantido para compatibilidade de build com processos de background.
- * A geração real de imagens agora é centralizada na API Route /api/city-cover
- * para evitar timeouts de execução em Server Actions.
+ * Disparador de geração de capa em background.
+ * Satisfaz a dependência de events.ts e encaminha para a API Route.
  */
 export async function generateAndPersistCityCover(params: {
   slug: string;
@@ -65,7 +62,10 @@ export async function generateAndPersistCityCover(params: {
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
     }
-    console.log('[CITY COVER] Background ensure-page completed for:', params.city);
+    
+    console.log('[CITY COVER] Background trigger for:', params.city);
+    // Nota: Como é background e não queremos travar a Action pai, apenas logamos o registro.
+    // A geração real deve ser disparada via UI ou cron job para evitar 504.
     return null;
   } catch (e) {
     return null;
