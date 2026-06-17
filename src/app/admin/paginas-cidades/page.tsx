@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -270,11 +269,20 @@ export default function AdminCityPagesManager() {
                   </div>
                   
                   <div className="flex items-center justify-between pt-4 border-t border-dashed">
-                     <Button variant="ghost" size="sm" asChild className="h-6 px-2 font-black uppercase text-[8px] gap-1.5 opacity-40 hover:opacity-100">
-                        <Link href={`/o-que-fazer-em/${city.slug}`} target="_blank">
-                           <ExternalLink className="w-2.5 h-2.5" /> Ver Página
-                        </Link>
-                     </Button>
+                     {(() => {
+                        const parts = (city.slug || "").split('-');
+                        const region = parts.slice(0, 2).join('-');
+                        const cityPart = parts.slice(2).join('-');
+                        const realUrl = `/o-que-fazer-em/${region}/${cityPart}`;
+                        
+                        return (
+                           <Button variant="ghost" size="sm" asChild className="h-6 px-2 font-black uppercase text-[8px] gap-1.5 opacity-40 hover:opacity-100">
+                              <Link href={realUrl} target="_blank">
+                                 <ExternalLink className="w-2.5 h-2.5" /> Ver Página
+                              </Link>
+                           </Button>
+                        );
+                     })()}
                      <button onClick={() => handleDeletePage(city.id)} className="text-destructive opacity-20 hover:opacity-100 transition-opacity">
                         <Trash2 className="w-3.5 h-3.5" />
                      </button>
@@ -344,7 +352,7 @@ export default function AdminCityPagesManager() {
                         <Input 
                            value={editingCity?.coverImage || ""} 
                            onChange={e => setEditingCity({...editingCity, coverImage: e.target.value})}
-                           className="rounded-xl h-11 pl-10 text-xs font-mono"
+                           className="rounded-xl h-11 font-mono text-xs"
                            placeholder="https://..."
                         />
                      </div>
