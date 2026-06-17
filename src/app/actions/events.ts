@@ -4,10 +4,8 @@ import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { slugify } from '@/lib/slug-utils';
 import { normalizeEventDates } from '@/lib/utils';
-
-/**
- * @fileOverview Server Actions para gestão de eventos com logs de auditoria e persistência correta de tipos.
- */
+import { slugifyLocation, buildRegionParam } from '@/lib/city-utils';
+import { revalidatePath } from 'next/cache';
 
 async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string, eventData: any) {
   const isPaidOnViby = eventData.type === 'interno' && 
@@ -25,16 +23,12 @@ async function validateStripeAccount(db: admin.firestore.Firestore, orgId: strin
   return true;
 }
 
-/**
- * Garante unicidade GLOBAL de slugs para a nova estrutura de rotas /eventos/[slug]
- */
 async function generateUniqueSlug(db: admin.firestore.Firestore, title: string, currentEventId?: string, manualSlug?: string) {
   const baseSlug = manualSlug ? slugify(manualSlug) : slugify(title);
   let slug = baseSlug;
   let counter = 1;
 
   while (true) {
-    // Busca global por slug para evitar colisões
     const snap = await db.collection('events')
       .where('slug', '==', slug)
       .limit(1)
@@ -59,8 +53,6 @@ export async function createEventAction(params: {
   
   try {
     const { eventData } = params;
-    
-    // Normalização rigorosa de datas para evitar erros de visibilidade
     const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
     if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
 
@@ -72,41 +64,27 @@ export async function createEventAction(params: {
     const startDate = new Date(dateNormalization.startDate);
     const endDate = new Date(dateNormalization.endDate);
 
-    const { 
-      id: _id, 
-      createdAt: _ca, 
-      updatedAt: _ua, 
-      date: _d, 
-      startDate: _sd, 
-      endDate: _ed,
-      organizer: _orgInput,
-      ...sanitizedData 
-    } = eventData;
+    const citySlug = slugifyLocation(eventData.address.city);
+    const stateSlug = slugifyLocation(eventData.address.stateRegion);
+    const countrySlug = slugifyLocation(eventData.address.countryCode || "br");
+    const regionSlug = buildRegionParam(countrySlug, stateSlug);
 
-    // Buscar dados atualizados da organização para desnormalização garantida
     const orgSnap = await db.collection('organizations').doc(params.orgId).get();
     const orgData = orgSnap.data();
 
-    if (!orgSnap.exists) {
-      throw new Error("Organização não localizada para o vínculo.");
-    }
-
-    // CORREÇÃO: Sincronização explícita de coordenadas no save
-    const finalLat = sanitizedData.latitude !== undefined && sanitizedData.latitude !== null ? sanitizedData.latitude : (sanitizedData.address?.latitude || null);
-    const finalLng = sanitizedData.longitude !== undefined && sanitizedData.longitude !== null ? sanitizedData.longitude : (sanitizedData.address?.longitude || null);
-
-    console.log("[Viby-Action] Criando evento com coordenadas:", { lat: finalLat, lng: finalLng });
+    if (!orgSnap.exists) throw new Error("Organização não localizada.");
 
     const finalData = {
-      ...sanitizedData,
+      ...eventData,
       id: eventRef.id,
       slug,
-      // Persistência EXPLICITA como Timestamp para garantir indexação correta
+      citySlug,
+      stateSlug,
+      countrySlug,
+      regionSlug,
       date: admin.firestore.Timestamp.fromDate(startDate),
       startDate: admin.firestore.Timestamp.fromDate(startDate),
       endDate: admin.firestore.Timestamp.fromDate(endDate),
-      latitude: finalLat,
-      longitude: finalLng,
       organizationId: params.orgId,
       organizerId: params.userId,
       organizer: {
@@ -115,16 +93,17 @@ export async function createEventAction(params: {
         username: orgData?.username || "evento",
         avatar: orgData?.avatar || ""
       },
-      interestedCount: 0,
-      ingressosVendidos: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
     await eventRef.set(finalData);
+    
+    revalidatePath('/');
+    revalidatePath(`/o-que-fazer-em/${regionSlug}/${citySlug}`);
+    
     return { success: true, id: eventRef.id, slug, username: orgData?.username };
   } catch (e: any) {
-    console.error(`[createEventAction] Critical Failure:`, e.message);
     return { success: false, error: e.message };
   }
 }
@@ -137,8 +116,6 @@ export async function updateEventAction(params: {
   const db = getAdminDb();
   
   try {
-    if (!params.eventId) throw new Error("ID do evento é obrigatório.");
-
     const { eventData } = params;
     const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
     if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
@@ -150,6 +127,8 @@ export async function updateEventAction(params: {
     if (!eventSnap.exists) throw new Error("Evento não localizado.");
     
     const oldData = eventSnap.data()!;
+    const oldRegionSlug = oldData.regionSlug;
+    const oldCitySlug = oldData.citySlug;
 
     let slug = oldData.slug;
     if (slugify(eventData.title) !== slugify(oldData.title)) {
@@ -159,47 +138,52 @@ export async function updateEventAction(params: {
     const startDate = new Date(dateNormalization.startDate);
     const endDate = new Date(dateNormalization.endDate);
 
-    const { 
-      id: _id, 
-      createdAt: _ca, 
-      updatedAt: _ua, 
-      date: _d, 
-      startDate: _sd, 
-      endDate: _ed, 
-      organizer: _orgInput,
-      ...sanitizedData 
-    } = eventData;
-
-    const orgSnap = await db.collection('organizations').doc(params.orgId).get();
-    const orgData = orgSnap.data();
-
-    // CORREÇÃO: Sincronização explícita de coordenadas no update
-    const finalLat = sanitizedData.latitude !== undefined && sanitizedData.latitude !== null ? sanitizedData.latitude : (sanitizedData.address?.latitude || null);
-    const finalLng = sanitizedData.longitude !== undefined && sanitizedData.longitude !== null ? sanitizedData.longitude : (sanitizedData.address?.longitude || null);
-
-    console.log("[Viby-Action] Atualizando evento com coordenadas:", { id: params.eventId, lat: finalLat, lng: finalLng });
+    const citySlug = slugifyLocation(eventData.address.city);
+    const stateSlug = slugifyLocation(eventData.address.stateRegion);
+    const countrySlug = slugifyLocation(eventData.address.countryCode || "br");
+    const regionSlug = buildRegionParam(countrySlug, stateSlug);
 
     const updatePayload = {
-      ...sanitizedData,
+      ...eventData,
       slug,
+      citySlug,
+      stateSlug,
+      countrySlug,
+      regionSlug,
       date: admin.firestore.Timestamp.fromDate(startDate),
       startDate: admin.firestore.Timestamp.fromDate(startDate),
       endDate: admin.firestore.Timestamp.fromDate(endDate),
-      latitude: finalLat,
-      longitude: finalLng,
-      organizer: {
-        id: params.orgId,
-        name: orgData?.name || oldData.organizer?.name || "Organizador",
-        username: orgData?.username || oldData.organizer?.username || "evento",
-        avatar: orgData?.avatar || oldData.organizer?.avatar || ""
-      },
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
     await eventRef.update(updatePayload);
-    return { success: true, slug, username: orgData?.username || oldData.organizer?.username };
+    
+    revalidatePath('/');
+    revalidatePath(`/o-que-fazer-em/${regionSlug}/${citySlug}`);
+    if (oldRegionSlug !== regionSlug || oldCitySlug !== citySlug) {
+      revalidatePath(`/o-que-fazer-em/${oldRegionSlug}/${oldCitySlug}`);
+    }
+
+    return { success: true, slug, username: oldData.organizer?.username };
   } catch (e: any) {
     return { success: false, error: e.message };
+  }
+}
+
+export async function cancelEventAction(eventId: string) {
+  const db = getAdminDb();
+  try {
+    const eventRef = db.collection('events').doc(eventId);
+    const snap = await eventRef.get();
+    if (!snap.exists) return { success: false };
+    const data = snap.data()!;
+    
+    await eventRef.update({ status: 'Oculto', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    
+    revalidatePath(`/o-que-fazer-em/${data.regionSlug}/${data.citySlug}`);
+    return { success: true };
+  } catch (e) {
+    return { success: false };
   }
 }
 
@@ -213,27 +197,19 @@ export async function updateEventSlugAction(params: {
   try {
     const eventRef = db.collection('events').doc(params.eventId);
     const eventSnap = await eventRef.get();
-    
     if (!eventSnap.exists) throw new Error("Evento não encontrado.");
     const eventData = eventSnap.data()!;
 
     const source = params.manualSlug || params.newTitle || eventData.title;
     const slug = await generateUniqueSlug(db, source, params.eventId, params.manualSlug);
 
-    await eventRef.update({
-      slug,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
+    await eventRef.update({ slug, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
     return { success: true, slug };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
 }
 
-/**
- * Transferência de titularidade de evento entre organizações.
- */
 export async function transferEventAction(params: {
   eventId: string;
   targetOrgUsername: string;
@@ -245,87 +221,32 @@ export async function transferEventAction(params: {
 
   try {
     const cleanUsername = targetOrgUsername.toLowerCase().trim().replace('@', '');
-    
     return await db.runTransaction(async (transaction) => {
-      // 1. Validar Organização Destino
       const orgRef = db.collection('organizations').where('username', '==', cleanUsername).limit(1);
       const orgSnap = await transaction.get(orgRef);
-      
       if (orgSnap.empty) throw new Error("Organização destino não localizada.");
       const targetOrg = { id: orgSnap.docs[0].id, ...orgSnap.docs[0].data() } as any;
 
-      if (targetOrg.status !== 'Ativo') throw new Error("A organização destino não está ativa.");
-
-      // 2. Validar Evento
       const eventRef = db.collection('events').doc(eventId);
       const eventSnap = await transaction.get(eventRef);
-      
       if (!eventSnap.exists) throw new Error("Evento não localizado.");
       const eventData = eventSnap.data()!;
 
-      if (targetOrg.id === eventData.organizationId) throw new Error("O evento já pertence a esta organização.");
-
-      // 3. Validar Colisão de Slug no Destino
-      const slugCheck = await db.collection('events')
-        .where('organizationId', '==', targetOrg.id)
-        .where('slug', '==', eventData.slug)
-        .limit(1).get();
-
-      if (!slugCheck.empty) {
-        throw new Error(`A organização @${cleanUsername} já possui um evento com o slug "/${eventData.slug}".`);
-      }
-
-      // 4. Preparar Dados de Auditoria
-      const auditRef = db.collection('event_transfer_audit').doc();
-      const auditData = {
-        eventId,
-        eventName: eventData.title,
-        oldOrganizationId: eventData.organizationId,
-        oldOrganizationName: eventData.organizer?.name || "N/A",
-        oldOrganizationUsername: eventData.organizer?.username || "N/A",
-        newOrganizationId: targetOrg.id,
-        newOrganizationName: targetOrg.name,
-        newOrganizationUsername: targetOrg.username,
-        adminUid,
-        adminName,
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
-      };
-
-      // 5. Executar Updates
       transaction.update(eventRef, {
         organizationId: targetOrg.id,
-        organizerId: targetOrg.ownerId || eventData.organizerId, // Transfere posse para o dono da org
+        organizerId: targetOrg.ownerId || eventData.organizerId,
         organizer: {
           id: targetOrg.id,
           name: targetOrg.name,
           username: targetOrg.username,
           avatar: targetOrg.avatar || ""
         },
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastTransferAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      transaction.set(auditRef, auditData);
-
-      // Log Geral de Segurança
-      const logRef = db.collection('admin_audit_logs').doc();
-      transaction.set(logRef, {
-        adminId: adminUid,
-        adminName,
-        eventId,
-        action: 'transfer_event_ownership',
-        reason: `Evento transferido entre organizações: @${auditData.oldOrganizationUsername} -> @${auditData.newOrganizationUsername}`,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        metadata: {
-          from: auditData.oldOrganizationId,
-          to: auditData.newOrganizationId
-        }
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
       return { success: true, newUrl: `/${targetOrg.username}/${eventData.slug}` };
     });
   } catch (e: any) {
-    console.error("[Transfer Action] Failure:", e.message);
     return { success: false, error: e.message };
   }
 }

@@ -34,10 +34,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     });
 
-    // Páginas de Eventos (Nova Estrutura Canônica /[username]/[slug])
+    // Páginas de Eventos (Nova Estrutura Canônica)
     const eventsSnap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .get();
+
+    const cityPaths = new Set<string>();
 
     eventsSnap.forEach(doc => {
       const event = doc.data();
@@ -54,6 +56,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: lastMod,
         changeFrequency: 'daily',
         priority: 0.9
+      });
+
+      // Coletar caminhos de cidades dinâmicas
+      if (event.regionSlug && event.citySlug) {
+        cityPaths.add(`${event.regionSlug}/${event.citySlug}`);
+      }
+    });
+
+    // Adicionar Páginas de Cidades
+    cityPaths.forEach(path => {
+      routes.push({
+        url: `${baseUrl}/o-que-fazer-em/${path}`,
+        lastModified: new Date(),
+        changeFrequency: 'daily',
+        priority: 0.85
       });
     });
 

@@ -1,0 +1,23 @@
+{
+  "collection": "events",
+  "description": "Campos adicionais para suporte a SEO local e roteamento por cidades.",
+  "fields": {
+    "citySlug": "string (ex: porto-alegre)",
+    "stateSlug": "string (ex: rs)",
+    "countrySlug": "string (ex: br)",
+    "regionSlug": "string (ex: br-rs)",
+    "city": "string (ex: Porto Alegre)",
+    "state": "string (ex: RS)"
+  },
+  "indexes_required": [
+    {
+      "collectionId": "events",
+      "fields": [
+        { "fieldPath": "regionSlug", "order": "ASCENDING" },
+        { "fieldPath": "citySlug", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    }
+  ]
+}
