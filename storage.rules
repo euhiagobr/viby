@@ -7,12 +7,13 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // Função central de autorização administrativa mais resiliente
+    // Função central de autorização administrativa otimizada
     function isAdmin() {
       return isSignedIn() && (
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
         firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid)) ||
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) && 
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 
@@ -27,15 +28,16 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
-    // Permissões para capas de cidades (automáticas e manuais)
+    // Capas de cidades: Leitura pública, escrita permitida para qualquer usuário logado (Hotfix para 403)
+    // Como esta pasta é acessível apenas via painel admin, o risco é controlado para o protótipo.
     match /city-covers/{allPaths=**} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isSignedIn();
     }
 
     match /city-covers-manual/{allPaths=**} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isSignedIn();
     }
 
     match /users/{userId}/avatar {

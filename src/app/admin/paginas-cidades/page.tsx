@@ -52,8 +52,7 @@ export default function AdminCityPagesManager() {
   
   const storage = React.useMemo(() => {
     if (!app) return null;
-    // Forçamos o bucket explícito para evitar erros de inicialização
-    return getStorage(app, "vibyeventos.firebasestorage.app");
+    return getStorage(app);
   }, [app]);
 
   const [search, setSearch] = React.useState("");
@@ -81,11 +80,15 @@ export default function AdminCityPagesManager() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !storage || !user || !editingCity) {
-      console.warn("[Upload] Requisitos ausentes:", { file: !!file, storage: !!storage, user: !!user, editingCity: !!editingCity });
       return;
     }
 
-    console.log("[Upload] Iniciando para UID:", user.uid);
+    // Sincronização explícita: garante que o Firebase reconheça o usuário antes do upload
+    if (!auth.currentUser) {
+      toast({ variant: "destructive", title: "Erro de sessão", description: "Sua autenticação ainda não foi propagada. Tente recarregar." });
+      return;
+    }
+
     setUploadProgress(0);
     
     try {
@@ -111,7 +114,7 @@ export default function AdminCityPagesManager() {
           toast({ 
             variant: "destructive", 
             title: "Erro no upload (403)", 
-            description: "Permissão negada no Storage. Verifique se você é um administrador ativo." 
+            description: "Permissão negada. Verifique se você está logado corretamente." 
           }); 
           setUploadProgress(null); 
         },
@@ -119,11 +122,10 @@ export default function AdminCityPagesManager() {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           setEditingCity((prev: any) => ({ ...prev, coverImage: downloadURL }));
           setUploadProgress(null);
-          toast({ title: "Imagem carregada com sucesso!" });
+          toast({ title: "Imagem carregada!" });
         }
       );
     } catch (err: any) { 
-      console.error("[Upload Catch]", err);
       setUploadProgress(null); 
       toast({ variant: "destructive", title: "Falha técnica", description: err.message });
     }
@@ -134,7 +136,7 @@ export default function AdminCityPagesManager() {
     try {
       const result = await forceGenerateCityCoverAction(city);
       if (result.success) {
-        toast({ title: "Capa da cidade gerada!", description: `Nova imagem obtida para ${city.city}.` });
+        toast({ title: "Capa gerada!", description: `Nova imagem obtida para ${city.city}.` });
       } else {
         throw new Error(result.error);
       }
@@ -169,7 +171,7 @@ export default function AdminCityPagesManager() {
   };
 
   const handleDeletePage = async (id: string) => {
-    if (!confirm("Remover os metadados desta página? A imagem no Storage não será apagada.")) return;
+    if (!confirm("Remover os metadados desta página?")) return;
     try {
       await deleteDoc(doc(db!, "cityPages", id));
       toast({ title: "Metadados removidos." });
