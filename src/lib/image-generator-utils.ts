@@ -73,30 +73,34 @@ export function formatTemplateTime(dateValue: any, endDateValue?: any): string {
 }
 
 /**
+ * Gatilho de download para arquivos PNG/Blob
+ */
+export function triggerVisualProofDownload(dataUrl: string, fileName: string) {
+  if (!dataUrl) return;
+  const link = document.createElement('a');
+  link.download = fileName;
+  link.href = dataUrl;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+/**
  * AUDITORIA E CONVERSÃO DE IMAGENS PARA BASE64 (MOBILE STABILITY)
  */
 export async function auditAndPrepareImages(container: HTMLElement) {
   const images = Array.from(container.querySelectorAll('img'));
-  console.log(`[Mobile Export] Auditoria iniciada. Encontradas ${images.length} imagens.`);
+  
+  // MOSTRAR: Quantidade de tags IMG no DOM
+  console.log(`[Visual Proof] Tags IMG detectadas no DOM: ${images.length}`);
 
   const results = await Promise.all(images.map(async (img, idx) => {
-    const audit = {
-      idx,
-      src: img.src,
-      currentSrc: img.currentSrc,
-      complete: img.complete,
-      naturalWidth: img.naturalWidth,
-      naturalHeight: img.naturalHeight,
-      crossOrigin: img.crossOrigin,
-      isFirebase: img.src.includes('firebasestorage.googleapis.com')
-    };
-    
-    console.log(`[Mobile Export] Imagem ${idx}:`, audit);
+    // MOSTRAR: SRC Real de cada IMG antes da conversão
+    console.log(`[Visual Proof] IMG [${idx}] SRC ORIGINAL: ${img.src.substring(0, 80)}...`);
 
-    // Tentar converter para Base64 para garantir desenho no Canvas
     try {
       if (img.src.startsWith('data:')) {
-        console.log(`[Mobile Export] Imagem ${idx} já é Base64.`);
         return true;
       }
 
@@ -110,17 +114,15 @@ export async function auditAndPrepareImages(container: HTMLElement) {
       });
 
       img.src = dataUrl;
-      console.log(`[Mobile Export] Imagem ${idx} convertida p/ Base64 com sucesso.`);
+      // MOSTRAR: Confirmação de substituição
+      console.log(`[Visual Proof] IMG [${idx}] SUBSTITUÍDA POR BASE64 (Size: ${dataUrl.length})`);
       return true;
     } catch (err) {
-      console.warn(`[Mobile Export] Falha na conversão da Imagem ${idx}:`, err);
+      console.warn(`[Visual Proof] Falha na conversão da Imagem ${idx}:`, err);
       return false;
     }
   }));
 
-  const successCount = results.filter(r => r).length;
-  console.log(`[Mobile Export] Auditoria finalizada. ${successCount}/${images.length} imagens prontas para Canvas.`);
-  
-  // Garantir decodificação final
+  // Garantir decodificação final para a GPU
   await Promise.all(images.map(img => img.decode().catch(() => {})));
 }

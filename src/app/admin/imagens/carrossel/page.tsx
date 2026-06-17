@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useDoc, useAuth, useUser } from '@/firebase';
+import { useFirestore, useDoc, useAuth, useUser, useFirebaseApp } from '@/firebase';
 import { collection, query, where, orderBy, limit, addDoc, serverTimestamp, getDocs, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,7 +41,7 @@ import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { isEventVisible } from '@/lib/event-scoring-utils';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { auditAndPrepareImages } from '@/lib/image-generator-utils';
+import { auditAndPrepareImages, triggerVisualProofDownload } from '@/lib/image-generator-utils';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
@@ -134,6 +134,10 @@ export default function CarouselGeneratorPage() {
     const actionSetter = action === 'download' ? setIsGenerating : setIsSendingEmail;
     actionSetter(true);
     const base64Images: string[] = [];
+    const config = {
+      '1:1': { width: 1080, height: 1080 },
+      '4:5': { width: 1080, height: 1350 }
+    }[aspectRatio];
 
     try {
       if (document.fonts) await document.fonts.ready;
@@ -142,13 +146,24 @@ export default function CarouselGeneratorPage() {
         const ev = selectedEvents[i];
         setCapturingSlide({ event: ev, idx: i + 1 });
         
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 800));
 
         const node = hiddenRenderRef.current?.querySelector('.viby-carousel-slide') as HTMLElement;
         if (!node) throw new Error("Falha no motor de renderização.");
 
-        // AUDITORIA E PREPARAÇÃO MOBILE
+        // PROVA VISUAL 1: Antes de Base64
+        if (isMobile) {
+          const beforeData = await toPng(node, { pixelRatio: 1, width: config.width, height: config.height });
+          triggerVisualProofDownload(beforeData, `before-export-carrossel-s${i+1}.png`);
+        }
+
         await auditAndPrepareImages(node);
+
+        // PROVA VISUAL 2: Após Base64
+        if (isMobile) {
+          const afterData = await toPng(node, { pixelRatio: 1, width: config.width, height: config.height });
+          triggerVisualProofDownload(afterData, `after-base64-carrossel-s${i+1}.png`);
+        }
 
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
@@ -160,23 +175,13 @@ export default function CarouselGeneratorPage() {
         });
 
         if (action === 'download') {
-           const response = await fetch(dataUrl);
-           const blob = await response.blob();
-           const blobUrl = URL.createObjectURL(blob);
-           const link = document.createElement('a');
-           link.download = `viby-carousel-${theme}-slide${i + 1}.png`;
-           link.href = blobUrl;
-           link.rel = "noopener";
-           document.body.appendChild(link);
-           link.click();
-           document.body.removeChild(link);
-           setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+           triggerVisualProofDownload(dataUrl, `final-export-carrossel-s${i+1}.png`);
         } else {
            base64Images.push(dataUrl);
         }
 
         setCapturingSlide(null);
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 400));
       }
 
       if (action === 'email') {

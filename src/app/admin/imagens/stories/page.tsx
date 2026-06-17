@@ -40,7 +40,7 @@ import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { isEventVisible } from '@/lib/event-scoring-utils';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { auditAndPrepareImages } from '@/lib/image-generator-utils';
+import { auditAndPrepareImages, triggerVisualProofDownload } from '@/lib/image-generator-utils';
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
@@ -126,9 +126,8 @@ export default function StoriesGeneratorPage() {
   const captureSingleAsBase64 = async () => {
     if (!hiddenRenderRef.current || !selectedEvent) return null;
     
-    // Inicia modo de renderização física
     setIsMobileCapturing(true);
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 800));
 
     // @ts-ignore
     if (document.fonts) await document.fonts.ready;
@@ -136,8 +135,19 @@ export default function StoriesGeneratorPage() {
     const node = hiddenRenderRef.current.querySelector('.viby-export-page') as HTMLElement;
     if (!node) return null;
 
-    // AUDITORIA E PREPARAÇÃO MOBILE
+    // PROVA VISUAL 1: Antes de Base64
+    if (isMobile) {
+      const beforeData = await toPng(node, { pixelRatio: 1, width: 1080, height: 1920 });
+      triggerVisualProofDownload(beforeData, 'before-export-story.png');
+    }
+
     await auditAndPrepareImages(node);
+
+    // PROVA VISUAL 2: Após Base64
+    if (isMobile) {
+      const afterData = await toPng(node, { pixelRatio: 1, width: 1080, height: 1920 });
+      triggerVisualProofDownload(afterData, 'after-base64-story.png');
+    }
 
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
@@ -159,23 +169,10 @@ export default function StoriesGeneratorPage() {
     setIsGenerating(true);
     
     try {
-      console.log("[Mobile Export] Starting story capture.");
       const dataUrl = await captureSingleAsBase64();
       if (!dataUrl) throw new Error("Falha ao gerar PNG.");
 
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-
-      const link = document.createElement('a');
-      link.download = `viby-story-${selectedEvent.slug || selectedEvent.id}-${theme}.png`;
-      link.href = blobUrl;
-      link.rel = "noopener";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+      triggerVisualProofDownload(dataUrl, `final-export-story-${selectedEvent.id}.png`);
       toast({ title: "Story gerado com sucesso!" });
     } catch (err) {
       toast({ variant: "destructive", title: "Erro na exportação" });
@@ -188,8 +185,6 @@ export default function StoriesGeneratorPage() {
     if (!selectedEvent || !user || isSendingEmail) return;
     setIsSendingEmail(true);
     try {
-      toast({ title: "Gerando arte...", description: "Preparando anexo em alta resolução." });
-      
       const base64 = await captureSingleAsBase64();
       if (!base64) throw new Error("Falha na captura gráfica.");
 

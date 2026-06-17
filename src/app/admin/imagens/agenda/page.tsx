@@ -50,7 +50,7 @@ import { isEventVisible } from '@/lib/event-scoring-utils';
 import { COPA_TAGS, LGBT_TAGS, LGBT_CATEGORY_IDS } from '@/lib/constants';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { auditAndPrepareImages } from '@/lib/image-generator-utils';
+import { auditAndPrepareImages, triggerVisualProofDownload } from '@/lib/image-generator-utils';
 
 const ITEMS_PER_FORMAT = {
   stories: 7,
@@ -218,12 +218,24 @@ export default function AgendaGeneratorPage() {
         const pageEvents = eventPages[i];
         setCapturingPage({ events: pageEvents, idx: i + 1 });
         
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 800));
 
         const node = hiddenRenderRef.current?.querySelector('.viby-template-root') as HTMLElement;
         if (!node) throw new Error("Falha ao localizar nó de renderização.");
 
+        // PROVA VISUAL 1: Antes de qualquer processamento
+        if (isMobile) {
+          const beforeData = await toPng(node, { pixelRatio: 1, width: dimensions.width, height: dimensions.height });
+          triggerVisualProofDownload(beforeData, `before-export-p${i+1}.png`);
+        }
+
         await auditAndPrepareImages(node);
+
+        // PROVA VISUAL 2: Após conversão para Base64
+        if (isMobile) {
+          const afterData = await toPng(node, { pixelRatio: 1, width: dimensions.width, height: dimensions.height });
+          triggerVisualProofDownload(afterData, `after-base64-p${i+1}.png`);
+        }
 
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
@@ -237,23 +249,13 @@ export default function AgendaGeneratorPage() {
         });
 
         if (action === 'download') {
-           const response = await fetch(dataUrl);
-           const blob = await response.blob();
-           const blobUrl = URL.createObjectURL(blob);
-           const link = document.createElement('a');
-           link.download = `viby-agenda-${theme}-${format}-p${i + 1}.png`;
-           link.href = blobUrl;
-           link.rel = "noopener";
-           document.body.appendChild(link);
-           link.click();
-           document.body.removeChild(link);
-           setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+           triggerVisualProofDownload(dataUrl, `final-export-p${i+1}.png`);
         } else {
            base64Images.push(dataUrl);
         }
 
         setCapturingPage(null);
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 400));
       }
 
       if (action === 'email') {
