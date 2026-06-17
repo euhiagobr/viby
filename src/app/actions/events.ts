@@ -71,7 +71,7 @@ export async function createEventAction(params: {
     const citySlug = slugifyLocation(eventData.address.city);
     const stateSlug = slugifyLocation(eventData.address.stateRegion);
     const countrySlug = slugifyLocation(eventData.address.countryCode || "br");
-    const regionSlug = buildRegionParam(countrySlug, stateSlug);
+    const regionSlug = buildRegionParam(countrySlug, eventData.address.stateRegion);
 
     const orgSnap = await db.collection('organizations').doc(params.orgId).get();
     const orgData = orgSnap.data();
@@ -145,7 +145,7 @@ export async function updateEventAction(params: {
     const citySlug = slugifyLocation(eventData.address.city);
     const stateSlug = slugifyLocation(eventData.address.stateRegion);
     const countrySlug = slugifyLocation(eventData.address.countryCode || "br");
-    const regionSlug = buildRegionParam(countrySlug, stateSlug);
+    const regionSlug = buildRegionParam(countrySlug, eventData.address.stateRegion);
 
     const updatePayload = {
       ...eventData,

@@ -2,9 +2,19 @@
  * @fileOverview Utilitários para normalização e geração de slugs de cidades e estados.
  */
 
+const BRAZIL_STATE_MAP: Record<string, string> = {
+  "acre": "ac", "alagoas": "al", "amapa": "ap", "amazonas": "am",
+  "bahia": "ba", "ceara": "ce", "distrito-federal": "df", "espirito-santo": "es",
+  "goias": "go", "maranhao": "ma", "mato-grosso": "mt", "mato-grosso-do-sul": "ms",
+  "minas-gerais": "mg", "para": "pa", "paraiba": "pb", "parana": "pr",
+  "pernambuco": "pe", "piaui": "pi", "rio-de-janeiro": "rj", "rio-grande-do-norte": "rn",
+  "rio-grande-do-sul": "rs", "rondonia": "ro", "roraima": "rr", "santa-catarina": "sc",
+  "sao-paulo": "sp", "sergipe": "se", "tocantins": "to"
+};
+
 export function slugifyLocation(text: string): string {
   if (!text) return "";
-  return text
+  const slug = text
     .toString()
     .toLowerCase()
     .normalize("NFD")
@@ -14,6 +24,13 @@ export function slugifyLocation(text: string): string {
     .trim()
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+
+  // Se for um estado brasileiro por extenso, retorna a sigla
+  if (BRAZIL_STATE_MAP[slug]) {
+    return BRAZIL_STATE_MAP[slug];
+  }
+
+  return slug;
 }
 
 export function parseRegionParam(region: string): { countryCode: string, state: string } | null {
@@ -26,5 +43,5 @@ export function parseRegionParam(region: string): { countryCode: string, state: 
 }
 
 export function buildRegionParam(countryCode: string, state: string): string {
-  return `${countryCode.toLowerCase()}-${state.toLowerCase()}`;
+  return `${countryCode.toLowerCase()}-${slugifyLocation(state)}`;
 }

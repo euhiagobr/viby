@@ -37,9 +37,6 @@ async function getCityData(regionParam: string, citySlugParam: string) {
   const normalizedRegion = regionParam.toLowerCase().trim();
   const normalizedCity = citySlugParam.toLowerCase().trim();
 
-  console.log(`\n--- [CITY_AUDIT_START] ---`);
-  console.log(`Target URL Params: ${normalizedRegion} / ${normalizedCity}`);
-
   try {
     // 1. Tentar consulta por índice (Otimizada)
     const officialSnap = await db.collection('events')
@@ -48,23 +45,18 @@ async function getCityData(regionParam: string, citySlugParam: string) {
       .where('citySlug', '==', normalizedCity)
       .get();
 
-    console.log(`Index Query Found: ${officialSnap.size} docs`);
-
     let events = [];
     if (!officialSnap.empty) {
       events = officialSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } else {
       // 2. FALLBACK: Busca manual em todos os ativos (Resiliência)
-      console.log(`Triggering Fallback: Searching all active events...`);
       const allActiveSnap = await db.collection('events')
         .where('status', '==', 'Ativo')
         .get();
       
-      console.log(`Total Active Events in DB: ${allActiveSnap.size}`);
-
       events = allActiveSnap.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter((e: any, idx) => {
+        .filter((e: any) => {
           const eCity = e.city || e.address?.city || "";
           const eState = e.state || e.address?.stateRegion || "";
           const eCountryCode = (e.countryCode || e.address?.countryCode || "br").toLowerCase();
@@ -73,62 +65,32 @@ async function getCityData(regionParam: string, citySlugParam: string) {
           const targetStateSlug = slugifyLocation(eState);
           const targetRegionSlug = `${eCountryCode}-${targetStateSlug}`;
 
-          const matches = targetCitySlug === normalizedCity && targetRegionSlug === normalizedRegion;
-          
-          // Log dos primeiros 5 itens e de qualquer match encontrado
-          if (idx < 5 || matches) {
-            console.log(`Checking Event: "${e.title}"`);
-            console.log(` - Raw City: "${eCity}", State: "${eState}"`);
-            console.log(` - Computed Slugs: city="${targetCitySlug}", region="${targetRegionSlug}"`);
-            console.log(` - Match Result: ${matches}`);
-          }
-          
-          return matches;
+          return targetCitySlug === normalizedCity && targetRegionSlug === normalizedRegion;
         });
     }
 
-    if (events.length === 0) {
-      console.log(`[CITY_AUDIT_FAIL] No events matched the city/region criteria.`);
-      return null;
-    }
+    if (events.length === 0) return null;
 
     // 3. Auditoria de Datas
-    console.log(`Total Matches Found: ${events.length}. Filtering by date...`);
-    
     const futureEvents = events.filter((e: any) => {
       const dateVal = e.date || e.startDate;
       let d: Date | null = null;
-      
       if (dateVal?.toDate) d = dateVal.toDate();
       else d = new Date(dateVal);
 
-      if (!d || isNaN(d.getTime())) {
-        console.log(`Event "${e.title}" discarded: Invalid Date format.`);
-        return false;
-      }
+      if (!d || isNaN(d.getTime())) return false;
 
-      // Tolerância de 24h para facilitar testes com dados de ontem/hoje
-      const visibilityThreshold = new Date(d.getTime() + 24 * 60 * 60 * 1000);
-      const isVisible = visibilityThreshold >= now;
-      
-      if (!isVisible) {
-        console.log(`Event "${e.title}" discarded: Past date (${d.toISOString()})`);
-      }
-      
-      return isVisible;
+      // Tolerância de 6h para eventos em andamento
+      const visibilityThreshold = new Date(d.getTime() + 6 * 60 * 60 * 1000);
+      return visibilityThreshold >= now;
     }).sort((a: any, b: any) => {
       const dA = new Date(a.date || a.startDate).getTime();
       const dB = new Date(b.date || b.startDate).getTime();
       return dA - dB;
     });
 
-    if (futureEvents.length === 0) {
-      console.log(`[CITY_AUDIT_FAIL] All ${events.length} events are in the past.`);
-      return null;
-    }
+    if (futureEvents.length === 0) return null;
 
-    console.log(`[CITY_AUDIT_SUCCESS] Found ${futureEvents.length} future events.`);
-    
     const referenceEvent = futureEvents[0];
     return serializeData({
       events: futureEvents,
@@ -137,10 +99,8 @@ async function getCityData(regionParam: string, citySlugParam: string) {
       country: referenceEvent.country || referenceEvent.address?.country || "Brasil"
     });
   } catch (e: any) {
-    console.error("[CITY_AUDIT_ERROR]", e.message);
+    console.error("[CITY_PAGE_ERROR]", e.message);
     return null;
-  } finally {
-    console.log(`--- [CITY_AUDIT_END] ---\n`);
   }
 }
 
@@ -174,10 +134,7 @@ export default async function CityDynamicPage({ params }: { params: Promise<{ re
   const { region, city } = await params;
   const data = await getCityData(region, city);
 
-  if (!data) {
-    console.log(`[ROUTE_FINAL] notFound() triggered for ${region}/${city}`);
-    notFound();
-  }
+  if (!data) notFound();
 
   const regionLabel = `${data.country} - ${data.state}`;
 
