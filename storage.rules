@@ -7,10 +7,12 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // Função central de autorização administrativa compatível com múltiplos padrões de acesso
     function isAdmin() {
       return isSignedIn() && (
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
-        firestore.get(/databases/(default)/documents/system_admins/$(request.auth.uid)).data.status == 'Ativo'
+        firestore.get(/databases/(default)/documents/system_admins/$(request.auth.uid)).data.status == 'Ativo' ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
 
@@ -21,6 +23,17 @@ service firebase.storage {
     // --- REGRAS PÚBLICAS (Mídias de Feed) ---
     
     match /admin/site/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Permissões para capas de cidades (automáticas e manuais)
+    match /city-covers/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /city-covers-manual/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin();
     }
