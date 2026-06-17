@@ -3,8 +3,8 @@ import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 import CityPageClient from './CityPageClient';
-import { notFound } from 'next/navigation';
-import { parseRegionParam } from '@/lib/city-utils';
+import { notFound, redirect } from 'next/navigation';
+import { parseRegionParam, slugifyLocation } from '@/lib/city-utils';
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
@@ -27,76 +27,49 @@ function serializeData(data: any): any {
 
 async function getCityData(regionParam: string, citySlug: string) {
   const regionData = parseRegionParam(regionParam);
-  console.log(`[CITY_AUDIT] Route Input - Region: ${regionParam}, City: ${citySlug}`);
-  
-  if (!regionData) {
-    console.error(`[CITY_AUDIT] Failed to parse region param: ${regionParam}`);
-    return null;
-  }
+  if (!regionData) return null;
 
   try {
     const db = getAdminDb();
     const now = new Date();
 
-    // Diagnóstico 1: Verificar se existem eventos para esta cidade ignorando slugs
-    const diagnosticSnap = await db.collection('events')
-      .where('status', '==', 'Ativo')
-      .limit(100)
-      .get();
-    
-    const allActive = diagnosticSnap.docs.map(d => d.data());
-    console.log(`[CITY_AUDIT] Total Active Events in DB: ${allActive.length}`);
-    
-    // Procura manual nos dados carregados para validar hipótese de campos ausentes
-    const matchesManual = allActive.filter(e => 
-      (e.city && e.city.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-") === citySlug)
-    );
-    console.log(`[CITY_AUDIT] Manual matches for ${citySlug} (ignoring slugs index): ${matchesManual.length}`);
-    if (matchesManual.length > 0) {
-      console.log(`[CITY_AUDIT] Sample Match Fields:`, {
-        title: matchesManual[0].title,
-        hasRegionSlug: !!matchesManual[0].regionSlug,
-        hasCitySlug: !!matchesManual[0].citySlug,
-        regionSlugValue: matchesManual[0].regionSlug,
-        citySlugValue: matchesManual[0].citySlug
-      });
-    }
-
-    // Consulta Oficial
-    const snap = await db.collection('events')
+    // 1. Tentar consulta otimizada por índice de slugs
+    const officialSnap = await db.collection('events')
       .where('regionSlug', '==', regionParam.toLowerCase())
       .where('citySlug', '==', citySlug.toLowerCase())
       .where('status', '==', 'Ativo')
       .get();
 
-    console.log(`[CITY_AUDIT] Official Query Result count: ${snap.size}`);
+    let events = [];
 
-    if (snap.empty) {
-      console.warn(`[CITY_AUDIT] No events found for slugs: ${regionParam}/${citySlug}. Triggering fallback search...`);
-      
-      const fallbackSnap = await db.collection('events')
-        .where('regionSlug', '==', regionParam.toLowerCase())
-        .where('citySlug', '==', citySlug.toLowerCase())
-        .limit(1)
+    if (!officialSnap.empty) {
+      events = officialSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } else {
+      // 2. FALLBACK RESILIENTE: Buscar todos os ativos e filtrar em memória
+      // Necessário para documentos legados que ainda não possuem os campos de slug salvos
+      const allActiveSnap = await db.collection('events')
+        .where('status', '==', 'Ativo')
         .get();
       
-      if (fallbackSnap.empty) {
-        console.error(`[CITY_AUDIT] Fallback search also empty. Causa: Slugs não existem no documento.`);
-        return null;
-      }
-      
-      const example = fallbackSnap.docs[0].data();
-      return {
-        events: [],
-        cityName: example.city,
-        state: example.state,
-        country: example.country || "Brasil"
-      };
+      events = allActiveSnap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((e: any) => {
+          const eCity = e.city || e.address?.city;
+          const eState = e.state || e.address?.stateRegion;
+          if (!eCity || !eState) return false;
+
+          const eCitySlug = slugifyLocation(eCity);
+          const eStateSlug = slugifyLocation(eState);
+          const eRegionSlug = `br-${eStateSlug}`; // Fallback assume Brasil
+
+          return eCitySlug === citySlug.toLowerCase() && eRegionSlug === regionParam.toLowerCase();
+        });
     }
 
-    const events = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    // Filtro manual de data para evitar conflito de tipos no Firestore
-    const futureEvents = events.filter(e => {
+    if (events.length === 0) return null;
+
+    // Filtro temporal e ordenação
+    const futureEvents = events.filter((e: any) => {
       const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
       return d >= now;
     }).sort((a: any, b: any) => {
@@ -105,17 +78,15 @@ async function getCityData(regionParam: string, citySlug: string) {
       return dA.getTime() - dB.getTime();
     });
 
-    console.log(`[CITY_AUDIT] Future events after manual filter: ${futureEvents.length}`);
-
-    const example = events[0];
+    const referenceEvent = events[0];
     return serializeData({
       events: futureEvents,
-      cityName: example.city,
-      state: example.state,
-      country: example.country || "Brasil"
+      cityName: referenceEvent.city || referenceEvent.address?.city || "Cidade",
+      state: referenceEvent.state || referenceEvent.address?.stateRegion || "UF",
+      country: referenceEvent.country || referenceEvent.address?.country || "Brasil"
     });
   } catch (e: any) {
-    console.error(`[CITY_AUDIT] Critical error in getCityData: ${e.message}`);
+    console.error(`[City Page Error]`, e);
     return null;
   }
 }
@@ -153,7 +124,6 @@ export default async function CityDynamicPage({ params }: { params: Promise<{ re
   const data = await getCityData(region, city);
 
   if (!data) {
-    console.error(`[CITY_AUDIT] Rendering 404 for ${region}/${city}`);
     notFound();
   }
 
@@ -173,7 +143,7 @@ export default async function CityDynamicPage({ params }: { params: Promise<{ re
         "item": {
           "@type": "Event",
           "name": ev.title,
-          "description": ev.description?.substring(0, 150),
+          "description": (ev.description || "").substring(0, 150),
           "startDate": ev.date,
           "location": {
             "@type": "Place",
