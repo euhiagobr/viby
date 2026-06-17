@@ -7,6 +7,7 @@ import { normalizeEventDates } from '@/lib/utils';
 import { slugifyLocation, buildRegionParam } from '@/lib/city-utils';
 import { revalidatePath } from 'next/cache';
 import { generateAndPersistCityCover } from './city-pages';
+import { recordAuditLog } from './audit';
 
 /**
  * Server Actions para gestão de eventos Viby.
@@ -221,6 +222,71 @@ export async function updateEventAction(params: {
     }
 
     return { success: true, slug, username: oldData.organizer?.username };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateEventSlugAction(params: {
+  eventId: string;
+  orgId: string;
+  manualSlug: string;
+}) {
+  const db = getAdminDb();
+  try {
+    const slug = await generateUniqueSlug(db, "", params.eventId, params.manualSlug);
+    await db.collection('events').doc(params.eventId).update({
+      slug,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true, slug };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function transferEventAction(params: {
+  eventId: string;
+  targetOrgUsername: string;
+  adminUid: string;
+  adminName: string;
+}) {
+  const db = getAdminDb();
+  try {
+    const orgSnap = await db.collection('organizations')
+      .where('username', '==', params.targetOrgUsername.toLowerCase().trim())
+      .limit(1)
+      .get();
+    
+    if (orgSnap.empty) throw new Error("Organização destino não localizada.");
+    const targetOrg = orgSnap.docs[0].data();
+
+    await db.collection('events').doc(params.eventId).update({
+      organizationId: targetOrg.id,
+      organizerId: targetOrg.ownerId,
+      organizer: {
+        id: targetOrg.id,
+        name: targetOrg.name,
+        username: targetOrg.username,
+        avatar: targetOrg.avatar || ""
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await recordAuditLog({
+      action: 'admin_change',
+      category: 'event',
+      eventId: params.eventId,
+      userId: params.adminUid,
+      success: true,
+      metadata: { 
+        type: 'transfer_ownership', 
+        targetOrg: targetOrg.id,
+        adminName: params.adminName 
+      }
+    });
+
+    return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
