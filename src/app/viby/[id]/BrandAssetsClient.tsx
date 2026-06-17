@@ -38,7 +38,8 @@ import {
   BadgeCheck,
   Star,
   Info,
-  Megaphone
+  Megaphone,
+  Inbox
 } from "lucide-react"
 import { 
   Dialog, 
