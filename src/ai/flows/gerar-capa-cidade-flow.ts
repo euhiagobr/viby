@@ -30,41 +30,63 @@ const gerarCapaCidadeFlow = ai.defineFlow(
     console.log('[CITY COVER] PARAMS', input);
 
     const categoriesText = input.topCategories.length > 0 
-      ? `Considere as categorias mais populares de eventos atualmente cadastradas: ${input.topCategories.join(", ")}.` 
-      : "";
+      ? `Incorporar sutilmente a energia das seguintes categorias populares: ${input.topCategories.join(", ")}.` 
+      : "manter foco geral em turismo e vida urbana.";
 
-    const promptText = `Crie uma imagem fotorealista premium representando a cidade de ${input.city}, ${input.state}, ${input.country}.
-    
-    A imagem deve transmitir turismo, cultura, entretenimento, experiências e eventos acontecendo na cidade.
-    Utilize elementos reais e reconhecíveis da cidade quando existirem.
-    ${categoriesText}
-    
-    Diretrizes visuais:
-    - Fotorealista
-    - Alta qualidade
-    - Estilo editorial profissional
-    - Iluminação cinematográfica
-    - Composição moderna
-    - Visual atrativo para turismo e entretenimento
-    - Profundidade de campo natural
-    - Atmosfera vibrante
-    - Qualidade de capa de portal de eventos
-    
-    Marca Viby:
-    - Integrar discretamente a identidade visual da Viby
-    - Não exibir logotipos gigantes
-    - Não transformar a imagem em propaganda
-    - Aparição elegante e natural
-    
-    Restrições:
-    - Não adicionar textos
-    - Não adicionar marcas d'água
-    - Não adicionar QR Codes
-    - Não adicionar banners promocionais
-    - Não adicionar preços
-    - Não adicionar datas
-    - Não adicionar elementos políticos
-    - Não adicionar conteúdo ofensivo`;
+    const promptText = `Crie uma imagem fotorealista premium em formato de banner horizontal representando a cidade de ${input.city}, ${input.state}, ${input.country}.
+
+A imagem deve ser usada como capa oficial de uma plataforma de eventos e experiências chamada Viby.
+
+FOCO PRINCIPAL
+Representar visualmente o que fazer na cidade através de:
+* cultura local
+* turismo urbano
+* vida noturna (se aplicável)
+* eventos e experiências
+* arquitetura e pontos icônicos reais da cidade
+
+COMPOSIÇÃO VISUAL
+* Estilo fotorealista ultra detalhado
+* Iluminação cinematográfica natural (golden hour ou blue hour)
+* Profundidade de campo suave
+* Atmosfera vibrante e moderna
+* Sensação de cidade viva e ativa
+* Estética de capa de portal global de eventos e turismo
+
+ELEMENTOS DA CIDADE
+Incluir referências visuais reais e reconhecíveis de ${input.city} quando possível, como:
+* skyline
+* pontos turísticos
+* áreas culturais
+* regiões urbanas icônicas
+* paisagens naturais próximas
+
+CATEGORIAS DE EVENTOS (INFLUÊNCIA VISUAL)
+${categoriesText}
+
+IDENTIDADE VIBY
+Integrar de forma extremamente sutil:
+* sensação de plataforma moderna de eventos
+* lifestyle urbano contemporâneo
+* não incluir logos visíveis
+* não incluir textos
+* não incluir marcas d’água
+
+RESTRIÇÕES ABSOLUTAS
+* NÃO adicionar texto
+* NÃO adicionar logotipos
+* NÃO adicionar QR codes
+* NÃO adicionar preços
+* NÃO adicionar datas
+* NÃO adicionar banners promocionais
+* NÃO adicionar elementos políticos
+* NÃO adicionar conteúdo ofensivo
+* NÃO estilizar como propaganda explícita
+
+FORMATO OBRIGATÓRIO
+* 1536x1024 (horizontal)
+* estilo editorial premium
+* qualidade publicitária global`;
 
     try {
       if (!process.env.OPENAI_API_KEY) {
@@ -78,11 +100,6 @@ const gerarCapaCidadeFlow = ai.defineFlow(
       });
 
       const model = "gpt-image-1";
-
-      console.log('[OPENAI] MODELO CONFIGURADO:', model);
-      console.log('[OPENAI] CLIENTE:', !!openai);
-      console.log('[OPENAI] ORGANIZATION:', process.env.OPENAI_ORGANIZATION);
-      console.log('[OPENAI] PROJECT:', process.env.OPENAI_PROJECT_ID);
 
       console.log('[CITY COVER] CHAMANDO OPENAI');
       const response = await openai.images.generate({
