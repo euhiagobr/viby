@@ -581,7 +581,8 @@ export async function sendAgendaRequestAction(data: {
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const emailSettingsSnap = await getAdminDb().collection('settings').doc('email').get();
+    const db = getAdminDb();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
     const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const eventsHtml = data.events.map(ev => `
@@ -620,14 +621,15 @@ export async function sendAgendaRequestAction(data: {
     await transporter.sendMail({
       from: `"Viby Studio" <${smtpUser}>`,
       to: "viby@viby.club",
+      cc: "hiago@viby.club",
       replyTo: data.userEmail,
       subject,
       html: htmlContent
     });
 
     await logSentEmail({
-      recipientEmail: "viby@viby.club",
-      recipientName: "Viby Suporte",
+      recipientEmail: "viby@viby.club, hiago@viby.club",
+      recipientName: "Viby Suporte & Hiago",
       subject,
       content: htmlContent,
       type: "agenda_request",
