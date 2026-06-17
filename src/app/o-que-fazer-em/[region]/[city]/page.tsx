@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -39,7 +38,7 @@ async function getCityData(regionParam: string, citySlugParam: string) {
   const citySlugId = `${normalizedRegion}-${normalizedCity}`;
 
   try {
-    // 1. Buscar metadados da página (incluindo capa)
+    // 1. Buscar metadados da página
     const cityPageSnap = await db.collection('cityPages').doc(citySlugId).get();
     let cityMeta = cityPageSnap.exists ? cityPageSnap.data() : null;
 
@@ -84,17 +83,16 @@ async function getCityData(regionParam: string, citySlugParam: string) {
       return dA - dB;
     });
 
-    if (futureEvents.length === 0) return null;
+    if (futureEvents.length === 0 && !cityPageSnap.exists) return null;
 
-    const referenceEvent = futureEvents[0];
-    const cityName = referenceEvent.city || referenceEvent.address?.city || "Cidade";
-    const state = referenceEvent.state || referenceEvent.address?.stateRegion || "UF";
-    const country = referenceEvent.country || referenceEvent.address?.country || "Brasil";
+    const referenceEvent = futureEvents[0] || {};
+    const cityName = referenceEvent.city || referenceEvent.address?.city || cityMeta?.city || "Cidade";
+    const state = referenceEvent.state || referenceEvent.address?.stateRegion || cityMeta?.state || "UF";
+    const country = referenceEvent.country || referenceEvent.address?.country || cityMeta?.country || "Brasil";
 
-    // 3. Gatilho de Geração de Capa (Background se faltar)
-    if (!cityMeta?.coverImage) {
+    // 3. Gatilho de Geração de Capa Real se faltar
+    if (!cityMeta?.cityCoverUrl && !cityMeta?.coverImage) {
       const categories = Array.from(new Set(futureEvents.map((e: any) => e.categoryName).filter(Boolean)));
-      // Dispara em background
       generateAndPersistCityCover({
         slug: citySlugId,
         city: cityName,
@@ -109,7 +107,7 @@ async function getCityData(regionParam: string, citySlugParam: string) {
       cityName,
       state,
       country,
-      coverImage: cityMeta?.coverImage || DEFAULT_CITY_COVER
+      coverImage: cityMeta?.cityCoverUrl || cityMeta?.coverImage || DEFAULT_CITY_COVER
     });
   } catch (e: any) {
     return null;

@@ -2,6 +2,7 @@
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
+import { headers } from 'next/headers';
 
 /**
  * @fileOverview Server Actions para gestão de metadados de cidades.
@@ -18,7 +19,12 @@ export async function getOrTriggerCityCover(params: {
   
   try {
     const snap = await cityPageRef.get();
+    const data = snap.data();
     
+    if (data?.cityCoverUrl || data?.coverImage) {
+      return data.cityCoverUrl || data.coverImage;
+    }
+
     if (!snap.exists) {
       await cityPageRef.set({
         slug: params.slug,
@@ -27,10 +33,9 @@ export async function getOrTriggerCityCover(params: {
         country: params.country,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
-      return null;
     }
 
-    return snap.data()?.coverImage || null;
+    return null;
   } catch (e) {
     console.error('[CITY COVER ACTION ERROR]', e);
     return null;
@@ -38,8 +43,8 @@ export async function getOrTriggerCityCover(params: {
 }
 
 /**
- * Disparador de geração de capa em background.
- * Satisfaz a dependência de events.ts e encaminha para a API Route.
+ * Disparador de geração de capa via API Route.
+ * Utilizado pelo pipeline de eventos para garantir SEO visual.
  */
 export async function generateAndPersistCityCover(params: {
   slug: string;
@@ -48,24 +53,26 @@ export async function generateAndPersistCityCover(params: {
   country: string;
   categories?: string[];
 }) {
-  const db = getAdminDb();
-  const cityPageRef = db.collection('cityPages').doc(params.slug);
+  const head = await headers();
+  const origin = head.get('origin') || head.get('host') || 'localhost:3000';
+  const protocol = origin.includes('localhost') ? 'http' : 'https';
   
+  const apiUrl = `${protocol}://${origin}/api/city-cover`;
+
   try {
-    const snap = await cityPageRef.get();
-    if (!snap.exists) {
-      await cityPageRef.set({
+    // Chamada assíncrona (fire and forget) para não travar o salvamento do evento
+    fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         slug: params.slug,
         city: params.city,
         state: params.state,
         country: params.country,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-    }
-    
-    console.log('[CITY COVER] Background trigger for:', params.city);
-    // Nota: Como é background e não queremos travar a Action pai, apenas logamos o registro.
-    // A geração real deve ser disparada via UI ou cron job para evitar 504.
+        topCategories: params.categories || []
+      })
+    }).catch(e => console.warn("[Background City Cover] Silent fail trigger."));
+
     return null;
   } catch (e) {
     return null;
