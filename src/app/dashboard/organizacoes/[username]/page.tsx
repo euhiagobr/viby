@@ -184,7 +184,7 @@ export default function OrganizationDashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary/5 transition-all">
-            <Link href={`/viby/${currentOrg.id}`}>
+            <Link href={`/viby/${currentOrg.username}`}>
               <ImageIcon className="w-4 h-4" /> Material de Marca
             </Link>
           </Button>
@@ -331,7 +331,7 @@ export default function OrganizationDashboardPage() {
                  Disponibilize logos, ícones e manuais de identidade visual em uma página pública exclusiva para facilitar o trabalho de imprensa e co-realizadores.
               </p>
               <Button asChild className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm hover:scale-[1.02] transition-transform gap-2">
-                 <Link href={`/viby/${currentOrg.id}`}>
+                 <Link href={`/viby/${currentOrg.username}`}>
                     Acessar Media Kit <ArrowRight className="w-4 h-4" />
                  </Link>
               </Button>

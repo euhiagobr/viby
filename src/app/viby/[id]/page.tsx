@@ -9,12 +9,24 @@ import Footer from '@/components/layout/Footer';
 
 /**
  * @fileOverview Página de Material de Marca (Media Kit) da Organização.
+ * Resolve a organização por ID ou Username para URLs amigáveis.
  */
 
-async function getOrgData(id: string) {
+async function getOrgData(idOrUsername: string) {
   try {
     const db = getAdminDb();
-    const orgSnap = await db.collection('organizations').doc(id).get();
+    let orgId = idOrUsername;
+
+    // Tentar resolver via índice de usernames
+    const usernameSnap = await db.collection('usernames').doc(idOrUsername.toLowerCase().trim()).get();
+    if (usernameSnap.exists) {
+      const data = usernameSnap.data();
+      if (data?.type === 'organization') {
+        orgId = data.uid;
+      }
+    }
+
+    const orgSnap = await db.collection('organizations').doc(orgId).get();
     
     if (!orgSnap.exists) return null;
     
@@ -41,14 +53,18 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   const title = `Material de Marca: ${org.name} | Viby`;
   const description = `Acesse e baixe os materiais oficiais da marca ${org.name} no Viby.`;
+  const url = `https://viby.club/viby/${org.username}`;
 
   return {
     title,
     description,
+    alternates: { canonical: url },
     openGraph: {
       title,
       description,
+      url,
       images: org.avatar ? [{ url: org.avatar }] : [],
+      type: 'website'
     }
   };
 }
