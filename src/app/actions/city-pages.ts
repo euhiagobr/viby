@@ -2,8 +2,8 @@
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { gerarCapaCidade } from '@/ai/flows/gerar-capa-cidade-flow';
 import { logSystemError } from '@/lib/error-manager';
+import { headers } from 'next/headers';
 
 /**
  * @fileOverview Server Actions para gestão de metadados e capas de cidades.
@@ -41,7 +41,7 @@ export async function getOrTriggerCityCover(params: {
 }
 
 /**
- * Gera e persiste a capa da cidade com logs obrigatórios de auditoria.
+ * Gera e persiste a capa da cidade utilizando a API Route interna para evitar timeouts.
  */
 export async function generateAndPersistCityCover(params: {
   slug: string;
@@ -50,14 +50,12 @@ export async function generateAndPersistCityCover(params: {
   country: string;
   categories?: string[];
 }) {
-  console.log('[CITY COVER] ACTION INICIADA NO SERVIDOR');
-  console.log('[CITY COVER] PARAMETROS RECEBIDOS:', params);
-
+  console.log('[CITY COVER] ACTION INICIADA');
+  
   const db = getAdminDb();
   const cityPageRef = db.collection('cityPages').doc(params.slug);
 
   try {
-    console.log('[CITY COVER] GARANTINDO EXISTENCIA DO DOCUMENTO');
     await cityPageRef.set({
       slug: params.slug,
       city: params.city,
@@ -66,19 +64,37 @@ export async function generateAndPersistCityCover(params: {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    console.log('[CITY COVER] DISPARANDO FLOW DE IA');
-    const imageUrl = await gerarCapaCidade({
-      city: params.city,
-      state: params.state,
-      country: params.country,
-      topCategories: params.categories || []
+    console.log('[CITY COVER] CHAMANDO API ROUTE INTERNA');
+    
+    // Obter a URL base dinamicamente para a chamada interna
+    const headersList = await headers();
+    const host = headersList.get('host');
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    const apiUrl = `${protocol}://${host}/api/city-cover`;
+
+    const apiResponse = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        city: params.city,
+        state: params.state,
+        country: params.country,
+        topCategories: params.categories || []
+      })
     });
 
+    if (!apiResponse.ok) {
+      const errorData = await apiResponse.json();
+      throw new Error(errorData.message || "Falha na API de geração de imagem.");
+    }
+
+    const { url: imageUrl } = await apiResponse.json();
+
     console.log('[CITY COVER] DOWNLOAD DA IMAGEM INICIADO');
-    const response = await fetch(imageUrl);
-    if (!response.ok) throw new Error(`Falha ao baixar imagem da OpenAI: ${response.statusText}`);
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) throw new Error(`Falha ao baixar imagem da OpenAI: ${imageResponse.statusText}`);
     
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = Buffer.from(await imageResponse.arrayBuffer());
     
     console.log('[CITY COVER] UPLOAD INICIADO');
     const bucket = admin.storage().bucket();
@@ -95,9 +111,7 @@ export async function generateAndPersistCityCover(params: {
     await file.makePublic();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
     console.log('[CITY COVER] UPLOAD FINALIZADO');
-    console.log('[CITY COVER] URL:', publicUrl);
 
-    console.log('[CITY COVER] SALVANDO URL NO BANCO');
     await cityPageRef.update({
       coverImage: publicUrl,
       coverGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
