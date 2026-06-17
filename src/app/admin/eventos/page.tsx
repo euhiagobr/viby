@@ -32,7 +32,8 @@ import {
   ArrowRightLeft,
   Building2,
   AtSign,
-  AlertTriangle
+  AlertTriangle,
+  Zap
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -42,7 +43,7 @@ import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { cn } from "@/lib/utils"
-import { updateEventSlugAction, transferEventAction } from "@/app/actions/events"
+import { updateEventSlugAction, transferEventAction, backfillEventLocationSlugsAction } from "@/app/actions/events"
 import { slugify } from "@/lib/slug-utils"
 import { useAdminPermissions } from "@/hooks/use-admin-permissions"
 
@@ -53,6 +54,7 @@ export default function AdminEventosPage() {
   const { adminProfile } = useAdminPermissions()
   const [search, setSearch] = React.useState("")
   const [isProcessing, setIsProcessing] = React.useState(false)
+  const [isSyncing, setIsSyncing] = React.useState(false)
   
   // Estados para Edição de Slug
   const [slugTarget, setSlugTarget] = React.useState<any>(null)
@@ -80,6 +82,20 @@ export default function AdminEventosPage() {
       event.slug?.toLowerCase().includes(search.toLowerCase())
     )
   }, [events, search])
+
+  const handleBackfillSlugs = async () => {
+    setIsSyncing(true)
+    try {
+      const res = await backfillEventLocationSlugsAction()
+      if (res.success) {
+        toast({ title: "SEO Atualizado!", description: `${res.count} eventos agora possuem slugs de localização.` })
+      } else throw new Error(res.error)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro na manutenção", description: e.message })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
   const handleOpenSlugDialog = (event: any) => {
     setSlugTarget(event)
@@ -206,9 +222,17 @@ export default function AdminEventosPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Gestão de Eventos</h1>
-        <p className="text-muted-foreground font-medium">Controle total sobre todos os eventos publicados na plataforma Viby.</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Gestão de Eventos</h1>
+          <p className="text-muted-foreground font-medium">Controle total sobre todos os eventos publicados na plataforma Viby.</p>
+        </div>
+        <div className="flex items-center gap-3">
+           <Button variant="outline" onClick={handleBackfillSlugs} disabled={isSyncing} className="rounded-xl h-11 border-dashed gap-2 font-black uppercase text-[10px] border-secondary text-secondary">
+              {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              Habilitar SEO em Legados
+           </Button>
+        </div>
       </div>
 
       <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">

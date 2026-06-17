@@ -7,6 +7,10 @@ import { normalizeEventDates } from '@/lib/utils';
 import { slugifyLocation, buildRegionParam } from '@/lib/city-utils';
 import { revalidatePath } from 'next/cache';
 
+/**
+ * Server Actions para gestão de eventos Viby.
+ */
+
 async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string, eventData: any) {
   const isPaidOnViby = eventData.type === 'interno' && 
     eventData.batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
@@ -246,6 +250,46 @@ export async function transferEventAction(params: {
 
       return { success: true, newUrl: `/${targetOrg.username}/${eventData.slug}` };
     });
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Manutenção: Atualiza os campos regionSlug e citySlug de todos os eventos ativos.
+ * Essencial para habilitar SEO em registros legados.
+ */
+export async function backfillEventLocationSlugsAction() {
+  const db = getAdminDb();
+  try {
+    const snap = await db.collection('events').where('status', '==', 'Ativo').get();
+    let count = 0;
+    const batch = db.batch();
+
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const city = data.city || data.address?.city;
+      const state = data.state || data.address?.stateRegion;
+      const countryCode = (data.countryCode || data.address?.countryCode || "br").toLowerCase();
+
+      if (city && state) {
+        const citySlug = slugifyLocation(city);
+        const stateSlug = slugifyLocation(state);
+        const regionSlug = `${countryCode}-${stateSlug}`;
+
+        batch.update(doc.ref, {
+          citySlug,
+          stateSlug,
+          countrySlug: countryCode,
+          regionSlug,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        count++;
+      }
+    }
+
+    if (count > 0) await batch.commit();
+    return { success: true, count };
   } catch (e: any) {
     return { success: false, error: e.message };
   }

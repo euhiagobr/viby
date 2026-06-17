@@ -1,10 +1,14 @@
-
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 import CityPageClient from './CityPageClient';
-import { notFound, redirect } from 'next/navigation';
-import { parseRegionParam, slugifyLocation } from '@/lib/city-utils';
+import { notFound } from 'next/navigation';
+import { slugifyLocation } from '@/lib/city-utils';
+
+/**
+ * @fileOverview Rota dinâmica para páginas de cidades.
+ * Implementa fallback para dados legados que ainda não possuem índices de slug.
+ */
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
@@ -26,18 +30,17 @@ function serializeData(data: any): any {
 }
 
 async function getCityData(regionParam: string, citySlug: string) {
-  const regionData = parseRegionParam(regionParam);
-  if (!regionData) return null;
-
   try {
     const db = getAdminDb();
     const now = new Date();
+    const normalizedRegion = regionParam.toLowerCase();
+    const normalizedCity = citySlug.toLowerCase();
 
-    // 1. Tentar consulta otimizada por índice de slugs
+    // 1. Tentar consulta otimizada por índice de slugs (Performática)
     const officialSnap = await db.collection('events')
-      .where('regionSlug', '==', regionParam.toLowerCase())
-      .where('citySlug', '==', citySlug.toLowerCase())
       .where('status', '==', 'Ativo')
+      .where('regionSlug', '==', normalizedRegion)
+      .where('citySlug', '==', normalizedCity)
       .get();
 
     let events = [];
@@ -46,7 +49,7 @@ async function getCityData(regionParam: string, citySlug: string) {
       events = officialSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } else {
       // 2. FALLBACK RESILIENTE: Buscar todos os ativos e filtrar em memória
-      // Necessário para documentos legados que ainda não possuem os campos de slug salvos
+      // Essencial para eventos criados antes da implementação dos slugs de busca.
       const allActiveSnap = await db.collection('events')
         .where('status', '==', 'Ativo')
         .get();
@@ -54,39 +57,44 @@ async function getCityData(regionParam: string, citySlug: string) {
       events = allActiveSnap.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter((e: any) => {
-          const eCity = e.city || e.address?.city;
-          const eState = e.state || e.address?.stateRegion;
+          const eCity = e.city || e.address?.city || "";
+          const eState = e.state || e.address?.stateRegion || "";
+          const eCountryCode = (e.countryCode || e.address?.countryCode || "BR").toLowerCase();
+          
           if (!eCity || !eState) return false;
 
-          const eCitySlug = slugifyLocation(eCity);
-          const eStateSlug = slugifyLocation(eState);
-          const eRegionSlug = `br-${eStateSlug}`; // Fallback assume Brasil
+          const targetCitySlug = slugifyLocation(eCity);
+          const targetStateSlug = slugifyLocation(eState);
+          const targetRegionSlug = `${eCountryCode}-${targetStateSlug}`;
 
-          return eCitySlug === citySlug.toLowerCase() && eRegionSlug === regionParam.toLowerCase();
+          return targetCitySlug === normalizedCity && targetRegionSlug === normalizedRegion;
         });
     }
 
     if (events.length === 0) return null;
 
-    // Filtro temporal e ordenação
+    // Filtro temporal: Exibe eventos futuros ou que iniciaram há menos de 6 horas
     const futureEvents = events.filter((e: any) => {
       const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-      return d >= now;
+      const visibilityThreshold = new Date(d.getTime() + 6 * 60 * 60 * 1000);
+      return visibilityThreshold >= now;
     }).sort((a: any, b: any) => {
       const dA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
       const dB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
       return dA.getTime() - dB.getTime();
     });
 
-    const referenceEvent = events[0];
+    if (futureEvents.length === 0) return null;
+
+    const referenceEvent = futureEvents[0];
     return serializeData({
       events: futureEvents,
       cityName: referenceEvent.city || referenceEvent.address?.city || "Cidade",
       state: referenceEvent.state || referenceEvent.address?.stateRegion || "UF",
       country: referenceEvent.country || referenceEvent.address?.country || "Brasil"
     });
-  } catch (e: any) {
-    console.error(`[City Page Error]`, e);
+  } catch (e) {
+    console.error("[CityData Error]", e);
     return null;
   }
 }
@@ -97,10 +105,9 @@ export async function generateMetadata({ params }: { params: Promise<{ region: s
   
   if (!data) return { title: 'Eventos não encontrados | Viby', robots: { index: false } };
 
-  const title = `O que fazer em ${data.cityName} - Eventos, Shows, Festas e Programação | Viby`;
-  const description = `Confira os próximos eventos em ${data.cityName}. Shows, festas, feiras, experiências, cultura, gastronomia e muito mais na Viby.`;
+  const title = `O que fazer em ${data.cityName} - Eventos, Shows e Festas | Viby`;
+  const description = `Confira os próximos eventos em ${data.cityName}. Shows, festas, feiras, experiências e muito mais na Viby.`;
   const url = `https://viby.club/o-que-fazer-em/${region}/${city}`;
-  const image = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
   return {
     title,
@@ -111,7 +118,6 @@ export async function generateMetadata({ params }: { params: Promise<{ region: s
       description,
       url,
       siteName: 'Viby',
-      images: [{ url: image, width: 1200, height: 630 }],
       type: 'website',
       locale: 'pt_BR',
     },
@@ -129,47 +135,13 @@ export default async function CityDynamicPage({ params }: { params: Promise<{ re
 
   const regionLabel = `${data.country} - ${data.state}`;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    "name": `O que fazer em ${data.cityName}`,
-    "description": `Próximos eventos em ${data.cityName}, ${data.state}.`,
-    "url": `https://viby.club/o-que-fazer-em/${region}/${city}`,
-    "mainEntity": {
-      "@type": "ItemList",
-      "itemListElement": data.events.map((ev: any, idx: number) => ({
-        "@type": "ListItem",
-        "position": idx + 1,
-        "item": {
-          "@type": "Event",
-          "name": ev.title,
-          "description": (ev.description || "").substring(0, 150),
-          "startDate": ev.date,
-          "location": {
-            "@type": "Place",
-            "name": ev.location,
-            "address": {
-              "@type": "PostalAddress",
-              "addressLocality": data.cityName,
-              "addressRegion": data.state,
-              "addressCountry": "BR"
-            }
-          }
-        }
-      }))
-    }
-  };
-
   return (
-    <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <CityPageClient 
-        initialEvents={data.events} 
-        cityName={data.cityName}
-        citySlug={city}
-        regionSlug={region}
-        regionLabel={regionLabel}
-      />
-    </>
+    <CityPageClient 
+      initialEvents={data.events} 
+      cityName={data.cityName}
+      citySlug={city}
+      regionSlug={region}
+      regionLabel={regionLabel}
+    />
   );
 }
