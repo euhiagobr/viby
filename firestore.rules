@@ -78,6 +78,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Páginas de Cidade
+    match /cityPages/{cityId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // CRM e Leads
     match /organizer_leads/{leadId} {
       allow create: if true;
