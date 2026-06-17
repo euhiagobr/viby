@@ -24,7 +24,8 @@ import {
   Info,
   Heart,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Eye
 } from 'lucide-react';
 import { 
   Select, 
@@ -74,7 +75,6 @@ export default function AgendaGeneratorPage() {
   const [logoBase64, setLogoBase64] = React.useState<string | null>(null);
   const [copaLogoBase64, setCopaLogoBase64] = React.useState<string | null>(null);
 
-  const containerRef = React.useRef<HTMLDivElement>(null);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -110,7 +110,6 @@ export default function AgendaGeneratorPage() {
           const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
           const isNotListed = !selectedEvents.some(s => s.id === ev.id);
           const isVisible = isEventVisible(ev, now);
-          
           return matchesSearch && isNotListed && isVisible;
         });
         
@@ -377,7 +376,7 @@ export default function AgendaGeneratorPage() {
              </div>
            )}
            <ScrollArea className="h-full w-full">
-              <div className="flex flex-col items-center gap-20 py-10 w-full" ref={containerRef}>
+              <div className="flex flex-col items-center gap-20 py-10 w-full">
                 {eventPages.length === 0 ? (
                   <div className="text-center opacity-20 py-40">
                      <ImageIcon className="w-20 h-20 mx-auto mb-4" />
