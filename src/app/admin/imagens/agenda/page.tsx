@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { 
   Search, 
   Loader2, 
@@ -45,7 +46,6 @@ import { toPng } from 'html-to-image';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
-import { Separator } from '@/components/ui/separator';
 import { isEventVisible } from '@/lib/event-scoring-utils';
 import { COPA_TAGS, LGBT_TAGS, LGBT_CATEGORY_IDS } from '@/lib/constants';
 import { sendAgendaRequestAction } from '@/app/actions/email';
@@ -223,7 +223,6 @@ export default function AgendaGeneratorPage() {
         const node = hiddenRenderRef.current?.querySelector('.viby-template-root') as HTMLElement;
         if (!node) throw new Error("Falha ao localizar nó de renderização.");
 
-        // AUDITORIA E PREPARAÇÃO MOBILE
         await auditAndPrepareImages(node);
 
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));

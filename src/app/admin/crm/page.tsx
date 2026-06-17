@@ -7,14 +7,14 @@ import {
   Send, 
   Users, 
   TrendingUp, 
-  BarChart3,
-  Target,
-  Loader2,
-  Clock,
-  User,
-  Ticket,
-  Building2,
-  History
+  BarChart3, 
+  Target, 
+  Loader2, 
+  Clock, 
+  User, 
+  Ticket, 
+  Building2, 
+  History 
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, getCountFromServer, where } from 'firebase/firestore';
@@ -117,7 +117,7 @@ export default function CrmDashboard() {
                           <Badge className="text-[8px] font-black uppercase h-4 bg-orange-50 text-orange-600 border-orange-200">
                              {c.status === 'rascunho' ? 'Rascunho' : 'Teste Enviado'}
                           </Badge>
-                          <span className="text-[9px] text-muted-foreground uppercase font-medium">Audit Version: {c.brandVersion || 0}</span>
+                          <span className="text-[9px] font-bold text-muted-foreground uppercase font-medium">Audit Version: {c.brandVersion || 0}</span>
                        </div>
                     </div>
                   ))}

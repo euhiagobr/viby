@@ -1,10 +1,10 @@
-
 'use client';
 
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { 
   Users, 
   Target, 
@@ -26,10 +26,11 @@ import {
 import { useFirestore } from '@/firebase';
 import { collection, getCountFromServer, query, where, getDocs } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 const PUBLIC_BASES = [
   { id: 'users', label: 'Usuários', icon: User, coll: 'users', segments: ['Todos', 'Ativos', 'Bloqueados', 'Desativados', 'Novos'] },

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -73,10 +72,6 @@ export default function AdminDashboardPage() {
     
     const totalToPayBRL = regs?.reduce((acc: number, r: any) => {
       if (['Pago', 'Disponível'].includes(r.paymentStatus)) {
-        if (r.priceBRL) {
-           const netRate = (r.producerNetAmount || 0) / (r.price || 1);
-           return acc + (r.priceBRL * netRate);
-        }
         const cur = (r.currency || 'BRL') as CurrencyCode;
         return acc + convertValue(r.producerNetAmount || 0, cur, 'BRL');
       }
@@ -99,7 +94,7 @@ export default function AdminDashboardPage() {
         bg: "bg-orange-50" 
       },
       { 
-        title: "Total Repasses BRL (Auditoria)", 
+        title: "Total Repasses BRL", 
         value: formatPrice(totalToPayBRL, 'BRL'), 
         icon: Wallet, 
         color: "text-green-500", 

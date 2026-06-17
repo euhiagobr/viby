@@ -152,11 +152,11 @@ export default function AdminSolicitacoesPropriedade() {
       </Card>
 
       <Dialog open={!!selectedReq} onOpenChange={(o) => !o && setSelectedReq(null)}>
-        <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden">
+        <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden flex flex-col">
            <DialogHeader className="p-8 border-b bg-muted/30">
-              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Analisar Propriedade</DialogTitle>
+              <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Analisar Propriedade</DialogTitle>
            </DialogHeader>
-           <ScrollArea className="max-h-[60vh] p-8">
+           <ScrollArea className="flex-1 p-8">
               <div className="space-y-8">
                  <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-1">

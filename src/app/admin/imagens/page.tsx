@@ -103,7 +103,7 @@ export default function ImagensDashboard() {
                    <div key={log.id} className="p-6 flex items-center justify-between hover:bg-muted/5 transition-colors">
                       <div className="flex items-center gap-4">
                          <div className="h-12 w-12 rounded-xl bg-muted overflow-hidden flex items-center justify-center">
-                            {log.thumbnailUrl ? <img src={log.thumbnailUrl} className="w-full h-full object-cover" /> : <ImageIcon className="w-6 h-6 opacity-10" />}
+                            {log.thumbnailUrl ? <img src={log.thumbnailUrl} className="w-full h-full object-cover" alt="" /> : <ImageIcon className="w-6 h-6 opacity-10" />}
                          </div>
                          <div className="space-y-0.5">
                             <p className="font-bold text-sm text-primary uppercase">{log.templateName}</p>
