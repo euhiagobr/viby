@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -24,6 +25,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { forceGenerateCityCoverAction } from '@/app/actions/city-pages';
 
 export default function AdminCityPagesManager() {
   const db = useFirestore();
@@ -45,70 +47,24 @@ export default function AdminCityPagesManager() {
   }, [cityPages, search]);
 
   const handleForceGenerate = async (city: any) => {
-    console.log('[CITY COVER] BOTAO CLICADO');
-    console.log('[CITY COVER] CIDADE SELECIONADA:', city.city);
-    
     setIsGenerating(city.id);
+    console.log('[CITY COVER] Iniciando geração via Server Action para:', city.city);
     
     try {
-      console.log('[CITY COVER] BUSCANDO CATEGORIAS PARA O PROMPT...');
-      const eventsSnap = await getDocs(query(
-        collection(db!, "events"), 
-        where("city", "==", city.city),
-        limit(10)
-      ));
-      const categories = Array.from(new Set(eventsSnap.docs.map(d => d.data().categoryName).filter(Boolean)));
-      
-      const requestUrl = '/api/city-cover';
-      const payload = {
-        slug: city.slug,
-        city: city.city,
-        state: city.state,
-        country: city.country,
-        topCategories: categories
-      };
+      // Chamada direta via Server Action (ignora CORS e Workstation Auth)
+      const result = await forceGenerateCityCoverAction(city);
 
-      console.log('[CITY COVER CLIENT] URL', requestUrl);
-      console.log('[CITY COVER CLIENT] PAYLOAD', payload);
-
-      try {
-        const response = await fetch(requestUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        console.log('[CITY COVER CLIENT] STATUS', response.status);
-        console.log('[CITY COVER CLIENT] OK', response.ok);
-
-        const text = await response.text();
-        console.log('[CITY COVER CLIENT] RESPONSE BODY', text);
-
-        if (!response.ok) {
-          throw new Error(`Erro HTTP ${response.status}: ${text}`);
-        }
-
-        const result = JSON.parse(text);
-        console.log('[CITY COVER] SUCESSO:', result.url);
-        
+      if (result.success) {
         toast({ title: "Capa da cidade gerada!", description: "A imagem foi salva e vinculada com sucesso." });
-      } catch (error) {
-        console.error('[CITY COVER CLIENT] ERROR OBJECT', error);
-
-        if (error instanceof Error) {
-          console.error('[CITY COVER CLIENT] MESSAGE', error.message);
-          console.error('[CITY COVER CLIENT] STACK', error.stack);
-          console.error('[CITY COVER CLIENT] CAUSE', (error as any).cause);
-        }
-
-        throw error;
+      } else {
+        throw new Error(result.error);
       }
     } catch (e: any) {
       console.error('[CITY COVER ERROR]', e);
       toast({ 
         variant: "destructive", 
         title: "Falha na Geração", 
-        description: e.message || "Verifique o console para mais detalhes." 
+        description: e.message || "Erro de comunicação com o servidor." 
       });
     } finally {
       setIsGenerating(null);
@@ -121,7 +77,6 @@ export default function AdminCityPagesManager() {
       await deleteDoc(doc(db!, "cityPages", id));
       toast({ title: "Metadados removidos." });
     } catch (e) {
-      console.error('[CITY COVER ERROR]', e);
       toast({ variant: "destructive", title: "Erro ao remover" });
     }
   };

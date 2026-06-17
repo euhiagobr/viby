@@ -1,8 +1,9 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { headers } from 'next/headers';
+import { processCityCoverGeneration } from '@/services/city-cover-service';
 
 /**
  * @fileOverview Server Actions para gestão de metadados de cidades.
@@ -43,8 +44,8 @@ export async function getOrTriggerCityCover(params: {
 }
 
 /**
- * Disparador de geração de capa via API Route.
- * Utilizado pelo pipeline de eventos para garantir SEO visual.
+ * Disparador de geração de capa.
+ * Chamado internamente por outras Server Actions para evitar overhead de rede.
  */
 export async function generateAndPersistCityCover(params: {
   slug: string;
@@ -53,28 +54,19 @@ export async function generateAndPersistCityCover(params: {
   country: string;
   categories?: string[];
 }) {
-  const head = await headers();
-  const origin = head.get('origin') || head.get('host') || 'localhost:3000';
-  const protocol = origin.includes('localhost') ? 'http' : 'https';
-  
-  const apiUrl = `${protocol}://${origin}/api/city-cover`;
+  // Chamada direta ao serviço (Server-to-Server)
+  // Não utilizamos fetch aqui para evitar problemas de URL absoluta e autenticação de Workstation
+  return processCityCoverGeneration(params);
+}
 
-  try {
-    // Chamada assíncrona (fire and forget) para não travar o salvamento do evento
-    fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        slug: params.slug,
-        city: params.city,
-        state: params.state,
-        country: params.country,
-        topCategories: params.categories || []
-      })
-    }).catch(e => console.warn("[Background City Cover] Silent fail trigger."));
-
-    return null;
-  } catch (e) {
-    return null;
-  }
+/**
+ * Action acionada pelo botão manual no painel administrativo.
+ */
+export async function forceGenerateCityCoverAction(cityData: any) {
+  return processCityCoverGeneration({
+    slug: cityData.slug,
+    city: cityData.city,
+    state: cityData.state,
+    country: cityData.country
+  });
 }
