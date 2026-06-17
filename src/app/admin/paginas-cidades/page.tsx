@@ -59,29 +59,50 @@ export default function AdminCityPagesManager() {
       ));
       const categories = Array.from(new Set(eventsSnap.docs.map(d => d.data().categoryName).filter(Boolean)));
       
-      console.log('[CITY COVER] CHAMADA API INICIADA');
-      
-      const response = await fetch('/api/city-cover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slug: city.slug,
-          city: city.city,
-          state: city.state,
-          country: city.country,
-          topCategories: categories
-        })
-      });
+      const requestUrl = '/api/city-cover';
+      const payload = {
+        slug: city.slug,
+        city: city.city,
+        state: city.state,
+        country: city.country,
+        topCategories: categories
+      };
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Erro HTTP ${response.status}`);
+      console.log('[CITY COVER CLIENT] URL', requestUrl);
+      console.log('[CITY COVER CLIENT] PAYLOAD', payload);
+
+      try {
+        const response = await fetch(requestUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        console.log('[CITY COVER CLIENT] STATUS', response.status);
+        console.log('[CITY COVER CLIENT] OK', response.ok);
+
+        const text = await response.text();
+        console.log('[CITY COVER CLIENT] RESPONSE BODY', text);
+
+        if (!response.ok) {
+          throw new Error(`Erro HTTP ${response.status}: ${text}`);
+        }
+
+        const result = JSON.parse(text);
+        console.log('[CITY COVER] SUCESSO:', result.url);
+        
+        toast({ title: "Capa da cidade gerada!", description: "A imagem foi salva e vinculada com sucesso." });
+      } catch (error) {
+        console.error('[CITY COVER CLIENT] ERROR OBJECT', error);
+
+        if (error instanceof Error) {
+          console.error('[CITY COVER CLIENT] MESSAGE', error.message);
+          console.error('[CITY COVER CLIENT] STACK', error.stack);
+          console.error('[CITY COVER CLIENT] CAUSE', (error as any).cause);
+        }
+
+        throw error;
       }
-
-      const result = await response.json();
-      console.log('[CITY COVER] API SUCESSO:', result.url);
-      
-      toast({ title: "Capa da cidade gerada!", description: "A imagem foi salva e vinculada com sucesso." });
     } catch (e: any) {
       console.error('[CITY COVER ERROR]', e);
       toast({ 
