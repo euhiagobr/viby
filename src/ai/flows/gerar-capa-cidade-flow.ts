@@ -42,7 +42,7 @@ const gerarCapaCidadeFlow = ai.defineFlow(
     const promptText = `Crie uma imagem fotorealista premium representando a cidade de ${input.city}, ${input.state}, ${input.country}.
     
     A imagem deve transmitir turismo, cultura, entretenimento, experiências e eventos acontecendo na cidade.
-    Utilize elements reais e reconhecíveis da cidade quando existirem.
+    Utilize elementos reais e reconhecíveis da cidade quando existirem.
     ${categoriesText}
     
     Diretrizes visuais:
@@ -72,10 +72,13 @@ const gerarCapaCidadeFlow = ai.defineFlow(
     - Não adicionar elementos políticos
     - Não adicionar conteúdo ofensivo`;
 
-    console.log('[CITY_COVER] Enviando prompt');
+    console.log('[CITY_COVER] Enviando prompt para OpenAI');
 
     try {
-      // Instanciação direta para garantir que o Genkit não injete parâmetros de texto/chat (como response_format)
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error("OPENAI_API_KEY não configurada no ambiente.");
+      }
+
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
@@ -88,7 +91,7 @@ const gerarCapaCidadeFlow = ai.defineFlow(
         quality: "standard"
       });
 
-      console.log('[CITY_COVER] Resposta recebida');
+      console.log('[CITY_COVER] Resposta recebida da OpenAI');
       const url = response.data[0]?.url;
 
       if (!url) {
@@ -97,7 +100,7 @@ const gerarCapaCidadeFlow = ai.defineFlow(
 
       return url;
     } catch (error: any) {
-      console.error('[CITY_COVER] Erro:', error);
+      console.error('[CITY_COVER] Erro na OpenAI:', error.message);
       throw error;
     }
   }

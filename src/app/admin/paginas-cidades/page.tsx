@@ -14,24 +14,17 @@ import {
   Image as ImageIcon, 
   Trash2, 
   Globe, 
-  Building2,
   ExternalLink,
   Zap,
   CheckCircle2,
   Inbox,
   Info,
-  Sparkles,
-  AlertTriangle
+  Sparkles
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 import { generateAndPersistCityCover } from '@/app/actions/city-pages';
 import Link from 'next/link';
-
-/**
- * @fileOverview Painel de gestão das capas de cidades geradas por IA.
- */
 
 export default function AdminCityPagesManager() {
   const db = useFirestore();
@@ -53,16 +46,20 @@ export default function AdminCityPagesManager() {
   }, [cityPages, search]);
 
   const handleForceGenerate = async (city: any) => {
+    console.log('[Admin UI] Botão de geração clicado para:', city.city);
     setIsGenerating(city.id);
+    
     try {
-      // Busca eventos para pegar as categorias populares daquela cidade
+      console.log('[Admin UI] Consultando categorias populares...');
       const eventsSnap = await getDocs(query(
         collection(db!, "events"), 
         where("city", "==", city.city),
         limit(10)
       ));
       const categories = Array.from(new Set(eventsSnap.docs.map(d => d.data().categoryName).filter(Boolean)));
+      console.log('[Admin UI] Categorias localizadas:', categories);
 
+      console.info('[Admin UI] Chamando Server Action: generateAndPersistCityCover');
       const res = await generateAndPersistCityCover({
         slug: city.slug,
         city: city.city,
@@ -71,16 +68,18 @@ export default function AdminCityPagesManager() {
         categories: categories as string[]
       });
 
-      if (typeof res === 'object' && 'error' in res) {
+      if (!res.success) {
         throw new Error(res.error);
       }
 
+      console.info('[Admin UI] Geração concluída com sucesso!');
       toast({ title: "Capa da cidade gerada!", description: "A imagem foi salva no Storage." });
     } catch (e: any) {
+      console.error('[Admin UI] Erro capturado na interface:', e.message);
       toast({ 
         variant: "destructive", 
         title: "Falha na Geração IA", 
-        description: e.message || "Verifique as cotas da OpenAI." 
+        description: e.message || "Erro desconhecido." 
       });
     } finally {
       setIsGenerating(null);
@@ -160,7 +159,7 @@ export default function AdminCityPagesManager() {
                        size="sm" 
                        className="rounded-xl h-10 font-black uppercase text-[9px] gap-2 border-secondary text-secondary"
                        onClick={() => handleForceGenerate(city)}
-                       disabled={!!isGenerating}
+                       disabled={isGenerating === city.id}
                      >
                         {isGenerating === city.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                         {city.coverImage ? 'Regerar' : 'Gerar Capa'}

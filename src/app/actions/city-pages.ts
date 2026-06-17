@@ -49,7 +49,7 @@ export async function generateAndPersistCityCover(params: {
   country: string;
   categories?: string[];
 }) {
-  console.log('[CITY_COVER] Iniciando geração');
+  console.log('[CITY_COVER] Iniciando geração no servidor');
   console.log('[CITY_COVER] Cidade:', params.city);
   console.log('[CITY_COVER] Estado:', params.state);
 
@@ -101,12 +101,12 @@ export async function generateAndPersistCityCover(params: {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    console.log('[CITY_COVER] Upload concluído');
-    console.log('[CITY_COVER] URL:', publicUrl);
+    console.log('[CITY_COVER] Upload concluído com sucesso');
+    console.log('[CITY_COVER] URL final persistida:', publicUrl);
 
     return { success: true, url: publicUrl };
   } catch (error: any) {
-    console.error('[CITY_COVER] Erro:', error);
+    console.error('[CITY_COVER] Erro fatal no servidor:', error.message);
     
     await logSystemError({
       error: error,
