@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useDoc, useAuth, useUser, useFirebaseApp } from '@/firebase';
+import { useFirestore, useDoc, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, limit, addDoc, serverTimestamp, getDocs, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,8 @@ import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { auditAndPrepareImages, triggerVisualProofDownload } from '@/lib/image-generator-utils';
+import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence } from '@/lib/image-generator-utils';
+import { startOfToday, addDays, format } from "date-fns";
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
@@ -72,6 +73,14 @@ export default function CarouselGeneratorPage() {
   const [capturingSlide, setCapturingSlide] = React.useState<any | null>(null);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
+  // Pipeline de Ocorrências
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd');
+    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr));
+  }, [db]);
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery);
+
   React.useEffect(() => {
     if (settings?.logoUrl) {
       fetchImageAsBase64(settings.logoUrl).then(res => {
@@ -90,23 +99,35 @@ export default function CarouselGeneratorPage() {
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
-        orderBy("date", "asc"),
         limit(200)
       );
       const snap = await getDocs(q);
       const searchNorm = normalizeText(searchTerm);
+      const now = new Date();
       
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
+        .map(ev => {
+           const schedule = resolveNextOccurrence(ev, allOccurrences, now);
+           const included = !!schedule;
+           
+           console.log(`[Image Studio Audit] ${ev.title} | nextDate: ${schedule?.nextDate || 'null'} | futureDates: ${schedule?.additionalCount || 0} | included: ${included}`);
+           
+           if (!included) return null;
+
+           return { 
+             ...ev, 
+             date: schedule.nextDate, 
+             _additionalCount: schedule.additionalCount 
+           };
+        })
         .filter(ev => {
-           const title = normalizeText(ev.title || "");
-           const tags = (ev.tags || []).map(t => normalizeText(t));
-           const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
-           const isNotListed = !selectedEvents.some(s => s.id === ev.id);
-           // Removido filtro de visibilidade temporal
-           return matchesSearch && isNotListed;
+          if (!ev) return false;
+          const title = normalizeText(ev.title || "");
+          const tags = (ev.tags || []).map(t => normalizeText(t));
+          return (title.includes(searchNorm) || tags.some(t => t.includes(searchNorm))) && !selectedEvents.some(s => s.id === ev.id);
         });
-      setSearchResults(results);
+      setSearchResults(results.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na busca" });
     } finally {
@@ -118,7 +139,8 @@ export default function CarouselGeneratorPage() {
     if (selectedEvents.some(e => e.id === event.id)) return;
     setIsSearching(true);
     const imgRes = await fetchImageAsBase64(event.image);
-    setSelectedEvents([...selectedEvents, { ...event, image: imgRes.success ? imgRes.data : event.image }]);
+    const newList = [...selectedEvents, { ...event, image: imgRes.success ? imgRes.data : event.image }].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    setSelectedEvents(newList);
     setSearchResults([]);
     setSearchTerm("");
     setIsSearching(false);
@@ -225,7 +247,7 @@ export default function CarouselGeneratorPage() {
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Conteúdo</CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase">Busque por nome ou tags (ex: copa).</CardDescription>
+            <CardDescription className="text-[10px] font-bold uppercase">Busque por eventos futuros ativos.</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
             <div className="flex gap-2">
@@ -247,10 +269,13 @@ export default function CarouselGeneratorPage() {
             {searchResults.length > 0 && (
               <div className="p-2 bg-muted/20 rounded-2xl border border-dashed animate-in slide-in-from-top-2">
                  {searchResults.map(ev => (
-                   <button key={ev.id} onClick={() => addEvent(ev)} className="w-full flex items-center gap-3 p-3 hover:bg-white rounded-xl text-left transition-all">
+                   <button key={ev.id} onClick={() => addEvent(ev)} className="w-full flex items-center gap-3 p-3 hover:bg-white rounded-xl text-left transition-all group">
                       <img src={ev.image} className="h-10 w-10 rounded-lg object-cover" alt="" />
-                      <div className="flex-1 min-w-0"><p className="text-xs font-bold truncate uppercase">{ev.title}</p></div>
-                      <Plus className="w-4 h-4 text-secondary" />
+                      <div className="flex-1 min-w-0">
+                         <p className="text-xs font-bold truncate uppercase">{ev.title}</p>
+                         <p className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</p>
+                      </div>
+                      <Plus className="w-4 h-4 text-secondary opacity-0 group-hover:opacity-100" />
                    </button>
                  ))}
               </div>
@@ -259,12 +284,15 @@ export default function CarouselGeneratorPage() {
             <div className="space-y-3 pt-4">
               <Label className="text-[10px] font-black uppercase ml-1 opacity-60">Fila do Carrossel ({selectedEvents.length})</Label>
               <div className="space-y-2">
-                {selectedEvents.map((ev, i) => (
+                {selectedEvents.map((ev) => (
                   <div key={ev.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50 group animate-in slide-in-from-left-2">
                     <div className="opacity-20"><GripVertical className="w-4 h-4" /></div>
                     <img src={ev.image} className="h-8 w-8 rounded-lg object-cover" alt="" />
-                    <span className="flex-1 text-xs font-bold uppercase truncate">{ev.title}</span>
-                    <button onClick={() => removeEvent(ev.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded-lg"><X className="w-3.5 h-3.5" /></button>
+                    <div className="flex-1 min-w-0">
+                       <span className="block text-xs font-bold uppercase truncate">{ev.title}</span>
+                       <span className="block text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</span>
+                    </div>
+                    <button onClick={() => removeEvent(ev.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ))}
               </div>
@@ -341,13 +369,16 @@ export default function CarouselGeneratorPage() {
                        <div className="p-4 bg-secondary/10 rounded-2xl w-fit mx-auto text-secondary"><Monitor className="w-8 h-8" /></div>
                        <div className="space-y-1">
                           <h3 className="font-black uppercase italic text-primary">Prévia Otimizada</h3>
-                          <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">O carrossel será montado slide a slide no momento da exportação para garantir qualidade e economia de dados.</p>
+                          <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">O carrossel será montado slide a slide no momento da exportação.</p>
                        </div>
                     </Card>
                     {selectedEvents.map((ev, i) => (
-                      <div key={i} className="p-4 bg-white/40 rounded-2xl border border-dashed flex items-center gap-3">
-                         <Badge variant="outline" className="text-[8px] font-black h-5">Slide {i+1}</Badge>
-                         <span className="text-[10px] font-bold uppercase truncate">{ev.title}</span>
+                      <div key={i} className="p-4 bg-white/40 rounded-2xl border border-dashed flex items-center justify-between">
+                         <div className="flex items-center gap-3 min-w-0">
+                            <Badge variant="outline" className="text-[8px] font-black h-5">Slide {i+1}</Badge>
+                            <span className="text-[10px] font-bold uppercase truncate">{ev.title}</span>
+                         </div>
+                         <span className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</span>
                       </div>
                     ))}
                   </div>

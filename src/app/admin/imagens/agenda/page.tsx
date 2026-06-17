@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useDoc, useAuth, useUser } from '@/firebase';
+import { useFirestore, useDoc, useAuth, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, limit, getDocs, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,8 +50,8 @@ import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { COPA_TAGS, LGBT_TAGS, LGBT_CATEGORY_IDS } from '@/lib/constants';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { auditAndPrepareImages, triggerVisualProofDownload } from '@/lib/image-generator-utils';
-import { isEventVisible } from '@/lib/event-scoring-utils';
+import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence } from '@/lib/image-generator-utils';
+import { startOfToday, addDays, format } from "date-fns";
 
 const ITEMS_PER_FORMAT = {
   stories: 7,
@@ -92,6 +92,14 @@ export default function AgendaGeneratorPage() {
   const [capturingPage, setCapturingPage] = React.useState<any | null>(null);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
+  // Pipeline de Ocorrências
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd');
+    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr));
+  }, [db]);
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery);
+
   React.useEffect(() => {
     if (settings?.logoUrl) {
       fetchImageAsBase64(settings.logoUrl).then(res => {
@@ -110,7 +118,6 @@ export default function AgendaGeneratorPage() {
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
-        orderBy("date", "asc"),
         limit(200)
       );
       const snap = await getDocs(q);
@@ -119,17 +126,28 @@ export default function AgendaGeneratorPage() {
       
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
+        .map(ev => {
+           const schedule = resolveNextOccurrence(ev, allOccurrences, now);
+           const included = !!schedule;
+           
+           console.log(`[Image Studio Audit] ${ev.title} | nextDate: ${schedule?.nextDate || 'null'} | futureDates: ${schedule?.additionalCount || 0} | included: ${included}`);
+           
+           if (!included) return null;
+
+           return { 
+             ...ev, 
+             date: schedule.nextDate, 
+             _additionalCount: schedule.additionalCount 
+           };
+        })
         .filter(ev => {
+          if (!ev) return false;
           const title = normalizeText(ev.title || "");
           const tags = (ev.tags || []).map(t => normalizeText(t));
-          const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
-          const isNotListed = !selectedEvents.some(s => s.id === ev.id);
-          const visible = isEventVisible(ev, now);
-          
-          return matchesSearch && isNotListed && visible;
+          return (title.includes(searchNorm) || tags.some(t => t.includes(searchNorm))) && !selectedEvents.some(s => s.id === ev.id);
         });
         
-      setSearchResults(results);
+      setSearchResults(results.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na busca" });
     } finally {
@@ -141,34 +159,37 @@ export default function AgendaGeneratorPage() {
     if (!db || isSearching) return;
     setIsSearching(true);
     try {
-      const q = query(
-        collection(db, "events"),
-        where("status", "==", "Ativo"),
-        orderBy("date", "asc"),
-        limit(200)
-      );
+      const q = query(collection(db, "events"), where("status", "==", "Ativo"), limit(200));
       const snap = await getDocs(q);
+      const now = new Date();
       
       const filtered = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter(ev => {
-          if (type === 'copa') {
-            return ev.tags?.some(t => COPA_TAGS.includes(t.toLowerCase()));
-          } else {
-            const byCategory = LGBT_CATEGORY_IDS.includes(ev.categoryId);
-            const byTags = ev.tags?.some(t => LGBT_TAGS.includes(t.toLowerCase()));
-            return byCategory || byTags;
-          }
-        });
+        .map(ev => {
+           const schedule = resolveNextOccurrence(ev, allOccurrences, now);
+           if (!schedule) return null;
+
+           let match = false;
+           if (type === 'copa') {
+             match = ev.tags?.some(t => COPA_TAGS.includes(t.toLowerCase()));
+           } else {
+             const byCategory = LGBT_CATEGORY_IDS.includes(ev.categoryId);
+             const byTags = ev.tags?.some(t => LGBT_TAGS.includes(t.toLowerCase()));
+             match = byCategory || byTags;
+           }
+
+           return match ? { ...ev, date: schedule.nextDate, _additionalCount: schedule.additionalCount } : null;
+        })
+        .filter(Boolean);
 
       const prepared = await Promise.all(filtered.slice(0, 15).map(async (ev) => {
         const imgRes = await fetchImageAsBase64(ev.image);
         return { ...ev, image: imgRes.success ? imgRes.data : ev.image };
       }));
 
-      setSelectedEvents(prepared);
+      setSelectedEvents(prepared.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
       setTheme(type === 'copa' ? 'copa' : 'pride');
-      toast({ title: `Preset ${type.toUpperCase()} carregado!`, description: `${prepared.length} eventos adicionados.` });
+      toast({ title: `Preset ${type.toUpperCase()} carregado!`, description: `${prepared.length} eventos futuros adicionados.` });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro ao carregar preset" });
     } finally {
@@ -184,7 +205,8 @@ export default function AgendaGeneratorPage() {
       ...event,
       image: imgRes.success ? imgRes.data : event.image
     };
-    setSelectedEvents([...selectedEvents, eventWithSafeImage]);
+    const newList = [...selectedEvents, eventWithSafeImage].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    setSelectedEvents(newList);
     setSearchResults([]);
     setSearchTerm("");
     setIsSearching(false);
@@ -299,7 +321,7 @@ export default function AgendaGeneratorPage() {
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Conteúdo da Agenda</CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase">Busque eventos ou use um preset.</CardDescription>
+            <CardDescription className="text-[10px] font-bold uppercase">Busque eventos futuros ou use um preset.</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
             <div className="grid grid-cols-2 gap-2 mb-4">
@@ -327,20 +349,26 @@ export default function AgendaGeneratorPage() {
                  {searchResults.map(ev => (
                    <button key={ev.id} onClick={() => addEvent(ev)} className="w-full flex items-center gap-3 p-3 hover:bg-white rounded-xl text-left transition-all group">
                       <img src={ev.image} className="h-10 w-10 rounded-lg object-cover" alt="" />
-                      <div className="flex-1 min-w-0"><p className="text-xs font-bold truncate uppercase">{ev.title}</p></div>
+                      <div className="flex-1 min-w-0">
+                         <p className="text-xs font-bold truncate uppercase">{ev.title}</p>
+                         <p className="text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</p>
+                      </div>
                       <Plus className="w-4 h-4 text-secondary opacity-0 group-hover:opacity-100" />
                    </button>
                  ))}
               </div>
             )}
             <div className="space-y-3 pt-4">
-              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Lista Atual ({selectedEvents.length})</Label>
+              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Fila da Agenda ({selectedEvents.length})</Label>
               <div className="space-y-2">
                 {selectedEvents.map((ev) => (
                   <div key={ev.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50 group animate-in slide-in-from-left-2">
                     <div className="opacity-20"><GripVertical className="w-4 h-4" /></div>
                     <img src={ev.image} className="h-8 w-8 rounded-lg object-cover" alt="" />
-                    <span className="flex-1 text-xs font-bold uppercase truncate">{ev.title}</span>
+                    <div className="flex-1 min-w-0">
+                       <span className="block text-xs font-bold uppercase truncate">{ev.title}</span>
+                       <span className="block text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</span>
+                    </div>
                     <button onClick={() => removeEvent(ev.id)} className="p-1.5 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10 rounded-lg transition-all"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 ))}
@@ -449,6 +477,17 @@ export default function AgendaGeneratorPage() {
               </div>
            </ScrollArea>
         </div>
+      </div>
+      
+      {/* Badge de Legenda de Recorrência */}
+      <div className="lg:col-span-12 p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
+         <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
+         <div className="space-y-1">
+            <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary italic">Inteligência de Recorrência</h4>
+            <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
+              Eventos com o rótulo <span className="text-secondary font-black">+N</span> possuem múltiplas sessões futuras agendadas. O gerador seleciona automaticamente a próxima data disponível para exibição na arte.
+            </p>
+         </div>
       </div>
     </div>
   );

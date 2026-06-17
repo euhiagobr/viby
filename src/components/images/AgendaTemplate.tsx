@@ -11,6 +11,7 @@ interface EventItem {
   date: any;
   endDate?: any;
   city: string;
+  _additionalCount?: number;
 }
 
 interface AgendaTemplateProps {
@@ -70,7 +71,6 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
 
   const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : 'viby.club';
   
-  // Customização dinâmica de títulos por tema
   const isCopa = theme === 'copa';
   const isPride = theme === 'pride';
   
@@ -165,7 +165,9 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
              
              <div className="viby-card-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, overflow: 'hidden', boxSizing: 'border-box' }}>
                 <div className="viby-card-date" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                   <span style={{ fontSize: '20px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(ev.date)}</span>
+                   <span style={{ fontSize: '20px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>
+                     {formatTemplateDate(ev.date, ev._additionalCount)}
+                   </span>
                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: colors.text, opacity: 0.3 }} />
                    <span style={{ fontSize: '16px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date, ev.endDate)}</span>
                 </div>

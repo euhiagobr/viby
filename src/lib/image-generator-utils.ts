@@ -1,7 +1,9 @@
 /**
  * @fileOverview Utilitários para o Gerador de Imagens Viby.
- * Implementa lógica de encurtamento inteligente de títulos e auditoria de renderização.
+ * Implementa lógica de encurtamento inteligente de títulos, resolução de recorrências e auditoria.
  */
+
+import { safeParseDate } from "./utils";
 
 const NOISY_WORDS = [
   "oficial", "festival", "festa", "encontro", "grande", "evento", 
@@ -10,12 +12,10 @@ const NOISY_WORDS = [
 
 /**
  * Encurta títulos longos mantendo a leitura natural.
- * Regras: Não corta palavras, não usa reticências, remove ruído se necessário.
  */
 export function shortenTitle(title: string, maxLength: number = 35): string {
   if (!title || title.length <= maxLength) return title;
 
-  // 1. Tentar limpar palavras de ruído para caber
   let words = title.split(' ');
   let currentTitle = words.join(' ');
 
@@ -28,7 +28,6 @@ export function shortenTitle(title: string, maxLength: number = 35): string {
     }
   }
 
-  // 2. Se ainda não couber, remover palavras do fim até caber (mantendo leitura natural)
   while (words.join(' ').length > maxLength && words.length > 1) {
     words.pop();
   }
@@ -37,15 +36,46 @@ export function shortenTitle(title: string, maxLength: number = 35): string {
 }
 
 /**
- * Formata data para o estilo do template (ex: 15 JUL)
+ * Resolve a próxima data válida e o contador de recorrências futuras.
  */
-export function formatTemplateDate(dateValue: any): string {
+export function resolveNextOccurrence(event: any, occurrences: any[], now: Date) {
+  const eventDate = safeParseDate(event.date);
+  
+  if (!event.isRecurring) {
+    if (!eventDate || eventDate < now) return null;
+    return { nextDate: eventDate, additionalCount: 0 };
+  }
+
+  const myOccs = (occurrences || []).filter(o => o.parentId === event.id && o.status === 'active');
+  const futureOccs = myOccs
+    .map(o => ({ ...o, _dt: safeParseDate(`${o.date}T${o.startTime || '19:00'}:00`) }))
+    .filter(o => o._dt && o._dt >= now)
+    .sort((a, b) => a._dt!.getTime() - b._dt!.getTime());
+
+  if (futureOccs.length === 0) {
+    if (eventDate && eventDate >= now) {
+      return { nextDate: eventDate, additionalCount: 0 };
+    }
+    return null;
+  }
+
+  return {
+    nextDate: futureOccs[0]._dt!,
+    additionalCount: futureOccs.length - 1
+  };
+}
+
+/**
+ * Formata data para o estilo do template com suporte a sufixo de recorrência (ex: 15 JUL +2)
+ */
+export function formatTemplateDate(dateValue: any, additionalCount: number = 0): string {
   if (!dateValue) return "";
   try {
     const d = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
     const day = String(d.getDate()).padStart(2, '0');
     const month = d.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase().replace('.', '');
-    return `${day} ${month}`;
+    const base = `${day} ${month}`;
+    return additionalCount > 0 ? `${base} +${additionalCount}` : base;
   } catch (e) {
     return "---";
   }
@@ -74,13 +104,11 @@ export function formatTemplateTime(dateValue: any, endDateValue?: any): string {
 
 /**
  * Gatilho de download robusto para mobile via Blob/ObjectUrl.
- * Resolve falhas de download silencioso em strings DataURL longas.
  */
 export async function triggerVisualProofDownload(dataUrl: string, fileName: string) {
   if (!dataUrl) return;
   
   try {
-    // Converte Data URL para Blob para evitar limites de URL no mobile
     const response = await fetch(dataUrl);
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
@@ -94,7 +122,6 @@ export async function triggerVisualProofDownload(dataUrl: string, fileName: stri
     document.body.appendChild(link);
     link.click();
     
-    // Pequeno atraso para garantir o trigger antes da remoção
     setTimeout(() => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
@@ -105,18 +132,14 @@ export async function triggerVisualProofDownload(dataUrl: string, fileName: stri
 }
 
 /**
- * AUDITORIA E CONVERSÃO DE IMAGENS PARA BASE64 (MOBILE STABILITY)
+ * AUDITORIA E CONVERSÃO DE IMAGENS PARA BASE64
  */
 export async function auditAndPrepareImages(container: HTMLElement) {
   const images = Array.from(container.querySelectorAll('img'));
   
-  console.log(`[Visual Proof] Tags IMG detectadas no DOM: ${images.length}`);
-
-  const results = await Promise.all(images.map(async (img, idx) => {
+  await Promise.all(images.map(async (img) => {
     try {
-      if (img.src.startsWith('data:')) {
-        return true;
-      }
+      if (img.src.startsWith('data:')) return true;
 
       const response = await fetch(img.src);
       const blob = await response.blob();
@@ -128,14 +151,11 @@ export async function auditAndPrepareImages(container: HTMLElement) {
       });
 
       img.src = dataUrl;
-      console.log(`[Visual Proof] IMG [${idx}] CONVERTIDA PARA BASE64`);
       return true;
     } catch (err) {
-      console.warn(`[Visual Proof] Falha na conversão da Imagem ${idx}:`, err);
       return false;
     }
   }));
 
-  // Garantir decodificação final para a GPU
   await Promise.all(images.map(img => img.decode().catch(() => {})));
 }

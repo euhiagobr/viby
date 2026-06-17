@@ -48,10 +48,8 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
         overflow: 'hidden'
       }}
     >
-      {/* Background Decor */}
       <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '400px', height: '400px', background: `${colors.accent}20`, borderRadius: '50%', filter: 'blur(80px)' }} />
 
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '60px', position: 'relative', zIndex: 10, width: '100%', boxSizing: 'border-box' }}>
         {logoUrl ? <img src={logoUrl} crossOrigin="anonymous" style={{ width: '220px', height: '60px', objectFit: 'contain' }} alt="Logo" /> : <span style={{ fontSize: '32px', fontWeight: 900, fontStyle: 'italic' }}>VIBY</span>}
         {totalSlides && totalSlides > 1 && (
@@ -61,7 +59,6 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
         )}
       </div>
 
-      {/* Image & Main Info Container */}
       <div style={{ display: 'flex', gap: '40px', flex: 1, alignItems: 'center', width: '100%', position: 'relative', zIndex: 10, boxSizing: 'border-box' }}>
         <div style={{ width: '450px', height: '450px', borderRadius: '40px', overflow: 'hidden', boxShadow: '0 30px 60px rgba(0,0,0,0.3)', flexShrink: 0, border: '8px solid rgba(255,255,255,0.1)' }}>
           <img src={event.image} crossOrigin="anonymous" style={{ width: '450px', height: '450px', objectFit: 'cover' }} alt="" />
@@ -69,7 +66,9 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
         
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, overflow: 'hidden' }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-              <span style={{ fontSize: '32px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(event.date)}</span>
+              <span style={{ fontSize: '32px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>
+                {formatTemplateDate(event.date, event._additionalCount)}
+              </span>
               <span style={{ fontSize: '24px', fontWeight: 700, opacity: 0.6 }}>{formatTemplateTime(event.date, event.endDate)}</span>
            </div>
            
@@ -98,7 +97,6 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
         </div>
       </div>
 
-      {/* Footer / QR */}
       <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', width: '100%', position: 'relative', zIndex: 10, boxSizing: 'border-box' }}>
          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <p style={{ fontSize: '28px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>viby.club/{event.organizer?.username}</p>

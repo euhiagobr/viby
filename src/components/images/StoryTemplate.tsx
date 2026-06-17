@@ -40,7 +40,6 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
         overflow: 'hidden'
       }}
     >
-      {/* Imagem de Fundo (Blur) */}
       <img 
         src={event.image} 
         crossOrigin="anonymous"
@@ -51,7 +50,6 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
         alt="" 
       />
 
-      {/* Header */}
       <div style={{ width: '100%', padding: '80px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10, boxSizing: 'border-box' }}>
         <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride') ? '#000000' : '#FFFFFF', padding: '12px 36px', borderRadius: '50px', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
           Destaque
@@ -59,17 +57,17 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
         {logoUrl && <img src={logoUrl} crossOrigin="anonymous" style={{ width: '320px', height: '70px', objectFit: 'contain' }} alt="Logo" />}
       </div>
 
-      {/* Main Image */}
       <div style={{ width: '100%', padding: '0 80px', position: 'relative', zIndex: 10, boxSizing: 'border-box', display: 'flex', justifyContent: 'center' }}>
         <div style={{ width: '920px', height: '920px', borderRadius: '60px', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.5)', border: '12px solid rgba(255,255,255,0.1)' }}>
           <img src={event.image} crossOrigin="anonymous" style={{ width: '920px', height: '920px', objectFit: 'cover' }} alt="" />
         </div>
       </div>
 
-      {/* Content */}
       <div style={{ width: '100%', padding: '60px 80px', position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '30px', boxSizing: 'border-box' }}>
          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <span style={{ fontSize: '46px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>{formatTemplateDate(event.date)}</span>
+            <span style={{ fontSize: '46px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>
+              {formatTemplateDate(event.date, event._additionalCount)}
+            </span>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.accent }} />
             <span style={{ fontSize: '32px', fontWeight: 700, opacity: 0.8 }}>{formatTemplateTime(event.date, event.endDate)}</span>
          </div>
@@ -99,8 +97,7 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
          </div>
       </div>
 
-      {/* QR Code Footer */}
-      <div style={{ width: '100%', marginTop: 'auto', padding: '80px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 10, background: 'rgba(0,0,0,0.2)', backdropBlur: '10px', boxSizing: 'border-box' }}>
+      <div style={{ width: '100%', marginTop: 'auto', padding: '80px', display: 'flex', alignItems: 'center', justifySpace: 'between', position: 'relative', zIndex: 10, background: 'rgba(0,0,0,0.2)', backdropBlur: '10px', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
            <p style={{ fontSize: '32px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0 }}>{siteUrl}</p>
            <p style={{ fontSize: '16px', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '6px', margin: 0 }}>Escaneie para acessar</p>

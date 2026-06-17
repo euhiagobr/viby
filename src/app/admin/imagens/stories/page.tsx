@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useFirestore, useDoc, useAuth, useUser } from '@/firebase';
+import { useFirestore, useDoc, useAuth, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, limit, addDoc, serverTimestamp, getDocs, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,8 @@ import { cn, normalizeText } from '@/lib/utils';
 import { fetchImageAsBase64 } from '@/app/actions/image-proxy';
 import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { auditAndPrepareImages, triggerVisualProofDownload } from '@/lib/image-generator-utils';
+import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence } from '@/lib/image-generator-utils';
+import { startOfToday, addDays, format } from "date-fns";
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
@@ -68,6 +69,14 @@ export default function StoriesGeneratorPage() {
   const [isMobileCapturing, setIsMobileCapturing] = React.useState(false);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
+  // Pipeline de Ocorrências
+  const occurrencesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd');
+    return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr));
+  }, [db]);
+  const { data: allOccurrences } = useCollection<any>(occurrencesQuery);
+
   React.useEffect(() => {
     if (settings?.logoUrl) {
       fetchImageAsBase64(settings.logoUrl).then(res => {
@@ -86,23 +95,35 @@ export default function StoriesGeneratorPage() {
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
-        orderBy("date", "asc"),
         limit(200)
       );
       const snap = await getDocs(q);
       const searchNorm = normalizeText(searchTerm);
+      const now = new Date();
       
       const results = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
+        .map(ev => {
+           const schedule = resolveNextOccurrence(ev, allOccurrences, now);
+           const included = !!schedule;
+           
+           console.log(`[Image Studio Audit] ${ev.title} | nextDate: ${schedule?.nextDate || 'null'} | futureDates: ${schedule?.additionalCount || 0} | included: ${included}`);
+           
+           if (!included) return null;
+
+           return { 
+             ...ev, 
+             date: schedule.nextDate, 
+             _additionalCount: schedule.additionalCount 
+           };
+        })
         .filter(ev => {
+          if (!ev) return false;
           const title = normalizeText(ev.title || "");
           const tags = (ev.tags || []).map(t => normalizeText(t));
-          const matchesSearch = title.includes(searchNorm) || tags.some(t => t.includes(searchNorm));
-          const isNotSelected = ev.id !== selectedEvent?.id;
-          // Removido filtro de visibilidade temporal
-          return matchesSearch && isNotSelected;
+          return (title.includes(searchNorm) || tags.some(t => t.includes(searchNorm))) && ev.id !== selectedEvent?.id;
         });
-      setSearchResults(results);
+      setSearchResults(results.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na busca" });
     } finally {
@@ -128,7 +149,6 @@ export default function StoriesGeneratorPage() {
     setIsMobileCapturing(true);
     await new Promise(r => setTimeout(r, 1000));
 
-    // @ts-ignore
     if (document.fonts) await document.fonts.ready;
 
     const node = hiddenRenderRef.current.querySelector('.viby-export-page') as HTMLElement;
@@ -220,7 +240,7 @@ export default function StoriesGeneratorPage() {
         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
           <CardHeader className="p-8 pb-4">
             <CardTitle className="text-xl font-black italic uppercase tracking-tighter">1. Seleção do Evento</CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase">Busque por nome ou tags (ex: copa).</CardDescription>
+            <CardDescription className="text-[10px] font-bold uppercase">Busque por eventos futuros ativos.</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-0 space-y-6">
             {!selectedEvent ? (
@@ -252,7 +272,7 @@ export default function StoriesGeneratorPage() {
                         <img src={ev.image} className="h-10 w-10 rounded-lg object-cover" alt="" />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-bold truncate uppercase">{ev.title}</p>
-                          <p className="text-[9px] font-medium opacity-40 uppercase">{ev.city}</p>
+                          <p className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</p>
                         </div>
                         <Plus className="w-4 h-4 text-secondary opacity-0 group-hover:opacity-100" />
                       </button>
@@ -266,12 +286,10 @@ export default function StoriesGeneratorPage() {
                   <img src={selectedEvent.image} className="h-12 w-12 rounded-xl object-cover shadow-sm" alt="" />
                   <div className="min-w-0">
                     <p className="text-xs font-black uppercase italic text-primary truncate max-w-[150px]">{selectedEvent.title}</p>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase">{selectedEvent.city}</p>
+                    <p className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(selectedEvent.date, selectedEvent._additionalCount)}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setSelectedEvent(null)}>
-                  <X className="w-4 h-4" />
-                </Button>
+                <button onClick={() => setSelectedEvent(null)} className="p-2 text-muted-foreground hover:text-destructive transition-colors"><X className="w-4 h-4" /></button>
               </div>
             )}
           </CardContent>
@@ -298,7 +316,7 @@ export default function StoriesGeneratorPage() {
              
              <div className="p-4 bg-muted/30 rounded-xl flex gap-3">
                <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-               <p className="text-[9px] text-muted-foreground font-medium uppercase leading-relaxed">O template de Story Único prioriza a imagem do evento e destaca o QR Code de acesso rápido.</p>
+               <p className="text-[9px] text-muted-foreground font-medium uppercase leading-relaxed">O sistema identifica automaticamente a próxima data válida se o evento for recorrente.</p>
              </div>
           </CardContent>
         </Card>
@@ -306,7 +324,7 @@ export default function StoriesGeneratorPage() {
 
       <div className="lg:col-span-8 space-y-6">
         <div className="flex items-center justify-between px-2">
-           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview de Interatividade</h3>
+           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center gap-2"><Eye className="w-4 h-4" /> Preview do Story</h3>
            <div className="flex gap-2">
               <Button 
                 onClick={handleSendToViby} 
@@ -328,7 +346,7 @@ export default function StoriesGeneratorPage() {
            {(isGenerating || isSendingEmail) && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 text-center">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Codificando Pixels...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Codificando Story...</p>
              </div>
            )}
 
@@ -342,7 +360,7 @@ export default function StoriesGeneratorPage() {
                 <div className="p-4 bg-secondary/10 rounded-2xl w-fit mx-auto text-secondary"><Monitor className="w-8 h-8" /></div>
                 <div className="space-y-1">
                     <h3 className="font-black uppercase italic text-primary">Prévia Otimizada</h3>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">O story será renderizado em alta resolução no momento do download.</p>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase leading-tight">O story será renderizado em alta resolução no momento da exportação.</p>
                 </div>
                 <Badge variant="outline" className="text-[8px] font-black uppercase">Pronto para exportar</Badge>
               </Card>
