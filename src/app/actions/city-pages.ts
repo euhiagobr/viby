@@ -95,6 +95,7 @@ export async function generateAndPersistCityCover(params: {
     await file.makePublic();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
     console.log('[CITY COVER] UPLOAD FINALIZADO');
+    console.log('[CITY COVER] URL:', publicUrl);
 
     console.log('[CITY COVER] SALVANDO URL NO BANCO');
     await cityPageRef.update({

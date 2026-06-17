@@ -73,15 +73,24 @@ const gerarCapaCidadeFlow = ai.defineFlow(
 
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
+        organization: process.env.OPENAI_ORGANIZATION,
+        project: process.env.OPENAI_PROJECT_ID,
       });
+
+      const model = "dall-e-3";
+
+      // LOGS DE AUDITORIA OPENAI
+      console.log('[OPENAI] MODELO CONFIGURADO:', model);
+      console.log('[OPENAI] CLIENTE:', openai);
+      console.log('[OPENAI] ORGANIZATION:', process.env.OPENAI_ORGANIZATION);
+      console.log('[OPENAI] PROJECT:', process.env.OPENAI_PROJECT_ID);
 
       console.log('[CITY COVER] CHAMANDO OPENAI');
       const response = await openai.images.generate({
-        model: "dall-e-3",
+        model: model,
         prompt: promptText,
         n: 1,
-        size: "1792x1024", 
-        quality: "standard"
+        size: "1792x1024",
       });
 
       console.log('[CITY COVER] OPENAI RESPONDEU');
