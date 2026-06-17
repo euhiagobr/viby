@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -48,7 +49,12 @@ export default function AdminCityPagesManager() {
   const auth = useAuth();
   const { user } = useUser(auth);
   const app = useFirebaseApp();
-  const storage = React.useMemo(() => app ? getStorage(app) : null, [app]);
+  
+  const storage = React.useMemo(() => {
+    if (!app) return null;
+    // Forçamos o bucket explícito para evitar erros de inicialização
+    return getStorage(app, "vibyeventos.firebasestorage.app");
+  }, [app]);
 
   const [search, setSearch] = React.useState("");
   const [isGenerating, setIsGenerating] = React.useState<string | null>(null);
@@ -74,20 +80,39 @@ export default function AdminCityPagesManager() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !storage || !user || !editingCity) return;
+    if (!file || !storage || !user || !editingCity) {
+      console.warn("[Upload] Requisitos ausentes:", { file: !!file, storage: !!storage, user: !!user, editingCity: !!editingCity });
+      return;
+    }
 
+    console.log("[Upload] Iniciando para UID:", user.uid);
     setUploadProgress(0);
+    
     try {
-      const fileName = `city-covers-manual/${editingCity.slug || editingCity.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      const cityId = editingCity.slug || editingCity.id;
+      const fileName = `city-covers-manual/${cityId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
       const storageRef = ref(storage, fileName);
+      
       const uploadTask = uploadBytesResumable(storageRef, file, {
         cacheControl: 'public,max-age=31536000,immutable',
+        customMetadata: {
+          uploadedBy: user.uid,
+          cityId: cityId
+        }
       });
 
       uploadTask.on('state_changed', 
-        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => { 
-          toast({ variant: "destructive", title: "Erro no upload" }); 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(progress);
+        },
+        (error) => { 
+          console.error("[Upload Error Detailed]", error);
+          toast({ 
+            variant: "destructive", 
+            title: "Erro no upload (403)", 
+            description: "Permissão negada no Storage. Verifique se você é um administrador ativo." 
+          }); 
           setUploadProgress(null); 
         },
         async () => {
@@ -97,8 +122,10 @@ export default function AdminCityPagesManager() {
           toast({ title: "Imagem carregada com sucesso!" });
         }
       );
-    } catch (err) { 
+    } catch (err: any) { 
+      console.error("[Upload Catch]", err);
       setUploadProgress(null); 
+      toast({ variant: "destructive", title: "Falha técnica", description: err.message });
     }
   };
 

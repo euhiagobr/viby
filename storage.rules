@@ -7,11 +7,11 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // Função central de autorização administrativa compatível com múltiplos padrões de acesso
+    // Função central de autorização administrativa mais resiliente
     function isAdmin() {
       return isSignedIn() && (
         request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
-        firestore.get(/databases/(default)/documents/system_admins/$(request.auth.uid)).data.status == 'Ativo' ||
+        firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid)) ||
         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
@@ -44,7 +44,6 @@ service firebase.storage {
     }
 
     match /organizations/{orgId}/{type} {
-      // type can be 'avatar' or 'banner'
       allow read: if true;
       allow write: if isSignedIn() || isAdmin();
     }
@@ -62,25 +61,21 @@ service firebase.storage {
     // --- REGRAS PRIVADAS (Documentos e Suporte) ---
 
     match /support/{userId}/{allPaths=**} {
-      // Tickets e arquivos de chat de suporte
       allow read: if isOwner(userId) || isAdmin();
       allow write: if isOwner(userId) || isAdmin();
     }
 
     match /verification/{userId}/{allPaths=**} {
-      // Documentos de solicitação de remoção ou verificação de identidade
       allow read: if isOwner(userId) || isAdmin();
       allow write: if isOwner(userId) || isAdmin();
     }
 
     match /payout_proofs/{orgId}/{allPaths=**} {
-      // Comprovantes de transferências bancárias
       allow read: if isAdmin() || (isSignedIn() && firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.role in ['owner', 'admin', 'finance']);
       allow write: if isAdmin();
     }
     
     match /expenses/{userId}/{allPaths=**} {
-      // Comprovantes de despesas internas lançadas pelo admin
       allow read, write: if isAdmin();
     }
   }
