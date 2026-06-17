@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -55,13 +56,13 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
         <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride') ? '#000000' : '#FFFFFF', padding: '12px 36px', borderRadius: '50px', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
           Destaque
         </div>
-        {logoUrl && <img src={logoUrl} style={{ height: '70px', maxWidth: '300px', objectFit: 'contain' }} alt="Logo" />}
+        {logoUrl && <img src={logoUrl} style={{ width: '320px', height: '70px', objectFit: 'contain' }} alt="Logo" />}
       </div>
 
       {/* Main Image */}
       <div style={{ width: '100%', padding: '0 80px', position: 'relative', zIndex: 10, boxSizing: 'border-box', display: 'flex', justifyContent: 'center' }}>
-        <div style={{ width: '100%', aspectRatio: '1/1', borderRadius: '60px', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.5)', border: '12px solid rgba(255,255,255,0.1)' }}>
-          <img src={event.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+        <div style={{ width: '920px', height: '920px', borderRadius: '60px', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.5)', border: '12px solid rgba(255,255,255,0.1)' }}>
+          <img src={event.image} style={{ width: '920px', height: '920px', objectFit: 'cover' }} alt="" />
         </div>
       </div>
 

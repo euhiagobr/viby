@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -67,7 +68,6 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
   const cardHeight = config.itemHeight;
   const gap = config.gap;
   
-  // Cálculo determinístico de capacidade para evitar transbordamento
   const maxCards = Math.floor((availableHeight + gap) / (cardHeight + gap));
   const visibleEvents = events.slice(0, maxCards);
 
@@ -116,12 +116,11 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
            </h1>
         </div>
         {logoUrl && (
-          <img src={logoUrl} style={{ height: '70px', maxWidth: '300px', objectFit: 'contain', marginBottom: '10px' }} alt="Logo" />
+          <img src={logoUrl} style={{ width: '220px', height: '70px', objectFit: 'contain', marginBottom: '10px' }} alt="Logo" />
         )}
       </div>
 
       <div 
-        ref={containerRef}
         className="viby-events-container"
         style={{ 
           display: 'flex', 
@@ -156,7 +155,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
             }}
           >
              <div className="viby-card-image" style={{ width: '130px', height: '130px', borderRadius: '25px', overflow: 'hidden', flexShrink: 0 }}>
-                <img src={ev.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                <img src={ev.image} style={{ width: '130px', height: '130px', objectFit: 'cover' }} alt="" />
              </div>
              
              <div className="viby-card-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, overflow: 'hidden', boxSizing: 'border-box' }}>

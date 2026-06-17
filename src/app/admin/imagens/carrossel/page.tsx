@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -19,7 +20,8 @@ import {
   Trophy,
   GripVertical,
   Inbox,
-  Eye
+  Eye,
+  Camera
 } from 'lucide-react';
 import { 
   Select, 
@@ -118,7 +120,8 @@ export default function CarouselGeneratorPage() {
     if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    await new Promise(r => setTimeout(r, 2000));
+    // Warm-up necessário para mobile
+    await new Promise(r => setTimeout(r, 2500));
 
     try {
       const slides = hiddenRenderRef.current.querySelectorAll('.viby-carousel-slide');
@@ -130,12 +133,17 @@ export default function CarouselGeneratorPage() {
         await Promise.all(imgs.map(async (img) => {
            if (img.src) {
              try {
+                if (!img.complete) {
+                   await new Promise(r => { img.onload = r; img.onerror = r; });
+                }
                await img.decode();
              } catch (e) {
-               console.warn("[Render Engine] Background slide decode fail");
+               console.warn("[Render Engine] Decode skip");
              }
            }
         }));
+
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
         const dataUrl = await toPng(slideElement, {
           pixelRatio: 2,
@@ -157,13 +165,13 @@ export default function CarouselGeneratorPage() {
         document.body.removeChild(link);
         
         URL.revokeObjectURL(blobUrl);
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 1200));
       }
 
       toast({ title: "Carrossel exportado com sucesso!" });
     } catch (err) {
       console.error("[Carousel Export Error]", err);
-      toast({ variant: "destructive", title: "Erro na exportação", description: "O processamento em segundo plano falhou." });
+      toast({ variant: "destructive", title: "Erro na exportação", description: "Falha ao processar artes." });
     } finally {
       setIsGenerating(false);
     }
@@ -173,10 +181,18 @@ export default function CarouselGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* RENDERIZADOR OFF-SCREEN (TOTALMENTE INDEPENDENTE DO PREVIEW) */}
+      {/* RENDERIZADOR OFF-SCREEN (VISÍVEL MAS FORA DO VIEWPORT PARA MOBILE) */}
       <div 
         ref={hiddenRenderRef} 
-        style={{ position: 'fixed', left: '-10000px', top: 0, zIndex: -1, pointerEvents: 'none', opacity: 0.01 }}
+        style={{ 
+          position: 'fixed', 
+          left: '-12000px', 
+          top: 0, 
+          zIndex: -1, 
+          pointerEvents: 'none', 
+          opacity: 0.05,
+          visibility: 'visible' 
+        }}
       >
          {selectedEvents.map((ev, idx) => (
            <CarouselTemplate 

@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -19,7 +20,8 @@ import {
   Trophy,
   ChevronRight,
   Info,
-  Eye
+  Eye,
+  Camera
 } from 'lucide-react';
 import { 
   Select, 
@@ -114,8 +116,8 @@ export default function StoriesGeneratorPage() {
     if (!hiddenRenderRef.current || isGenerating || !selectedEvent) return;
     setIsGenerating(true);
     
-    // Delay para garantir sincronização do nó oculto
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Warm-up necessário para mobile
+    await new Promise(resolve => setTimeout(resolve, 2500));
 
     try {
       const node = hiddenRenderRef.current.firstChild as HTMLElement;
@@ -125,12 +127,17 @@ export default function StoriesGeneratorPage() {
       await Promise.all(imgs.map(async (img) => {
         if (img.src) {
            try {
+             if (!img.complete) {
+                await new Promise(r => { img.onload = r; img.onerror = r; });
+             }
              await img.decode();
            } catch (e) {
-             console.warn("[Render Engine] Decode fail in background");
+             console.warn("[Render Engine] Decode skip");
            }
         }
       }));
+
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
       const dataUrl = await toPng(node, {
         pixelRatio: 2,
@@ -168,7 +175,7 @@ export default function StoriesGeneratorPage() {
       toast({ title: "Story gerado com sucesso!" });
     } catch (err) {
       console.error("[Export Error]", err);
-      toast({ variant: "destructive", title: "Erro na exportação", description: "Falha ao renderizar arte em segundo plano." });
+      toast({ variant: "destructive", title: "Erro na exportação", description: "Falha ao renderizar arte." });
     } finally {
       setIsGenerating(false);
     }
@@ -178,10 +185,18 @@ export default function StoriesGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* RENDERIZADOR OFF-SCREEN (STRICTLY HIDDEN CAPTURE) */}
+      {/* RENDERIZADOR OFF-SCREEN (VISÍVEL MAS FORA DO VIEWPORT PARA MOBILE) */}
       <div 
         ref={hiddenRenderRef} 
-        style={{ position: 'fixed', left: '-10000px', top: 0, zIndex: -1, pointerEvents: 'none', opacity: 0.01 }}
+        style={{ 
+          position: 'fixed', 
+          left: '-12000px', 
+          top: 0, 
+          zIndex: -1, 
+          pointerEvents: 'none', 
+          opacity: 0.05,
+          visibility: 'visible' 
+        }}
       >
          {selectedEvent && (
            <StoryTemplate 
@@ -295,7 +310,7 @@ export default function StoriesGeneratorPage() {
            {isGenerating && (
              <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-                <p className="text-[10px] font-black uppercase tracking-widest">Renderizando em escala real...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Renderizando em escala real...</p>
              </div>
            )}
 

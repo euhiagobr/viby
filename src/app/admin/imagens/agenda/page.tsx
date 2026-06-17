@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -193,8 +194,8 @@ export default function AgendaGeneratorPage() {
     if (!hiddenRenderRef.current || isGenerating || selectedEvents.length === 0) return;
     setIsGenerating(true);
     
-    // Pequeno delay para garantir que o nó oculto foi montado no DOM
-    await new Promise(r => setTimeout(r, 1500));
+    // Warm-up prolongado para mobile
+    await new Promise(r => setTimeout(r, 2500));
 
     try {
       const pages = hiddenRenderRef.current.querySelectorAll('.viby-template-root');
@@ -203,17 +204,26 @@ export default function AgendaGeneratorPage() {
       for (let i = 0; i < pages.length; i++) {
         const pageElement = pages[i] as HTMLElement;
         
-        // Mobile-Safe: Forçar decodificação total de imagens no nó oculto antes de capturar
+        // Mobile-Safe Paint: Forçar decodificação e aguardar repintura da GPU
         const imgs = Array.from(pageElement.querySelectorAll('img'));
         await Promise.all(imgs.map(async (img) => {
            if (img.src) {
              try {
+               if (!img.complete) {
+                  await new Promise(resolve => {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                  });
+               }
                await img.decode();
              } catch (e) {
-               console.warn("[Render Engine] Decode fail for hidden image");
+               console.warn("[Render Engine] Decode skip");
              }
            }
         }));
+
+        // Pequeno delay para garantir sincronização do DOM
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
         const dataUrl = await toPng(pageElement, {
           pixelRatio: 2,
@@ -237,12 +247,12 @@ export default function AgendaGeneratorPage() {
         document.body.removeChild(link);
         
         URL.revokeObjectURL(blobUrl);
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(r => setTimeout(r, 1200));
       }
       toast({ title: "Artes geradas com sucesso!" });
     } catch (err) {
       console.error("[Export Error]", err);
-      toast({ variant: "destructive", title: "Erro na geração", description: "Ocorreu um erro ao processar as mídias em segundo plano." });
+      toast({ variant: "destructive", title: "Erro na geração", description: "Falha ao processar mídias." });
     } finally {
       setIsGenerating(false);
     }
@@ -252,10 +262,18 @@ export default function AgendaGeneratorPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-      {/* RENDERIZADOR OFF-SCREEN (OCULTO MAS ATIVO NO DOM PARA MOBILE) */}
+      {/* RENDERIZADOR OFF-SCREEN (VISÍVEL PARA A GPU MAS FORA DA VISTA DO USUÁRIO) */}
       <div 
         ref={hiddenRenderRef} 
-        style={{ position: 'fixed', left: '-10000px', top: 0, zIndex: -1, pointerEvents: 'none', opacity: 0.01 }}
+        style={{ 
+          position: 'fixed', 
+          left: '-12000px', 
+          top: 0, 
+          zIndex: -1, 
+          pointerEvents: 'none', 
+          opacity: 0.05,
+          visibility: 'visible' 
+        }}
       >
         {eventPages.map((pageEvents, idx) => (
           <AgendaTemplate 
