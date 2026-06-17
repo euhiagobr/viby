@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -73,7 +72,6 @@ export default function CarouselGeneratorPage() {
   const [capturingSlide, setCapturingSlide] = React.useState<any | null>(null);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
-  // Pipeline de Ocorrências
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null;
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd');
@@ -267,7 +265,7 @@ export default function CarouselGeneratorPage() {
                       <img src={ev.image} className="h-10 w-10 rounded-lg object-cover" alt="" />
                       <div className="flex-1 min-w-0">
                          <p className="text-xs font-bold truncate uppercase">{ev.title}</p>
-                         <p className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</p>
+                         <p className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date)}</p>
                       </div>
                       <Plus className="w-4 h-4 text-secondary opacity-0 group-hover:opacity-100" />
                    </button>
@@ -284,7 +282,7 @@ export default function CarouselGeneratorPage() {
                     <img src={ev.image} className="h-8 w-8 rounded-lg object-cover" alt="" />
                     <div className="flex-1 min-w-0">
                        <span className="block text-xs font-bold uppercase truncate">{ev.title}</span>
-                       <span className="block text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</span>
+                       <span className="block text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date)}</span>
                     </div>
                     <button onClick={() => removeEvent(ev.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"><X className="w-3.5 h-3.5" /></button>
                   </div>
@@ -371,7 +369,7 @@ export default function CarouselGeneratorPage() {
                         <Badge variant="outline" className="text-[8px] font-black h-5">Slide {i+1}</Badge>
                         <span className="text-[10px] font-bold uppercase truncate">{ev.title}</span>
                      </div>
-                     <span className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</span>
+                     <span className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date)}</span>
                   </div>
                 ))}
               </div>

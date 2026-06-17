@@ -66,16 +66,16 @@ export function resolveNextOccurrence(event: any, occurrences: any[], now: Date)
 }
 
 /**
- * Formata data para o estilo do template com suporte a sufixo de recorrência (ex: 15 JUL +2)
+ * Formata data para o estilo do template.
+ * Removido sufixo de recorrência (+N) conforme solicitação UX v5.
  */
-export function formatTemplateDate(dateValue: any, additionalCount: number = 0): string {
+export function formatTemplateDate(dateValue: any): string {
   if (!dateValue) return "";
   try {
     const d = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
     const day = String(d.getDate()).padStart(2, '0');
     const month = d.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase().replace('.', '');
-    const base = `${day} ${month}`;
-    return additionalCount > 0 ? `${base} +${additionalCount}` : base;
+    return `${day} ${month}`;
   } catch (e) {
     return "---";
   }

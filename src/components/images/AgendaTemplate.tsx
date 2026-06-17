@@ -76,8 +76,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
   
   const badgeText = isCopa ? 'COPA 2026' : 'Agenda';
   const mainTitle = isCopa ? 'ONDE ASSISTIR' : 'AGENDA';
-  const connectorText = isCopa ? 'O' : 'DA';
-  const subTitleText = isPride ? 'DIVERSIDADE' : isCopa ? 'BRASIL' : 'SEMANA';
+  const subTitleText = isPride ? 'DIVERSIDADE' : isCopa ? 'O BRASIL' : 'DA SEMANA';
 
   return (
     <div 
@@ -117,7 +116,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               {badgeText}
            </div>
            <h1 style={{ fontSize: '90px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, lineHeight: 0.8, letterSpacing: '-4px' }}>
-              {mainTitle} <span style={{ opacity: 0.4 }}>{connectorText} {subTitleText}</span>
+              {mainTitle} <span style={{ opacity: 0.4 }}>{subTitleText}</span>
            </h1>
         </div>
         {logoUrl && (
@@ -166,7 +165,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
              <div className="viby-card-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0, overflow: 'hidden', boxSizing: 'border-box' }}>
                 <div className="viby-card-date" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                    <span style={{ fontSize: '20px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>
-                     {formatTemplateDate(ev.date, ev._additionalCount)}
+                     {formatTemplateDate(ev.date)}
                    </span>
                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: colors.text, opacity: 0.3 }} />
                    <span style={{ fontSize: '16px', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>{formatTemplateTime(ev.date, ev.endDate)}</span>

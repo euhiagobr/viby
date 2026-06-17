@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -70,7 +69,6 @@ export default function StoriesGeneratorPage() {
   const [isMobileCapturing, setIsMobileCapturing] = React.useState(false);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
-  // Pipeline de Ocorrências
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null;
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd');
@@ -269,7 +267,7 @@ export default function StoriesGeneratorPage() {
                         <img src={ev.image} className="h-10 w-10 rounded-lg object-cover" alt="" />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-bold truncate uppercase">{ev.title}</p>
-                          <p className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</p>
+                          <p className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(ev.date)}</p>
                         </div>
                         <Plus className="w-4 h-4 text-secondary opacity-0 group-hover:opacity-100" />
                       </button>
@@ -283,7 +281,7 @@ export default function StoriesGeneratorPage() {
                   <img src={selectedEvent.image} className="h-12 w-12 rounded-xl object-cover shadow-sm" alt="" />
                   <div className="min-w-0">
                     <p className="text-xs font-black uppercase italic text-primary truncate max-w-[150px]">{selectedEvent.title}</p>
-                    <p className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(selectedEvent.date, selectedEvent._additionalCount)}</p>
+                    <p className="text-[9px] font-black text-secondary uppercase">{formatTemplateDate(selectedEvent.date)}</p>
                   </div>
                 </div>
                 <button onClick={() => setSelectedEvent(null)} className="p-2 text-muted-foreground hover:text-destructive transition-colors"><X className="w-4 h-4" /></button>

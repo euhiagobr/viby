@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -93,7 +92,6 @@ export default function AgendaGeneratorPage() {
   const [capturingPage, setCapturingPage] = React.useState<any | null>(null);
   const hiddenRenderRef = React.useRef<HTMLDivElement>(null);
 
-  // Pipeline de Ocorrências
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null;
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd');
@@ -350,7 +348,7 @@ export default function AgendaGeneratorPage() {
                       <img src={ev.image} className="h-10 w-10 rounded-lg object-cover" alt="" />
                       <div className="flex-1 min-w-0">
                          <p className="text-xs font-bold truncate uppercase">{ev.title}</p>
-                         <p className="text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</p>
+                         <p className="text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date)}</p>
                       </div>
                       <Plus className="w-4 h-4 text-secondary opacity-0 group-hover:opacity-100" />
                    </button>
@@ -366,7 +364,7 @@ export default function AgendaGeneratorPage() {
                     <img src={ev.image} className="h-8 w-8 rounded-lg object-cover" alt="" />
                     <div className="flex-1 min-w-0">
                        <span className="block text-xs font-bold uppercase truncate">{ev.title}</span>
-                       <span className="block text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date, ev._additionalCount)}</span>
+                       <span className="block text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date)}</span>
                     </div>
                     <button onClick={() => removeEvent(ev.id)} className="p-1.5 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10 rounded-lg transition-all"><X className="w-3.5 h-3.5" /></button>
                   </div>
@@ -478,13 +476,12 @@ export default function AgendaGeneratorPage() {
         </div>
       </div>
       
-      {/* Badge de Legenda de Recorrência */}
       <div className="lg:col-span-12 p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
          <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
          <div className="space-y-1">
             <h4 className="font-black uppercase text-[10px] tracking-widest text-secondary italic">Inteligência de Recorrência</h4>
             <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
-              Eventos com o rótulo <span className="text-secondary font-black">+N</span> possuem múltiplas sessões futuras agendadas. O gerador seleciona automaticamente a próxima data disponível para exibição na arte.
+              O gerador seleciona automaticamente a próxima data disponível para exibição na arte, garantindo que seu público veja sempre a informação mais atualizada.
             </p>
          </div>
       </div>

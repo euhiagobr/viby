@@ -67,7 +67,7 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, overflow: 'hidden' }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
               <span style={{ fontSize: '32px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>
-                {formatTemplateDate(event.date, event._additionalCount)}
+                {formatTemplateDate(event.date)}
               </span>
               <span style={{ fontSize: '24px', fontWeight: 700, opacity: 0.6 }}>{formatTemplateTime(event.date, event.endDate)}</span>
            </div>
