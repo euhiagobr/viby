@@ -311,20 +311,28 @@ export async function cancelEventAction(eventId: string) {
 
 /**
  * Manutenção: Atualiza slugs de localização e registra cidades no cityPages.
+ * Versão otimizada para capturar todas as cidades com eventos não excluídos.
  */
 export async function backfillEventLocationSlugsAction() {
   const db = getAdminDb();
   try {
-    const snap = await db.collection('events').where('status', '==', 'Ativo').get();
+    // Buscar todos os eventos para garantir cobertura total (exceto excluídos)
+    const snap = await db.collection('events').get();
     let count = 0;
-    const batch = db.batch();
+    
     const cityPagesRef = db.collection('cityPages');
     const processedCities = new Set<string>();
+    
+    // Processamento em lotes de 500 para respeitar limites do Firestore
+    let batch = db.batch();
+    let opCount = 0;
 
-    for (const doc of snap.docs) {
-      const data = doc.data();
-      const city = data.city || data.address?.city;
-      const state = data.state || data.address?.stateRegion;
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+      if (data.status === 'Excluído') continue;
+
+      const city = data.city || data.address?.city || data.location;
+      const state = data.state || data.address?.stateRegion || data.address?.state;
       const country = data.country || data.address?.country || "Brasil";
       const countryCode = (data.countryCode || data.address?.countryCode || "br").toLowerCase();
 
@@ -334,33 +342,47 @@ export async function backfillEventLocationSlugsAction() {
         const regionSlug = `${countryCode}-${stateSlug}`;
         const cityId = `${regionSlug}-${citySlug}`;
 
-        batch.update(doc.ref, {
+        // 1. Atualizar o evento com os slugs de localização
+        batch.update(docSnap.ref, {
           citySlug,
           stateSlug,
           countrySlug: countryCode,
           regionSlug,
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
+        opCount++;
 
-        // Registrar a cidade se ainda não processada neste loop
+        // 2. Registrar a cidade se ainda não processada neste loop
         if (!processedCities.has(cityId)) {
           batch.set(cityPagesRef.doc(cityId), {
             slug: cityId,
-            city,
-            state,
-            country,
+            city: city.trim(),
+            state: state.trim().toUpperCase(),
+            country: country.trim(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           }, { merge: true });
           processedCities.add(cityId);
+          opCount++;
+        }
+
+        // Commit se atingir limite do batch
+        if (opCount >= 450) {
+          await batch.commit();
+          batch = db.batch();
+          opCount = 0;
         }
 
         count++;
       }
     }
 
-    if (count > 0) await batch.commit();
+    if (opCount > 0) {
+      await batch.commit();
+    }
+
     return { success: true, count };
   } catch (e: any) {
+    console.error("[Backfill Slugs Error]", e);
     return { success: false, error: e.message };
   }
 }
