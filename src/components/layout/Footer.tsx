@@ -17,7 +17,8 @@ import {
   Globe,
   Mail,
   Zap,
-  ArrowRight
+  ArrowRight,
+  ImageIcon
 } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
@@ -72,7 +73,8 @@ export default function Footer() {
       title: "Legal",
       links: [
         { label: "Termos de Uso", href: "/termos" },
-        { label: "Privacidade", href: "/privacidade" }
+        { label: "Privacidade", href: "/privacidade" },
+        { label: "Material de Marca", href: "/viby/marca" }
       ]
     }
   ]
@@ -156,8 +158,8 @@ export default function Footer() {
                       </Link>
                    </li>
                    <li>
-                      <Link href="/login" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors uppercase tracking-tight">
-                         Acessar Conta
+                      <Link href="/viby/marca" className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors uppercase tracking-tight flex items-center gap-2">
+                         <ImageIcon className="w-3.5 h-3.5" /> Media Kit Oficial
                       </Link>
                    </li>
                 </ul>

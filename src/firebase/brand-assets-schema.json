@@ -1,13 +1,11 @@
 
 {
-  "collection": "organizations",
-  "subcollection": "brand_assets",
-  "description": "Repositório de arquivos e mídias oficiais da marca (Media Kit).",
+  "collection": "brand_assets",
+  "description": "Repositório global de arquivos e mídias oficiais da marca Viby (Media Kit).",
   "fields": {
     "id": "string (auto-id)",
-    "organizationId": "string (ref:organizations)",
     "name": "string (Nome do arquivo)",
-    "category": "logos | icons | marketing | others",
+    "category": "logos | icons | institutional | others",
     "fileUrl": "url string",
     "storagePath": "string",
     "mimeType": "string",

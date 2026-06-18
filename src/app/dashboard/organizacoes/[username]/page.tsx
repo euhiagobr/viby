@@ -184,15 +184,6 @@ export default function OrganizationDashboardPage() {
           </h1>
           <p className="text-muted-foreground font-medium">Gestão centralizada de <strong>{currentOrg.name}</strong>.</p>
         </div>
-        <div className="flex items-center gap-3">
-          {currentOrg.id === VIBY_OFFICIAL_UID && (
-            <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary/5 transition-all">
-              <Link href={`/viby/${currentOrg.username}`}>
-                <ImageIcon className="w-4 h-4" /> Material de Marca
-              </Link>
-            </Button>
-          )}
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
@@ -285,7 +276,7 @@ export default function OrganizationDashboardPage() {
                 <CardDescription>Últimos projetos cadastrados.</CardDescription>
              </div>
              <Button variant="ghost" size="sm" asChild className="rounded-xl font-bold uppercase text-[10px] gap-2">
-               <Link href={`/dashboard/organizacoes/${currentOrg.username}/events`}>Ver Todos <ArrowRight className="w-3 h-3" /></Link>
+               <Link href={`/dashboard/organizacoes/${currentOrg.username}/events`}>Ver Todos <ArrowRight className="w-3.5 h-3.5" /></Link>
              </Button>
           </CardHeader>
           <CardContent className="p-0">
@@ -326,17 +317,17 @@ export default function OrganizationDashboardPage() {
           <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white border-t-8 border-secondary">
              <CardHeader className="p-8 pb-4">
                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-                   <ImageIcon className="w-6 h-6 text-secondary" /> Media Kit
+                   <ImageIcon className="w-6 h-6 text-secondary" /> Media Kit Oficial
                 </CardTitle>
-                <CardDescription className="font-medium">Gestão de arquivos e mídias oficiais para parceiros.</CardDescription>
+                <CardDescription className="font-medium">Gestão de arquivos e mídias da plataforma.</CardDescription>
              </CardHeader>
              <CardContent className="p-8 space-y-6">
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                   Disponibilize logos, ícones e manuais de identidade visual em uma página pública exclusiva para facilitar o trabalho de imprensa e co-realizadores.
+                   Acesse a página pública de ativos da Viby para baixar logotipos, manuais e materiais de suporte.
                 </p>
                 <Button asChild className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm hover:scale-[1.02] transition-transform gap-2">
-                   <Link href={`/viby/${currentOrg.username}`}>
-                      Acessar Media Kit <ArrowRight className="w-4 h-4" />
+                   <Link href="/viby/marca">
+                      Abrir Media Kit <ArrowRight className="w-4 h-4" />
                    </Link>
                 </Button>
              </CardContent>
