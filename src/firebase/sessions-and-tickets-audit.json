@@ -1,0 +1,86 @@
+
+{
+  "audit_version": "1.0.0",
+  "subject": "Sistema de Sessões e Ingressos Recorrentes",
+  "status": "COMPLETED",
+  "analysis_date": "2024-05-22T10:00:00Z",
+  "modeling": {
+    "event_structure": {
+      "collection": "events",
+      "fields": ["isRecurring (boolean)", "frequency (string)", "recurringEndDate (timestamp)", "customOccurrences (array)"],
+      "logic": "O evento pai atua como repositório de metadados e bilheteria global (se não houver sessões)."
+    },
+    "session_structure": {
+      "collection": "recurring_occurrences",
+      "fields": ["parentId (ref:events)", "date (string YYYY-MM-DD)", "startTime (string HH:mm)", "endTime (string)", "status (active/cancelled)", "capacidadeMaxima (number)", "ingressosVendidos (number)"],
+      "relationship": "1:N (Um evento possui múltiplas ocorrências)."
+    },
+    "ticket_relationship": {
+      "collection": "registrations",
+      "fields": ["eventId (ref:events)", "occurrenceId (ref:recurring_occurrences)"],
+      "constraint": "Ingressos gerados para eventos recorrentes OBRIGATORIAMENTE vinculam o occurrenceId."
+    }
+  },
+  "flows": {
+    "creation": {
+      "service": "src/services/recurring-event-service.ts",
+      "method": "generateOccurrences",
+      "logic": "Eager expansion. Deleta ocorrências antigas e recria documentos físicos baseados em frequência ou lista customizada no momento do save."
+    },
+    "public_selection": {
+      "file": "src/app/[username]/[slug]/EventoPublicoClient.tsx",
+      "logic": "Filtra ocorrências futuras no cliente. Se o usuário escolher uma data específica, é redirecionado para /recorrente/[occId]."
+    },
+    "checkout": {
+      "service": "src/services/payments/pay-button-service.ts",
+      "logic": "Injeta occurrenceId no CartItem. O registro de Order e a posterior geração de Registration preservam este vínculo."
+    },
+    "fulfillment": {
+      "webhook": "src/app/api/webhooks/stripe/route.ts",
+      "logic": "Incrementa ingressosVendidos na ocorrência específica e no evento pai simultaneamente."
+    },
+    "validation": {
+      "scanner": "src/app/admin/scanner/page.tsx",
+      "logic": "Busca via ticketCode na coleção global registrations. Recupera os dados da sessão vinculada para exibição."
+    }
+  },
+  "files_involved": [
+    "src/services/recurring-event-service.ts",
+    "src/app/actions/tickets.ts",
+    "src/app/api/webhooks/stripe/route.ts",
+    "src/app/[username]/[slug]/EventoPublicoClient.tsx",
+    "src/app/recorrente/[id]/page.tsx",
+    "src/components/events/Bilheteria/BilheteriaPublic.tsx",
+    "src/app/admin/eventos-recorrentes/[id]/page.tsx",
+    "src/lib/image-generator-utils.ts"
+  ],
+  "existing_functionalities": [
+    "Geração automática (Daily, Weekly, Monthly)",
+    "Agendas customizadas (Lista manual de datas)",
+    "Inventário independente por sessão",
+    "Relatório de ocupação por data específica",
+    "Fulfillment atômico (Incremento de vendas em sessão + pai)",
+    "Redirecionamento para página de sessão específica no checkout"
+  ],
+  "identified_risks": [
+    {
+      "id": "RISK-01",
+      "severity": "ALTA",
+      "description": "Limpeza de agenda no save pode causar inconsistência se houver ingressos vendidos para uma data que foi removida/alterada no formulário de edição."
+    },
+    {
+      "id": "RISK-02",
+      "severity": "MÉDIA",
+      "description": "Scanner de check-in valida apenas o código do ingresso. Não há trava temporal impedindo o uso de um ingresso de 'Sexta' no 'Sábado' se o operador não checar a data visualmente."
+    }
+  ],
+  "inconsistencies": [
+    "O campo 'date' no evento pai é persistido como Timestamp, enquanto em recurring_occurrences é persistido como String (YYYY-MM-DD) para facilitar queries de agenda.",
+    "Contabilização de 'capacidadeTotal' no evento pai é a soma das sessões, mas não há trava forçando a soma dos lotes de ingressos a bater com a soma das sessões."
+  ],
+  "missing_functionalities": [
+    "Validação rígida de data/hora no scanner (Check-in bloqueado fora do horário da sessão).",
+    "Transferência de ingresso entre sessões da mesma série pelo usuário.",
+    "Lotes de ingressos específicos por sessão (Atualmente o lote é compartilhado entre todas as sessões da série)."
+  ]
+}
