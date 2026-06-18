@@ -3,14 +3,14 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Heart, Loader2, UserPlus, UserMinus, ShieldCheck } from "lucide-react";
+import { Loader2, UserPlus, UserMinus, ShieldCheck } from "lucide-react";
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase";
 import { doc, setDoc, deleteDoc, serverTimestamp, increment, updateDoc, getDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { processGamificationEvent } from "@/lib/gamification-service";
 import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
+import { FirestorePermissionError, type SecurityRuleContext } from "@/firebase/errors";
 
 interface FollowButtonProps {
   organizationId: string;
@@ -19,20 +19,13 @@ interface FollowButtonProps {
   className?: string;
 }
 
-/**
- * Componente unificado para seguir Usuários e Organizações.
- * Bloqueia o unfollow para o perfil oficial 'viby'.
- */
 export function FollowButton({ organizationId, username, targetType = 'organization', className }: FollowButtonProps) {
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
-  const [loading, setLoading] = React.useState(false);
+  const [isToggling, setIsToggling] = React.useState(false);
 
-  // Prevenir seguir a si mesmo
   const isSelf = user?.uid === organizationId;
-  
-  // Regra de Negócio: Página oficial 'viby' é seguimento obrigatório
   const isOfficialViby = username?.toLowerCase() === 'viby';
   
   const followRef = React.useMemo(() => 
@@ -43,7 +36,7 @@ export function FollowButton({ organizationId, username, targetType = 'organizat
   const { data: followDoc, loading: followLoading } = useDoc<any>(followRef);
   const isFollowing = !!followDoc;
 
-  const handleToggleFollow = async (e: React.MouseEvent) => {
+  const handleToggleFollow = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
@@ -54,82 +47,70 @@ export function FollowButton({ organizationId, username, targetType = 'organizat
 
     if (isSelf) return;
 
-    // Trava de Unfollow para @viby
     if (isOfficialViby && isFollowing) {
       toast({ title: "Página Oficial", description: "Você não pode deixar de seguir a Viby." });
       return;
     }
 
-    setLoading(true);
-    try {
-      const targetColl = targetType === 'user' ? 'users' : 'organizations';
-      const targetRef = doc(db, targetColl, organizationId);
-      const followerUserRef = doc(db, "users", user.uid);
+    setIsToggling(true);
+    const targetColl = targetType === 'user' ? 'users' : 'organizations';
+    const targetRef = doc(db, targetColl, organizationId);
+    const followerUserRef = doc(db, "users", user.uid);
 
-      if (isFollowing) {
-        // Unfollow
-        await deleteDoc(followRef).catch(async (err) => {
-          if (err.code === 'permission-denied') {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: followRef.path,
-              operation: 'delete'
-            }));
-          }
-          throw err;
-        });
-        
-        // Atualiza contadores em ambos os lados
-        await updateDoc(targetRef, { followersCount: increment(-1), updatedAt: serverTimestamp() });
-        await updateDoc(followerUserRef, { followingCount: increment(-1), updatedAt: serverTimestamp() });
-        
-        toast({ title: "Deixou de seguir" });
-      } else {
-        // Follow
-        const followData = {
-          followerId: user.uid,
-          followingId: organizationId,
-          targetType,
-          timestamp: serverTimestamp()
-        };
+    if (isFollowing) {
+      deleteDoc(followRef)
+        .then(() => {
+          updateDoc(targetRef, { followersCount: increment(-1), updatedAt: serverTimestamp() });
+          updateDoc(followerUserRef, { followingCount: increment(-1), updatedAt: serverTimestamp() });
+          toast({ title: "Deixou de seguir" });
+        })
+        .catch(async (err) => {
+          const permissionError = new FirestorePermissionError({
+            path: followRef.path,
+            operation: 'delete'
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        })
+        .finally(() => setIsToggling(false));
+    } else {
+      const followData = {
+        followerId: user.uid,
+        followingId: organizationId,
+        targetType,
+        timestamp: serverTimestamp()
+      };
 
-        await setDoc(followRef, followData).catch(async (err) => {
-          if (err.code === 'permission-denied') {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: followRef.path,
-              operation: 'create',
-              requestResourceData: followData
-            }));
-          }
-          throw err;
-        });
-        
-        await updateDoc(targetRef, { followersCount: increment(1), updatedAt: serverTimestamp() });
-        await updateDoc(followerUserRef, { followingCount: increment(1), updatedAt: serverTimestamp() });
+      setDoc(followRef, followData)
+        .then(async () => {
+          updateDoc(targetRef, { followersCount: increment(1), updatedAt: serverTimestamp() });
+          updateDoc(followerUserRef, { followingCount: increment(1), updatedAt: serverTimestamp() });
 
-        // Gamificação
-        const targetSnap = await getDoc(targetRef);
-        const targetName = targetSnap.exists() ? (targetSnap.data().name || targetSnap.data().displayName) : "Alguém";
-        
-        await processGamificationEvent(db, user.uid, targetType === 'user' ? 'on_follow_user' : 'on_follow_org', {
-          targetId: organizationId,
-          orgName: targetType === 'organization' ? targetName : null,
-          targetName: targetName
-        }, `${user.uid}_${organizationId}`);
+          const targetSnap = await getDoc(targetRef);
+          const targetName = targetSnap.exists() ? (targetSnap.data().name || targetSnap.data().displayName) : "Alguém";
+          
+          processGamificationEvent(db, user.uid, targetType === 'user' ? 'on_follow_user' : 'on_follow_org', {
+            targetId: organizationId,
+            orgName: targetType === 'organization' ? targetName : null,
+            targetName: targetName
+          }, `${user.uid}_${organizationId}`);
 
-        toast({ title: "Seguindo!", description: `Agora você acompanha as novidades de ${targetName}.` });
-      }
-    } catch (e) {
-      console.error("[Follow Error]", e);
-      // O erro já foi emitido para o FirebaseErrorListener se for permissão
-    } finally {
-      setLoading(false);
+          toast({ title: "Seguindo!", description: `Agora você acompanha as novidades de ${targetName}.` });
+        })
+        .catch(async (err) => {
+          const permissionError = new FirestorePermissionError({
+            path: followRef.path,
+            operation: 'create',
+            requestResourceData: followData
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        })
+        .finally(() => setIsToggling(false));
     }
   };
 
   if (isSelf || followLoading) return null;
 
-  // Se for seguimento obrigatório, desabilitamos a interatividade mas mantemos o estilo de "Seguindo"
-  const isDisabled = loading || (isOfficialViby && isFollowing);
+  const isDisabled = isToggling || (isOfficialViby && isFollowing);
 
   return (
     <Button
@@ -144,7 +125,7 @@ export function FollowButton({ organizationId, username, targetType = 'organizat
         className
       )}
     >
-      {loading ? (
+      {isToggling ? (
         <Loader2 className="w-4 h-4 animate-spin" />
       ) : isFollowing ? (
         isOfficialViby ? <ShieldCheck className="w-4 h-4" /> : <UserMinus className="w-4 h-4" />

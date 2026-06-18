@@ -43,6 +43,11 @@ service cloud.firestore {
 
     // --- REGRAS POR COLEÇÃO ---
 
+    match /follows/{followId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (followId.split('_')[0] == request.auth.uid);
+    }
+
     // Material de Marca Viby
     match /brand_assets/{assetId} {
       allow read: if true;
@@ -74,7 +79,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isAdmin() || isOwner(userId);
+      allow update: if isAdmin() || isOwner(userId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount', 'totalXp', 'level']));
       
       match /private/sensitive {
         allow read, write: if isAdmin() || isOwner(userId);
@@ -89,7 +94,7 @@ service cloud.firestore {
     match /organizations/{orgId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if isAdmin() || isOrgMember(orgId);
+      allow update: if isAdmin() || isOrgMember(orgId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'totalAttendeesCount']));
 
       match /members/{memberId} {
         allow read: if isSignedIn() || isAdmin();
@@ -134,17 +139,17 @@ service cloud.firestore {
     // Gamificação
     match /user_gamification/{userId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || isOwner(userId);
     }
 
     match /cultural_stats/{userId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || isOwner(userId);
     }
 
     match /xp_logs/{logId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (isSignedIn() && request.resource.data.userId == request.auth.uid);
     }
 
     match /badges/{badgeId} {
