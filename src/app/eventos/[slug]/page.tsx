@@ -10,12 +10,13 @@ const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 async function getEventData(slugParam: string) {
   try {
-    const slugOrId = decodeURIComponent(slugParam).toLowerCase().trim();
+    const rawSlugOrId = decodeURIComponent(slugParam).trim();
     const db = getAdminDb();
 
     // 1. Tentar por slug textual
+    const slugLower = rawSlugOrId.toLowerCase();
     const queryBySlug = await db.collection("events")
-      .where("slug", "==", slugOrId)
+      .where("slug", "==", slugLower)
       .limit(1).get();
     
     if (!queryBySlug.empty) {
@@ -23,8 +24,8 @@ async function getEventData(slugParam: string) {
       return { id: doc.id, ...doc.data() };
     }
 
-    // 2. Tentar por ID de documento
-    const docSnap = await db.collection("events").doc(slugOrId).get();
+    // 2. Tentar por ID direto (Case-sensitive)
+    const docSnap = await db.collection("events").doc(rawSlugOrId).get();
     if (docSnap.exists) {
       return { id: docSnap.id, ...docSnap.data() };
     }
@@ -44,15 +45,15 @@ export default async function EventLegacyRedirect({ params }: { params: Promise<
   if (event) {
     // RESOLUÇÃO ROBUSTA DO USERNAME
     let actualUsername = event.organizer?.username?.toLowerCase();
+    const orgId = event.organizationId || event.organizerId;
     
     if (!actualUsername) {
-      const orgId = event.organizationId || event.organizerId;
       if (orgId === VIBY_OFFICIAL_UID) {
         actualUsername = "viby";
       } else if (orgId) {
         const orgSnap = await db.collection("organizations").doc(orgId).get();
         if (orgSnap.exists) {
-          actualUsername = orgSnap.data()?.username?.toLowerCase();
+          actualUsername = orgSnap.data()?.username?.toLowerCase() || orgSnap.id;
         }
       }
     }
