@@ -45,12 +45,26 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     throw new Error("Não é possível realizar checkout com múltiplas moedas. Remova os itens divergentes.");
   }
 
+  // VALIDAÇÃO DE DISPONIBILIDADE
   for (const item of items) {
     const eSnap = await getDoc(doc(staticDb, "events", item.eventId));
     if (!eSnap.exists()) throw new Error(`O evento ${item.eventTitle} não está mais disponível.`);
     
     const event = eSnap.data();
-    const batch = event.batches?.find((b: any) => b.id === item.batchId);
+    let batchSource = event.batches || [];
+
+    // Se for recorrente e tiver ocorrência, verifica se ela possui bilheteria própria
+    if (item.occurrenceId) {
+      const occSnap = await getDoc(doc(staticDb, "recurring_occurrences", item.occurrenceId));
+      if (occSnap.exists()) {
+        const occData = occSnap.data();
+        if (occData.batches && occData.batches.length > 0) {
+          batchSource = occData.batches;
+        }
+      }
+    }
+
+    const batch = batchSource.find((b: any) => b.id === item.batchId);
     const type = batch?.ticketTypes?.find((t: any) => t.id === item.ticketTypeId);
 
     if (!batch || !type || type.quantity < item.quantity) {
@@ -81,7 +95,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
   const exchangeDate = new Date().toISOString().slice(0, 10);
 
-  // EVIDÊNCIA: Preparação do registro de Ordem antes do Checkout
   const orderItems = items.map(item => {
     const breakdown = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId], eventCurrency, rates);
     return {
@@ -126,14 +139,11 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   const orderRef = await addDoc(collection(staticDb, "orders"), orderData);
 
-  // EVIDÊNCIA: Cálculo de application_fee_amount (centavos)
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
   const stripeLineItems = items.map((item) => {
     const split = calculateVibyOfficialSplit(item.price, eventCurrency, rates, orgsData[item.organizationId]);
-    
-    // SOMA DAS TAXAS (MARKUP + COMISSÃO) PARA O STRIPE RETER
     totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     
     let unitAmountCents = toCents(split.totalCharged);
@@ -169,7 +179,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     lineItems: stripeLineItems,
     currency: eventCurrency.toLowerCase(),
     totalApplicationFeeCents,
-    destinationStripeAccount: stripeAccountId, // EVIDÊNCIA: Destino do Split
+    destinationStripeAccount: stripeAccountId,
     metadata: {
       type: "order_checkout",
       orderId: orderRef.id,

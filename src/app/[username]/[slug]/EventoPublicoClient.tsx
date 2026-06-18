@@ -126,6 +126,11 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     }
   }, [upcomingOccurrences, selectedOccurrenceId]);
 
+  /**
+   * RESOLUÇÃO DA BILHETERIA:
+   * Prioriza 'batches' da ocorrência se existirem (Bilheteria Independente).
+   * Caso contrário, usa os lotes globais da série (Bilheteria Compartilhada).
+   */
   const effectiveEventData = React.useMemo(() => {
     if (!event) return null;
     if (!event.isRecurring || upcomingOccurrences.length === 0) return event;
@@ -139,7 +144,10 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
       occurrenceId: selectedOcc.id,
       ingressosVendidos: selectedOcc.ingressosVendidos || 0,
       capacidadeTotal: selectedOcc.capacidadeMaxima || event.capacidadeTotal,
-      _isAutoUpdated: true
+      // PONTO DE PIVOT: Sobrescreve lotes globais se a sessão tiver sua própria bilheteria
+      batches: (selectedOcc.batches && selectedOcc.batches.length > 0) ? selectedOcc.batches : event.batches,
+      _isAutoUpdated: true,
+      _isIndependentTicketing: !!(selectedOcc.batches && selectedOcc.batches.length > 0)
     };
   }, [event, upcomingOccurrences, selectedOccurrenceId]);
 
@@ -253,11 +261,16 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                                  <SelectItem key={occ.id} value={occ.id} className="cursor-pointer py-3 border-b last:border-0 border-dashed">
                                     <div className="flex items-center gap-4">
                                        <Calendar className="w-4 h-4 text-secondary" />
-                                       <span className="font-bold text-sm">
-                                          {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', weekday: 'short' })}
-                                          <span className="mx-2 opacity-30">|</span>
-                                          {occ.startTime} às {occ.endTime}
-                                       </span>
+                                       <div className="flex flex-col">
+                                          <span className="font-bold text-sm">
+                                             {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', weekday: 'short' })}
+                                             <span className="mx-2 opacity-30">|</span>
+                                             {occ.startTime} às {occ.endTime}
+                                          </span>
+                                          {occ.batches && occ.batches.length > 0 && (
+                                            <span className="text-[9px] font-black uppercase text-secondary">Preços exclusivos para esta data</span>
+                                          )}
+                                       </div>
                                     </div>
                                  </SelectItem>
                               ))}

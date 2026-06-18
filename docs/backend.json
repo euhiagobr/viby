@@ -58,6 +58,25 @@
         "coverGeneratedAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "RecurringOccurrence": {
+      "title": "Ocorrência de Evento",
+      "description": "Sessão individual de um evento recorrente.",
+      "type": "object",
+      "properties": {
+        "parentId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "cancelled"] },
+        "capacidadeMaxima": { "type": "number" },
+        "ingressosVendidos": { "type": "number" },
+        "batches": { 
+          "type": "array", 
+          "description": "Opcional. Se presente, sobrescreve a bilheteria global do evento pai para esta sessão.",
+          "items": { "type": "object" } 
+        }
+      }
     }
   },
   "auth": {
@@ -79,6 +98,10 @@
     "/cityPages/{cityId}": {
       "schema": "CityPage",
       "description": "Armazenamento de capas e metadados de cidades."
+    },
+    "/recurring_occurrences/{occId}": {
+      "schema": "RecurringOccurrence",
+      "description": "Instâncias individuais de eventos com agenda."
     }
   }
 }

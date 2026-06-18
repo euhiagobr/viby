@@ -65,14 +65,11 @@ export async function POST(req: Request) {
             const items = orderData.items || [];
             const currency = (orderData.currency || 'BRL').toUpperCase();
 
-            // INTEGRIDADE GLOBAL: Verificar se Programa de Afiliados está ativo
             const affConfigSnap = await transaction.get(db.collection('settings').doc('affiliates'));
             const isAffiliateEnabledGlobal = affConfigSnap.exists ? (affConfigSnap.data()?.enabled !== false) : true;
 
-            // Identificar o organizador proprietário para comissão de parceiro
             const organizerId = orderData.organizerId || items[0]?.organizerId;
 
-            // Verificar se existe parceiro vinculado ao organizador
             let partnerRef = null;
             let partnerReferral = null;
             if (organizerId && isAffiliateEnabledGlobal) {
@@ -88,14 +85,33 @@ export async function POST(req: Request) {
             }
 
             for (const item of items) {
-              const targetRef = item.occurrenceId 
-                ? db.collection("recurring_occurrences").doc(item.occurrenceId) 
-                : db.collection("events").doc(item.eventId);
+              // 1. IDENTIFICAR ORIGEM DA BAIXA DE ESTOQUE
+              const eventRef = db.collection("events").doc(item.eventId);
               
-              transaction.update(targetRef, { 
+              // SEMPRE incrementa o total vendido da série
+              transaction.update(eventRef, { 
                 ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
               });
+
+              // 2. SE FOR SESSÃO INDEPENDENTE, INCREMENTA A OCORRÊNCIA
+              if (item.occurrenceId) {
+                const occRef = db.collection("recurring_occurrences").doc(item.occurrenceId);
+                const occSnap = await transaction.get(occRef);
+                
+                if (occSnap.exists()) {
+                  transaction.update(occRef, {
+                    ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                  });
+
+                  // Se a ocorrência tem sua própria bilheteria, a baixa de lote ocorre nela
+                  const occData = occSnap.data()!;
+                  if (occData.batches && occData.batches.length > 0) {
+                     // Lógica futura: decrementar 'quantity' dentro do array batches da ocorrência
+                  }
+                }
+              }
 
               for (let j = 0; j < item.quantity; j++) {
                 const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -124,6 +140,7 @@ export async function POST(req: Request) {
                   stripeSessionId: session.id,
                   stripePaymentIntentId: session.payment_intent,
                   orderId,
+                  occurrenceId: item.occurrenceId || null,
                   confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
                   createdAt: admin.firestore.FieldValue.serverTimestamp(),
                   timestamp: admin.firestore.FieldValue.serverTimestamp()
@@ -131,7 +148,6 @@ export async function POST(req: Request) {
 
                 transaction.set(regRef, regData);
 
-                // Lógica de Comissão de Parceiro (Individual por Ingresso) - Somente se global ON
                 if (partnerRef && partnerReferral && item.price > 0 && isAffiliateEnabledGlobal) {
                    const pSnap = await transaction.get(partnerRef);
                    if (pSnap.exists && pSnap.data()?.status === 'active') {
@@ -158,7 +174,6 @@ export async function POST(req: Request) {
                             createdAt: admin.firestore.FieldValue.serverTimestamp()
                          });
 
-                         // Atualiza métricas do parceiro
                          transaction.update(partnerRef, {
                             "stats.pendingBalance": admin.firestore.FieldValue.increment(commissionValue),
                             "stats.totalEarned": admin.firestore.FieldValue.increment(commissionValue),
@@ -202,7 +217,6 @@ export async function POST(req: Request) {
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Cancelar comissões de parceiro vinculadas a estes ingressos
               const commsSnap = await db.collection("partner_commissions").where("registrationId", "==", d.id).where("status", "==", "PENDENTE").get();
               for (const cDoc of commsSnap.docs) {
                  const cData = cDoc.data();
