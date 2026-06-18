@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -16,6 +17,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { 
   Download, 
   Plus, 
@@ -270,7 +272,6 @@ export default function BrandAssetsClient() {
          ))}
       </div>
 
-      {/* MODAL: UPLOAD */}
       <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
          <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden">
             <DialogHeader className="p-8 border-b bg-muted/30">
@@ -337,7 +338,6 @@ export default function BrandAssetsClient() {
          </DialogContent>
       </Dialog>
 
-      {/* MODAL: EDIT */}
       <Dialog open={!!isEditing} onOpenChange={(v) => !v && setIsEditing(null)}>
          <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden">
             <DialogHeader className="p-8 border-b bg-muted/30">
