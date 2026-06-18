@@ -19,7 +19,8 @@ import {
   Megaphone,
   Coins,
   Bell,
-  RefreshCw
+  RefreshCw,
+  ImageIcon
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -87,6 +88,7 @@ export function AppSidebar() {
     { title: t('nav.requests'), url: "/dashboard/solicitacoes", icon: UserCheck, badge: (pendingInvitations.length + pendingPartnerships.length) || null },
     { title: t('nav.following'), url: "/dashboard/seguindo", icon: Heart },
     { title: t('nav.profile'), url: "/dashboard/perfil", icon: User },
+    { title: "Media Kit Viby", url: "/viby/marca", icon: ImageIcon },
     { title: t('nav.support'), url: "/suporte", icon: LifeBuoy, badge: unreadSupportCount || null },
   ];
 
