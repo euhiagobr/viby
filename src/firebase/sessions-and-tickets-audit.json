@@ -1,68 +1,35 @@
 
 {
-  "audit_version": "1.0.0",
-  "subject": "Sistema de Sessões e Ingressos Recorrentes",
+  "audit_version": "1.1.0",
+  "subject": "Sistema de Sessões e Ingressos Recorrentes - Lógica de Inventário",
   "status": "COMPLETED",
-  "analysis_date": "2024-05-22T10:00:00Z",
+  "analysis_date": "2024-06-18T10:00:00Z",
   "modeling": {
     "event_structure": {
       "collection": "events",
-      "fields": ["isRecurring (boolean)", "frequency (string)", "recurringEndDate (timestamp)", "customOccurrences (array)"],
-      "logic": "O evento pai atua como repositório de metadados e bilheteria global (se não houver sessões)."
+      "fields": ["isRecurring (boolean)", "frequency (string)", "batches (array)"],
+      "inventory_logic": "GLOBAL. Os lotes (batches) e seus respectivos estoques de tipos de ingresso são definidos no nível de série. Uma venda em qualquer sessão consome o estoque do lote global da série."
     },
     "session_structure": {
       "collection": "recurring_occurrences",
-      "fields": ["parentId (ref:events)", "date (string YYYY-MM-DD)", "startTime (string HH:mm)", "endTime (string)", "status (active/cancelled)", "capacidadeMaxima (number)", "ingressosVendidos (number)"],
-      "relationship": "1:N (Um evento possui múltiplas ocorrências)."
+      "fields": ["parentId", "date", "capacidadeMaxima", "ingressosVendidos"],
+      "inventory_logic": "INDIVIDUAL. Controla apenas o limite físico da sessão específica. Garante que uma ocorrência não venda mais que sua capacidade, independente do estoque dos lotes."
     },
     "ticket_relationship": {
       "collection": "registrations",
-      "fields": ["eventId (ref:events)", "occurrenceId (ref:recurring_occurrences)"],
-      "constraint": "Ingressos gerados para eventos recorrentes OBRIGATORIAMENTE vinculam o occurrenceId."
+      "fields": ["eventId", "occurrenceId"],
+      "constraint": "O occurrenceId é injetado no ato da compra para segmentar a validade do ingresso e o relatório de presença."
     }
   },
-  "flows": {
-    "creation": {
-      "service": "src/services/recurring-event-service.ts",
-      "method": "generateOccurrences",
-      "logic": "Eager expansion. Deleta ocorrências antigas e recria documentos físicos baseados em frequência ou lista customizada no momento do save."
-    },
-    "public_selection": {
-      "file": "src/app/[username]/[slug]/EventoPublicoClient.tsx",
-      "logic": "Filtra ocorrências futuras no cliente. Se o usuário escolher uma data específica, é redirecionado para /recorrente/[occId]."
-    },
-    "checkout": {
-      "service": "src/services/payments/pay-button-service.ts",
-      "logic": "Injeta occurrenceId no CartItem. O registro de Order e a posterior geração de Registration preservam este vínculo."
-    },
-    "fulfillment": {
-      "webhook": "src/app/api/webhooks/stripe/route.ts",
-      "logic": "Incrementa ingressosVendidos na ocorrência específica e no evento pai simultaneamente."
-    },
-    "validation": {
-      "scanner": "src/app/admin/scanner/page.tsx",
-      "logic": "Busca via ticketCode na coleção global registrations. Recupera os dados da sessão vinculada para exibição."
+  "flows_analysis": {
+    "ticketing_behavior": {
+      "scenario": "Duas ocorrências futuras disponíveis simultaneamente",
+      "logic_result": "SHARED_BATCHES",
+      "impact": "O organizador define que o 'Lote 1' tem 100 ingressos. Se vender 60 para a Sessão A e 40 para a Sessão B, o Lote 1 esgota para a série inteira, mesmo que a Sessão A ainda tenha capacidade física disponível.",
+      "enforcement": "A validação em 'src/services/payments/pay-button-service.ts' checa 'event.batches' (série) e o fulfillment em 'stripe/route.ts' incrementa tanto o 'event.ingressosVendidos' (série) quanto o 'occurrence.ingressosVendidos' (sessão)."
     }
   },
-  "files_involved": [
-    "src/services/recurring-event-service.ts",
-    "src/app/actions/tickets.ts",
-    "src/app/api/webhooks/stripe/route.ts",
-    "src/app/[username]/[slug]/EventoPublicoClient.tsx",
-    "src/app/recorrente/[id]/page.tsx",
-    "src/components/events/Bilheteria/BilheteriaPublic.tsx",
-    "src/app/admin/eventos-recorrentes/[id]/page.tsx",
-    "src/lib/image-generator-utils.ts"
-  ],
-  "existing_functionalities": [
-    "Geração automática (Daily, Weekly, Monthly)",
-    "Agendas customizadas (Lista manual de datas)",
-    "Inventário independente por sessão",
-    "Relatório de ocupação por data específica",
-    "Fulfillment atômico (Incremento de vendas em sessão + pai)",
-    "Redirecionamento para página de sessão específica no checkout"
-  ],
-  "identified_risks": [
+  "risks": [
     {
       "id": "RISK-01",
       "severity": "ALTA",
@@ -71,16 +38,18 @@
     {
       "id": "RISK-02",
       "severity": "MÉDIA",
-      "description": "Scanner de check-in valida apenas o código do ingresso. Não há trava temporal impedindo o uso de um ingresso de 'Sexta' no 'Sábado' se o operador não checar a data visualmente."
+      "description": "A impossibilidade de definir estoques de lotes específicos por sessão limita estratégias comerciais de organizadores que possuem demandas diferentes por dia da semana."
     }
   ],
-  "inconsistencies": [
-    "O campo 'date' no evento pai é persistido como Timestamp, enquanto em recurring_occurrences é persistido como String (YYYY-MM-DD) para facilitar queries de agenda.",
-    "Contabilização de 'capacidadeTotal' no evento pai é a soma das sessões, mas não há trava forçando a soma dos lotes de ingressos a bater com a soma das sessões."
+  "functionalities_existing": [
+    "Resolução de próxima data válida no feed",
+    "Página pública individual por sessão (/recorrente/[id])",
+    "Controle de capacidade individual por sessão",
+    "Vínculo obrigatório de ingresso com sessão no checkout"
   ],
-  "missing_functionalities": [
-    "Validação rígida de data/hora no scanner (Check-in bloqueado fora do horário da sessão).",
-    "Transferência de ingresso entre sessões da mesma série pelo usuário.",
-    "Lotes de ingressos específicos por sessão (Atualmente o lote é compartilhado entre todas as sessões da série)."
+  "functionalities_absent": [
+    "Estoques de lotes (batches) independentes por ocorrência",
+    "Preços diferenciados por dia da semana dentro da mesma série",
+    "Validação de data/hora no scanner de check-in"
   ]
 }
