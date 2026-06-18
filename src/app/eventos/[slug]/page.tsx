@@ -6,6 +6,8 @@ import { permanentRedirect, notFound } from 'next/navigation';
  * Migra tráfego de /eventos/[slug] para o novo canônico /[username]/[slug].
  */
 
+const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
+
 async function getEventData(slugParam: string) {
   try {
     const slugOrId = decodeURIComponent(slugParam).toLowerCase().trim();
@@ -16,11 +18,16 @@ async function getEventData(slugParam: string) {
       .where("slug", "==", slugOrId)
       .limit(1).get();
     
-    if (!queryBySlug.empty) return queryBySlug.docs[0].data();
+    if (!queryBySlug.empty) {
+      const doc = queryBySlug.docs[0];
+      return { id: doc.id, ...doc.data() };
+    }
 
     // 2. Tentar por ID de documento
     const docSnap = await db.collection("events").doc(slugOrId).get();
-    if (docSnap.exists) return docSnap.data();
+    if (docSnap.exists) {
+      return { id: docSnap.id, ...docSnap.data() };
+    }
 
     return null;
   } catch (e) {
@@ -32,21 +39,26 @@ export default async function EventLegacyRedirect({ params }: { params: Promise<
   const { slug } = await params;
   const db = getAdminDb();
 
-  const event = await getEventData(slug);
+  const event: any = await getEventData(slug);
   
   if (event) {
+    // RESOLUÇÃO ROBUSTA DO USERNAME
     let actualUsername = event.organizer?.username?.toLowerCase();
     
-    // Garantir que temos o username da organização para o redirecionamento correto
-    if (!actualUsername && event.organizationId) {
-      const orgSnap = await db.collection("organizations").doc(event.organizationId).get();
-      if (orgSnap.exists) {
-        actualUsername = orgSnap.data()?.username?.toLowerCase();
+    if (!actualUsername) {
+      const orgId = event.organizationId || event.organizerId;
+      if (orgId === VIBY_OFFICIAL_UID) {
+        actualUsername = "viby";
+      } else if (orgId) {
+        const orgSnap = await db.collection("organizations").doc(orgId).get();
+        if (orgSnap.exists) {
+          actualUsername = orgSnap.data()?.username?.toLowerCase();
+        }
       }
     }
 
     const username = actualUsername || 'evento';
-    const canonicalSlug = event.slug || event.id || slug;
+    const canonicalSlug = event.slug || event.id;
     
     permanentRedirect(`/${username}/${canonicalSlug}`);
   }

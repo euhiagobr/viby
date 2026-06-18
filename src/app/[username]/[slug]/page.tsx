@@ -9,6 +9,8 @@ import { notFound, redirect } from 'next/navigation';
  * Resolve o evento verificando o vínculo com o username da organização.
  */
 
+const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
+
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
   if (typeof data.toDate === 'function') return data.toDate().toISOString();
@@ -58,13 +60,18 @@ async function getEventData(usernameParam: string, slugParam: string) {
 
     if (!eventDoc) return null;
 
-    // Resolver Username da Organização com Robustez
+    // RESOLUÇÃO ROBUSTA DO USERNAME DO PROPRIETÁRIO
     let actualUsername = eventDoc.organizer?.username?.toLowerCase();
     
-    if (!actualUsername && eventDoc.organizationId) {
-      const orgSnap = await db.collection("organizations").doc(eventDoc.organizationId).get();
-      if (orgSnap.exists) {
-        actualUsername = orgSnap.data()?.username?.toLowerCase();
+    if (!actualUsername) {
+      const orgId = eventDoc.organizationId || eventDoc.organizerId;
+      if (orgId === VIBY_OFFICIAL_UID) {
+        actualUsername = "viby";
+      } else if (orgId) {
+        const orgSnap = await db.collection("organizations").doc(orgId).get();
+        if (orgSnap.exists) {
+          actualUsername = orgSnap.data()?.username?.toLowerCase();
+        }
       }
     }
 
@@ -73,10 +80,19 @@ async function getEventData(usernameParam: string, slugParam: string) {
     const isCorrectUsername = actualUsername === username;
     const isCanonicalSlug = slugOrId === canonicalSlug;
 
+    // Se o username na URL for genérico ('evento') ou estiver errado, redirecionamos para o canônico
     if (!isCorrectUsername || !isCanonicalSlug) {
-      // Força o redirecionamento para o padrão /[username]/[slug]
-      const targetUsername = actualUsername || username;
-      return { redirect: `/${targetUsername}/${canonicalSlug}` };
+      if (actualUsername) {
+        return { redirect: `/${actualUsername}/${canonicalSlug}` };
+      }
+      
+      // Se não conseguimos resolver um username para a organização, mas o parâmetro é 'evento', permitimos renderizar
+      if (username === 'evento' && isCanonicalSlug) {
+        // Renderiza como está (sem redirecionamento)
+      } else if (username !== 'evento') {
+        // Se o username for específico mas não bater com o dono real, e não conseguimos o dono real, retornamos 404
+        return null;
+      }
     }
 
     // Processar recorrência para SEO
@@ -99,6 +115,7 @@ async function getEventData(usernameParam: string, slugParam: string) {
 
     return serializeData(eventDoc);
   } catch (e) {
+    console.error("[getEventData] Critical Error:", e);
     return null;
   }
 }
@@ -167,7 +184,7 @@ export default async function CanonicalEventPage({ params }: { params: Promise<{
     "organizer": {
       "@type": "Organization",
       "name": event.organizer?.name,
-      "url": `https://viby.club/${event.organizer?.username}`
+      "url": `https://viby.club/${event.organizer?.username || 'evento'}`
     }
   };
 
