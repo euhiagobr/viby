@@ -36,6 +36,8 @@ function stripHtml(text: string): string {
 }
 
 async function getEventData(usernameParam: string, slugParam: string) {
+  console.log(`[DEBUG-ROUTING] Iniciando resolução: username=${usernameParam}, slug/id=${slugParam}`);
+  
   try {
     const username = decodeURIComponent(usernameParam).toLowerCase().trim();
     const slugOrId = decodeURIComponent(slugParam).toLowerCase().trim();
@@ -50,29 +52,40 @@ async function getEventData(usernameParam: string, slugParam: string) {
     
     if (!queryBySlug.empty) {
       eventDoc = { id: queryBySlug.docs[0].id, ...queryBySlug.docs[0].data() };
+      console.log(`[DEBUG-ROUTING] Evento localizado via SLUG: ${slugOrId} (ID: ${eventDoc.id})`);
     } else {
       // 2. Fallback: Buscar por ID direto do documento
       const eventByIdSnap = await db.collection("events").doc(slugOrId).get();
       if (eventByIdSnap.exists && eventByIdSnap.data()!.status !== 'Excluído') {
         eventDoc = { id: eventByIdSnap.id, ...eventByIdSnap.data() };
+        console.log(`[DEBUG-ROUTING] Evento localizado via ID direto: ${slugOrId}`);
       }
     }
 
-    if (!eventDoc) return null;
+    if (!eventDoc) {
+      console.log(`[DEBUG-ROUTING] FALHA: Evento não localizado no Firestore para: ${slugOrId}`);
+      return null;
+    }
 
     // RESOLUÇÃO ROBUSTA DO USERNAME DO PROPRIETÁRIO
     let actualUsername = eventDoc.organizer?.username?.toLowerCase();
     
     if (!actualUsername) {
+      console.log(`[DEBUG-ROUTING] Username não desnormalizado no evento. Buscando org...`);
       const orgId = eventDoc.organizationId || eventDoc.organizerId;
+      
       if (orgId === VIBY_OFFICIAL_UID) {
         actualUsername = "viby";
+        console.log(`[DEBUG-ROUTING] Identificado como VIBY OFFICIAL via UID.`);
       } else if (orgId) {
         const orgSnap = await db.collection("organizations").doc(orgId).get();
         if (orgSnap.exists) {
           actualUsername = orgSnap.data()?.username?.toLowerCase();
+          console.log(`[DEBUG-ROUTING] Username resolvido via coleção organizations: ${actualUsername}`);
         }
       }
+    } else {
+      console.log(`[DEBUG-ROUTING] Username obtido do cache do evento: ${actualUsername}`);
     }
 
     // Validação de Integridade de Rota e Redirecionamento Canônico
@@ -80,17 +93,21 @@ async function getEventData(usernameParam: string, slugParam: string) {
     const isCorrectUsername = actualUsername === username;
     const isCanonicalSlug = slugOrId === canonicalSlug;
 
+    console.log(`[DEBUG-ROUTING] Validação de Rota: CorrectUser=${isCorrectUsername}, CanonicalSlug=${isCanonicalSlug}`);
+
     // Se o username na URL for genérico ('evento') ou estiver errado, redirecionamos para o canônico
     if (!isCorrectUsername || !isCanonicalSlug) {
       if (actualUsername) {
-        return { redirect: `/${actualUsername}/${canonicalSlug}` };
+        const redirectUrl = `/${actualUsername}/${canonicalSlug}`;
+        console.log(`[DEBUG-ROUTING] REDIRECIONANDO para URL canônica: ${redirectUrl}`);
+        return { redirect: redirectUrl };
       }
       
       // Se não conseguimos resolver um username para a organização, mas o parâmetro é 'evento', permitimos renderizar
       if (username === 'evento' && isCanonicalSlug) {
-        // Renderiza como está (sem redirecionamento)
+        console.log(`[DEBUG-ROUTING] Renderizando via fallback 'evento' pois a org não tem username.`);
       } else if (username !== 'evento') {
-        // Se o username for específico mas não bater com o dono real, e não conseguimos o dono real, retornamos 404
+        console.log(`[DEBUG-ROUTING] FALHA CRÍTICA: Conflito de rota e resolução de dono falhou.`);
         return null;
       }
     }
@@ -109,8 +126,11 @@ async function getEventData(usernameParam: string, slugParam: string) {
           const nextOcc = occSnap.docs[0].data();
           eventDoc.date = `${nextOcc.date}T${nextOcc.startTime || '00:00'}:00`;
           if (nextOcc.endTime) eventDoc.endDate = `${nextOcc.date}T${nextOcc.endTime}:00`;
+          console.log(`[DEBUG-ROUTING] Próxima data de recorrência resolvida para SEO: ${eventDoc.date}`);
         }
-      } catch (occError) {}
+      } catch (occError) {
+        console.error(`[DEBUG-ROUTING] Erro ao resolver recorrência para SEO:`, occError);
+      }
     }
 
     return serializeData(eventDoc);
