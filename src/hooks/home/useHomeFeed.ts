@@ -10,11 +10,9 @@ import { type Coordinates } from '@/lib/location-utils';
 /**
  * Orquestrador do feed da Landing Page.
  * Unifica eventos, resolve recorrências e intercala anúncios.
- * Implementa padrão 9 + 3 conforme solicitado.
  */
 export function useHomeFeed(initialEvents: any[], filters: { searchName: string, searchCity: string, userLocation: Coordinates | null }) {
   const [now, setNow] = useState<Date | null>(null);
-  // Primeiro carregamento exibe 9 eventos
   const [displayLimit, setDisplayLimit] = useState(9);
 
   useEffect(() => {
@@ -23,28 +21,28 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
     return () => clearInterval(timer);
   }, []);
 
-  const { rawEvents, isFetching, isInitialLoad, hasMore: dbHasMore, fetchMore: fetchFromDb } = useLandingEvents(initialEvents);
-  const { resolvedEvents } = useRecurringEvents(rawEvents, now);
-  const visibleEvents = useVisibleEvents(resolvedEvents, { ...filters, now });
-  
-  const { ads } = useAds();
+  const { rawEvents, isFetching, isInitialLoad: eventsLoading, hasMore: dbHasMore, fetchMore: fetchFromDb } = useLandingEvents(initialEvents);
+  const { resolvedEvents, loading: recurringLoading } = useRecurringEvents(rawEvents, now);
+  const { ads, loading: adsLoading } = useAds();
+
+  // No cliente, esperamos a resolução de recorrências e ads para evitar flashes de dados desatualizados/vencidos
+  const isInitialLoad = eventsLoading || (typeof window !== 'undefined' && (recurringLoading || (adsLoading && ads.length === 0)));
 
   const handleLoadMore = useCallback(() => {
-    // Carregamentos subsequentes adicionam 3 eventos
     const newLimit = displayLimit + 3;
     setDisplayLimit(newLimit);
     
-    // Se o limite de exibição está chegando perto do fim do que temos carregado, buscamos mais no banco
-    if (visibleEvents.length < newLimit + 2 && dbHasMore && !isFetching) {
+    if (resolvedEvents.length < newLimit + 2 && dbHasMore && !isFetching) {
       fetchFromDb();
     }
-  }, [displayLimit, visibleEvents.length, dbHasMore, isFetching, fetchFromDb]);
+  }, [displayLimit, resolvedEvents.length, dbHasMore, isFetching, fetchFromDb]);
+
+  const visibleEvents = useVisibleEvents(resolvedEvents, { ...filters, now });
 
   const unifiedFeed = useMemo(() => {
     const feed: any[] = [];
     let adIndex = 0;
 
-    // Utilizamos a lista completa de eventos visíveis para a paginação
     const paginatedEvents = visibleEvents.slice(0, displayLimit);
 
     paginatedEvents.forEach((ev, idx) => {
@@ -52,18 +50,18 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
       
       const eventCount = idx + 1;
       
-      // Lógica de injeção de Ads (intercalação dinâmica)
-      // 1º Ad: após 4 eventos
+      // Inserção dinâmica de Ads
       if (eventCount === 4 && ads.length > 0) {
-        feed.push({ type: 'ad', adIndex: adIndex++ });
+        feed.push({ type: 'ad', adIndex: adIndex % ads.length });
+        adIndex++;
       } 
-      // 2º Ad: após 7 eventos
       else if (eventCount === 7 && ads.length > 1) {
-        feed.push({ type: 'ad', adIndex: adIndex++ });
+        feed.push({ type: 'ad', adIndex: adIndex % ads.length });
+        adIndex++;
       }
-      // Ads subsequentes: ciclo a cada 6 eventos após o 7º (13, 19, 25...)
-      else if (eventCount > 7 && (eventCount - 7) % 6 === 0 && ads.length > adIndex) {
-        feed.push({ type: 'ad', adIndex: adIndex++ });
+      else if (eventCount > 7 && (eventCount - 7) % 6 === 0 && ads.length > 0) {
+        feed.push({ type: 'ad', adIndex: adIndex % ads.length });
+        adIndex++;
       }
     });
 

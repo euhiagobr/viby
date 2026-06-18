@@ -17,6 +17,7 @@ import { getVersionedImageUrl } from "@/lib/image-utils"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useTranslation } from "@/i18n/i18n-context"
 import Link from "next/link"
+import { slugify } from "@/lib/slug-utils"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
@@ -58,9 +59,19 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const isEnded = React.useMemo(() => {
     if (!mounted) return false;
+    
+    // Se for recorrente, só consideramos encerrado se a DATA FINAL DA SÉRIE já passou
+    if (event.isRecurring && event.recurringEndDate) {
+      const seriesEnd = safeParseDate(event.recurringEndDate);
+      if (seriesEnd) {
+        const seriesThreshold = new Date(seriesEnd.getTime() + 6 * 60 * 60 * 1000);
+        if (new Date() < seriesThreshold) return false;
+      }
+    }
+
     const threshold = new Date(eventDates.end.getTime() + 6 * 60 * 60 * 1000);
     return new Date() > threshold;
-  }, [eventDates.end, mounted]);
+  }, [eventDates.end, mounted, event.isRecurring, event.recurringEndDate]);
 
   const isCuradoria = event.curationType === 'curadoria' || 
                       event.curatorProfile === 'viby' || 
@@ -75,7 +86,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
       const diffStart = start.getTime() - now.getTime();
       const isToday = now.toDateString() === start.toDateString();
 
-      if (end < now) {
+      if (isEnded) {
         setLiveStatus({ label: t('event.finished'), colorClass: "bg-muted text-muted-foreground border-none" });
       } else if (now >= start && now < end) {
         setLiveStatus({ label: t('event.live_now'), colorClass: "bg-green-600 animate-pulse text-white shadow-lg", icon: Zap });
@@ -91,7 +102,7 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
     update();
     const interval = setInterval(update, 30000); 
     return () => clearInterval(interval);
-  }, [eventDates, t, mounted]);
+  }, [eventDates, t, mounted, isEnded]);
 
   const distanceMeters = React.useMemo(() => {
     if (userLocation && typeof event.latitude === 'number' && typeof event.longitude === 'number') {
@@ -142,9 +153,11 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
-  const slugOrId = event.slug || event.id;
+  
+  // GARANTIA DE URL CANÔNICA: /username/slug (Nunca usar ID)
+  const slug = event.slug || slugify(event.title || 'evento');
   const username = event.organizer?.username || 'evento';
-  const canonicalPath = `/${username}/${slugOrId}`;
+  const canonicalPath = `/${username}/${slug}`;
 
   return (
     <Link 

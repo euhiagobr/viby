@@ -22,7 +22,7 @@ export function useRecurringEvents(events: any[], now: Date | null) {
     );
   }, [db]);
 
-  const { data: allOccurrences } = useCollection<any>(occurrencesQuery);
+  const { data: allOccurrences, loading } = useCollection<any>(occurrencesQuery);
 
   const resolvedEvents = useMemo(() => {
     if (!events) return [];
@@ -76,5 +76,5 @@ export function useRecurringEvents(events: any[], now: Date | null) {
     });
   }, [events, allOccurrences, now]);
 
-  return { resolvedEvents };
+  return { resolvedEvents, loading };
 }

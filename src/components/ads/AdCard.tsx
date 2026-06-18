@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { EventCard } from "../events/EventCard"
+import { slugify } from "@/lib/slug-utils"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -86,7 +87,10 @@ export function AdCard({ ad }: AdCardProps) {
     } else if (ad.type === 'pagina' && organization) {
       router.push(`/${organization.username}`)
     } else if (ad.type === 'evento' && ad.eventId) {
-      router.push(`/${organization?.username || 'evento'}/${ad.eventId}`)
+      // GARANTIA DE URL CANÔNICA: /username/slug
+      const slug = ad.eventSlug || slugify(ad.eventTitle || 'evento');
+      const username = organization?.username || 'evento';
+      router.push(`/${username}/${slug}`);
     }
   }
 
