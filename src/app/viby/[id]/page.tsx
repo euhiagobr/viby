@@ -17,7 +17,7 @@ async function getOrgData(idOrUsername: string) {
     const db = getAdminDb();
     let orgId = idOrUsername;
 
-    // Tentar resolver via índice de usernames
+    // 1. Tentar resolver via índice de usernames
     const usernameSnap = await db.collection('usernames').doc(idOrUsername.toLowerCase().trim()).get();
     if (usernameSnap.exists) {
       const data = usernameSnap.data();
@@ -26,6 +26,19 @@ async function getOrgData(idOrUsername: string) {
       }
     }
 
+    // 2. Fallback: Se não resolveu pelo índice, tentar busca direta pelo campo username
+    if (orgId === idOrUsername) {
+      const orgQuery = await db.collection('organizations')
+        .where('username', '==', idOrUsername.toLowerCase().trim())
+        .limit(1)
+        .get();
+      
+      if (!orgQuery.empty) {
+        orgId = orgQuery.docs[0].id;
+      }
+    }
+
+    // 3. Buscar o documento final da organização
     const orgSnap = await db.collection('organizations').doc(orgId).get();
     
     if (!orgSnap.exists) return null;
@@ -41,6 +54,7 @@ async function getOrgData(idOrUsername: string) {
       verified: data?.verified || false
     };
   } catch (e) {
+    console.error("[MediaKit-SSR] Error fetching org:", e);
     return null;
   }
 }

@@ -46,6 +46,8 @@ import { formatCurrency } from '@/lib/financial-utils'
 import { subDays, startOfDay, endOfDay } from 'date-fns'
 import { Separator } from "@/components/ui/separator"
 
+const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
+
 const roleTranslations: Record<string, string> = {
   owner: 'Proprietário',
   admin: 'Administrador',
@@ -183,11 +185,13 @@ export default function OrganizationDashboardPage() {
           <p className="text-muted-foreground font-medium">Gestão centralizada de <strong>{currentOrg.name}</strong>.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary/5 transition-all">
-            <Link href={`/viby/${currentOrg.username}`}>
-              <ImageIcon className="w-4 h-4" /> Material de Marca
-            </Link>
-          </Button>
+          {currentOrg.id === VIBY_OFFICIAL_UID && (
+            <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary/5 transition-all">
+              <Link href={`/viby/${currentOrg.username}`}>
+                <ImageIcon className="w-4 h-4" /> Material de Marca
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -318,25 +322,26 @@ export default function OrganizationDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Card de Material de Marca */}
-        <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white border-t-8 border-secondary">
-           <CardHeader className="p-8 pb-4">
-              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-                 <ImageIcon className="w-6 h-6 text-secondary" /> Media Kit
-              </CardTitle>
-              <CardDescription className="font-medium">Gestão de arquivos e mídias oficiais para parceiros.</CardDescription>
-           </CardHeader>
-           <CardContent className="p-8 space-y-6">
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                 Disponibilize logos, ícones e manuais de identidade visual em uma página pública exclusiva para facilitar o trabalho de imprensa e co-realizadores.
-              </p>
-              <Button asChild className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm hover:scale-[1.02] transition-transform gap-2">
-                 <Link href={`/viby/${currentOrg.username}`}>
-                    Acessar Media Kit <ArrowRight className="w-4 h-4" />
-                 </Link>
-              </Button>
-           </CardContent>
-        </Card>
+        {currentOrg.id === VIBY_OFFICIAL_UID && (
+          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white border-t-8 border-secondary">
+             <CardHeader className="p-8 pb-4">
+                <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                   <ImageIcon className="w-6 h-6 text-secondary" /> Media Kit
+                </CardTitle>
+                <CardDescription className="font-medium">Gestão de arquivos e mídias oficiais para parceiros.</CardDescription>
+             </CardHeader>
+             <CardContent className="p-8 space-y-6">
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                   Disponibilize logos, ícones e manuais de identidade visual em uma página pública exclusiva para facilitar o trabalho de imprensa e co-realizadores.
+                </p>
+                <Button asChild className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm hover:scale-[1.02] transition-transform gap-2">
+                   <Link href={`/viby/${currentOrg.username}`}>
+                      Acessar Media Kit <ArrowRight className="w-4 h-4" />
+                   </Link>
+                </Button>
+             </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
