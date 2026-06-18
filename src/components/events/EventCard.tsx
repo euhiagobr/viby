@@ -17,7 +17,6 @@ import { getVersionedImageUrl } from "@/lib/image-utils"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useTranslation } from "@/i18n/i18n-context"
 import Link from "next/link"
-import { slugify } from "@/lib/slug-utils"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
@@ -60,7 +59,6 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const isEnded = React.useMemo(() => {
     if (!mounted) return false;
     
-    // Se for recorrente, só consideramos encerrado se a DATA FINAL DA SÉRIE já passou
     if (event.isRecurring && event.recurringEndDate) {
       const seriesEnd = safeParseDate(event.recurringEndDate);
       if (seriesEnd) {
@@ -154,10 +152,10 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
   
-  // GARANTIA DE URL CANÔNICA: /username/slug (Nunca usar ID)
-  const slug = event.slug || slugify(event.title || 'evento');
+  // URL Canônica: /[username]/[slug ou id]
+  const eventSlug = event.slug || event.id;
   const username = event.organizer?.username || 'evento';
-  const canonicalPath = `/${username}/${slug}`;
+  const canonicalPath = `/${username}/${eventSlug}`;
 
   return (
     <Link 

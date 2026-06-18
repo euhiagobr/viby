@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils"
 import { useFirestore, useDoc, useAuth, useUser } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { EventCard } from "../events/EventCard"
-import { slugify } from "@/lib/slug-utils"
 
 function VerifiedBadge({ className }: { className?: string }) {
   return (
@@ -54,9 +53,7 @@ export function AdCard({ ad }: AdCardProps) {
               eventType: 'impression',
               userId: user?.uid || null
             })
-          }).catch(() => {
-             // Silently ignore tracking errors in frontend
-          });
+          }).catch(() => {});
           
           observer.disconnect()
         }
@@ -71,7 +68,6 @@ export function AdCard({ ad }: AdCardProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // Rastreamento de Clique via API (Server-Side)
     fetch('/api/ads/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -87,10 +83,10 @@ export function AdCard({ ad }: AdCardProps) {
     } else if (ad.type === 'pagina' && organization) {
       router.push(`/${organization.username}`)
     } else if (ad.type === 'evento' && ad.eventId) {
-      // GARANTIA DE URL CANÔNICA: /username/slug
-      const slug = ad.eventSlug || slugify(ad.eventTitle || 'evento');
+      // URL Canônica: /[username]/[slug ou id]
+      const eventSlug = ad.eventSlug || ad.eventId;
       const username = organization?.username || 'evento';
-      router.push(`/${username}/${slug}`);
+      router.push(`/${username}/${eventSlug}`);
     }
   }
 

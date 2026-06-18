@@ -36,20 +36,21 @@ function stripHtml(text: string): string {
 async function getEventData(usernameParam: string, slugParam: string) {
   try {
     const username = decodeURIComponent(usernameParam).toLowerCase().trim();
-    const slug = decodeURIComponent(slugParam).toLowerCase().trim();
+    const slugOrId = decodeURIComponent(slugParam).toLowerCase().trim();
     const db = getAdminDb();
 
-    // 1. Buscar o evento pelo slug
+    let eventDoc = null;
+
+    // 1. Tentar localizar por slug textual
     const queryBySlug = await db.collection("events")
-      .where("slug", "==", slug)
+      .where("slug", "==", slugOrId)
       .limit(1).get();
     
-    let eventDoc = null;
     if (!queryBySlug.empty) {
       eventDoc = { id: queryBySlug.docs[0].id, ...queryBySlug.docs[0].data() };
     } else {
-      // Fallback: Buscar por ID direto
-      const eventByIdSnap = await db.collection("events").doc(slug).get();
+      // 2. Fallback: Buscar por ID direto do documento
+      const eventByIdSnap = await db.collection("events").doc(slugOrId).get();
       if (eventByIdSnap.exists && eventByIdSnap.data()!.status !== 'Excluído') {
         eventDoc = { id: eventByIdSnap.id, ...eventByIdSnap.data() };
       }
@@ -57,11 +58,25 @@ async function getEventData(usernameParam: string, slugParam: string) {
 
     if (!eventDoc) return null;
 
-    // Validação de Integridade de Rota: O username na URL deve bater com o username da organização
-    const actualUsername = eventDoc.organizer?.username?.toLowerCase();
-    if (actualUsername && actualUsername !== username) {
-      // Redireciona para a URL correta se o slug for único mas o username estiver errado
-      return { redirect: `/${actualUsername}/${eventDoc.slug || eventDoc.id}` };
+    // Resolver Username da Organização com Robustez
+    let actualUsername = eventDoc.organizer?.username?.toLowerCase();
+    
+    if (!actualUsername && eventDoc.organizationId) {
+      const orgSnap = await db.collection("organizations").doc(eventDoc.organizationId).get();
+      if (orgSnap.exists) {
+        actualUsername = orgSnap.data()?.username?.toLowerCase();
+      }
+    }
+
+    // Validação de Integridade de Rota e Redirecionamento Canônico
+    const canonicalSlug = eventDoc.slug || eventDoc.id;
+    const isCorrectUsername = actualUsername === username;
+    const isCanonicalSlug = slugOrId === canonicalSlug;
+
+    if (!isCorrectUsername || !isCanonicalSlug) {
+      // Força o redirecionamento para o padrão /[username]/[slug]
+      const targetUsername = actualUsername || username;
+      return { redirect: `/${targetUsername}/${canonicalSlug}` };
     }
 
     // Processar recorrência para SEO
