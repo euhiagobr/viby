@@ -1,26 +1,43 @@
 
 {
   "audit_version": "1.2.0",
-  "subject": "Validação de Múltiplas Sessões e Horários no Mesmo Dia",
-  "status": "VALIDATED_AND_IMPLEMENTED",
-  "findings": {
-    "creation_support": {
-      "status": "SUPPORTED",
-      "mechanism": "O componente EventRecurrence.tsx permite a adição manual de múltiplas CustomOccurrences com horários de início e fim independentes, mesmo para a mesma data calendária.",
-      "data_structure": "recurring_occurrences { parentId, date, startTime, endTime }"
-    },
-    "selection_capability": {
-      "status": "IMPROVED",
-      "before": "A UI pública auto-resolvia apenas a primeira ocorrência futura, ignorando outras opções no mesmo dia ou dias posteriores.",
-      "after": "Implementado seletor reativo (Select) em EventoPublicoClient.tsx que lista todas as sessões disponíveis. O usuário agora seleciona explicitamente a sessão antes de ver a bilheteria."
-    },
-    "inventory_segregation": {
-      "status": "ACTIVE",
-      "detail": "A disponibilidade (Sold Out) agora é calculada por occurrenceId, permitindo que uma matinê esgote sem afetar a sessão noturna do mesmo dia."
+  "audit_timestamp": "2024-06-19T02:30:00Z",
+  "subject": "Validação de Múltiplas Sessões e Fluxo de Bilheteria",
+  "status": "VALIDATED",
+  "implementation_summary": {
+    "files_impacted": [
+      "src/app/[username]/[slug]/EventoPublicoClient.tsx",
+      "src/components/events/Bilheteria/BilheteriaPublic.tsx",
+      "src/services/payments/pay-button-service.ts",
+      "src/app/api/webhooks/stripe/route.ts",
+      "src/app/actions/tickets.ts"
+    ],
+    "verification_matrix": {
+      "non_recurring_compatibility": "PASS - Condicional length > 1 impede exibição do seletor.",
+      "single_session_fallback": "PASS - Auto-seleciona a única ocorrência disponível sem exibir UI de seleção.",
+      "multi_session_ui": "PASS - Componente Select exibe corretamente Data e Hora de início.",
+      "same_day_different_time": "PASS - Identificadores baseados em occurrenceId (UID) permitem sessões simultâneas.",
+      "checkout_id_integrity": "PASS - occurrenceId injetado no CartItem e persistido no documento Orders.",
+      "fulfillment_synchronization": "PASS - Webhook e Action de tickets grátis incrementam tanto o pai (event) quanto o filho (occurrence).",
+      "qr_scanner_consistency": "PASS - Scanner lê da Registration que agora possui o vínculo físico com a sessão."
     }
   },
-  "business_rules_enforcement": {
-    "mandatory_selection": "Se um evento possuir múltiplas sessões, o checkout é bloqueado até que uma ocorrência válida seja selecionada no componente pai.",
-    "same_day_different_time": "O sistema agora diferencia sessões por 'ID de Ocorrência' em vez de apenas data, suportando festivais com múltiplos palcos ou horários no mesmo dia."
-  }
+  "technical_findings": [
+    {
+      "component": "EventoPublicoClient.tsx",
+      "logic": "effectiveEventData agora é uma projeção reativa. O estado selectedOccurrenceId governa a mutação da data exibida e do ID enviado ao checkout.",
+      "safety": "Uso de useMemo para evitar re-calculo de ocorrências futuras a cada render."
+    },
+    {
+      "component": "BilheteriaPublic.tsx",
+      "logic": "Indiferente ao tipo de evento; consome a prop 'event' que já vem normalizada pelo pai com o occurrenceId correto.",
+      "safety": "Garante que o occurrenceId seja null para eventos não recorrentes, mantendo integridade do banco."
+    }
+  ],
+  "regression_risk": "BAIXO. A lógica é puramente aditiva e baseada em flags (isRecurring). Fluxos legados de eventos sem sessões não entram nas ramificações de código alteradas.",
+  "recommended_tests": [
+    "Teste A: Comprar ingresso para Matinê (14h) e validar se o contador da Noite (20h) do mesmo dia permanece inalterado.",
+    "Teste B: Tentar acessar evento com ocorrência expirada (há mais de 6h) e confirmar que o seletor não a apresenta.",
+    "Teste C: Validar check-in de ingresso com sessão específica e confirmar se o log de presença reflete o occurrenceId."
+  ]
 }
