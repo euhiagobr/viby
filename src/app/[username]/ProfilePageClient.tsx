@@ -1,5 +1,5 @@
 
-"use client";
+'use client';
 
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
@@ -33,6 +33,7 @@ import { UserEventsContent } from "@/components/profile/user/UserEventsContent";
 import { UserGamification } from "@/components/profile/user/UserGamification";
 
 import Footer from "@/components/layout/Footer";
+import { PublicHeader } from "@/components/layout/PublicHeader";
 
 export default function ProfilePageClient({ username }: { username: string }) {
   const db = useFirestore();
@@ -74,10 +75,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
       });
     }
   }, [searchParams, profileData?.id, profileType]);
-
-  const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
-  const { data: settings } = useDoc<any>(settingsRef);
-  const siteName = settings?.siteName || "Viby";
 
   // Busca de Dados Integrada via Índice de Usernames
   React.useEffect(() => {
@@ -337,51 +334,18 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
-      <nav className="fixed top-0 z-50 w-full bg-background/80 backdrop-blur-xl border-b border-border/40">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            {settings?.logoUrl ? (
-              <Image 
-                src={settings.logoUrl} 
-                alt={siteName} 
-                width={120} 
-                height={40} 
-                style={{ height: 'auto' }}
-                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
-                priority 
-                unoptimized 
-              />
-            ) : (
-              <span className="text-xl font-bold tracking-tight italic uppercase">{siteName}</span>
-            )}
-          </Link>
-          <div className="flex items-center gap-4">
-            <Button asChild variant="outline" className="hidden md:flex rounded-full h-9 border-[#ffdf00] bg-[#ffdf00]/10 text-[#002776] font-black uppercase text-[9px] gap-2">
-               <Link href="/copa-do-mundo"><Trophy className="w-3.5 h-3.5" /> Copa 2026</Link>
-            </Button>
-            {profileType === 'organization' && (
-              <Button 
-                onClick={() => setIsShareModalOpen(true)}
-                className="hidden sm:flex bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/10 gap-2"
-              >
-                <Share2 className="w-3.5 h-3.5" /> Compartilhar Agenda
-              </Button>
-            )}
-            {loggedUser ? <UserNav /> : (
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" asChild className="font-bold uppercase text-[10px] tracking-widest px-2 sm:px-4">
-                  <Link href="/login">Entrar</Link>
-                </Button>
-                <Button asChild className="bg-primary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-4 sm:px-6 shadow-lg">
-                  <Link href="/cadastro">Criar Conta</Link>
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </nav>
+      <PublicHeader showBack>
+        {profileType === 'organization' && (
+          <Button 
+            onClick={() => setIsShareModalOpen(true)}
+            className="hidden sm:flex bg-secondary text-white font-black uppercase italic text-[10px] tracking-widest rounded-full px-6 shadow-lg shadow-secondary/10 gap-2"
+          >
+            <Share2 className="w-3.5 h-3.5" /> Compartilhar Agenda
+          </Button>
+        )}
+      </PublicHeader>
 
-      <main className="flex-1 pb-32 pt-16">
+      <main className="flex-1 pb-32">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
           {profileType === 'organization' ? (
             <>

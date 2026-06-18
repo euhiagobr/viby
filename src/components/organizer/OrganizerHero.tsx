@@ -1,8 +1,9 @@
+
 "use client";
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Share2, Globe, Instagram, EyeOff, Lock } from "lucide-react";
+import { Share2, Globe, Instagram, EyeOff, Lock, Edit, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import { VerifiedBadge } from "./VerifiedBadge";
 import { FollowButton } from "./FollowButton";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 interface OrganizerHeroProps {
   organization: any;
@@ -37,6 +39,21 @@ export function OrganizerHero({
 
   const showName = organization.showName !== false;
   const showType = organization.showType !== false;
+
+  const renderLocation = () => {
+    if (organization.showState === false && organization.showAddress === false) return null;
+    
+    const city = organization.city || organization.address?.city;
+    const state = organization.state || organization.address?.stateRegion;
+    
+    if (!city && !state) return null;
+
+    return (
+      <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg">
+        <MapPin className="w-3 h-3" /> {city}{city && state ? ` - ${state}` : state}
+      </div>
+    );
+  };
 
   return (
     <section className="relative w-full overflow-hidden">
@@ -69,14 +86,19 @@ export function OrganizerHero({
               </Avatar>
             </motion.div>
 
-            <div className="space-y-3 pb-2">
+            <div className="space-y-3 pb-2 flex-1">
               <div className="flex flex-col gap-1">
-                {showType && (
-                  <Badge className="w-fit mx-auto md:mx-0 bg-secondary text-white font-black uppercase text-[10px] tracking-widest px-3">
-                    {organization.type || "Produtor"}
-                  </Badge>
-                )}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                  {showType && (
+                    <Badge className="bg-secondary text-white font-black uppercase text-[10px] tracking-widest px-3">
+                      {organization.type || "Produtor"}
+                    </Badge>
+                  )}
+                  {isOwner && (
+                    <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5">Sua Marca</Badge>
+                  )}
+                </div>
+                <div className="flex items-center justify-center md:justify-start gap-2">
                   <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-primary leading-none">
                     {showName ? (organization.name || "Marca Viby") : (
                       <div className="flex items-center gap-2 opacity-30">
@@ -86,10 +108,19 @@ export function OrganizerHero({
                   </h1>
                   {organization.verified && <VerifiedBadge />}
                 </div>
-                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-                  @{organization.username}
-                </p>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                  <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+                    @{organization.username}
+                  </p>
+                  {renderLocation()}
+                </div>
               </div>
+
+              {organization.showBio !== false && organization.bio && (
+                <p className="text-sm font-medium text-muted-foreground max-w-xl line-clamp-2 mx-auto md:mx-0">
+                  {organization.bio}
+                </p>
+              )}
 
               <div className="flex flex-wrap justify-center md:justify-start items-center gap-8 pt-2">
                 <StatItem label="Seguidores" value={realFollowersCount} />
@@ -112,15 +143,26 @@ export function OrganizerHero({
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3 pb-2">
-            <FollowButton organizationId={organization.id} username={organization.username} />
+            {isOwner ? (
+               <Button asChild className="bg-primary text-white font-black rounded-2xl h-12 px-8 shadow-xl hover:scale-105 transition-all gap-2 uppercase italic text-xs">
+                 <Link href={`/dashboard/organizacoes/${organization.username}/settings`}>
+                   <Edit className="w-4 h-4" /> Editar Marca
+                 </Link>
+               </Button>
+            ) : (
+              <FollowButton organizationId={organization.id} username={organization.username} />
+            )}
+            
             <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" onClick={handleShare} title="Compartilhar">
               <Share2 className="w-5 h-5" />
             </Button>
+            
             {organization.showWebsite !== false && organization.website && (
               <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" asChild title="Site Oficial">
                 <a href={organization.website} target="_blank" rel="noopener noreferrer"><Globe className="w-5 h-5" /></a>
               </Button>
             )}
+            
             {organization.showInstagram !== false && organization.instagram && (
               <Button variant="outline" size="icon" className="rounded-2xl h-12 w-12 border-2" asChild title="Instagram">
                 <a href={`https://instagram.com/${organization.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer"><Instagram className="w-5 h-5" /></a>
