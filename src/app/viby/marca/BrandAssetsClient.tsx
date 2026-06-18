@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -34,7 +33,8 @@ import {
   BadgeCheck,
   Star,
   Info,
-  Inbox
+  Inbox,
+  Building2
 } from "lucide-react"
 import { 
   Dialog, 
@@ -58,6 +58,7 @@ import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useAdminPermissions } from "@/hooks/use-admin-permissions"
+import Image from "next/image"
 
 const CATEGORIES = [
   { value: 'logos', label: 'Logos', icon: ImageIcon },
@@ -66,14 +67,14 @@ const CATEGORIES = [
   { value: 'others', label: 'Outros Arquivos', icon: FileText }
 ];
 
-import { Building2 } from "lucide-react";
+const VIBY_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 export default function BrandAssetsClient() {
   const db = useFirestore();
   const auth = useAuth();
   const storage = useStorage();
   const { user } = useUser(auth);
-  const { adminProfile, loading: permsLoading } = useAdminPermissions();
+  const { adminProfile } = useAdminPermissions();
 
   const isAdmin = adminProfile !== null;
 
@@ -206,8 +207,16 @@ export default function BrandAssetsClient() {
             <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/vibymedia/1920/1080')] bg-cover bg-center grayscale" />
          </div>
          <div className="relative z-10 p-10 md:p-20 flex flex-col md:flex-row items-center gap-12">
-            <div className="w-32 h-32 md:w-44 md:h-44 bg-white rounded-[2.5rem] flex items-center justify-center shadow-2xl p-6 shrink-0">
-               <span className="text-primary font-black text-6xl md:text-8xl italic">V</span>
+            <div className="w-32 h-32 md:w-44 md:h-44 bg-white rounded-[2.5rem] flex items-center justify-center shadow-2xl p-4 shrink-0 overflow-hidden">
+               <Image 
+                 src={VIBY_LOGO} 
+                 alt="Viby Logo" 
+                 width={140} 
+                 height={60} 
+                 className="w-full h-auto object-contain" 
+                 priority 
+                 unoptimized 
+               />
             </div>
             <div className="flex-1 text-center md:text-left space-y-6">
                <div className="space-y-2">
