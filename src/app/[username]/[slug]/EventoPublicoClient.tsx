@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,7 +20,9 @@ import {
   Users,
   ShieldAlert,
   Clock,
-  Navigation
+  Navigation,
+  ChevronRight,
+  ChevronDown
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -35,8 +38,16 @@ import { RichText } from "@/components/ui/rich-text"
 import { toast } from "@/hooks/use-toast"
 import dynamic from "next/dynamic"
 import { format, startOfToday, addDays } from "date-fns"
+import { ptBR } from "date-fns/locale"
 import { EventActionModal } from "@/components/events/EventActionModal"
 import { formatFullAddress } from "@/lib/location-utils"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
@@ -59,6 +70,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = React.useState(false)
   const [now, setNow] = React.useState<Date | null>(null)
+  const [selectedOccurrenceId, setSelectedOccurrenceId] = React.useState<string | null>(null)
 
   // Atualiza o relógio a cada minuto para manter sincronia de visibilidade
   React.useEffect(() => {
@@ -107,19 +119,29 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
       .sort((a: any, b: any) => a._dt.getTime() - b._dt.getTime());
   }, [rawOccurrences, now]);
 
+  // Sincroniza seleção inicial da ocorrência
+  React.useEffect(() => {
+    if (upcomingOccurrences.length > 0 && !selectedOccurrenceId) {
+      setSelectedOccurrenceId(upcomingOccurrences[0].id);
+    }
+  }, [upcomingOccurrences, selectedOccurrenceId]);
+
   const effectiveEventData = React.useMemo(() => {
     if (!event) return null;
     if (!event.isRecurring || upcomingOccurrences.length === 0) return event;
 
-    const nextOcc = upcomingOccurrences[0];
-    const nextDateStr = nextOcc.date + 'T' + (nextOcc.startTime || '19:00') + ':00';
+    const selectedOcc = upcomingOccurrences.find(o => o.id === selectedOccurrenceId) || upcomingOccurrences[0];
+    const dateStr = selectedOcc.date + 'T' + (selectedOcc.startTime || '19:00') + ':00';
     
     return {
       ...event,
-      date: nextDateStr,
+      date: dateStr,
+      occurrenceId: selectedOcc.id,
+      ingressosVendidos: selectedOcc.ingressosVendidos || 0,
+      capacidadeTotal: selectedOcc.capacidadeMaxima || event.capacidadeTotal,
       _isAutoUpdated: true
     };
-  }, [event, upcomingOccurrences]);
+  }, [event, upcomingOccurrences, selectedOccurrenceId]);
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
@@ -141,7 +163,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     } catch (e) { return ""; }
   };
 
-  // UI Components
   const content = React.useMemo(() => {
     if (eventLoading) {
       return (
@@ -184,11 +205,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
     const locationQuery = encodeURIComponent(addressLines.join(' '));
 
-    // CORREÇÃO: Resolução consistente de coordenadas para o mapa
     const lat = event.latitude !== undefined && event.latitude !== null ? event.latitude : (event.address?.latitude !== undefined ? event.address.latitude : -23.55052);
     const lng = event.longitude !== undefined && event.longitude !== null ? event.longitude : (event.address?.longitude !== undefined ? event.address.longitude : -46.633308);
-
-    console.log("[Viby-Audit] Renderizando Mapa Público:", { id: event.id, lat, lng });
 
     return (
       <div className="animate-in fade-in duration-700">
@@ -217,6 +235,39 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
         <div className="container mx-auto px-4 py-12 max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
           <div className="lg:col-span-8 space-y-12">
+            
+            {/* Seletor de Sessões (Exibido apenas se houver múltiplas ocorrências) */}
+            {event.isRecurring && upcomingOccurrences.length > 1 && (
+               <section className="space-y-6">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-secondary" /> Escolha sua Sessão
+                  </h3>
+                  <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden p-8">
+                     <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
+                        <Select value={selectedOccurrenceId || ""} onValueChange={setSelectedOccurrenceId}>
+                           <SelectTrigger className="h-14 rounded-2xl border-dashed border-secondary/30 font-bold text-lg px-6 uppercase italic text-primary">
+                              <SelectValue placeholder="Selecione a data e horário" />
+                           </SelectTrigger>
+                           <SelectContent className="rounded-2xl max-h-[300px]">
+                              {upcomingOccurrences.map((occ) => (
+                                 <SelectItem key={occ.id} value={occ.id} className="cursor-pointer py-3 border-b last:border-0 border-dashed">
+                                    <div className="flex items-center gap-4">
+                                       <Calendar className="w-4 h-4 text-secondary" />
+                                       <span className="font-bold text-sm">
+                                          {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', weekday: 'short' })}
+                                          <span className="mx-2 opacity-30">|</span>
+                                          {occ.startTime} às {occ.endTime}
+                                       </span>
+                                    </div>
+                                 </SelectItem>
+                              ))}
+                           </SelectContent>
+                        </Select>
+                     </div>
+                  </Card>
+               </section>
+            )}
+
             <section className="space-y-6">
                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Sobre a Experiência</h3>
                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
@@ -231,7 +282,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <Card className="border-none shadow-sm rounded-3xl bg-white p-6 flex items-center gap-4">
                   <div className="p-3 bg-secondary/5 rounded-2xl text-secondary"><Calendar className="w-6 h-6" /></div>
-                  <div><p className="text-[9px] font-black uppercase text-muted-foreground">Data</p><p className="font-bold text-sm text-primary uppercase">{start.date}</p></div>
+                  <div><p className="text-[9px] font-black uppercase text-muted-foreground">Data Selecionada</p><p className="font-bold text-sm text-primary uppercase">{start.date}</p></div>
                </Card>
                <Card className="border-none shadow-sm rounded-3xl bg-white p-6 flex items-center gap-4">
                   <div className="p-3 bg-secondary/5 rounded-2xl text-secondary"><Clock className="w-6 h-6" /></div>
@@ -309,7 +360,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
         </div>
       </div>
     );
-  }, [event, eventLoading, effectiveEventData, org, globalFees, promotions, id, username, isShareModalOpen, isActionModalOpen]);
+  }, [event, eventLoading, effectiveEventData, org, globalFees, promotions, id, username, isShareModalOpen, isActionModalOpen, upcomingOccurrences, selectedOccurrenceId]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">

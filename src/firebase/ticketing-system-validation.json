@@ -1,0 +1,26 @@
+
+{
+  "audit_version": "1.2.0",
+  "subject": "Validação de Múltiplas Sessões e Horários no Mesmo Dia",
+  "status": "VALIDATED_AND_IMPLEMENTED",
+  "findings": {
+    "creation_support": {
+      "status": "SUPPORTED",
+      "mechanism": "O componente EventRecurrence.tsx permite a adição manual de múltiplas CustomOccurrences com horários de início e fim independentes, mesmo para a mesma data calendária.",
+      "data_structure": "recurring_occurrences { parentId, date, startTime, endTime }"
+    },
+    "selection_capability": {
+      "status": "IMPROVED",
+      "before": "A UI pública auto-resolvia apenas a primeira ocorrência futura, ignorando outras opções no mesmo dia ou dias posteriores.",
+      "after": "Implementado seletor reativo (Select) em EventoPublicoClient.tsx que lista todas as sessões disponíveis. O usuário agora seleciona explicitamente a sessão antes de ver a bilheteria."
+    },
+    "inventory_segregation": {
+      "status": "ACTIVE",
+      "detail": "A disponibilidade (Sold Out) agora é calculada por occurrenceId, permitindo que uma matinê esgote sem afetar a sessão noturna do mesmo dia."
+    }
+  },
+  "business_rules_enforcement": {
+    "mandatory_selection": "Se um evento possuir múltiplas sessões, o checkout é bloqueado até que uma ocorrência válida seja selecionada no componente pai.",
+    "same_day_different_time": "O sistema agora diferencia sessões por 'ID de Ocorrência' em vez de apenas data, suportando festivais com múltiplos palcos ou horários no mesmo dia."
+  }
+}

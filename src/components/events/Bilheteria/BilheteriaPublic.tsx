@@ -20,7 +20,8 @@ import {
   Phone,
   Mail,
   Tag,
-  Loader2
+  Loader2,
+  Users
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { calculateVibyOfficialSplit } from "@/lib/financial-utils"
@@ -61,8 +62,10 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                       event.curatorProfile === 'viby' || 
                       (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
 
+  // Lógica de esgotamento baseada na ocorrência atual
+  const isSoldOut = !isCuradoria && event.capacidadeTotal > 0 && (event.ingressosVendidos || 0) >= event.capacidadeTotal;
+
   const handleUpdateQty = (typeName: string, val: number, isFree: boolean) => {
-    // REGRA: Ingressos gratuitos permitem apenas 1 unidade
     if (isFree && val > 1) {
       toast({ title: "Limite atingido", description: "Máximo de 1 unidade para ingressos gratuitos." });
       return;
@@ -164,87 +167,25 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     }
   }
 
-  // FLOW: Curadoria Viby (Exclusivamente Informativo)
-  if (isCuradoria) {
+  if (isSoldOut) {
     return (
-      <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Informações do Evento</h2>
-          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">
-            Conteúdo curado pela plataforma.
-          </p>
+      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center space-y-6">
+        <div className="w-16 h-16 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto">
+          <Users className="w-8 h-8" />
         </div>
-
-        <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-          <CardContent className="p-10 space-y-10">
-            {event.startingPrice !== undefined || event.disclosurePrices?.length > 0 ? (
-              <div className="space-y-8">
-                {event.startingPrice !== undefined && (
-                   <div className="space-y-3">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                        <Tag className="w-4 h-4 text-secondary" /> Valor de Referência
-                      </h3>
-                      <div className="p-6 bg-muted/20 rounded-3xl border-2 border-dashed border-border flex items-center justify-between">
-                         <div>
-                            <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Valores a partir de</p>
-                            <p className="text-3xl font-black text-primary italic tracking-tighter">
-                               {event.startingPrice === 0 ? "Evento gratuito" : formatPriceWithOriginal(event.startingPrice, eventCurrency)}
-                            </p>
-                         </div>
-                         <div className="p-4 bg-white rounded-2xl shadow-sm text-secondary">
-                            <Coins className="w-8 h-8" />
-                         </div>
-                      </div>
-                   </div>
-                )}
-
-                {event.disclosurePrices?.length > 0 && (
-                  <div className="space-y-6">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-secondary" /> Agenda de Preços
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {event.disclosurePrices.map((p: any, i: number) => (
-                        <div key={i} className="p-5 bg-muted/20 rounded-2xl border border-dashed flex justify-between items-center">
-                          <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Até {p.untilTime}</p>
-                            <p className="text-lg font-black text-primary">{formatPriceWithOriginal(p.price, eventCurrency)}</p>
-                          </div>
-                          <Clock className="w-5 h-5 text-secondary opacity-20" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-8 bg-muted/20 rounded-3xl border-2 border-dashed border-border/50 flex flex-col items-center text-center gap-2">
-                <Zap className="w-8 h-8 text-secondary opacity-40" />
-                <p className="text-xl font-black uppercase italic text-primary">Evento gratuito</p>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              {isExterno && event.externalUrl && (
-                <Button asChild className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-base hover:scale-102 transition-transform">
-                  <a href={event.externalUrl} target="_blank" rel="noopener noreferrer">
-                    Acessar Ingressos Oficiais <ExternalLink className="ml-2 w-5 h-5" />
-                  </a>
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+        <div className="space-y-1">
+          <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Esgotado</h2>
+          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">A lotação máxima para esta sessão foi atingida.</p>
+        </div>
+      </Card>
     );
   }
 
-  // FLOW: Divulgação ou Venda Externa (Padrão Viby)
   if (isDivulgacao || isExterno) {
     return (
       <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
          <div className="flex flex-col gap-2">
-            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Informações de Acesso</h2>
+            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Acesso e Reserva</h2>
             <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">
               {isExterno ? "Venda realizada em site parceiro." : "Evento com cobrança no local ou entrada franca."}
             </p>
@@ -276,7 +217,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                     {event.disclosurePrices?.length > 0 && (
                       <div className="space-y-6">
                         <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                           <Clock className="w-4 h-4 text-secondary" /> Cronograma por Horário
+                           <Clock className="w-4 h-4 text-secondary" /> Cronograma de Preços
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                            {event.disclosurePrices.map((p: any, i: number) => (
@@ -297,7 +238,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                     <Zap className="w-10 h-10 text-green-500" />
                     <div className="space-y-1">
                        <p className="text-xl font-black uppercase italic text-green-700">Entrada Gratuita</p>
-                       <p className="text-[10px] font-bold text-green-600 uppercase">Não há cobrança de ingressos para este acesso.</p>
+                       <p className="text-[10px] font-bold text-green-600 uppercase">Não há cobrança de ingressos antecipados.</p>
                     </div>
                  </div>
                )}
@@ -320,19 +261,8 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                     )}
                   >
                      {isRegisteringInterest ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : hasRegistered ? <CheckCircle2 className="w-6 h-6 mr-2" /> : <Heart className="w-5 h-5 mr-2" />}
-                     {hasRegistered ? "Presença Confirmada" : "Vou nesta data"}
+                     {hasRegistered ? "Inscrição Confirmada" : "Garantir minha vaga"}
                   </Button>
-               </div>
-
-               <div className="p-5 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-4">
-                  <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed">
-                      {isExterno 
-                        ? "Você será redirecionado para um ambiente externo. A Viby não se responsabiliza por transações fora do nosso checkout oficial." 
-                        : "Ao confirmar que 'Vai nesta data', você entra para a lista de presença do organizador e recebe lembretes sobre o evento."}
-                    </p>
-                  </div>
                </div>
             </CardContent>
          </Card>
@@ -340,7 +270,6 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     );
   }
 
-  // FLOW: Venda Interna (Viby Checkout)
   const ticketTypeGroups = React.useMemo(() => {
     const groups: Record<string, any[]> = {};
     event.batches?.forEach((b: any) => b.ticketTypes?.forEach((t: any) => {
@@ -367,19 +296,19 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
            const isFree = displayInstance.price === 0;
 
            return (
-             <Card key={typeName} className={cn("border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden", status === 'esgotado' && "opacity-60 grayscale")}>
+             <Card key={typeName} className={cn("border-none shadow-sm rounded-[2rem] bg-white overflow-hidden", status === 'esgotado' && "opacity-60 grayscale")}>
                 <CardContent className="p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
                    <div className="space-y-1">
                       <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">{typeName}</h3>
                       <div className="flex items-center gap-2">
                         {status === 'ativo' && <Badge className="bg-secondary text-white border-none text-[8px] font-black uppercase">{displayInstance.batch.name}</Badge>}
-                        {isFree && <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary text-secondary">Máx. 1 p/ pessoa</Badge>}
+                        {isFree && <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary text-secondary">Limite: 1 unidade</Badge>}
                       </div>
                    </div>
                    <div className="flex items-center gap-6">
                       <div className="text-right">
                          {formatPriceWithOriginal(displayInstance.price, eventCurrency)}
-                         {displayInstance.price > 0 && <p className="text-[8px] font-black text-muted-foreground uppercase opacity-50">+ taxas de serviço</p>}
+                         {displayInstance.price > 0 && <p className="text-[8px] font-black text-muted-foreground uppercase opacity-50">+ taxas</p>}
                       </div>
                       <div className="flex items-center gap-3 bg-muted/40 p-2 rounded-2xl border">
                          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleUpdateQty(typeName, qty - 1, isFree)} disabled={status !== 'ativo'}><Minus className="w-3.5 h-3.5" /></Button>
@@ -387,7 +316,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleUpdateQty(typeName, qty + 1, isFree)} disabled={status !== 'ativo' || (isFree && qty >= 1)}><Plus className="w-3.5 h-3.5" /></Button>
                       </div>
                       <Button onClick={() => handleAddToCart(qty, typeName)} disabled={qty <= 0 || status !== 'ativo'} className="h-14 px-8 rounded-2xl font-black uppercase italic shadow-lg">
-                         <ShoppingCart className="w-5 h-5 mr-2" /> Garantir
+                         <ShoppingCart className="w-5 h-5 mr-2" /> {isFree ? "Resgatar" : "Comprar"}
                       </Button>
                    </div>
                 </CardContent>
@@ -398,4 +327,3 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     </section>
   )
 }
-
