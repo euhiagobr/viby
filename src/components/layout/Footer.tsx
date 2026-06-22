@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -57,7 +56,6 @@ export default function Footer() {
       links: [
         { label: "Explorar", href: "/dashboard" },
         { label: "Copa do Mundo", href: "/copa-do-mundo" },
-        { label: "Ganhe Dinheiro", href: "/ganhe-dinheiro" },
         { label: "Anunciar Evento", href: "/anunciar" }
       ]
     },
@@ -122,11 +120,6 @@ export default function Footer() {
                <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-[#ffdf00] text-[#002776] bg-[#ffdf00]/5 hover:bg-[#ffdf00]/10 transition-all w-fit">
                   <Link href="/copa-do-mundo">
                      <Trophy className="w-4 h-4" /> Especial Copa 2026
-                  </Link>
-               </Button>
-               <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary hover:text-white transition-all shadow-sm w-fit">
-                  <Link href="/ganhe-dinheiro">
-                     <Handshake className="w-4 h-4" /> Ganhe Dinheiro com a Viby
                   </Link>
                </Button>
             </div>
