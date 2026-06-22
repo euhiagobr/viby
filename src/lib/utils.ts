@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { addDays, addWeeks, addMonths, addYears } from 'date-fns';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -90,6 +91,64 @@ export function normalizeEventDates(startDateStr: string, endDateStr: string): {
     endDate: end.toISOString(), 
     isValid: true 
   };
+}
+
+/**
+ * Gera um array de datas para eventos recorrentes.
+ */
+export function generateRecurrenceDates(recurrency: any) {
+  if (!recurrency || !recurrency.freq) return [];
+  
+  const dates: { startDate: Date; endDate: Date }[] = [];
+  const start = safeParseDate(recurrency.startDate);
+  const until = safeParseDate(recurrency.until);
+  
+  if (!start) return [];
+
+  let current = new Date(start);
+  const max = 150;
+  let count = 0;
+
+  // Calcular duração baseada no primeiro evento para replicar nas ocorrências
+  const baseStart = safeParseDate(recurrency.startDate)?.getTime() || 0;
+  const baseEnd = safeParseDate(recurrency.endDate)?.getTime() || (baseStart + 4 * 60 * 60 * 1000);
+  const duration = baseEnd - baseStart;
+
+  // Caso especial: Personalizada
+  if (recurrency.freq === 'custom' && recurrency.customOccurrences) {
+    return recurrency.customOccurrences.map((occ: any) => {
+      const d = safeParseDate(occ.date);
+      if (!d) return null;
+      
+      const s = safeParseDate(`${occ.date}T${occ.startTime || '00:00'}`);
+      const e = safeParseDate(`${occ.date}T${occ.endTime || '23:59'}`);
+      
+      return { startDate: s, endDate: e };
+    }).filter((d: any) => d !== null && d.startDate !== null);
+  }
+
+  // Recorrência automática
+  while (count < max) {
+    if (until && current > until) break;
+
+    const occurrenceEnd = new Date(current.getTime() + duration);
+
+    dates.push({ 
+      startDate: new Date(current), 
+      endDate: occurrenceEnd 
+    });
+
+    if (recurrency.freq === 'daily') current = addDays(current, 1);
+    else if (recurrency.freq === 'weekly') current = addWeeks(current, 1);
+    else if (recurrency.freq === 'biweekly') current = addWeeks(current, 2);
+    else if (recurrency.freq === 'monthly') current = addMonths(current, 1);
+    else if (recurrency.freq === 'yearly') current = addYears(current, 1);
+    else break;
+
+    count++;
+  }
+
+  return dates;
 }
 
 export function validateCPF(cpf: string): boolean {

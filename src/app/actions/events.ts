@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -112,8 +111,15 @@ async function manageEventOccurrences(db: admin.firestore.Firestore, eventId: st
   const oldOccurrencesSnap = await db.collection('recurring_occurrences').where('eventId', '==', eventId).get();
   oldOccurrencesSnap.docs.forEach(doc => batch.delete(doc.ref));
 
+  // Injetar datas base para a geração de ocorrências
+  const recParams = {
+    ...eventData.recurrency,
+    startDate: eventData.startDate,
+    endDate: eventData.endDate
+  };
+
   // 2. Gerar novas datas de ocorrência
-  const recurrenceDates = generateRecurrenceDates(eventData.recurrency);
+  const recurrenceDates = generateRecurrenceDates(recParams);
 
   // 3. Preparar a estrutura de lotes que servirá como template
   const batchTemplate = (eventData.batches || []).flatMap((batchGroup: any) => 
@@ -135,21 +141,19 @@ async function manageEventOccurrences(db: admin.firestore.Firestore, eventId: st
 
     batch.set(occurrenceRef, {
       eventId: eventId,
+      parentId: eventId,
       organizationId: organizationId,
       start_date: admin.firestore.Timestamp.fromDate(date.startDate),
       end_date: admin.firestore.Timestamp.fromDate(date.endDate),
-      capacity: capacity,
-      sales: {
-        totalSold: 0,
-        totalValue: 0,
-      },
+      date: date.startDate.toISOString().split('T')[0],
+      startTime: date.startDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      endTime: date.endDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      status: 'active',
+      capacidadeMaxima: capacity,
+      ingressosVendidos: 0,
       batches: batchTemplate,
     });
   });
-
-  // Remove os lotes e capacidade do evento principal, pois agora são gerenciados por sessão
-  delete eventData.batches;
-  delete eventData.capacity;
 }
 
 export async function createEventAction(params: {
@@ -166,14 +170,14 @@ export async function createEventAction(params: {
     if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
 
     const isRecurring = eventData.recurrency && eventData.recurrency.freq;
-    const occurrences: any[] = []; // Este array será populado em manageEventOccurrences se necessário
+    const occurrences: any[] = [];
 
     await validateStripeAccount(db, orgId, eventData, occurrences);
 
     const slug = await generateUniqueSlug(db, eventData.title);
     const eventRef = db.collection('events').doc();
     
-    await manageEventOccurrences(db, eventRef.id, orgId, eventData, batch);
+    await manageEventOccurrences(db, eventRef.id, orgId, { ...eventData, startDate: dateNormalization.startDate, endDate: dateNormalization.endDate }, batch);
     
     const startDate = new Date(dateNormalization.startDate);
     const endDate = new Date(dateNormalization.endDate);
@@ -191,7 +195,7 @@ export async function createEventAction(params: {
     const finalData = {
       ...eventData,
       id: eventRef.id,
-      isRecurring: !!isRecurring, // Adiciona o flag
+      isRecurring: !!isRecurring,
       slug,
       citySlug,
       stateSlug,
@@ -219,7 +223,6 @@ export async function createEventAction(params: {
     triggerCityCoverGeneration(finalData);
 
     revalidatePath('/');
-    revalidatePath(`/o-que-fazer-em/${regionSlug}/${citySlug}`);
     
     return { success: true, id: eventRef.id, slug, username: orgData?.username };
   } catch (e: any) {
@@ -249,7 +252,7 @@ export async function updateEventAction(params: {
     const eventSnap = await eventRef.get();
     if (!eventSnap.exists) throw new Error("Evento não localizado.");
     
-    await manageEventOccurrences(db, eventId, orgId, eventData, batch);
+    await manageEventOccurrences(db, eventId, orgId, { ...eventData, startDate: dateNormalization.startDate, endDate: dateNormalization.endDate }, batch);
 
     const oldData = eventSnap.data()!;
     const oldRegionSlug = oldData.regionSlug;
@@ -289,19 +292,12 @@ export async function updateEventAction(params: {
     triggerCityCoverGeneration(updatePayload);
 
     revalidatePath('/');
-    revalidatePath(`/o-que-fazer-em/${regionSlug}/${citySlug}`);
-    if (oldRegionSlug !== regionSlug || oldCitySlug !== citySlug) {
-      revalidatePath(`/o-que-fazer-em/${oldRegionSlug}/${oldCitySlug}`);
-    }
 
     return { success: true, slug, username: oldData.organizer?.username };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
 }
-
-
-// Manter as funções abaixo inalteradas, pois não são diretamente afetadas pela mudança na bilheteria
 
 export async function updateEventSlugAction(params: {
   eventId: string;
