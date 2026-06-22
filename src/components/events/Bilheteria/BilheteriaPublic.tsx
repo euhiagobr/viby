@@ -81,42 +81,6 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
     return groups;
   }, [activeBatches]);
 
-  // Agora podemos prosseguir com os retornos condicionais com segurança
-  if (occurrenceLoading) {
-    return (
-      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center flex flex-col items-center gap-4">
-        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Sincronizando Bilheteria...</p>
-      </Card>
-    );
-  }
-
-  if (isSoldOut) {
-    return (
-      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center space-y-6">
-        <div className="w-16 h-16 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto">
-          <Users className="w-8 h-8" />
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Esgotado</h2>
-          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">A lotação máxima para esta sessão foi atingida.</p>
-        </div>
-      </Card>
-    );
-  }
-
-  if (event.isRecurring && !activeOccurrenceId) {
-     return (
-       <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center space-y-4">
-          <Clock className="w-12 h-12 text-secondary/30 mx-auto" />
-          <div className="space-y-1">
-             <p className="text-sm font-black uppercase italic text-primary">Selecione uma sessão</p>
-             <p className="text-[10px] font-bold text-muted-foreground uppercase">Escolha o dia e horário acima para ver a disponibilidade de ingressos.</p>
-          </div>
-       </Card>
-     )
-  }
-
   const handleUpdateQty = (typeName: string, val: number, isFree: boolean) => {
     if (isFree && val > 1) {
       toast({ title: "Limite atingido", description: "Máximo de 1 unidade para ingressos gratuitos." });
@@ -236,6 +200,42 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
     }
   }
 
+  // Agora podemos prosseguir com os retornos condicionais com segurança
+  if (occurrenceLoading) {
+    return (
+      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center flex flex-col items-center gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Sincronizando Bilheteria...</p>
+      </Card>
+    );
+  }
+
+  if (isSoldOut) {
+    return (
+      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center space-y-6">
+        <div className="w-16 h-16 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto">
+          <Users className="w-8 h-8" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Esgotado</h2>
+          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">A lotação máxima para esta sessão foi atingida.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (event.isRecurring && !activeOccurrenceId) {
+     return (
+       <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center space-y-4">
+          <Clock className="w-12 h-12 text-secondary/30 mx-auto" />
+          <div className="space-y-1">
+             <p className="text-sm font-black uppercase italic text-primary">Selecione uma sessão</p>
+             <p className="text-[10px] font-bold text-muted-foreground uppercase">Escolha o dia e horário acima para ver a disponibilidade de ingressos.</p>
+          </div>
+       </Card>
+     )
+  }
+
   if (isDivulgacao || isExterno) {
     return (
       <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
@@ -247,7 +247,7 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
          </div>
 
          <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-            <CardContent className="p-10 space-y-10">
+            <CardContent className="p-6 md:p-10 space-y-10">
                {event.startingPrice !== undefined || event.disclosurePrices?.length > 0 ? (
                  <div className="space-y-10">
                     {event.startingPrice !== undefined && (
@@ -258,7 +258,7 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
                           <div className="p-6 bg-muted/20 rounded-3xl border-2 border-dashed border-border flex items-center justify-between">
                              <div>
                                 <p className="text-[10px] font-black uppercase text-muted-foreground opacity-50">Valores a partir de</p>
-                                <p className="text-3xl font-black text-primary italic tracking-tighter">
+                                <p className="text-2xl md:text-3xl font-black text-primary italic tracking-tighter">
                                    {event.startingPrice === 0 ? "Evento gratuito" : formatPriceWithOriginal(event.startingPrice, eventCurrency)}
                                 </p>
                              </div>
@@ -348,25 +348,29 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
 
            return (
              <Card key={typeName} className={cn("border-none shadow-sm rounded-[2rem] bg-white overflow-hidden", status === 'esgotado' && "opacity-60 grayscale")}>
-                <CardContent className="p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-                   <div className="space-y-1">
-                      <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">{typeName}</h3>
-                      <div className="flex items-center gap-2">
-                        {status === 'ativo' && <Badge className="bg-secondary text-white border-none text-[8px] font-black uppercase">{displayInstance.batch.name}</Badge>}
-                        {isFree && <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary text-secondary">Limite: 1 unidade</Badge>}
+                <CardContent className="p-5 md:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6 md:gap-8">
+                   <div className="space-y-1 min-w-0">
+                      <h3 className="text-xl sm:text-2xl font-black uppercase italic tracking-tighter text-primary truncate">{typeName}</h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {status === 'ativo' && <Badge className="bg-secondary text-white border-none text-[8px] font-black uppercase whitespace-nowrap">{displayInstance.batch.name}</Badge>}
+                        {isFree && <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary text-secondary whitespace-nowrap">Limite: 1 unidade</Badge>}
                       </div>
                    </div>
-                   <div className="flex items-center gap-6">
-                      <div className="text-right">
+                   <div className="flex items-center justify-between lg:justify-end gap-4 sm:gap-6 flex-wrap md:flex-nowrap">
+                      <div className="text-right shrink-0">
                          {formatPriceWithOriginal(displayInstance.price, eventCurrency)}
                          {displayInstance.price > 0 && <p className="text-[8px] font-black text-muted-foreground uppercase opacity-50">+ taxas</p>}
                       </div>
-                      <div className="flex items-center gap-3 bg-muted/40 p-2 rounded-2xl border">
-                         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleUpdateQty(typeName, qty - 1, isFree)} disabled={status !== 'ativo'}><Minus className="w-3.5 h-3.5" /></Button>
-                         <span className="font-black text-base w-6 text-center">{qty}</span>
-                         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleUpdateQty(typeName, qty + 1, isFree)} disabled={status !== 'ativo' || (isFree && qty >= 1)}><Plus className="w-3.5 h-3.5" /></Button>
+                      <div className="flex items-center gap-2 sm:gap-3 bg-muted/40 p-1.5 sm:p-2 rounded-2xl border shrink-0">
+                         <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={() => handleUpdateQty(typeName, qty - 1, isFree)} disabled={status !== 'ativo'}><Minus className="w-3.5 h-3.5" /></Button>
+                         <span className="font-black text-sm sm:text-base w-6 text-center">{qty}</span>
+                         <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9" onClick={() => handleUpdateQty(typeName, qty + 1, isFree)} disabled={status !== 'ativo' || (isFree && qty >= 1)}><Plus className="w-3.5 h-3.5" /></Button>
                       </div>
-                      <Button onClick={() => handleAddToCart(qty, typeName)} disabled={qty <= 0 || status !== 'ativo'} className="h-14 px-8 rounded-2xl font-black uppercase italic shadow-lg">
+                      <Button 
+                        onClick={() => handleAddToCart(qty, typeName)} 
+                        disabled={qty <= 0 || status !== 'ativo'} 
+                        className="flex-1 lg:flex-none h-14 px-4 sm:px-8 rounded-2xl font-black uppercase italic shadow-lg whitespace-nowrap"
+                      >
                          <ShoppingCart className="w-5 h-5 mr-2" /> {isFree ? "Resgatar" : "Comprar"}
                       </Button>
                    </div>
