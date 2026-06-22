@@ -39,11 +39,13 @@ export interface RecurringEventInput {
 
 /**
  * Gera ocorrências físicas no Firestore com suporte a ordenação e filtros temporais.
+ * Os campos start_date e end_date são salvos como Timestamps para garantir precisão nas consultas.
  */
 export async function generateOccurrences(parentId: string, input: RecurringEventInput) {
   const db = getAdminDb();
   
   try {
+    // 1. Limpar agenda antiga para evitar conflitos de data
     const oldOccsSnap = await db.collection('recurring_occurrences').where('parentId', '==', parentId).get();
     if (!oldOccsSnap.empty) {
       const deleteBatch = db.batch();
@@ -66,8 +68,9 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
 
     for (const occ of finalOccs) {
       const occRef = occurrencesRef.doc();
-      const sDate = parseISO(`${occ.date}T${occ.startTime || '00:00'}`);
-      const eDate = parseISO(`${occ.date}T${occ.endTime || '23:59'}`);
+      // sDate e eDate garantem o objeto de data completo para o Timestamp
+      const sDate = new Date(`${occ.date}T${occ.startTime || '00:00'}:00`);
+      const eDate = new Date(`${occ.date}T${occ.endTime || '23:59'}:00`);
 
       batch.set(occRef, {
         parentId,
@@ -106,8 +109,9 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
       
       const sTime = input.startTime || "19:00";
       const eTime = input.endTime || "22:00";
-      const sDate = parseISO(`${dateStr}T${sTime}`);
-      const eDate = parseISO(`${dateStr}T${eTime}`);
+      
+      const sDate = new Date(`${dateStr}T${sTime}:00`);
+      const eDate = new Date(`${dateStr}T${eTime}:00`);
 
       batch.set(occRef, {
         parentId,
