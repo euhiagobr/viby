@@ -45,7 +45,7 @@ import {
   EventRecurrence
 } from "@/components/events"
 import { getAgeRatingConfig } from "@/lib/age-rating"
-import { useCurrency, CurrencyCode } from "@/contexts/CurrencyCode"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { updateEventAction } from "@/app/actions/events"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { Separator } from "@/components/ui/separator"

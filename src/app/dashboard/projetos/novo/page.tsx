@@ -80,7 +80,7 @@ export default function NovoEventoWizard() {
 
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [uploadProgress, setUploadProgress] = setUploadProgress = useState<number | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
     title: "",
