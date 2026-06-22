@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -51,7 +50,7 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
 
   const [quantities, setQuantities] = React.useState<Record<string, number>>({})
   const [isRegisteringInterest, setIsRegisteringInterest] = React.useState(false)
-  const [hasRegistered, setHasRegistered] = React.useState(false)
+  const [bottomHasRegistered, setHasRegistered] = React.useState(false)
 
   const eventCurrency = (event.currency || 'BRL') as CurrencyCode;
   const isDivulgacao = event.type === 'divulgacao';
@@ -60,20 +59,63 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
                       event.curatorProfile === 'viby' || 
                       (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
 
-  // Prioriza lotes da ocorrência (sessão) se houver
   const activeBatches = occurrence?.batches && occurrence.batches.length > 0 ? occurrence.batches : (event.batches || []);
   const activeOccurrenceId = occurrence?.id || null;
 
-  // Lógica de esgotamento baseada na ocorrência atual ou global do evento
   const soldCount = occurrence ? (occurrence.ingressosVendidos || 0) : (event.ingressosVendidos || 0);
   const capacityTotal = occurrence ? (occurrence.capacidadeMaxima || 0) : (event.capacidadeTotal || 0);
   const isSoldOut = !isCuradoria && capacityTotal > 0 && soldCount >= capacityTotal;
 
-  // Reseta as quantidades quando a ocorrência muda
+  // Hooks de efeito e memo devem vir antes de qualquer return
   React.useEffect(() => {
     setQuantities({});
     setHasRegistered(false);
   }, [activeOccurrenceId]);
+
+  const ticketTypeGroups = React.useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    activeBatches.forEach((b: any) => b.ticketTypes?.forEach((t: any) => {
+      if (!groups[t.name]) groups[t.name] = [];
+      groups[t.name].push({ ...t, batch: b });
+    }));
+    return groups;
+  }, [activeBatches]);
+
+  // Agora podemos prosseguir com os retornos condicionais com segurança
+  if (occurrenceLoading) {
+    return (
+      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center flex flex-col items-center gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Sincronizando Bilheteria...</p>
+      </Card>
+    );
+  }
+
+  if (isSoldOut) {
+    return (
+      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center space-y-6">
+        <div className="w-16 h-16 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto">
+          <Users className="w-8 h-8" />
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Esgotado</h2>
+          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">A lotação máxima para esta sessão foi atingida.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  if (event.isRecurring && !activeOccurrenceId) {
+     return (
+       <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center space-y-4">
+          <Clock className="w-12 h-12 text-secondary/30 mx-auto" />
+          <div className="space-y-1">
+             <p className="text-sm font-black uppercase italic text-primary">Selecione uma sessão</p>
+             <p className="text-[10px] font-bold text-muted-foreground uppercase">Escolha o dia e horário acima para ver a disponibilidade de ingressos.</p>
+          </div>
+       </Card>
+     )
+  }
 
   const handleUpdateQty = (typeName: string, val: number, isFree: boolean) => {
     if (isFree && val > 1) {
@@ -194,41 +236,6 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
     }
   }
 
-  if (occurrenceLoading) {
-    return (
-      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center flex flex-col items-center gap-4">
-        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Sincronizando Bilheteria...</p>
-      </Card>
-    );
-  }
-
-  if (isSoldOut) {
-    return (
-      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center space-y-6">
-        <div className="w-16 h-16 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto">
-          <Users className="w-8 h-8" />
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Esgotado</h2>
-          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">A lotação máxima para esta sessão foi atingida.</p>
-        </div>
-      </Card>
-    );
-  }
-
-  if (event.isRecurring && !activeOccurrenceId) {
-     return (
-       <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center space-y-4">
-          <Clock className="w-12 h-12 text-secondary/30 mx-auto" />
-          <div className="space-y-1">
-             <p className="text-sm font-black uppercase italic text-primary">Selecione uma sessão</p>
-             <p className="text-[10px] font-bold text-muted-foreground uppercase">Escolha o dia e horário acima para ver a disponibilidade de ingressos.</p>
-          </div>
-       </Card>
-     )
-  }
-
   if (isDivulgacao || isExterno) {
     return (
       <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
@@ -302,14 +309,14 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
                   
                   <Button 
                     onClick={handleRegisterInterest}
-                    disabled={hasRegistered || isRegisteringInterest}
+                    disabled={bottomHasRegistered || isRegisteringInterest}
                     className={cn(
                       "flex-1 h-16 font-black rounded-2xl shadow-xl uppercase italic text-base transition-all",
-                      hasRegistered ? "bg-green-600 text-white" : "bg-secondary text-white hover:scale-102 shadow-secondary/20"
+                      bottomHasRegistered ? "bg-green-600 text-white" : "bg-secondary text-white hover:scale-102 shadow-secondary/20"
                     )}
                   >
-                     {isRegisteringInterest ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : hasRegistered ? <CheckCircle2 className="w-6 h-6 mr-2" /> : <Heart className="w-5 h-5 mr-2" />}
-                     {hasRegistered ? "Inscrição Confirmada" : "Garantir minha vaga"}
+                     {isRegisteringInterest ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : bottomHasRegistered ? <CheckCircle2 className="w-6 h-6 mr-2" /> : <Heart className="w-5 h-5 mr-2" />}
+                     {bottomHasRegistered ? "Inscrição Confirmada" : "Garantir minha vaga"}
                   </Button>
                </div>
             </CardContent>
@@ -317,15 +324,6 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
       </section>
     );
   }
-
-  const ticketTypeGroups = React.useMemo(() => {
-    const groups: Record<string, any[]> = {};
-    activeBatches.forEach((b: any) => b.ticketTypes?.forEach((t: any) => {
-      if (!groups[t.name]) groups[t.name] = [];
-      groups[t.name].push({ ...t, batch: b });
-    }));
-    return groups;
-  }, [activeBatches]);
 
   return (
     <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
