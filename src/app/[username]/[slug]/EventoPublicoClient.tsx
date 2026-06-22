@@ -79,7 +79,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !id || !event?.isRecurring) return null;
     const today = startOfToday();
-    // Consulta por start_date (Timestamp) para maior precisão
     return query(
       collection(db, "recurring_occurrences"),
       where("parentId", "==", id),
@@ -90,13 +89,11 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   const { data: upcomingOccurrences, loading: occurrencesLoading } = useCollection<any>(occurrencesQuery);
 
-  // Seleção reativa da sessão baseada no ID sem fetch redundante
   const selectedOccurrenceData = React.useMemo(() => {
     if (!upcomingOccurrences || upcomingOccurrences.length === 0) return null;
     return upcomingOccurrences.find(o => o.id === selectedOccurrenceId) || upcomingOccurrences[0];
   }, [upcomingOccurrences, selectedOccurrenceId]);
 
-  // Auto-seleciona a primeira sessão disponível ao carregar
   React.useEffect(() => {
     if (event?.isRecurring && upcomingOccurrences && upcomingOccurrences.length > 0 && !selectedOccurrenceId && !occurrencesLoading) {
       const sorted = [...upcomingOccurrences].sort((a, b) => {
