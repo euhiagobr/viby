@@ -32,7 +32,7 @@ import {
   Trash2
 } from "lucide-react"
 import Link from "next/link"
-import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates } from "@/lib/utils"
+import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates, safeParseDate } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -155,22 +155,37 @@ export default function NovoEventoWizard() {
         customOccurrences: formData.customOccurrences
       };
       
-      const generatedDates = generateRecurrenceDates(recurrenceParams);
-      const initialSessions = generatedDates.map((d: any) => ({
-        date: d.startDate.toISOString(),
-        endDate: d.endDate.toISOString(),
-        batches: sessions[0]?.batches || [
-          {
-            id: Math.random().toString(36).substring(2, 9),
-            name: "Lote Único",
-            startDate: "",
-            endDate: "",
-            capacidadeInicial: 100,
-            ticketTypes: [{ id: 't1', name: 'Inteira', price: 0, quantity: 100 }]
-          }
-        ],
-        capacity: sessions[0]?.capacity || 100
-      }));
+      let generatedDates = generateRecurrenceDates(recurrenceParams);
+      
+      // Fallback: Se não for recorrente ou não gerou datas, usa a data principal
+      if (generatedDates.length === 0) {
+        const s = safeParseDate(formData.startDate);
+        const e = safeParseDate(formData.endDate);
+        if (s && e) {
+          generatedDates = [{ startDate: s, endDate: e }];
+        }
+      }
+
+      const initialSessions = generatedDates.map((d: any) => {
+        const iso = d.startDate.toISOString();
+        const existing = sessions.find(s => s.date === iso);
+        
+        return {
+          date: iso,
+          endDate: d.endDate.toISOString(),
+          batches: existing?.batches || sessions[0]?.batches || [
+            {
+              id: Math.random().toString(36).substring(2, 9),
+              name: "Lote Único",
+              startDate: "",
+              endDate: "",
+              capacidadeInicial: 100,
+              ticketTypes: [{ id: 't1', name: 'Inteira', price: 0, quantity: 100 }]
+            }
+          ],
+          capacity: existing?.capacity || sessions[0]?.capacity || 100
+        };
+      });
       
       setSessions(initialSessions);
     }

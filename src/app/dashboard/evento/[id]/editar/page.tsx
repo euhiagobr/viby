@@ -29,6 +29,7 @@ import {
   Copy,
   Trash2
 } from "lucide-react"
+import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { cn, normalizeText, normalizeEventDates, safeParseDate, generateRecurrenceDates } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
@@ -48,7 +49,6 @@ import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { updateEventAction } from "@/app/actions/events"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { Separator } from "@/components/ui/separator"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -93,10 +93,10 @@ export default function EditarEventoWizard() {
     (db && eventId) ? query(collection(db, "recurring_occurrences"), where("parentId", "==", eventId), orderBy("date", "asc")) : null, 
     [db, eventId]
   )
-  const { data: dbOccurrences } = useCollection<any>(occurrencesQuery)
+  const { data: dbOccurrences, loading: loadingOccs } = useCollection<any>(occurrencesQuery)
 
   useEffect(() => {
-    if (event && !isDataLoaded) {
+    if (event && !isDataLoaded && !loadingOccs) {
       const start = safeParseDate(event.startDate || event.date);
       const end = safeParseDate(event.endDate);
 
@@ -143,7 +143,7 @@ export default function EditarEventoWizard() {
       }
       setIsDataLoaded(true);
     }
-  }, [event, dbOccurrences, isDataLoaded])
+  }, [event, dbOccurrences, isDataLoaded, loadingOccs])
 
   const handleImageUpload = async (file: File) => {
     if (!storage || !user) return
@@ -177,7 +177,17 @@ export default function EditarEventoWizard() {
         customOccurrences: formData.customOccurrences
       };
       
-      const generatedDates = generateRecurrenceDates(recurrenceParams);
+      let generatedDates = generateRecurrenceDates(recurrenceParams);
+      
+      // Fallback: Se não for recorrente ou não gerou datas, usa a data principal
+      if (generatedDates.length === 0) {
+        const s = safeParseDate(formData.startDate);
+        const e = safeParseDate(formData.endDate);
+        if (s && e) {
+          generatedDates = [{ startDate: s, endDate: e }];
+        }
+      }
+
       const newSessions = generatedDates.map((d: any) => {
         const iso = d.startDate.toISOString();
         const existing = sessions.find(s => s.date === iso);
