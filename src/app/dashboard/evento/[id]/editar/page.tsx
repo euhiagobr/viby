@@ -5,14 +5,14 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
-import { doc, collection, query, orderBy, where } from "firebase/firestore"
+import { doc, collection, query, orderBy, where, serverTimestamp } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import { Loader2, ArrowLeft, Save, Handshake, Settings2, Ticket, RefreshCw, Eye, Star, ChevronRight, Check, Calendar, ShieldCheck, MapPin } from "lucide-react"
 import Link from "next/link"
-import { normalizeText, normalizeEventDates } from "@/lib/utils"
+import { normalizeText, normalizeEventDates, safeParseDate } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -58,6 +58,9 @@ export default function EditarEventoWizard() {
 
   useEffect(() => {
     if (event) {
+      const start = safeParseDate(event.startDate || event.date);
+      const end = safeParseDate(event.endDate);
+
       setFormData({
         title: event.title || "",
         image: event.image || "",
@@ -67,8 +70,8 @@ export default function EditarEventoWizard() {
         disclosurePrices: event.disclosurePrices || [],
         categoryId: event.categoryId || "",
         categoryName: event.categoryName || "",
-        startDate: event.startDate?.includes('T') ? event.startDate : new Date(event.startDate).toISOString().slice(0, 16),
-        endDate: event.endDate?.includes('T') ? event.endDate : new Date(event.endDate).toISOString().slice(0, 16),
+        startDate: start ? start.toISOString().slice(0, 16) : "",
+        endDate: end ? end.toISOString().slice(0, 16) : "",
         description: event.description || "",
         status: event.status || "Ativo",
         tags: event.tags || [],

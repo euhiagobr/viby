@@ -75,6 +75,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /categories/{categoryId} {
+      allow read, list: if true;
+      allow write: if isAdmin();
+    }
+
     match /users/{userId} {
       allow get: if true;
       allow list: if isAdmin();
@@ -104,6 +109,7 @@ service cloud.firestore {
 
     match /events/{eventId} {
       allow read: if true;
+      allow list: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isAdmin() || isOrgMember(request.resource.data.organizationId);
       allow delete: if isAdmin() || isOrgMember(resource.data.organizationId);
@@ -127,6 +133,7 @@ service cloud.firestore {
 
     match /recurring_occurrences/{occId} {
       allow read: if true;
+      allow list: if isSignedIn();
       allow write: if isSignedIn();
     }
 
