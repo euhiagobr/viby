@@ -31,7 +31,7 @@ import { PublicHeader } from "@/components/layout/PublicHeader"
 import { ShareModal } from "@/components/sharing/ShareModal"
 import { RichText } from "@/components/ui/rich-text"
 import dynamic from "next/dynamic"
-import { format, startOfToday, addDays } from "date-fns"
+import { format, startOfToday, ptBR } from "date-fns"
 import { EventActionModal } from "@/components/events/EventActionModal"
 import { formatFullAddress } from "@/lib/location-utils"
 import {
@@ -83,7 +83,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     const today = startOfToday();
     return query(
       collection(db, "recurring_occurrences"),
-      where("eventId", "==", id),
+      where("parentId", "==", id),
+      where("status", "==", "active"),
       where("start_date", ">=", today)
     )
   }, [db, id, event?.isRecurring]);
@@ -107,6 +108,18 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     }
   }
 
+  // Se o evento for recorrente e houver ocorrências, mas nenhuma selecionada, tenta selecionar a primeira
+  React.useEffect(() => {
+    if (event?.isRecurring && upcomingOccurrences && upcomingOccurrences.length > 0 && !selectedOccurrenceId && !occurrenceLoading) {
+      const sorted = [...upcomingOccurrences].sort((a, b) => {
+        const dA = a.start_date?.toDate ? a.start_date.toDate() : new Date(a.start_date);
+        const dB = b.start_date?.toDate ? b.start_date.toDate() : new Date(b.start_date);
+        return dA.getTime() - dB.getTime();
+      });
+      handleOccurrenceSelection(sorted[0].id);
+    }
+  }, [event?.isRecurring, upcomingOccurrences, selectedOccurrenceId, occurrenceLoading]);
+
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
     try {
@@ -123,14 +136,14 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     } catch (e) { return ""; }
   };
 
-  const renderLoading = () => (
+  if (eventLoading) return (
     <div className="flex flex-col items-center justify-center py-32 gap-4">
       <Loader2 className="w-10 h-10 animate-spin text-secondary" />
       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando Experiência...</p>
     </div>
-  )
+  );
 
-  const renderNotFound = () => (
+  if (!event) return (
     <div className="flex flex-col items-center justify-center py-32 gap-6 text-center px-6">
         <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
         <div className="space-y-2">
@@ -143,12 +156,9 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
           <Link href="/dashboard">Ver Outros Eventos</Link>
         </Button>
     </div>
-  )
-
-  if (eventLoading) return renderLoading();
-  if (!event) return renderNotFound();
+  );
   
-  const displayDate = selectedOccurrenceData?.start_date || event.startDate;
+  const displayDate = selectedOccurrenceData?.start_date || event.startDate || event.date;
   const displayEndDate = selectedOccurrenceData?.end_date || event.endDate;
 
   const start = { date: formatDate(displayDate), time: formatTime(displayDate) };
@@ -159,8 +169,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const addressLines = formatFullAddress(event.address || { venueName: event.location, city: event.city, stateRegion: event.state });
   const locationQuery = encodeURIComponent(addressLines.join(' '));
 
-  const lat = event.address?.latitude ?? -23.55052;
-  const lng = event.address?.longitude ?? -46.633308;
+  const lat = event.address?.latitude ?? event.latitude ?? -23.55052;
+  const lng = event.address?.longitude ?? event.longitude ?? -46.633308;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
@@ -194,7 +204,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
         <div className="container mx-auto px-4 py-12 max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
           <div className="lg:col-span-8 space-y-12">
             
-            {event.isRecurring && (
+            {event.isRecurring && upcomingOccurrences && upcomingOccurrences.length > 0 && (
                <section className="space-y-6">
                   <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-secondary" /> Escolha sua Sessão
@@ -205,15 +215,20 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                            <SelectValue placeholder="Selecione a data e horário" />
                         </SelectTrigger>
                         <SelectContent className="rounded-2xl max-h-[300px]">
-                           {upcomingOccurrences?.map((occ) => (
+                           {upcomingOccurrences?.sort((a, b) => {
+                             const dA = a.start_date?.toDate ? a.start_date.toDate() : new Date(a.start_date);
+                             const dB = b.start_date?.toDate ? b.start_date.toDate() : new Date(b.start_date);
+                             return dA.getTime() - dB.getTime();
+                           }).map((occ) => (
                               <SelectItem key={occ.id} value={occ.id} className="cursor-pointer py-3 border-b last:border-0 border-dashed">
                                  <div className="flex items-center gap-4">
                                     <Calendar className="w-4 h-4 text-secondary" />
                                     <div className="flex flex-col">
                                         <span className="font-bold text-sm">
-                                          {format(occ.start_date.toDate(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                                          {format(occ.start_date?.toDate ? occ.start_date.toDate() : new Date(occ.start_date), "EEEE, dd 'de' MMMM", { locale: ptBR })}
                                           <span className="mx-2 opacity-30">|</span>
-                                          {format(occ.start_date.toDate(), "HH:mm")} às {format(occ.end_date.toDate(), "HH:mm")}
+                                          {occ.startTime || format(occ.start_date?.toDate ? occ.start_date.toDate() : new Date(occ.start_date), "HH:mm")}
+                                          {occ.endTime ? ` às ${occ.endTime}` : ""}
                                         </span>
                                     </div>
                                  </div>
@@ -248,7 +263,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
             <section className="space-y-6">
                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Localização</h3>
                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-                  <div className="h-64 w-full"><LocationMap latitude={lat} longitude={lng} interactive={false} /></div>
+                  <div className="h-64 w-full"><LocationMap latitude={lat} longitude={lng} interactive={false} onChange={() => {}} /></div>
                   <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
                      <div className="space-y-1 text-center md:text-left">
                         {addressLines.map((line, idx) => (
@@ -290,7 +305,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                         <AvatarFallback className="font-bold text-xl uppercase">{org?.name?.charAt(0)}</AvatarFallback>
                      </Avatar>
                      <div className="flex-1">
-                        <div className="flex items-center gap-1.5"><h4 className="font-bold text-base leading-none">{org?.name}</h4>{(org?.verified) && <BadgeCheck className="w-4 h-4 text-blue-500" />}</div>
+                        <div className="flex items-center gap-1.5"><h4 className="font-bold text-base leading-none">{org?.name}</h4>{(org?.verified || org?.isVerified) && <BadgeCheck className="w-4 h-4 text-blue-500" />}</div>
                         <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">@{org?.username}</p>
                      </div>
                   </div>

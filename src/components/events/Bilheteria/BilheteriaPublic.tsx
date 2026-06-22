@@ -15,34 +15,32 @@ import {
   Coins, 
   Heart, 
   Info,
-  Globe,
-  Instagram,
-  Phone,
-  Mail,
+  CheckCircle2,
   Tag,
   Loader2,
   Users
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { calculateVibyOfficialSplit } from "@/lib/financial-utils"
+import { calculateVibyOfficialSplit, calculateFinancialBreakdown } from "@/lib/financial-utils"
 import { useCart, CartItem } from "@/contexts/CartContext"
 import { toast } from "@/hooks/use-toast"
 import { useAuth, useUser, useFirestore } from "@/firebase"
 import { useRouter, usePathname } from "next/navigation"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
-import { doc, updateDoc, increment, serverTimestamp, setDoc } from "firebase/firestore"
 import { generateFreeTickets } from "@/app/actions/tickets"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 interface BilheteriaPublicProps {
   event: any
+  occurrence?: any
+  occurrenceLoading?: boolean
   globalFees: any
   promotions: any
   orgSettings: any
 }
 
-export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }: BilheteriaPublicProps) {
+export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalFees, promotions, orgSettings }: BilheteriaPublicProps) {
   const { addMultipleItems } = useCart()
   const db = useFirestore()
   const auth = useAuth()
@@ -62,8 +60,14 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
                       event.curatorProfile === 'viby' || 
                       (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
 
+  // Prioriza lotes da ocorrência (sessão) se houver
+  const activeBatches = occurrence?.batches && occurrence.batches.length > 0 ? occurrence.batches : (event.batches || []);
+  const activeOccurrenceId = occurrence?.id || null;
+
   // Lógica de esgotamento baseada na ocorrência atual
-  const isSoldOut = !isCuradoria && event.capacidadeTotal > 0 && (event.ingressosVendidos || 0) >= event.capacidadeTotal;
+  const soldCount = occurrence ? (occurrence.ingressosVendidos || 0) : (event.ingressosVendidos || 0);
+  const capacityTotal = occurrence ? (occurrence.capacidadeMaxima || 0) : (event.capacidadeTotal || 0);
+  const isSoldOut = !isCuradoria && capacityTotal > 0 && soldCount >= capacityTotal;
 
   const handleUpdateQty = (typeName: string, val: number, isFree: boolean) => {
     if (isFree && val > 1) {
@@ -93,7 +97,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
           eventId: event.id,
           eventTitle: event.title,
           eventImage: event.image || "",
-          eventDate: event.date,
+          eventDate: occurrence?.start_date || event.date,
           eventCity: event.city || "",
           organizationId: event.organizationId,
           organizerId: event.organizerId,
@@ -102,7 +106,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
           batchId: "disclosure",
           batchName: "Sessão",
           quantity: 1,
-          occurrenceId: event.occurrenceId || null
+          occurrenceId: activeOccurrenceId
         }]
       });
 
@@ -131,7 +135,7 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
     let remaining = requestedQty;
     const now = new Date();
 
-    const sortedBatches = [...(event.batches || [])].sort((a, b) => {
+    const sortedBatches = [...activeBatches].sort((a, b) => {
       const startA = a.startDate ? new Date(a.startDate).getTime() : 0;
       const startB = b.startDate ? new Date(b.startDate).getTime() : 0;
       return startA - startB;
@@ -149,12 +153,24 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
       const amountToTake = Math.min(remaining, type.quantity);
       if (amountToTake > 0) {
         itemsToAdd.push({
-          id: `${event.id}_${batch.id}_${type.id}${event.occurrenceId ? `_${event.occurrenceId}` : ''}`,
-          eventId: event.id, eventTitle: event.title, eventImage: event.image || '', eventDate: event.date, eventCity: event.city || '',
-          organizationId: event.organizationId, organizerId: event.organizerId, organizerUsername: event.organizer?.username || '',
-          ticketTypeId: type.id, ticketTypeName: type.name, batchId: batch.id, batchName: batch.name,
-          currency: eventCurrency, price: type.price, quantity: amountToTake, requiresProof: type.requiresProof || false,
-          occurrenceId: event.occurrenceId || null
+          id: `${event.id}_${batch.id}_${type.id}${activeOccurrenceId ? `_${activeOccurrenceId}` : ''}`,
+          eventId: event.id, 
+          eventTitle: event.title, 
+          eventImage: event.image || '', 
+          eventDate: occurrence?.start_date || event.date, 
+          eventCity: event.city || '',
+          organizationId: event.organizationId, 
+          organizerId: event.organizerId, 
+          organizerUsername: event.organizer?.username || '',
+          ticketTypeId: type.id, 
+          ticketTypeName: type.name, 
+          batchId: batch.id, 
+          batchName: batch.name,
+          currency: eventCurrency, 
+          price: type.price, 
+          quantity: amountToTake, 
+          requiresProof: type.requiresProof || false,
+          occurrenceId: activeOccurrenceId
         } as any);
         remaining -= amountToTake;
       }
@@ -165,6 +181,15 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
       toast({ title: "Adicionado ao carrinho!" });
       setQuantities(prev => ({ ...prev, [ticketTypeName]: 0 }));
     }
+  }
+
+  if (occurrenceLoading) {
+    return (
+      <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center flex flex-col items-center gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
+        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Sincronizando Bilheteria...</p>
+      </Card>
+    );
   }
 
   if (isSoldOut) {
@@ -272,16 +297,21 @@ export function BilheteriaPublic({ event, globalFees, promotions, orgSettings }:
 
   const ticketTypeGroups = React.useMemo(() => {
     const groups: Record<string, any[]> = {};
-    event.batches?.forEach((b: any) => b.ticketTypes?.forEach((t: any) => {
+    activeBatches.forEach((b: any) => b.ticketTypes?.forEach((t: any) => {
       if (!groups[t.name]) groups[t.name] = [];
       groups[t.name].push({ ...t, batch: b });
     }));
     return groups;
-  }, [event.batches]);
+  }, [activeBatches]);
 
   return (
     <section id="bilheteria" className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-2"><h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">Bilheteria</h2></div>
+      <div className="flex flex-col gap-2">
+        <h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">Bilheteria</h2>
+        {activeOccurrenceId && (
+          <p className="text-[10px] font-black uppercase text-secondary">Preços para a sessão selecionada</p>
+        )}
+      </div>
       <div className="space-y-6">
          {Object.entries(ticketTypeGroups).map(([typeName, instances]) => {
            const activeInstance = instances.find(inst => {
