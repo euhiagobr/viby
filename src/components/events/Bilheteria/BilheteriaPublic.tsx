@@ -64,10 +64,16 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
   const activeBatches = occurrence?.batches && occurrence.batches.length > 0 ? occurrence.batches : (event.batches || []);
   const activeOccurrenceId = occurrence?.id || null;
 
-  // Lógica de esgotamento baseada na ocorrência atual
+  // Lógica de esgotamento baseada na ocorrência atual ou global do evento
   const soldCount = occurrence ? (occurrence.ingressosVendidos || 0) : (event.ingressosVendidos || 0);
   const capacityTotal = occurrence ? (occurrence.capacidadeMaxima || 0) : (event.capacidadeTotal || 0);
   const isSoldOut = !isCuradoria && capacityTotal > 0 && soldCount >= capacityTotal;
+
+  // Reseta as quantidades quando a ocorrência muda
+  React.useEffect(() => {
+    setQuantities({});
+    setHasRegistered(false);
+  }, [activeOccurrenceId]);
 
   const handleUpdateQty = (typeName: string, val: number, isFree: boolean) => {
     if (isFree && val > 1) {
@@ -129,6 +135,11 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
     if (!user) {
       router.push(`/login?redirect=${encodeURIComponent(pathname || '/')}`)
       return
+    }
+
+    if (event.isRecurring && !activeOccurrenceId) {
+      toast({ variant: "destructive", title: "Selecione uma sessão", description: "Por favor, escolha uma data e horário antes de comprar." });
+      return;
     }
 
     const itemsToAdd: CartItem[] = [];
@@ -204,6 +215,18 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
         </div>
       </Card>
     );
+  }
+
+  if (event.isRecurring && !activeOccurrenceId) {
+     return (
+       <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-12 text-center space-y-4">
+          <Clock className="w-12 h-12 text-secondary/30 mx-auto" />
+          <div className="space-y-1">
+             <p className="text-sm font-black uppercase italic text-primary">Selecione uma sessão</p>
+             <p className="text-[10px] font-bold text-muted-foreground uppercase">Escolha o dia e horário acima para ver a disponibilidade de ingressos.</p>
+          </div>
+       </Card>
+     )
   }
 
   if (isDivulgacao || isExterno) {

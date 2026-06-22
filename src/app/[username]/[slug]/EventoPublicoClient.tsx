@@ -22,7 +22,7 @@ import {
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { cn } from "@/lib/utils"
+import { cn, safeParseDate } from "@/lib/utils"
 import { BilheteriaPublic, EventSEO, EventCoOrganizers } from "@/components/events"
 import { FollowButton } from "@/components/organizer/FollowButton"
 import Footer from "@/components/layout/Footer"
@@ -61,8 +61,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = React.useState(false)
   const [selectedOccurrenceId, setSelectedOccurrenceId] = React.useState<string | null>(null)
-  const [selectedOccurrenceData, setSelectedOccurrenceData] = React.useState<any>(null)
-  const [occurrenceLoading, setOccurrenceLoading] = React.useState(false)
 
   const eventRef = React.useMemo(() => (db && id) ? doc(db, "events", id) : null, [db, id])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
@@ -92,49 +90,34 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   const { data: upcomingOccurrences, loading: occurrencesLoading } = useCollection<any>(occurrencesQuery);
 
-  const handleOccurrenceSelection = async (occurrenceId: string) => {
-    if (!db || !occurrenceId) return;
-    setSelectedOccurrenceId(occurrenceId);
-    setOccurrenceLoading(true);
-    try {
-      const occRef = doc(db, "recurring_occurrences", occurrenceId);
-      const occSnap = await getDoc(occRef);
-      if (occSnap.exists()) {
-        setSelectedOccurrenceData(occSnap.data());
-      } else {
-        setSelectedOccurrenceData(null);
-      }
-    } finally {
-      setOccurrenceLoading(false);
-    }
-  }
+  // Seleção reativa da sessão baseada no ID sem fetch redundante
+  const selectedOccurrenceData = React.useMemo(() => {
+    if (!upcomingOccurrences) return null;
+    return upcomingOccurrences.find(o => o.id === selectedOccurrenceId) || null;
+  }, [upcomingOccurrences, selectedOccurrenceId]);
 
-  // Se o evento for recorrente e houver ocorrências, mas nenhuma selecionada, tenta selecionar a primeira
+  // Auto-seleciona a primeira sessão disponível
   React.useEffect(() => {
-    if (event?.isRecurring && upcomingOccurrences && upcomingOccurrences.length > 0 && !selectedOccurrenceId && !occurrenceLoading) {
+    if (event?.isRecurring && upcomingOccurrences && upcomingOccurrences.length > 0 && !selectedOccurrenceId && !occurrencesLoading) {
       const sorted = [...upcomingOccurrences].sort((a, b) => {
-        const dA = a.start_date?.toDate ? a.start_date.toDate() : new Date(a.start_date);
-        const dB = b.start_date?.toDate ? b.start_date.toDate() : new Date(b.start_date);
-        return dA.getTime() - dB.getTime();
+        const dA = safeParseDate(a.start_date)?.getTime() || 0;
+        const dB = safeParseDate(b.start_date)?.getTime() || 0;
+        return dA - dB;
       });
-      handleOccurrenceSelection(sorted[0].id);
+      setSelectedOccurrenceId(sorted[0].id);
     }
-  }, [event?.isRecurring, upcomingOccurrences, selectedOccurrenceId, occurrenceLoading]);
+  }, [event?.isRecurring, upcomingOccurrences, selectedOccurrenceId, occurrencesLoading]);
 
   const formatDate = (dateValue: any) => {
-    if (!dateValue) return "A definir";
-    try {
-      const d = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    } catch (e) { return "---"; }
+    const d = safeParseDate(dateValue);
+    if (!d) return "A definir";
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   };
 
   const formatTime = (dateValue: any) => {
-    if (!dateValue) return "";
-    try {
-      const d = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    } catch (e) { return ""; }
+    const d = safeParseDate(dateValue);
+    if (!d) return "";
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
 
   if (eventLoading) return (
@@ -211,24 +194,28 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                     <Clock className="w-4 h-4 text-secondary" /> Escolha sua Sessão
                   </h3>
                   <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden p-8">
-                     <Select value={selectedOccurrenceId || ""} onValueChange={handleOccurrenceSelection} disabled={occurrencesLoading}>
+                     <Select 
+                      value={selectedOccurrenceId || ""} 
+                      onValueChange={setSelectedOccurrenceId} 
+                      disabled={occurrencesLoading}
+                     >
                         <SelectTrigger className="h-14 rounded-2xl border-dashed border-secondary/30 font-bold text-lg px-6 uppercase italic text-primary">
                            <SelectValue placeholder="Selecione a data e horário" />
                         </SelectTrigger>
                         <SelectContent className="rounded-2xl max-h-[300px]">
                            {upcomingOccurrences?.sort((a, b) => {
-                             const dA = a.start_date?.toDate ? a.start_date.toDate() : new Date(a.start_date);
-                             const dB = b.start_date?.toDate ? b.start_date.toDate() : new Date(b.start_date);
-                             return dA.getTime() - dB.getTime();
+                             const dA = safeParseDate(a.start_date)?.getTime() || 0;
+                             const dB = safeParseDate(b.start_date)?.getTime() || 0;
+                             return dA - dB;
                            }).map((occ) => (
                               <SelectItem key={occ.id} value={occ.id} className="cursor-pointer py-3 border-b last:border-0 border-dashed">
                                  <div className="flex items-center gap-4">
                                     <Calendar className="w-4 h-4 text-secondary" />
                                     <div className="flex flex-col">
                                         <span className="font-bold text-sm">
-                                          {format(occ.start_date?.toDate ? occ.start_date.toDate() : new Date(occ.start_date), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                                          {format(safeParseDate(occ.start_date) || new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
                                           <span className="mx-2 opacity-30">|</span>
-                                          {occ.startTime || format(occ.start_date?.toDate ? occ.start_date.toDate() : new Date(occ.start_date), "HH:mm")}
+                                          {occ.startTime || format(safeParseDate(occ.start_date) || new Date(), "HH:mm")}
                                           {occ.endTime ? ` às ${occ.endTime}` : ""}
                                         </span>
                                     </div>
@@ -293,7 +280,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                <BilheteriaPublic 
                  event={event}
                  occurrence={selectedOccurrenceData}
-                 occurrenceLoading={occurrenceLoading}
+                 occurrenceLoading={occurrencesLoading}
                  globalFees={globalFees} 
                  promotions={promotions} 
                  orgSettings={org} 
