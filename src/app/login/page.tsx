@@ -12,18 +12,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, User, Lock as LockIcon, ShieldCheck, KeyRound } from "lucide-react"
+import { Loader2, User, Lock as LockIcon, ShieldCheck, KeyRound, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { Separator } from "@/components/ui/separator"
 import { useTranslation } from "@/i18n/i18n-context"
 import { PublicHeader } from "@/components/layout/PublicHeader"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 function LoginContent() {
   const { t } = useTranslation()
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const auth = useAuth()
@@ -55,6 +57,7 @@ function LoginContent() {
     if (!auth || !db) return
 
     setLoading(true)
+    setError(null)
     try {
       let emailToUse = identifier.trim().toLowerCase();
 
@@ -68,9 +71,8 @@ function LoginContent() {
       }
 
       await signInWithEmailAndPassword(auth, emailToUse, password)
-      toast({ title: t('common.success') })
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro no login", description: "Credenciais incorretas." })
+    } catch (err: any) {
+      setError("Credenciais inválidas. Verifique seu e-mail ou @username e tente novamente.")
     } finally {
       setLoading(false)
     }
@@ -96,6 +98,16 @@ function LoginContent() {
           </CardHeader>
           
           <CardContent className="p-10 space-y-8">
+            {error && (
+              <Alert variant="destructive" className="rounded-2xl border-2 bg-red-50 animate-in shake duration-300">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle className="font-black uppercase italic text-[10px]">Erro de Acesso</AlertTitle>
+                <AlertDescription className="text-xs font-medium">
+                  {error}
+                </AlertDescription>
+              </Alert>
+            )}
+
             {showSync ? (
               <div className="flex flex-col items-center justify-center py-12 gap-4">
                  <Loader2 className="w-10 h-10 animate-spin text-secondary" />
