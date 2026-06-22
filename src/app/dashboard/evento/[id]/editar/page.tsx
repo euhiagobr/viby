@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -10,9 +9,26 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, ArrowLeft, Save, Handshake, Settings2, Ticket, RefreshCw, Eye, Star, ChevronRight, Check, Calendar, ShieldCheck, MapPin } from "lucide-react"
+import { 
+  Loader2, 
+  ArrowLeft, 
+  Save, 
+  Handshake, 
+  Settings2, 
+  Ticket, 
+  RefreshCw, 
+  Eye, 
+  Star, 
+  ChevronRight, 
+  Check, 
+  Calendar, 
+  ShieldCheck, 
+  MapPin,
+  Clock,
+  Copy
+} from "lucide-react"
 import Link from "next/link"
-import { cn, normalizeText, normalizeEventDates, safeParseDate } from "@/lib/utils"
+import { cn, normalizeText, normalizeEventDates, safeParseDate, generateRecurrenceDates } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -28,7 +44,21 @@ import {
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { updateEventAction } from "@/app/actions/events"
+import { generateOccurrences } from "@/services/recurring-event-service"
 import { Separator } from "@/components/ui/separator"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 
 export default function EditarEventoWizard() {
   const params = useParams()
@@ -42,19 +72,24 @@ export default function EditarEventoWizard() {
   const { currency: dashboardCurrency } = useCurrency();
   const storage = React.useMemo(() => app ? getStorage(app) : null, [app])
 
-  const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
-  const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
-
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<any>(null)
   const [ticketMode, setTicketMode] = useState<any>('free')
-  const [batches, setBatches] = useState<any[]>([])
-  const [totalCapacity, setTotalCapacity] = useState(100)
+  const [sessions, setSessions] = useState<any[]>([])
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+
+  const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
+  const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
+
+  const occurrencesQuery = useMemoFirebase(() => 
+    (db && eventId) ? query(collection(db, "recurring_occurrences"), where("parentId", "==", eventId), orderBy("date", "asc")) : null, 
+    [db, eventId]
+  )
+  const { data: dbOccurrences } = useCollection<any>(occurrencesQuery)
 
   useEffect(() => {
     if (event) {
@@ -77,15 +112,34 @@ export default function EditarEventoWizard() {
         tags: event.tags || [],
         ageRatingCode: event.ageRating?.code || "free",
         address: event.address || {},
-        recurrency: event.recurrency || {},
+        isRecurring: event.isRecurring || false,
+        frequency: event.recurrency?.freq || "weekly",
+        recurringEndDate: event.recurrency?.until || "",
+        customOccurrences: event.recurrency?.customOccurrences || [],
         currency: event.currency || "BRL",
         curationType: event.curationType || "realização"
       })
       setTicketMode(event.ticketMode || 'free')
-      setBatches(event.batches || [])
-      setTotalCapacity(event.capacidadeTotal || 100)
+      
+      // Inicializar sessões a partir das ocorrências do banco se existirem
+      if (dbOccurrences && dbOccurrences.length > 0) {
+        setSessions(dbOccurrences.map(occ => ({
+          id: occ.id,
+          date: `${occ.date}T${occ.startTime || '19:00'}:00`,
+          endDate: `${occ.date}T${occ.endTime || '22:00'}:00`,
+          batches: occ.batches || event.batches || [],
+          capacity: occ.capacidadeMaxima || event.capacidadeTotal || 100
+        })));
+      } else {
+        setSessions([{
+          date: start ? start.toISOString() : "",
+          endDate: end ? end.toISOString() : "",
+          batches: event.batches || [],
+          capacity: event.capacidadeTotal || 100
+        }]);
+      }
     }
-  }, [event])
+  }, [event, dbOccurrences])
 
   const handleImageUpload = async (file: File) => {
     if (!storage || !user) return
@@ -103,25 +157,107 @@ export default function EditarEventoWizard() {
     )
   }
 
+  const handleNextStep = () => {
+    if (step === 2) {
+      const check = normalizeEventDates(formData.startDate, formData.endDate);
+      if (!check.isValid) {
+        toast({ variant: "destructive", title: "Verifique a agenda", description: check.error });
+        return;
+      }
+      
+      // Regerar sessões se a recorrência mudou
+      const recurrenceParams = {
+        freq: formData.isRecurring ? formData.frequency : null,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        until: formData.recurringEndDate,
+        customOccurrences: formData.customOccurrences
+      };
+      
+      const generatedDates = generateRecurrenceDates(recurrenceParams);
+      const newSessions = generatedDates.map((d: any) => {
+        const iso = d.startDate.toISOString();
+        const existing = sessions.find(s => s.date === iso);
+        return {
+          date: iso,
+          endDate: d.endDate.toISOString(),
+          batches: existing?.batches || sessions[0]?.batches || [],
+          capacity: existing?.capacity || sessions[0]?.capacity || 100
+        };
+      });
+      setSessions(newSessions);
+    }
+    setStep(prev => prev + 1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const replicateFirstSession = () => {
+    if (sessions.length < 2) return;
+    const firstBatches = [...sessions[0].batches];
+    const firstCapacity = sessions[0].capacity;
+    const newSessions = sessions.map((s, i) => i === 0 ? s : { ...s, batches: JSON.parse(JSON.stringify(firstBatches)), capacity: firstCapacity });
+    setSessions(newSessions);
+    toast({ title: "Bilheteria replicada!" });
+  }
+
+  const handleUpdateSessionTickets = (idx: number, newBatches: any[]) => {
+    const newSessions = [...sessions];
+    newSessions[idx].batches = newBatches;
+    setSessions(newSessions);
+  }
+
+  const handleUpdateSessionCapacity = (idx: number, cap: number) => {
+    const newSessions = [...sessions];
+    newSessions[idx].capacity = cap;
+    setSessions(newSessions);
+  }
+
   const handleSubmit = async () => {
     if (!db || !currentOrg || !formData) return
     setLoading(true)
     try {
+      const updatePayload = {
+        ...formData,
+        ticketMode,
+        batches: sessions[0]?.batches || [],
+        capacidadeTotal: sessions.reduce((acc, s) => acc + (parseInt(s.capacity) || 0), 0),
+        recurrency: {
+           freq: formData.isRecurring ? formData.frequency : null,
+           until: formData.recurringEndDate,
+           customOccurrences: formData.customOccurrences
+        },
+        updatedAt: serverTimestamp()
+      };
+
       const result = await updateEventAction({
         eventId,
         orgId: currentOrg.id,
-        eventData: {
-          ...formData,
-          ticketMode,
-          batches,
-          capacidadeTotal: totalCapacity,
-          updatedAt: serverTimestamp()
-        }
+        eventData: updatePayload
       });
-      if (result.success) {
-        toast({ title: "Alterações salvas!" })
-        router.push(`/${result.username}/${result.slug || eventId}`)
-      } else throw new Error(result.error)
+
+      if (!result.success) throw new Error(result.error)
+
+      // Atualizar ocorrências
+      const occurrencesPayload = sessions.map(s => ({
+        date: s.date.split('T')[0],
+        startTime: s.date.split('T')[1]?.substring(0, 5) || "19:00",
+        endTime: s.endDate.split('T')[1]?.substring(0, 5) || "22:00",
+        batches: s.batches,
+        capacidadeMaxima: s.capacity
+      }));
+
+      await generateOccurrences(eventId, {
+        name: formData.title,
+        description: formData.description,
+        organizationId: currentOrg.id,
+        organizerName: currentOrg.name,
+        frequency: 'custom',
+        customOccurrences: occurrencesPayload,
+        capacidadeMaxima: 0
+      });
+
+      toast({ title: "Evento atualizado!" })
+      router.push(`/${result.username}/${result.slug || eventId}`)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: e.message })
     } finally {
@@ -153,10 +289,29 @@ export default function EditarEventoWizard() {
                  <EventType value={formData.type} onChange={v => setFormData({...formData, type: v})} />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                  <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v, categoryName: categories?.find((c: any) => c.id === v)?.name})}>
+                    <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent className="rounded-xl">{categories?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase opacity-60">Classificação</Label>
+                  <Select value={formData.ageRatingCode} onValueChange={v => setFormData({...formData, ageRatingCode: v})}>
+                    <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {['free', '10', '12', '14', '16', 'not_recommended_18', 'adults_only_18'].map(c => <SelectItem key={c} value={c}>{getAgeRatingConfig(c).label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
+              <EventTags tags={formData.tags} onChange={v => setFormData({...formData, tags: v})} />
            </Card>
            <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
-           <Button onClick={() => setStep(2)} className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic text-lg gap-2">Seguir para Agenda <ChevronRight className="w-5 h-5" /></Button>
+           <Button onClick={handleNextStep} className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic text-lg gap-2">Próximo Passo <ChevronRight className="w-5 h-5" /></Button>
         </div>
       )}
 
@@ -166,77 +321,112 @@ export default function EditarEventoWizard() {
               <EventDateTime startDate={formData.startDate} endDate={formData.endDate} onStartDateChange={v => setFormData({...formData, startDate: v})} onEndDateChange={v => setFormData({...formData, endDate: v})} />
               <Separator className="border-dashed" />
               <EventRecurrence 
-                isRecurring={!!formData.recurrency?.freq} 
-                onIsRecurringChange={v => setFormData({...formData, recurrency: v ? { ...formData.recurrency, freq: formData.recurrency.freq || 'weekly' } : {} })}
-                frequency={formData.recurrency?.freq || ""} 
-                onFrequencyChange={v => setFormData({...formData, recurrency: {...formData.recurrency, freq: v}})}
-                recurringEndDate={formData.recurrency?.until || ""} 
-                onRecurringEndDateChange={v => setFormData({...formData, recurrency: {...formData.recurrency, until: v}})}
-                customOccurrences={formData.recurrency?.customOccurrences || []}
-                onCustomOccurrencesChange={v => setFormData({...formData, recurrency: {...formData.recurrency, customOccurrences: v}})}
+                isRecurring={formData.isRecurring} 
+                onIsRecurringChange={v => setFormData({...formData, isRecurring: v})}
+                frequency={formData.frequency} 
+                onFrequencyChange={v => setFormData({...formData, frequency: v})}
+                recurringEndDate={formData.recurringEndDate} 
+                onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})}
+                customOccurrences={formData.customOccurrences}
+                onCustomOccurrencesChange={v => setFormData({...formData, customOccurrences: v})}
               />
            </Card>
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(1)} className="h-16 px-8 rounded-2xl font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={() => setStep(3)} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Configurar Bilheteria <ChevronRight className="w-5 h-5" /></Button>
+              <Button onClick={handleNextStep} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Configurar Bilheterias <ChevronRight className="w-5 h-5" /></Button>
            </div>
         </div>
       )}
 
       {step === 3 && (
-        <div className="space-y-8">
-           <BilheteriaAdmin mode={ticketMode} onModeChange={setTicketMode} batches={batches} onBatchesChange={setBatches} totalCapacity={totalCapacity} onTotalCapacityChange={setTotalCapacity} />
+        <div className="space-y-8 animate-in slide-in-from-right-4">
+           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
+              <div className="space-y-1">
+                 <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Gestão de Ingressos</h2>
+                 <p className="text-xs font-bold text-muted-foreground uppercase">{sessions.length} datas localizadas</p>
+              </div>
+              {sessions.length > 1 && (
+                <Button variant="outline" onClick={replicateFirstSession} className="rounded-xl h-11 border-dashed gap-2 font-black uppercase text-[10px] border-secondary text-secondary">
+                   <Copy className="w-4 h-4" /> Replicar para todas as datas
+                </Button>
+              )}
+           </div>
+
+           <Accordion type="single" collapsible className="space-y-4">
+              {sessions.map((session, idx) => (
+                <AccordionItem key={idx} value={`session-${idx}`} className="border-none">
+                  <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
+                    <AccordionTrigger className="px-8 py-6 hover:no-underline">
+                       <div className="flex items-center gap-4 text-left">
+                          <div className="w-12 h-12 rounded-2xl bg-muted flex flex-col items-center justify-center">
+                             <span className="text-[8px] font-black uppercase opacity-40">{new Date(session.date).toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                             <span className="text-lg font-black text-primary leading-none">{new Date(session.date).getDate()}</span>
+                          </div>
+                          <div>
+                             <p className="text-sm font-black uppercase italic text-primary">{new Date(session.date).toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
+                             <p className="text-[10px] font-bold text-muted-foreground uppercase">{session.capacity} Vagas • {session.batches?.length || 0} Lotes</p>
+                          </div>
+                       </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-8 pb-8 pt-0">
+                       <Separator className="border-dashed mb-8" />
+                       <BilheteriaAdmin 
+                          mode={ticketMode} 
+                          onModeChange={setTicketMode}
+                          batches={session.batches}
+                          onBatchesChange={(newBatches) => handleUpdateSessionTickets(idx, newBatches)}
+                          totalCapacity={session.capacity}
+                          onTotalCapacityChange={(cap) => handleUpdateSessionCapacity(idx, cap)}
+                          eventCurrency={formData.currency as CurrencyCode}
+                          sessionLabel={`Configuração para o dia: ${new Date(session.date).toLocaleDateString('pt-BR')}`}
+                       />
+                    </AccordionContent>
+                  </Card>
+                </AccordionItem>
+              ))}
+           </Accordion>
+
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(2)} className="h-16 px-8 rounded-2xl font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={() => setStep(4)} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Concluir Edição <ChevronRight className="w-5 h-5" /></Button>
+              <Button onClick={handleNextStep} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Concluir Alterações <ChevronRight className="w-5 h-5" /></Button>
            </div>
         </div>
       )}
 
       {step === 4 && (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-in slide-in-from-right-4">
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10 space-y-10">
               <div className="space-y-2">
-                 <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Conferência de Dados</h2>
-                 <p className="text-sm font-medium text-muted-foreground">Revise as informações alteradas antes de salvar.</p>
+                 <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Conferência Final</h2>
+                 <p className="text-sm font-medium text-muted-foreground">Verifique os dados antes de atualizar a série.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                  <div className="space-y-4">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2"><Calendar className="w-4 h-4 text-secondary" /> Agenda</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2"><Calendar className="w-4 h-4 text-secondary" /> Sessões Monitoradas</p>
                     <div className="p-5 bg-muted/20 rounded-2xl border border-dashed space-y-3">
-                       <div className="flex justify-between items-center text-xs font-bold uppercase">
-                          <span className="opacity-40">Tipo:</span>
-                          <span className="text-primary italic">{formData.recurrency?.freq ? `Série ${formData.recurrency.freq}` : "Evento Único"}</span>
-                       </div>
-                       {formData.recurrency?.freq === 'custom' ? (
-                          <div className="space-y-1 pt-2">
-                             <p className="text-[8px] font-black uppercase opacity-40">Datas Selecionadas:</p>
-                             {formData.recurrency.customOccurrences?.map((occ: any, i: number) => (
-                               <div key={i} className="text-[10px] font-bold text-primary flex justify-between">
-                                  <span>{occ.date ? new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR') : "---"}</span>
-                                  <span className="opacity-60">{occ.startTime} - {occ.endTime}</span>
-                               </div>
-                             ))}
-                          </div>
-                       ) : formData.recurrency?.until && (
-                         <div className="flex justify-between items-center text-xs font-bold uppercase">
-                            <span className="opacity-40">Até:</span>
-                            <span className="text-primary">{new Date(formData.recurrency.until + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                       {sessions.map((s, i) => (
+                         <div key={i} className="flex justify-between items-center text-[10px] font-bold uppercase">
+                            <span>{new Date(s.date).toLocaleDateString('pt-BR')}</span>
+                            <span className="text-primary italic">{s.capacity} Vagas</span>
                          </div>
-                       )}
+                       ))}
                     </div>
                  </div>
                  <div className="space-y-4">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2"><MapPin className="w-4 h-4" /> Local</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2"><MapPin className="w-4 h-4" /> Local Mantido</p>
                     <p className="font-bold text-sm uppercase">{formData.address.city}, {formData.address.stateRegion}</p>
                  </div>
+              </div>
+              <div className="p-6 bg-orange-50 rounded-3xl border-2 border-dashed border-orange-200 flex items-start gap-4">
+                 <ShieldCheck className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+                 <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">As alterações serão aplicadas em todas as sessões futuras. Ingressos já vendidos não serão afetados, mas o estoque remanescente será recalculado.</p>
               </div>
            </Card>
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(3)} className="h-20 px-8 rounded-[2.5rem] font-bold uppercase text-xs">Voltar</Button>
               <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 transition-all active:scale-95">
                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
-                 Salvar Alterações
+                 Atualizar Evento
               </Button>
            </div>
         </div>

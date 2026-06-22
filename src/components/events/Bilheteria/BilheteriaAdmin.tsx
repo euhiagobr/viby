@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -15,7 +14,9 @@ import {
   Calendar,
   Zap,
   ChevronRight,
-  ArrowRight
+  ArrowRight,
+  Trash2,
+  Copy
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { 
@@ -54,6 +55,7 @@ interface BilheteriaAdminProps {
   onTotalCapacityChange: (cap: number) => void
   eventCurrency?: CurrencyCode
   onCurrencyChange?: (cur: CurrencyCode) => void
+  sessionLabel?: string // Novo: Para indicar a qual data esta bilheteria pertence
 }
 
 export function BilheteriaAdmin({ 
@@ -64,15 +66,18 @@ export function BilheteriaAdmin({
   totalCapacity, 
   onTotalCapacityChange,
   eventCurrency = 'BRL',
-  onCurrencyChange
+  onCurrencyChange,
+  sessionLabel
 }: BilheteriaAdminProps) {
   const currencySymbol = eventCurrency === 'BRL' ? 'R$' : eventCurrency === 'USD' ? '$' : '€';
 
   const handleUpdateBatch = (idx: number, field: string, value: any) => {
     const newBatches = [...batches]
     newBatches[idx] = { ...newBatches[idx], [field]: value }
+    
     if (field === 'capacidadeInicial') {
-      onTotalCapacityChange(newBatches.reduce((acc, b) => acc + (parseInt(b.capacidadeInicial as any) || 0), 0))
+      const newTotal = newBatches.reduce((acc, b) => acc + (parseInt(b.capacidadeInicial as any) || 0), 0)
+      onTotalCapacityChange(newTotal)
     }
     onBatchesChange(newBatches)
   }
@@ -83,88 +88,156 @@ export function BilheteriaAdmin({
     onBatchesChange(newBatches)
   }
 
+  const addBatch = () => {
+    const id = Math.random().toString(36).substring(2, 9)
+    const newBatch: Batch = {
+      id,
+      name: batches.length === 0 ? "Lote Único" : `Lote ${batches.length + 1}`,
+      startDate: "",
+      endDate: "",
+      capacidadeInicial: 100,
+      ticketTypes: [
+        { id: 't1', name: 'Inteira', price: mode === 'free' ? 0 : 50, quantity: 100 }
+      ]
+    }
+    onBatchesChange([...batches, newBatch])
+    onTotalCapacityChange(totalCapacity + 100)
+  }
+
+  const removeBatch = (idx: number) => {
+    const batchToRemove = batches[idx]
+    const newBatches = batches.filter((_, i) => i !== idx)
+    onBatchesChange(newBatches)
+    onTotalCapacityChange(totalCapacity - (batchToRemove.capacidadeInicial || 0))
+  }
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
-        <CardHeader className="bg-muted/30 border-b">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
-                <Ticket className="w-5 h-5 text-secondary" /> Bilheteria Viby
-              </CardTitle>
-              <CardDescription className="font-medium">Gestão inteligente de ingressos.</CardDescription>
-            </div>
-            <div className="flex items-center gap-4">
-               {mode !== 'free' && mode !== 'none' && onCurrencyChange && (
-                  <div className="space-y-1">
-                    <Label className="text-[8px] font-black uppercase opacity-40 ml-1">Moeda Oficial</Label>
-                    <Select value={eventCurrency} onValueChange={onCurrencyChange as any}>
-                       <SelectTrigger className="h-9 rounded-xl text-[10px] font-black uppercase w-28 bg-white"><SelectValue /></SelectTrigger>
-                       <SelectContent className="rounded-xl">
-                          <SelectItem value="BRL">Real (BRL)</SelectItem>
-                          <SelectItem value="USD">Dollar (USD)</SelectItem>
-                          <SelectItem value="EUR">Euro (EUR)</SelectItem>
-                       </SelectContent>
-                    </Select>
-                  </div>
-               )}
-               <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1 shadow-sm h-fit">
-                  {[{ id: 'none', label: 'Sem Venda' }, { id: 'free', label: 'Grátis' }, { id: 'paid_single', label: 'Único' }, { id: 'batches', label: 'Lotes' }].map((m) => (
-                    <button key={m.id} type="button" className={cn("rounded-lg text-[9px] font-black uppercase px-4 h-8 transition-all", mode === m.id ? "bg-secondary text-white shadow-md" : "text-muted-foreground hover:bg-muted")} onClick={() => onModeChange(m.id as BilheteriaMode)}>{m.label}</button>
-                  ))}
-               </div>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-8 space-y-8">
-           {mode !== 'none' && (
-             <div className="space-y-8">
-               <div className="flex flex-col items-center gap-4 text-center max-w-xs mx-auto">
-                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Capacidade Total</Label>
-                  <Input type="number" value={totalCapacity} onChange={(e) => onTotalCapacityChange(parseInt(e.target.value) || 0)} className="h-16 text-4xl font-black rounded-2xl text-center border-secondary/20 shadow-inner bg-muted/20" />
-               </div>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-muted/20 p-4 rounded-2xl border border-dashed">
+        <div className="space-y-0.5">
+           {sessionLabel && <p className="text-[10px] font-black uppercase text-secondary italic">{sessionLabel}</p>}
+           <p className="text-xs font-bold text-primary uppercase">Modo de Bilheteria</p>
+        </div>
+        <div className="bg-white p-1 rounded-xl border flex flex-wrap gap-1 shadow-sm h-fit">
+          {[{ id: 'none', label: 'Sem Venda' }, { id: 'free', label: 'Grátis' }, { id: 'paid_single', label: 'Único' }, { id: 'batches', label: 'Lotes' }].map((m) => (
+            <button 
+              key={m.id} 
+              type="button" 
+              className={cn(
+                "rounded-lg text-[9px] font-black uppercase px-4 h-8 transition-all", 
+                mode === m.id ? "bg-secondary text-white shadow-md" : "text-muted-foreground hover:bg-muted"
+              )} 
+              onClick={() => onModeChange(m.id as BilheteriaMode)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-               {batches.map((batch, bIdx) => (
-                 <Card key={batch.id} className="border-2 border-border/60 rounded-[2.5rem] bg-white overflow-hidden shadow-sm relative group/batch">
-                    <CardHeader className="bg-muted/10 border-b flex flex-row items-center justify-between py-4 px-8">
-                       <div className="flex items-center gap-3">
-                          <Layers className="w-4 h-4 text-secondary" />
-                          <Input value={batch.name} onChange={(e) => handleUpdateBatch(bIdx, 'name', e.target.value)} className="h-8 p-0 border-none bg-transparent font-black italic uppercase text-lg text-primary focus-visible:ring-0 w-48" />
-                       </div>
-                    </CardHeader>
-                    <CardContent className="p-8 space-y-6">
-                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="space-y-2">
-                             <Label className="text-[10px] font-black uppercase opacity-60">Ingressos deste Lote</Label>
-                             <Input type="number" value={batch.capacidadeInicial} onChange={(e) => handleUpdateBatch(bIdx, 'capacidadeInicial', e.target.value)} className="rounded-xl h-11 font-black" />
-                          </div>
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Início</Label><Input type="datetime-local" value={batch.startDate} onChange={(e) => handleUpdateBatch(bIdx, 'startDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                          <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Fim</Label><Input type="datetime-local" value={batch.endDate} onChange={(e) => handleUpdateBatch(bIdx, 'endDate', e.target.value)} className="rounded-xl h-11 text-xs" /></div>
-                       </div>
+      {mode !== 'none' && (
+        <div className="space-y-6">
+          {batches.length === 0 && (
+            <div className="py-10 text-center border-2 border-dashed rounded-3xl opacity-40">
+               <Ticket className="w-10 h-10 mx-auto mb-2" />
+               <p className="text-[10px] font-black uppercase">Nenhum lote configurado</p>
+               <Button type="button" variant="link" onClick={addBatch} className="text-secondary font-black text-xs uppercase">Adicionar Lote agora</Button>
+            </div>
+          )}
 
-                       <div className="space-y-4 pt-4 border-t border-dashed">
-                          {batch.ticketTypes.map((type: any, tIdx: number) => (
-                            <div key={type.id} className="p-5 rounded-2xl border bg-muted/5">
-                               <div className="flex flex-col lg:flex-row gap-6 lg:items-end">
-                                  <div className="flex-1 space-y-2"><Label className="text-[8px] uppercase font-black opacity-40">Categoria</Label><Input value={type.name} onChange={(e) => handleUpdateTicketType(bIdx, tIdx, 'name', e.target.value)} className="h-11 rounded-xl font-bold bg-white" /></div>
-                                  <div className="w-full lg:w-36 space-y-2">
-                                     <Label className="text-[8px] uppercase font-black opacity-40">Preço ({eventCurrency})</Label>
-                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">{currencySymbol}</span>
-                                        <Input type="number" step="0.01" value={type.price} onChange={(e) => handleUpdateTicketType(bIdx, tIdx, 'price', parseFloat(e.target.value) || 0)} className="h-11 rounded-xl font-black text-secondary bg-white pl-9" />
-                                     </div>
-                                  </div>
-                               </div>
+          {batches.map((batch, bIdx) => (
+            <Card key={batch.id} className="border-2 border-border/60 rounded-[2rem] bg-white overflow-hidden shadow-sm relative group/batch">
+              <div className="bg-muted/10 border-b flex flex-row items-center justify-between py-4 px-8">
+                 <div className="flex items-center gap-3">
+                    <Layers className="w-4 h-4 text-secondary" />
+                    <Input 
+                      value={batch.name} 
+                      onChange={(e) => handleUpdateBatch(bIdx, 'name', e.target.value)} 
+                      className="h-8 p-0 border-none bg-transparent font-black italic uppercase text-lg text-primary focus-visible:ring-0 w-48" 
+                    />
+                 </div>
+                 <button type="button" onClick={() => removeBatch(bIdx)} className="text-destructive opacity-20 hover:opacity-100 transition-opacity">
+                    <Trash2 className="w-4 h-4" />
+                 </button>
+              </div>
+              <CardContent className="p-8 space-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Capacidade do Lote</Label>
+                       <Input 
+                        type="number" 
+                        value={batch.capacidadeInicial} 
+                        onChange={(e) => handleUpdateBatch(bIdx, 'capacidadeInicial', e.target.value)} 
+                        className="rounded-xl h-11 font-black" 
+                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-60">Vendas Iniciam</Label>
+                      <Input 
+                        type="datetime-local" 
+                        value={batch.startDate} 
+                        onChange={(e) => handleUpdateBatch(bIdx, 'startDate', e.target.value)} 
+                        className="rounded-xl h-11 text-xs" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-60">Vendas Encerram</Label>
+                      <Input 
+                        type="datetime-local" 
+                        value={batch.endDate} 
+                        onChange={(e) => handleUpdateBatch(bIdx, 'endDate', e.target.value)} 
+                        className="rounded-xl h-11 text-xs" 
+                      />
+                    </div>
+                 </div>
+
+                 <div className="space-y-4 pt-4 border-t border-dashed">
+                    {batch.ticketTypes.map((type: any, tIdx: number) => (
+                      <div key={type.id} className="p-5 rounded-2xl border bg-muted/5">
+                         <div className="flex flex-col lg:flex-row gap-6 lg:items-end">
+                            <div className="flex-1 space-y-2">
+                               <Label className="text-[8px] uppercase font-black opacity-40">Categoria</Label>
+                               <Input 
+                                value={type.name} 
+                                onChange={(e) => handleUpdateTicketType(bIdx, tIdx, 'name', e.target.value)} 
+                                className="h-11 rounded-xl font-bold bg-white" 
+                               />
                             </div>
-                          ))}
-                       </div>
-                    </CardContent>
-                 </Card>
-               ))}
-             </div>
-           )}
-        </CardContent>
-      </Card>
+                            {mode !== 'free' && (
+                              <div className="w-full lg:w-36 space-y-2">
+                                 <Label className="text-[8px] uppercase font-black opacity-40">Preço ({eventCurrency})</Label>
+                                 <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">{currencySymbol}</span>
+                                    <Input 
+                                      type="number" 
+                                      step="0.01" 
+                                      value={type.price} 
+                                      onChange={(e) => handleUpdateTicketType(bIdx, tIdx, 'price', parseFloat(e.target.value) || 0)} 
+                                      className="h-11 rounded-xl font-black text-secondary bg-white pl-9" 
+                                    />
+                                 </div>
+                              </div>
+                            )}
+                         </div>
+                      </div>
+                    ))}
+                 </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {mode === 'batches' && (
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={addBatch} 
+              className="w-full h-14 rounded-2xl border-dashed border-secondary/30 text-secondary uppercase font-black italic text-xs gap-2"
+            >
+              <Plus className="w-4 h-4" /> Adicionar outro Lote
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
