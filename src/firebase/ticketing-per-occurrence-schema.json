@@ -1,0 +1,37 @@
+
+{
+  "collection": "recurring_occurrences",
+  "description": "Extensão do modelo de ocorrências para suportar bilheterias independentes.",
+  "fields": {
+    "batches": {
+      "type": "array",
+      "description": "Snapshot completo da estrutura de lotes e tipos de ingresso para esta sessão específica.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "startDate": { "type": "string", "format": "date-time" },
+          "endDate": { "type": "string", "format": "date-time" },
+          "ticketTypes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "price": { "type": "number" },
+                "quantity": { "type": "number" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ingressosVendidos": { "type": "number", "description": "Contador de vendas consolidado para esta sessão." },
+    "capacidadeMaxima": { "type": "number", "description": "Limite físico de participantes para esta sessão." }
+  },
+  "logic": {
+    "resolution_priority": "O frontend deve sempre priorizar recurring_occurrences.batches. Se nulo, recorre a events.batches (fallback global)."
+  }
+}

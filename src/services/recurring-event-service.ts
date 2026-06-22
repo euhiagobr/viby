@@ -1,3 +1,4 @@
+
 'use server';
 
 import { 
@@ -10,12 +11,7 @@ import {
   format 
 } from 'date-fns';
 import * as admin from 'firebase-admin';
-import { getAdminDb } from '@/lib/firebase/admin';
-
-/**
- * @fileOverview Serviço de Eventos Recorrentes.
- * Marcado como 'use server' para atuar como Server Action e isolar o Admin SDK do cliente.
- */
+import { getAdminDb, getAdminApp } from '@/lib/firebase/admin';
 
 export type RecurrenceType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly' | 'custom';
 
@@ -23,6 +19,7 @@ export interface CustomOccurrence {
   date: string;
   startTime: string;
   endTime: string;
+  batches?: any[];
 }
 
 export interface RecurringEventInput {
@@ -38,6 +35,7 @@ export interface RecurringEventInput {
   capacidadeMaxima: number;
   maxOccurrences?: number;
   customOccurrences?: CustomOccurrence[];
+  defaultBatches?: any[];
 }
 
 export async function generateOccurrences(parentId: string, input: RecurringEventInput) {
@@ -61,20 +59,7 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
 
   // MODO 1: RECORRÊNCIA PERSONALIZADA (DATAS MANUAIS)
   if (input.frequency === 'custom' && input.customOccurrences) {
-    // Garantir que a data de início principal também seja uma ocorrência se não estiver na lista customizada
-    const mainDate = input.startDate;
-    const hasMainDate = mainDate && input.customOccurrences.some(o => o.date === mainDate);
-    
     const finalOccs = [...input.customOccurrences];
-    if (mainDate && !hasMainDate) {
-      finalOccs.unshift({
-        date: mainDate,
-        startTime: input.startTime || "19:00",
-        endTime: input.endTime || "22:00"
-      });
-    }
-
-    // Ordenar por data antes de salvar
     finalOccs.sort((a, b) => a.date.localeCompare(b.date));
 
     for (const occ of finalOccs) {
@@ -89,7 +74,7 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
         status: 'active',
         capacidadeMaxima: input.capacidadeMaxima || 0,
         ingressosVendidos: 0,
-        checkinsRealizados: 0,
+        batches: occ.batches || input.defaultBatches || [],
         order: count,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
@@ -102,10 +87,7 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
     const finalDate = input.endDate ? parseISO(input.endDate) : addMonths(currentDate, 6);
     const max = input.maxOccurrences || 150;
     
-    if (isNaN(currentDate.getTime())) {
-      console.error("[Recurrence Error] Data inicial inválida.");
-      return 0;
-    }
+    if (isNaN(currentDate.getTime())) return 0;
 
     while ((isBefore(currentDate, finalDate) || format(currentDate, 'yyyy-MM-dd') === input.endDate) && count < max) {
       const occRef = occurrencesRef.doc();
@@ -121,7 +103,7 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
         status: 'active',
         capacidadeMaxima: input.capacidadeMaxima || 0,
         ingressosVendidos: 0,
-        checkinsRealizados: 0,
+        batches: input.defaultBatches || [],
         order: count,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });

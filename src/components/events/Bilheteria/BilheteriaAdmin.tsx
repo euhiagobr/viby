@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -5,38 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { 
   Ticket, 
   Plus, 
-  Trash2, 
-  Sparkles, 
-  Percent, 
-  Clock, 
-  ShieldCheck, 
   Layers, 
   Info,
   Calendar,
-  Layers2,
-  Copy,
-  ChevronRight,
   Zap,
-  AlertCircle,
-  ArrowRight,
-  ChevronLeft,
-  Coins
+  ChevronRight,
+  ArrowRight
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Separator } from "@/components/ui/separator"
 import { 
   Select, 
   SelectContent, 
@@ -53,11 +34,6 @@ interface TicketType {
   name: string
   price: number
   quantity: number
-  requiresProof: boolean
-  proofDescription: string
-  poolId?: string | null
-  poolName?: string | null
-  description: string
 }
 
 interface Batch {
@@ -67,8 +43,6 @@ interface Batch {
   endDate: string
   capacidadeInicial: number
   ticketTypes: TicketType[]
-  isHalfPriceEnabled?: boolean
-  halfPricePercent?: number
 }
 
 interface BilheteriaAdminProps {
@@ -92,33 +66,7 @@ export function BilheteriaAdmin({
   eventCurrency = 'BRL',
   onCurrencyChange
 }: BilheteriaAdminProps) {
-  const [isHalfPriceModalOpen, setIsHalfPriceModalOpen] = React.useState(false)
-  const [isBatchGenModalOpen, setIsBatchGenModalOpen] = React.useState(false)
-  const [activeBatchIdx, setActiveBatchIdx] = React.useState<number | null>(null)
-  const [halfPercent, setHalfPercent] = React.useState(40)
-  
-  const [batchGenStep, setBatchGenStep] = React.useState<'count' | 'prices'>('count')
-  const [numNewBatchesInput, setNumNewBatchesInput] = React.useState("1")
-  const [cloneLastConfig, setCloneLastConfig] = React.useState(true)
-  const [newBatchPrices, setNewBatchPrices] = React.useState<Record<number, string>>({})
-
   const currencySymbol = eventCurrency === 'BRL' ? 'R$' : eventCurrency === 'USD' ? '$' : '€';
-
-  React.useEffect(() => {
-    if (batches.length === 0 && mode !== 'none') {
-      const defaultBatch: Batch = {
-        id: crypto.randomUUID(),
-        name: "1º Lote",
-        startDate: "",
-        endDate: "",
-        capacidadeInicial: totalCapacity,
-        ticketTypes: [
-          { id: crypto.randomUUID(), name: mode === 'free' ? "Ingresso Gratuito" : "Inteira", price: 0, quantity: totalCapacity, requiresProof: false, proofDescription: "", poolId: null, poolName: null, description: "" }
-        ]
-      }
-      onBatchesChange([defaultBatch])
-    }
-  }, [mode, batches.length, totalCapacity, onBatchesChange])
 
   const handleUpdateBatch = (idx: number, field: string, value: any) => {
     const newBatches = [...batches]
@@ -144,7 +92,7 @@ export function BilheteriaAdmin({
               <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-primary">
                 <Ticket className="w-5 h-5 text-secondary" /> Bilheteria Viby
               </CardTitle>
-              <CardDescription className="font-medium">Gestão inteligente de ingressos e moedas.</CardDescription>
+              <CardDescription className="font-medium">Gestão inteligente de ingressos.</CardDescription>
             </div>
             <div className="flex items-center gap-4">
                {mode !== 'free' && mode !== 'none' && onCurrencyChange && (
