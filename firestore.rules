@@ -1,4 +1,3 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -48,7 +47,6 @@ service cloud.firestore {
       allow write: if isSignedIn() && (followId.split('_')[0] == request.auth.uid);
     }
 
-    // Material de Marca Viby
     match /brand_assets/{assetId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -59,7 +57,6 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Configurações Globais
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -84,7 +81,7 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isAdmin() || isOwner(userId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount', 'totalXp', 'level']));
+      allow update: if isAdmin() || isOwner(userId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followersCount', 'followingCount', 'totalXp', 'level', 'preferredCurrency', 'language']));
       
       match /private/sensitive {
         allow read, write: if isAdmin() || isOwner(userId);
@@ -109,7 +106,7 @@ service cloud.firestore {
 
     match /events/{eventId} {
       allow read: if true;
-      allow list: if isSignedIn();
+      allow list: if true;
       allow create: if isSignedIn();
       allow update: if isAdmin() || isOrgMember(request.resource.data.organizationId);
       allow delete: if isAdmin() || isOrgMember(resource.data.organizationId);
@@ -132,8 +129,7 @@ service cloud.firestore {
     }
 
     match /recurring_occurrences/{occId} {
-      allow read: if true;
-      allow list: if isSignedIn();
+      allow read, list: if true;
       allow write: if isSignedIn();
     }
 
@@ -143,7 +139,16 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
 
-    // Gamificação
+    match /registrations_locks/{lockId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isSignedIn();
+    }
+
     match /user_gamification/{userId} {
       allow read: if true;
       allow write: if isAdmin() || isOwner(userId);
@@ -169,7 +174,6 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Suporte e Comunicação
     match /support_tickets/{id} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn();
@@ -181,7 +185,6 @@ service cloud.firestore {
       allow create: if true;
     }
 
-    // Sistema e Ads
     match /system_logs/{id} {
       allow create: if true;
       allow read, write: if isAdmin();
@@ -190,6 +193,11 @@ service cloud.firestore {
     match /ads/{adId} {
       allow read: if true;
       allow write: if isAdmin() || isSignedIn();
+      
+      match /viewers/{userId} {
+        allow read: if isAdmin();
+        allow create: if true;
+      }
     }
 
     match /ad_coupons/{id} {
@@ -197,7 +205,6 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Finanças
     match /wallets/{userId} {
       allow read: if isAdmin() || isOwner(userId);
     }
@@ -211,7 +218,6 @@ service cloud.firestore {
       allow create: if isSignedIn();
     }
 
-    // Parceiros
     match /partners/{userId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -231,7 +237,6 @@ service cloud.firestore {
       allow create: if isSignedIn();
     }
 
-    // Collection Group para Parcerias
     match /{path=**}/partners/{partnerId} {
       allow read: if true;
     }

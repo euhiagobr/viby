@@ -1,6 +1,15 @@
 {
   "indexes": [
     {
+      "collectionId": "recurring_occurrences",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "parentId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "start_date", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "partners",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
