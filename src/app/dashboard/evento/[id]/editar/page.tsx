@@ -133,10 +133,10 @@ export default function EditarEventoWizard() {
           batches: occ.batches || event.batches || [],
           capacity: occ.capacidadeMaxima || event.capacidadeTotal || 100
         })));
-      } else {
+      } else if (start) {
         setSessions([{
-          date: start ? start.toISOString() : "",
-          endDate: end ? end.toISOString() : "",
+          date: start.toISOString(),
+          endDate: end ? end.toISOString() : new Date(start.getTime() + 4 * 3600000).toISOString(),
           batches: event.batches || [],
           capacity: event.capacidadeTotal || 100
         }]);
@@ -179,7 +179,6 @@ export default function EditarEventoWizard() {
       
       let generatedDates = generateRecurrenceDates(recurrenceParams);
       
-      // Fallback: Se não for recorrente ou não gerou datas, usa a data principal
       if (generatedDates.length === 0) {
         const s = safeParseDate(formData.startDate);
         const e = safeParseDate(formData.endDate);
@@ -191,10 +190,20 @@ export default function EditarEventoWizard() {
       const newSessions = generatedDates.map((d: any) => {
         const iso = d.startDate.toISOString();
         const existing = sessions.find(s => s.date === iso);
+        
         return {
           date: iso,
           endDate: d.endDate.toISOString(),
-          batches: existing?.batches || sessions[0]?.batches || [],
+          batches: existing?.batches && existing.batches.length > 0 ? existing.batches : (sessions[0]?.batches || [
+            {
+              id: Math.random().toString(36).substring(2, 9),
+              name: "Lote Único",
+              startDate: "",
+              endDate: "",
+              capacidadeInicial: 100,
+              ticketTypes: [{ id: 't1', name: 'Inteira', price: ticketMode === 'free' ? 0 : 50, quantity: 100 }]
+            }
+          ]),
           capacity: existing?.capacity || sessions[0]?.capacity || 100
         };
       });
@@ -288,7 +297,7 @@ export default function EditarEventoWizard() {
         </div>
         <div className="flex items-center gap-2">
            {[1, 2, 3, 4].map(s => (
-             <div key={s} className={cn("h-1.5 rounded-full transition-all", s === step ? "w-8 bg-secondary" : "w-4 bg-muted")} />
+             <div key={s} className={cn("h-1.5 rounded-full transition-all", s === step ? "w-8 bg-secondary" : s < step ? "w-4 bg-primary" : "w-4 bg-muted")} />
            ))}
         </div>
       </div>
@@ -364,7 +373,7 @@ export default function EditarEventoWizard() {
               )}
            </div>
 
-           <Accordion type="single" collapsible className="space-y-4">
+           <Accordion type="single" collapsible className="space-y-4" defaultValue="session-0">
               {sessions.map((session, idx) => (
                 <AccordionItem key={idx} value={`session-${idx}`} className="border-none">
                   <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
@@ -375,7 +384,7 @@ export default function EditarEventoWizard() {
                              <span className="text-lg font-black text-primary leading-none">{new Date(session.date).getDate()}</span>
                           </div>
                           <div>
-                             <p className="text-sm font-black uppercase italic text-primary">{new Date(session.date).toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
+                             <p className="text-sm font-black uppercase italic text-primary">{idx === 0 ? "Sessão Principal / " : ""}{new Date(session.date).toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
                              <p className="text-[10px] font-bold text-muted-foreground uppercase">{session.capacity} Vagas • {session.batches?.length || 0} Lotes</p>
                           </div>
                        </div>

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -55,7 +56,7 @@ interface BilheteriaAdminProps {
   onTotalCapacityChange: (cap: number) => void
   eventCurrency?: CurrencyCode
   onCurrencyChange?: (cur: CurrencyCode) => void
-  sessionLabel?: string // Novo: Para indicar a qual data esta bilheteria pertence
+  sessionLabel?: string 
 }
 
 export function BilheteriaAdmin({ 
@@ -156,9 +157,11 @@ export function BilheteriaAdmin({
                       className="h-8 p-0 border-none bg-transparent font-black italic uppercase text-lg text-primary focus-visible:ring-0 w-48" 
                     />
                  </div>
-                 <button type="button" onClick={() => removeBatch(bIdx)} className="text-destructive opacity-20 hover:opacity-100 transition-opacity">
-                    <Trash2 className="w-4 h-4" />
-                 </button>
+                 {batches.length > 1 && (
+                   <button type="button" onClick={() => removeBatch(bIdx)} className="text-destructive opacity-20 hover:opacity-100 transition-opacity">
+                      <Trash2 className="w-4 h-4" />
+                   </button>
+                 )}
               </div>
               <CardContent className="p-8 space-y-6">
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -226,14 +229,14 @@ export function BilheteriaAdmin({
             </Card>
           ))}
 
-          {mode === 'batches' && (
+          {(mode === 'batches' || batches.length === 0) && (
             <Button 
               type="button" 
               variant="outline" 
               onClick={addBatch} 
               className="w-full h-14 rounded-2xl border-dashed border-secondary/30 text-secondary uppercase font-black italic text-xs gap-2"
             >
-              <Plus className="w-4 h-4" /> Adicionar outro Lote
+              <Plus className="w-4 h-4" /> Adicionar Lote
             </Button>
           )}
         </div>
