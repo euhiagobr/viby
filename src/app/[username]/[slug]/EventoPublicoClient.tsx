@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -80,6 +79,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !id || !event?.isRecurring) return null;
     const today = startOfToday();
+    // Consulta por start_date (Timestamp) para maior precisão
     return query(
       collection(db, "recurring_occurrences"),
       where("parentId", "==", id),
@@ -92,11 +92,11 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   // Seleção reativa da sessão baseada no ID sem fetch redundante
   const selectedOccurrenceData = React.useMemo(() => {
-    if (!upcomingOccurrences) return null;
-    return upcomingOccurrences.find(o => o.id === selectedOccurrenceId) || null;
+    if (!upcomingOccurrences || upcomingOccurrences.length === 0) return null;
+    return upcomingOccurrences.find(o => o.id === selectedOccurrenceId) || upcomingOccurrences[0];
   }, [upcomingOccurrences, selectedOccurrenceId]);
 
-  // Auto-seleciona a primeira sessão disponível
+  // Auto-seleciona a primeira sessão disponível ao carregar
   React.useEffect(() => {
     if (event?.isRecurring && upcomingOccurrences && upcomingOccurrences.length > 0 && !selectedOccurrenceId && !occurrencesLoading) {
       const sorted = [...upcomingOccurrences].sort((a, b) => {
@@ -148,8 +148,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const start = { date: formatDate(displayDate), time: formatTime(displayDate) };
   const end = displayEndDate ? { date: formatDate(displayEndDate), time: formatTime(displayEndDate) } : null;
 
-  const isCuradoria = event.curationType === 'curadoria' || (event.organizationId === "dd9665af-ad6d-405c-a51d-08220fecf96f" && (event.type === 'divulgacao' || event.type === 'externo'));
-
   const addressLines = formatFullAddress(event.address || { venueName: event.location, city: event.city, stateRegion: event.state });
   const locationQuery = encodeURIComponent(addressLines.join(' '));
 
@@ -178,7 +176,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                 <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg">
                   {event.categoryName || "Evento"}
                 </Badge>
-                {isCuradoria && <Badge className="bg-[#ffdf00] text-primary border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg">Curadoria Oficial</Badge>}
               </div>
               <h1 className="text-4xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-[0.85]">{event.title}</h1>
             </div>
@@ -195,7 +192,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                   </h3>
                   <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden p-8">
                      <Select 
-                      value={selectedOccurrenceId || ""} 
+                      value={selectedOccurrenceId || upcomingOccurrences[0]?.id} 
                       onValueChange={setSelectedOccurrenceId} 
                       disabled={occurrencesLoading}
                      >

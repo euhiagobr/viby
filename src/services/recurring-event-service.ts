@@ -1,4 +1,3 @@
-
 'use server';
 
 import { 
@@ -38,6 +37,9 @@ export interface RecurringEventInput {
   defaultBatches?: any[];
 }
 
+/**
+ * Gera ocorrências físicas no Firestore com suporte a ordenação e filtros temporais.
+ */
 export async function generateOccurrences(parentId: string, input: RecurringEventInput) {
   const db = getAdminDb();
   
@@ -64,6 +66,9 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
 
     for (const occ of finalOccs) {
       const occRef = occurrencesRef.doc();
+      const sDate = parseISO(`${occ.date}T${occ.startTime || '00:00'}`);
+      const eDate = parseISO(`${occ.date}T${occ.endTime || '23:59'}`);
+
       batch.set(occRef, {
         parentId,
         name: input.name,
@@ -71,6 +76,8 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
         date: occ.date,
         startTime: occ.startTime,
         endTime: occ.endTime,
+        start_date: admin.firestore.Timestamp.fromDate(sDate),
+        end_date: admin.firestore.Timestamp.fromDate(eDate),
         status: 'active',
         capacidadeMaxima: input.capacidadeMaxima || 0,
         ingressosVendidos: 0,
@@ -89,17 +96,28 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
     
     if (isNaN(currentDate.getTime())) return 0;
 
+    const baseStart = parseISO(input.startDate).getTime();
+    const baseEnd = input.endDate ? parseISO(input.endDate).getTime() : (baseStart + 4 * 3600000);
+    const duration = baseEnd - baseStart;
+
     while ((isBefore(currentDate, finalDate) || format(currentDate, 'yyyy-MM-dd') === input.endDate) && count < max) {
       const occRef = occurrencesRef.doc();
       const dateStr = format(currentDate, 'yyyy-MM-dd');
       
+      const sTime = input.startTime || "19:00";
+      const eTime = input.endTime || "22:00";
+      const sDate = parseISO(`${dateStr}T${sTime}`);
+      const eDate = parseISO(`${dateStr}T${eTime}`);
+
       batch.set(occRef, {
         parentId,
         name: input.name,
         organizationId: input.organizationId,
         date: dateStr,
-        startTime: input.startTime || "19:00",
-        endTime: input.endTime || "22:00",
+        startTime: sTime,
+        endTime: eTime,
+        start_date: admin.firestore.Timestamp.fromDate(sDate),
+        end_date: admin.firestore.Timestamp.fromDate(eDate),
         status: 'active',
         capacidadeMaxima: input.capacidadeMaxima || 0,
         ingressosVendidos: 0,
