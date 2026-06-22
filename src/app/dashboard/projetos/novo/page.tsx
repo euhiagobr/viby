@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -49,6 +50,7 @@ import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { createEventAction } from "@/app/actions/events"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -451,7 +453,7 @@ export default function NovoEventoWizard() {
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(3)} className="h-20 px-8 rounded-[2.5rem] font-bold uppercase text-xs">Voltar</Button>
               <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 hover:scale-[1.02] transition-all">
-                 {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
+                 {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Save className="w-6 h-6" />}
                  Publicar Todas as Datas
               </Button>
            </div>

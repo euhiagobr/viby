@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -46,6 +47,7 @@ import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { updateEventAction } from "@/app/actions/events"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { Separator } from "@/components/ui/separator"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
