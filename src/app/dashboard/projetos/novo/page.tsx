@@ -28,10 +28,11 @@ import {
   Clock,
   Layout,
   RefreshCw,
-  Copy
+  Copy,
+  Trash2
 } from "lucide-react"
 import Link from "next/link"
-import { normalizeText, normalizeEventDates, generateRecurrenceDates } from "@/lib/utils"
+import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -110,7 +111,7 @@ export default function NovoEventoWizard() {
   })
 
   const [ticketMode, setTicketMode] = useState<any>('free')
-  const [sessions, setSessions] = useState<any[]>([]) // Array de { date: string, batches: any[], capacity: number }
+  const [sessions, setSessions] = useState<any[]>([]) 
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
@@ -146,7 +147,6 @@ export default function NovoEventoWizard() {
         return;
       }
       
-      // Gerar sessões iniciais baseadas na recorrência
       const recurrenceParams = {
         freq: formData.isRecurring ? formData.frequency : null,
         startDate: formData.startDate,
@@ -186,7 +186,7 @@ export default function NovoEventoWizard() {
     
     const newSessions = sessions.map((s, i) => i === 0 ? s : { ...s, batches: JSON.parse(JSON.stringify(firstBatches)), capacity: firstCapacity });
     setSessions(newSessions);
-    toast({ title: "Bilheteria replicada para todas as datas!" });
+    toast({ title: "Bilheteria replicada!" });
   }
 
   const handleUpdateSessionTickets = (idx: number, newBatches: any[]) => {
@@ -209,14 +209,13 @@ export default function NovoEventoWizard() {
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
       const searchKeywords = [...normalizeText(currentOrg.name).split(" "), ...normalizeText(formData.title).split(" ")];
 
-      // O evento pai guarda o template e o modo
       const eventPayload = {
         ...formData,
         organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "" },
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         capacidadeTotal: sessions.reduce((acc, s) => acc + s.capacity, 0),
-        batches: sessions[0]?.batches || [], // Template do primeiro lote
+        batches: sessions[0]?.batches || [], 
         searchKeywords,
         city: formData.address.city,
         location: formData.address.neighborhood || formData.address.venueName,
@@ -232,7 +231,6 @@ export default function NovoEventoWizard() {
 
       if (!result.success) throw new Error(result.error);
 
-      // Gerar ocorrências com bilheterias individuais
       const occurrencesPayload = sessions.map(s => ({
         date: s.date.split('T')[0],
         startTime: s.date.split('T')[1]?.substring(0, 5) || "19:00",
@@ -246,9 +244,9 @@ export default function NovoEventoWizard() {
         description: formData.description,
         organizationId: currentOrg.id,
         organizerName: currentOrg.name,
-        frequency: 'custom', // Usamos custom aqui pois já enviamos as datas exatas
+        frequency: 'custom', 
         customOccurrences: occurrencesPayload,
-        capacidadeMaxima: 0 // Ignorado pois passamos no objeto acima
+        capacidadeMaxima: 0 
       });
 
       toast({ title: "Evento Publicado!" });
@@ -278,14 +276,8 @@ export default function NovoEventoWizard() {
       </div>
 
       {step === 1 && (
-        <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
-           <EventHeader 
-              title={formData.title} 
-              onTitleChange={v => setFormData({...formData, title: v})}
-              image={formData.image}
-              onImageUpload={handleImageUpload}
-              uploadProgress={uploadProgress}
-           />
+        <div className="space-y-8 animate-in slide-in-from-right-4">
+           <EventHeader title={formData.title} onTitleChange={v => setFormData({...formData, title: v})} image={formData.image} onImageUpload={handleImageUpload} uploadProgress={uploadProgress} />
            <Card className="border-none shadow-sm rounded-[2rem] bg-white">
               <CardContent className="p-8 space-y-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -320,7 +312,7 @@ export default function NovoEventoWizard() {
       )}
 
       {step === 2 && (
-        <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+        <div className="space-y-8 animate-in slide-in-from-right-4">
            <Card className="border-none shadow-sm rounded-[2rem] bg-white">
               <CardHeader className="p-8 pb-4"><CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary">Agenda & Recorrência</CardTitle></CardHeader>
               <CardContent className="p-8 pt-0 space-y-8">
@@ -342,7 +334,7 @@ export default function NovoEventoWizard() {
       )}
 
       {step === 3 && (
-        <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+        <div className="space-y-8 animate-in slide-in-from-right-4">
            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
               <div className="space-y-1">
                  <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Gestão de Ingressos</h2>
@@ -398,7 +390,7 @@ export default function NovoEventoWizard() {
       )}
 
       {step === 4 && (
-        <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+        <div className="space-y-8 animate-in slide-in-from-right-4">
            <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
               <CardHeader className="bg-muted/30 p-8 border-b">
                  <CardTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Conferência de Agenda</CardTitle>
@@ -452,7 +444,7 @@ export default function NovoEventoWizard() {
            </Card>
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(3)} className="h-20 px-8 rounded-[2.5rem] font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 hover:scale-[1.02] transition-all">
+              <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 hover:scale-102 transition-all">
                  {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Save className="w-6 h-6" />}
                  Publicar Todas as Datas
               </Button>

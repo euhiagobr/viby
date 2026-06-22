@@ -26,7 +26,8 @@ import {
   ShieldCheck, 
   MapPin,
   Clock,
-  Copy
+  Copy,
+  Trash2
 } from "lucide-react"
 import Link from "next/link"
 import { cn, normalizeText, normalizeEventDates, safeParseDate, generateRecurrenceDates } from "@/lib/utils"
@@ -76,6 +77,7 @@ export default function EditarEventoWizard() {
 
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [isDataLoaded, setIsDataLoaded] = useState(false)
   const [formData, setFormData] = useState<any>(null)
   const [ticketMode, setTicketMode] = useState<any>('free')
   const [sessions, setSessions] = useState<any[]>([])
@@ -94,7 +96,7 @@ export default function EditarEventoWizard() {
   const { data: dbOccurrences } = useCollection<any>(occurrencesQuery)
 
   useEffect(() => {
-    if (event) {
+    if (event && !isDataLoaded) {
       const start = safeParseDate(event.startDate || event.date);
       const end = safeParseDate(event.endDate);
 
@@ -123,7 +125,6 @@ export default function EditarEventoWizard() {
       })
       setTicketMode(event.ticketMode || 'free')
       
-      // Inicializar sessões a partir das ocorrências do banco se existirem
       if (dbOccurrences && dbOccurrences.length > 0) {
         setSessions(dbOccurrences.map(occ => ({
           id: occ.id,
@@ -140,8 +141,9 @@ export default function EditarEventoWizard() {
           capacity: event.capacidadeTotal || 100
         }]);
       }
+      setIsDataLoaded(true);
     }
-  }, [event, dbOccurrences])
+  }, [event, dbOccurrences, isDataLoaded])
 
   const handleImageUpload = async (file: File) => {
     if (!storage || !user) return
@@ -167,7 +169,6 @@ export default function EditarEventoWizard() {
         return;
       }
       
-      // Regerar sessões se a recorrência mudou
       const recurrenceParams = {
         freq: formData.isRecurring ? formData.frequency : null,
         startDate: formData.startDate,
@@ -239,7 +240,6 @@ export default function EditarEventoWizard() {
 
       if (!result.success) throw new Error(result.error)
 
-      // Atualizar ocorrências
       const occurrencesPayload = sessions.map(s => ({
         date: s.date.split('T')[0],
         startTime: s.date.split('T')[1]?.substring(0, 5) || "19:00",
@@ -284,7 +284,7 @@ export default function EditarEventoWizard() {
       </div>
 
       {step === 1 && (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-in slide-in-from-right-4">
            <EventHeader title={formData.title} onTitleChange={v => setFormData({...formData, title: v})} image={formData.image} onImageUpload={handleImageUpload} uploadProgress={uploadProgress} />
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -318,7 +318,7 @@ export default function EditarEventoWizard() {
       )}
 
       {step === 2 && (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-in slide-in-from-right-4">
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
               <EventDateTime startDate={formData.startDate} endDate={formData.endDate} onStartDateChange={v => setFormData({...formData, startDate: v})} onEndDateChange={v => setFormData({...formData, endDate: v})} />
               <Separator className="border-dashed" />
