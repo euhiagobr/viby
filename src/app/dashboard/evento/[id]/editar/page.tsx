@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import { Loader2, ArrowLeft, Save, Handshake, Settings2, Ticket, RefreshCw, Eye, Star, ChevronRight, Check, Calendar, ShieldCheck, MapPin } from "lucide-react"
 import Link from "next/link"
-import { normalizeText, normalizeEventDates, safeParseDate } from "@/lib/utils"
+import { cn, normalizeText, normalizeEventDates, safeParseDate } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
