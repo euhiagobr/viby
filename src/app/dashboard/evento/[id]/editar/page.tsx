@@ -45,7 +45,7 @@ import {
   EventRecurrence
 } from "@/components/events"
 import { getAgeRatingConfig } from "@/lib/age-rating"
-import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyCode"
 import { updateEventAction } from "@/app/actions/events"
 import { generateOccurrences } from "@/services/recurring-event-service"
 import { Separator } from "@/components/ui/separator"
@@ -169,25 +169,36 @@ export default function EditarEventoWizard() {
         return;
       }
       
-      const recurrenceParams = {
-        freq: formData.isRecurring ? formData.frequency : null,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        until: formData.recurringEndDate,
-        customOccurrences: formData.customOccurrences
-      };
+      const s = safeParseDate(formData.startDate);
+      const e = safeParseDate(formData.endDate);
       
-      let generatedDates = generateRecurrenceDates(recurrenceParams);
-      
-      if (generatedDates.length === 0) {
-        const s = safeParseDate(formData.startDate);
-        const e = safeParseDate(formData.endDate);
-        if (s && e) {
-          generatedDates = [{ startDate: s, endDate: e }];
-        }
+      let allDates: { startDate: Date; endDate: Date }[] = [];
+      if (s && e) {
+        allDates.push({ startDate: s, endDate: e });
       }
 
-      const newSessions = generatedDates.map((d: any) => {
+      if (formData.isRecurring) {
+        const recurrenceParams = {
+          freq: formData.frequency,
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+          until: formData.recurringEndDate,
+          customOccurrences: formData.customOccurrences
+        };
+        
+        const generated = generateRecurrenceDates(recurrenceParams);
+        
+        generated.forEach(g => {
+          const isDuplicate = allDates.some(existing => 
+            Math.abs(existing.startDate.getTime() - g.startDate.getTime()) < 60000
+          );
+          if (!isDuplicate) {
+            allDates.push(g);
+          }
+        });
+      }
+
+      const newSessions = allDates.map((d: any) => {
         const iso = d.startDate.toISOString();
         const existing = sessions.find(s => s.date === iso);
         

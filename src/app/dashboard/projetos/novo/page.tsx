@@ -80,7 +80,7 @@ export default function NovoEventoWizard() {
 
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [uploadProgress, setUploadProgress] = setUploadProgress = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
     title: "",
@@ -147,25 +147,36 @@ export default function NovoEventoWizard() {
         return;
       }
       
-      const recurrenceParams = {
-        freq: formData.isRecurring ? formData.frequency : null,
-        startDate: formData.startDate,
-        endDate: formData.endDate,
-        until: formData.recurringEndDate,
-        customOccurrences: formData.customOccurrences
-      };
+      const s = safeParseDate(formData.startDate);
+      const e = safeParseDate(formData.endDate);
       
-      let generatedDates = generateRecurrenceDates(recurrenceParams);
-      
-      if (generatedDates.length === 0) {
-        const s = safeParseDate(formData.startDate);
-        const e = safeParseDate(formData.endDate);
-        if (s && e) {
-          generatedDates = [{ startDate: s, endDate: e }];
-        }
+      let allDates: { startDate: Date; endDate: Date }[] = [];
+      if (s && e) {
+        allDates.push({ startDate: s, endDate: e });
       }
 
-      const initialSessions = generatedDates.map((d: any) => {
+      if (formData.isRecurring) {
+        const recurrenceParams = {
+          freq: formData.frequency,
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+          until: formData.recurringEndDate,
+          customOccurrences: formData.customOccurrences
+        };
+        
+        const generated = generateRecurrenceDates(recurrenceParams);
+        
+        generated.forEach(g => {
+          const isDuplicate = allDates.some(existing => 
+            Math.abs(existing.startDate.getTime() - g.startDate.getTime()) < 60000
+          );
+          if (!isDuplicate) {
+            allDates.push(g);
+          }
+        });
+      }
+
+      const newSessions = allDates.map((d: any) => {
         const iso = d.startDate.toISOString();
         const existing = sessions.find(s => s.date === iso);
         
@@ -186,7 +197,7 @@ export default function NovoEventoWizard() {
         };
       });
       
-      setSessions(initialSessions);
+      setSessions(newSessions);
     }
     
     setStep(prev => prev + 1);
@@ -372,7 +383,7 @@ export default function NovoEventoWizard() {
                              <span className="text-lg font-black text-primary leading-none">{new Date(session.date).getDate()}</span>
                           </div>
                           <div>
-                             <p className="text-sm font-black uppercase italic text-primary">{idx === 0 ? "Sessão Principal / " : ""}{new Date(session.date).toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
+                             <p className="text-sm font-black uppercase italic text-primary">{idx === 0 ? "Sessão Inicial / " : ""}{new Date(session.date).toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
                              <p className="text-[10px] font-bold text-muted-foreground uppercase">{session.capacity} Vagas • {session.batches?.length || 0} Lotes</p>
                           </div>
                        </div>
