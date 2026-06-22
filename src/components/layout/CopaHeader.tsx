@@ -8,7 +8,8 @@ import { signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
-import { LogOut, User, Trophy, ArrowLeft } from "lucide-react"
+import { LogOut, User, Trophy, ArrowLeft, ShoppingCart } from "lucide-react"
+import { useCart } from "@/contexts/CartContext"
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
@@ -16,6 +17,7 @@ export function CopaHeader() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const router = useRouter()
+  const { totalCount } = useCart()
 
   const handleLogout = async () => {
     if (!auth) return
@@ -61,6 +63,17 @@ export function CopaHeader() {
             <span className="hidden sm:inline">Tabela de Jogos</span>
             <span className="sm:hidden">Tabela</span>
           </Link>
+
+          {totalCount > 0 && (
+            <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full border-2 border-white/10 p-0 hover:bg-white/5 transition-all" asChild>
+              <Link href="/dashboard/carrinho">
+                <ShoppingCart className="h-5 w-5 text-white" />
+                <span className="absolute -top-1 -right-1 bg-[#ffdf00] text-[#002776] text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#002776]">
+                  {totalCount}
+                </span>
+              </Link>
+            </Button>
+          )}
 
           {user ? (
             <div className="flex items-center gap-6 border-l border-white/10 pl-6 md:pl-8">

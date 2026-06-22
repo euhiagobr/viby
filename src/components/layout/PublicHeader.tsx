@@ -5,11 +5,12 @@ import Link from "next/link"
 import Image from "next/image"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { Trophy, ArrowLeft } from "lucide-react"
+import { Trophy, ArrowLeft, ShoppingCart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserNav } from "./UserNav"
 import { useTranslation } from "@/i18n/i18n-context"
 import { useRouter } from "next/navigation"
+import { useCart } from "@/contexts/CartContext"
 
 interface PublicHeaderProps {
   showBack?: boolean
@@ -27,6 +28,7 @@ export function PublicHeader({ showBack, hideCopa = false, children }: PublicHea
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
+  const { totalCount } = useCart()
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
   const { data: settings } = useDoc<any>(settingsRef)
@@ -66,6 +68,17 @@ export function PublicHeader({ showBack, hideCopa = false, children }: PublicHea
           )}
           
           {children}
+
+          {totalCount > 0 && (
+            <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full border-2 border-secondary/20 p-0 hover:bg-secondary/5 transition-all" asChild>
+              <Link href="/dashboard/carrinho">
+                <ShoppingCart className="h-5 w-5 text-secondary" />
+                <span className="absolute -top-1 -right-1 bg-primary text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-background animate-in zoom-in-50 duration-300">
+                  {totalCount}
+                </span>
+              </Link>
+            </Button>
+          )}
 
           {user ? <UserNav /> : (
             <div className="flex items-center gap-1 sm:gap-2">

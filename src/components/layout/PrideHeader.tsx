@@ -6,8 +6,9 @@ import Image from "next/image"
 import { useAuth, useUser } from "@/firebase"
 import { Button } from "@/components/ui/button"
 import { UserNav } from "./UserNav"
-import { ArrowLeft, Heart, Sparkles } from "lucide-react"
+import { ArrowLeft, Heart, Sparkles, ShoppingCart } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useCart } from "@/contexts/CartContext"
 
 const PRIDE_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibydiversidade.png?alt=media&token=fea0711d-c6d1-49ad-bed8-3b10c5a877c4";
 
@@ -19,6 +20,7 @@ export function PrideHeader() {
   const auth = useAuth()
   const { user } = useUser(auth)
   const router = useRouter()
+  const { totalCount } = useCart()
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-white/20 bg-gradient-to-r from-[#FF0000] via-[#FF8B00] via-[#FFD300] via-[#008121] via-[#004CFF] to-[#760089] h-16 shadow-xl">
@@ -52,6 +54,17 @@ export function PrideHeader() {
           >
             <Sparkles className="w-4 h-4 fill-white" /> Explorar Eventos
           </Link>
+
+          {totalCount > 0 && (
+            <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full border-2 border-white/20 p-0 hover:bg-white/10 transition-all" asChild>
+              <Link href="/dashboard/carrinho">
+                <ShoppingCart className="h-5 w-5 text-white" />
+                <span className="absolute -top-1 -right-1 bg-white text-primary text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-primary animate-in zoom-in-50 duration-300">
+                  {totalCount}
+                </span>
+              </Link>
+            </Button>
+          )}
 
           {user ? <UserNav /> : (
             <div className="flex items-center gap-1 sm:gap-2">
