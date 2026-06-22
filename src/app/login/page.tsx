@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, User, Lock as LockIcon, ShieldCheck, KeyRound, AlertCircle } from "lucide-react"
+import { Loader2, User, Lock as LockIcon, ShieldCheck, KeyRound, AlertCircle, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { Separator } from "@/components/ui/separator"
@@ -26,6 +26,7 @@ function LoginContent() {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const auth = useAuth()
@@ -58,6 +59,7 @@ function LoginContent() {
 
     setLoading(true)
     setError(null)
+    setSuccess(false)
     try {
       let emailToUse = identifier.trim().toLowerCase();
 
@@ -71,6 +73,7 @@ function LoginContent() {
       }
 
       await signInWithEmailAndPassword(auth, emailToUse, password)
+      setSuccess(true)
     } catch (err: any) {
       setError("Credenciais inválidas. Verifique seu e-mail ou @username e tente novamente.")
     } finally {
@@ -78,7 +81,7 @@ function LoginContent() {
     }
   }
 
-  const showSync = !isInitialized || authLoading;
+  const showSync = (!isInitialized || authLoading) && !success;
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
@@ -108,6 +111,16 @@ function LoginContent() {
               </Alert>
             )}
 
+            {success && (
+              <Alert className="rounded-2xl border-2 border-green-200 bg-green-50 text-green-800 animate-in zoom-in-95 duration-300">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertTitle className="font-black uppercase italic text-[10px]">Acesso Autorizado</AlertTitle>
+                <AlertDescription className="text-xs font-bold uppercase italic">
+                  Sucesso... estamos entrando na sua conta
+                </AlertDescription>
+              </Alert>
+            )}
+
             {showSync ? (
               <div className="flex flex-col items-center justify-center py-12 gap-4">
                  <Loader2 className="w-10 h-10 animate-spin text-secondary" />
@@ -119,14 +132,17 @@ function LoginContent() {
                   <Label htmlFor="identifier" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">{t('auth.email_label')}</Label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
-                    <Input 
-                      id="identifier" 
-                      placeholder={t('auth.identifier_placeholder')} 
-                      value={identifier} 
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      required 
-                      className="h-14 rounded-2xl pl-12 border-dashed border-primary/20 focus-visible:ring-secondary/30"
-                    />
+                    <FormControl>
+                      <Input 
+                        id="identifier" 
+                        placeholder={t('auth.identifier_placeholder')} 
+                        value={identifier} 
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        required 
+                        disabled={loading || success}
+                        className="h-14 rounded-2xl pl-12 border-dashed border-primary/20 focus-visible:ring-secondary/30"
+                      />
+                    </FormControl>
                   </div>
                 </div>
                 
@@ -144,13 +160,14 @@ function LoginContent() {
                       value={password} 
                       onChange={(e) => setPassword(e.target.value)}
                       required 
+                      disabled={loading || success}
                       className="h-14 rounded-2xl pl-12 border-dashed border-primary/20 focus-visible:ring-secondary/30"
                     />
                   </div>
                 </div>
 
-                <Button type="submit" disabled={loading} className="w-full bg-primary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg transition-all hover:scale-[1.02] shadow-primary/20">
-                  {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : t('auth.login_btn')}
+                <Button type="submit" disabled={loading || success} className="w-full bg-primary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg transition-all hover:scale-[1.02] shadow-primary/20">
+                  {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : success ? <CheckCircle2 className="mr-2 h-5 w-5" /> : t('auth.login_btn')}
                 </Button>
               </form>
             )}
@@ -175,6 +192,10 @@ function LoginContent() {
       <Footer />
     </div>
   )
+}
+
+function FormControl({ children }: { children: React.ReactNode }) {
+  return <div className="w-full">{children}</div>;
 }
 
 export default function LoginPage() {
