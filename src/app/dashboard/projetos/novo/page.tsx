@@ -5,7 +5,7 @@ import * as React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
-import { collection, query, orderBy } from "firebase/firestore"
+import { collection, query, orderBy, serverTimestamp, increment, doc } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -170,7 +170,7 @@ export default function NovoEventoWizard() {
 
       if (!result.success) throw new Error(result.error);
 
-      if (formData.isRecurring && formData.recurringEndDate) {
+      if (formData.isRecurring) {
         await generateOccurrences(result.id!, {
           name: formData.title,
           description: formData.description,
@@ -318,7 +318,17 @@ export default function NovoEventoWizard() {
                              <span className="opacity-40">Tipo:</span>
                              <span className="text-primary italic">{formData.isRecurring ? `Série ${formData.frequency}` : "Evento Único"}</span>
                           </div>
-                          {formData.isRecurring && (
+                          {formData.frequency === 'custom' ? (
+                             <div className="space-y-1 pt-2">
+                                <p className="text-[8px] font-black uppercase opacity-40">Datas Selecionadas:</p>
+                                {formData.customOccurrences?.map((occ: any, i: number) => (
+                                  <div key={i} className="text-[10px] font-bold text-primary flex justify-between">
+                                     <span>{occ.date ? new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR') : "---"}</span>
+                                     <span className="opacity-60">{occ.startTime} - {occ.endTime}</span>
+                                  </div>
+                                ))}
+                             </div>
+                          ) : formData.isRecurring && formData.recurringEndDate && (
                             <div className="flex justify-between items-center text-xs font-bold uppercase">
                                <span className="opacity-40">Até:</span>
                                <span className="text-primary">{new Date(formData.recurringEndDate + 'T12:00:00').toLocaleDateString('pt-BR')}</span>

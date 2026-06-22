@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -41,18 +42,21 @@ export function EventRecurrence({
   if (isPublic) return null;
 
   const handleAddCustom = () => {
-    const newList = [...customOccurrences, { date: "", startTime: "19:00", endTime: "22:00" }];
+    const safeOccurrences = customOccurrences || [];
+    const newList = [...safeOccurrences, { date: "", startTime: "19:00", endTime: "22:00" }];
     onCustomOccurrencesChange?.(newList);
   };
 
   const handleUpdateCustom = (index: number, field: keyof CustomOccurrence, val: string) => {
-    const newList = [...customOccurrences];
+    const safeOccurrences = customOccurrences || [];
+    const newList = [...safeOccurrences];
     newList[index] = { ...newList[index], [field]: val };
     onCustomOccurrencesChange?.(newList);
   };
 
   const handleRemoveCustom = (index: number) => {
-    const newList = customOccurrences.filter((_, i) => i !== index);
+    const safeOccurrences = customOccurrences || [];
+    const newList = safeOccurrences.filter((_, i) => i !== index);
     onCustomOccurrencesChange?.(newList);
   };
 
@@ -111,13 +115,13 @@ export function EventRecurrence({
                </div>
 
                <div className="space-y-3">
-                  {customOccurrences.length === 0 && (
+                  {(customOccurrences || []).length === 0 && (
                     <div className="py-8 text-center border-2 border-dashed rounded-2xl opacity-20">
                        <Calendar className="w-8 h-8 mx-auto mb-2" />
                        <p className="text-[9px] font-black uppercase">Nenhuma data adicionada</p>
                     </div>
                   )}
-                  {customOccurrences.map((occ, idx) => (
+                  {(customOccurrences || []).map((occ, idx) => (
                     <div key={idx} className="flex gap-2 items-end bg-muted/20 p-3 rounded-2xl border border-border/40 group animate-in slide-in-from-left-2">
                        <div className="flex-1 space-y-1">
                           <Label className="text-[8px] font-black uppercase opacity-40 ml-1">Data</Label>

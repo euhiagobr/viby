@@ -166,9 +166,14 @@ export default function EditarEventoWizard() {
               <EventDateTime startDate={formData.startDate} endDate={formData.endDate} onStartDateChange={v => setFormData({...formData, startDate: v})} onEndDateChange={v => setFormData({...formData, endDate: v})} />
               <Separator className="border-dashed" />
               <EventRecurrence 
-                isRecurring={!!formData.recurrency?.freq} onIsRecurringChange={v => setFormData({...formData, recurrency: v ? { freq: 'weekly' } : {} })}
-                frequency={formData.recurrency?.freq} onFrequencyChange={v => setFormData({...formData, recurrency: {...formData.recurrency, freq: v}})}
-                recurringEndDate={formData.recurrency?.until} onRecurringEndDateChange={v => setFormData({...formData, recurrency: {...formData.recurrency, until: v}})}
+                isRecurring={!!formData.recurrency?.freq} 
+                onIsRecurringChange={v => setFormData({...formData, recurrency: v ? { ...formData.recurrency, freq: formData.recurrency.freq || 'weekly' } : {} })}
+                frequency={formData.recurrency?.freq || ""} 
+                onFrequencyChange={v => setFormData({...formData, recurrency: {...formData.recurrency, freq: v}})}
+                recurringEndDate={formData.recurrency?.until || ""} 
+                onRecurringEndDateChange={v => setFormData({...formData, recurrency: {...formData.recurrency, until: v}})}
+                customOccurrences={formData.recurrency?.customOccurrences || []}
+                onCustomOccurrencesChange={v => setFormData({...formData, recurrency: {...formData.recurrency, customOccurrences: v}})}
               />
            </Card>
            <div className="flex gap-4">
@@ -197,12 +202,33 @@ export default function EditarEventoWizard() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                  <div className="space-y-4">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2"><MapPin className="w-4 h-4" /> Local</p>
-                    <p className="font-bold text-sm uppercase">{formData.address.city}, {formData.address.stateRegion}</p>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2"><Calendar className="w-4 h-4 text-secondary" /> Agenda</p>
+                    <div className="p-5 bg-muted/20 rounded-2xl border border-dashed space-y-3">
+                       <div className="flex justify-between items-center text-xs font-bold uppercase">
+                          <span className="opacity-40">Tipo:</span>
+                          <span className="text-primary italic">{formData.recurrency?.freq ? `Série ${formData.recurrency.freq}` : "Evento Único"}</span>
+                       </div>
+                       {formData.recurrency?.freq === 'custom' ? (
+                          <div className="space-y-1 pt-2">
+                             <p className="text-[8px] font-black uppercase opacity-40">Datas Selecionadas:</p>
+                             {formData.recurrency.customOccurrences?.map((occ: any, i: number) => (
+                               <div key={i} className="text-[10px] font-bold text-primary flex justify-between">
+                                  <span>{occ.date ? new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR') : "---"}</span>
+                                  <span className="opacity-60">{occ.startTime} - {occ.endTime}</span>
+                               </div>
+                             ))}
+                          </div>
+                       ) : formData.recurrency?.until && (
+                         <div className="flex justify-between items-center text-xs font-bold uppercase">
+                            <span className="opacity-40">Até:</span>
+                            <span className="text-primary">{new Date(formData.recurrency.until + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                         </div>
+                       )}
+                    </div>
                  </div>
                  <div className="space-y-4">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Segurança</p>
-                    <Badge variant="outline" className="font-black text-[10px] uppercase border-secondary text-secondary">Ativo na Rede</Badge>
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2"><MapPin className="w-4 h-4" /> Local</p>
+                    <p className="font-bold text-sm uppercase">{formData.address.city}, {formData.address.stateRegion}</p>
                  </div>
               </div>
            </Card>
