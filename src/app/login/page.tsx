@@ -87,10 +87,10 @@ function LoginContent() {
               <Image 
                 src={settings.logoUrl} 
                 alt={siteName} 
-                width={120} 
-                height={40} 
+                width={200} 
+                height={50} 
                 style={{ height: 'auto' }}
-                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
+                className="h-6 w-auto object-contain transition-transform group-hover:scale-105" 
                 priority 
                 unoptimized 
               />

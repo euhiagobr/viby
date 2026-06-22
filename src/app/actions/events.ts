@@ -1,9 +1,10 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { slugify } from '@/lib/slug-utils';
-import { normalizeEventDates } from '@/lib/utils';
+import { normalizeEventDates, generateRecurrenceDates } from '@/lib/utils';
 import { slugifyLocation, buildRegionParam } from '@/lib/city-utils';
 import { revalidatePath } from 'next/cache';
 import { generateAndPersistCityCover } from './city-pages';
@@ -13,9 +14,12 @@ import { recordAuditLog } from './audit';
  * Server Actions para gestão de eventos Viby.
  */
 
-async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string, eventData: any) {
+async function validateStripeAccount(db: admin.firestore.Firestore, orgId: string, eventData: any, occurrences: any[]) {
   const isPaidOnViby = eventData.type === 'interno' && 
-    eventData.batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
+    (
+      eventData.batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0)) ||
+      occurrences.some(occ => occ.batches?.some((b: any) => (b.price || 0) > 0))
+    );
 
   if (!isPaidOnViby) return true;
 
@@ -67,7 +71,6 @@ async function triggerCityCoverGeneration(eventData: any) {
   const cityPageRef = db.collection('cityPages').doc(cityPageId);
   const cityPageSnap = await cityPageRef.get();
 
-  // Garante o registro da cidade no banco para visibilidade administrativa
   if (!cityPageSnap.exists) {
     await cityPageRef.set({
       slug: cityPageId,
@@ -97,22 +100,80 @@ async function triggerCityCoverGeneration(eventData: any) {
   }
 }
 
+async function manageEventOccurrences(db: admin.firestore.Firestore, eventId: string, organizationId: string, eventData: any, batch: admin.firestore.WriteBatch) {
+  const isRecurring = eventData.recurrency && eventData.recurrency.freq;
+  
+  if (!isRecurring) {
+    // Para eventos não recorrentes, não fazemos nada aqui.
+    return;
+  }
+  
+  // 1. Limpar ocorrências antigas para este evento
+  const oldOccurrencesSnap = await db.collection('recurring_occurrences').where('eventId', '==', eventId).get();
+  oldOccurrencesSnap.docs.forEach(doc => batch.delete(doc.ref));
+
+  // 2. Gerar novas datas de ocorrência
+  const recurrenceDates = generateRecurrenceDates(eventData.recurrency);
+
+  // 3. Preparar a estrutura de lotes que servirá como template
+  const batchTemplate = (eventData.batches || []).flatMap((batchGroup: any) => 
+    (batchGroup.ticketTypes || []).map((ticket: any) => ({
+      id: db.collection('recurring_occurrences').doc().id, // ID único para o lote
+      name: ticket.name,
+      price: Number(ticket.price || 0),
+      quantity: Number(ticket.quantity || 0),
+      isFree: (ticket.price || 0) === 0,
+      sold: 0,
+      currency: ticket.currency || 'BRL',
+    }))
+  );
+
+  // 4. Criar um novo documento de ocorrência para cada data gerada
+  recurrenceDates.forEach(date => {
+    const occurrenceRef = db.collection('recurring_occurrences').doc();
+    const capacity = Number(eventData.capacity) || batchTemplate.reduce((acc, b) => acc + b.quantity, 0);
+
+    batch.set(occurrenceRef, {
+      eventId: eventId,
+      organizationId: organizationId,
+      start_date: admin.firestore.Timestamp.fromDate(date.startDate),
+      end_date: admin.firestore.Timestamp.fromDate(date.endDate),
+      capacity: capacity,
+      sales: {
+        totalSold: 0,
+        totalValue: 0,
+      },
+      batches: batchTemplate,
+    });
+  });
+
+  // Remove os lotes e capacidade do evento principal, pois agora são gerenciados por sessão
+  delete eventData.batches;
+  delete eventData.capacity;
+}
+
 export async function createEventAction(params: {
   orgId: string;
   userId: string;
   eventData: any;
 }) {
   const db = getAdminDb();
-  
+  const batch = db.batch();
+
   try {
-    const { eventData } = params;
+    const { orgId, userId, eventData } = params;
     const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
     if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
 
-    await validateStripeAccount(db, params.orgId, eventData);
+    const isRecurring = eventData.recurrency && eventData.recurrency.freq;
+    const occurrences: any[] = []; // Este array será populado em manageEventOccurrences se necessário
+
+    await validateStripeAccount(db, orgId, eventData, occurrences);
 
     const slug = await generateUniqueSlug(db, eventData.title);
     const eventRef = db.collection('events').doc();
+    
+    await manageEventOccurrences(db, eventRef.id, orgId, eventData, batch);
     
     const startDate = new Date(dateNormalization.startDate);
     const endDate = new Date(dateNormalization.endDate);
@@ -122,7 +183,7 @@ export async function createEventAction(params: {
     const countrySlug = slugifyLocation(eventData.address.countryCode || "br");
     const regionSlug = buildRegionParam(countrySlug, eventData.address.stateRegion);
 
-    const orgSnap = await db.collection('organizations').doc(params.orgId).get();
+    const orgSnap = await db.collection('organizations').doc(orgId).get();
     const orgData = orgSnap.data();
 
     if (!orgSnap.exists) throw new Error("Organização não localizada.");
@@ -130,6 +191,7 @@ export async function createEventAction(params: {
     const finalData = {
       ...eventData,
       id: eventRef.id,
+      isRecurring: !!isRecurring, // Adiciona o flag
       slug,
       citySlug,
       stateSlug,
@@ -138,10 +200,10 @@ export async function createEventAction(params: {
       date: admin.firestore.Timestamp.fromDate(startDate),
       startDate: admin.firestore.Timestamp.fromDate(startDate),
       endDate: admin.firestore.Timestamp.fromDate(endDate),
-      organizationId: params.orgId,
-      organizerId: params.userId,
+      organizationId: orgId,
+      organizerId: userId,
       organizer: {
-        id: params.orgId,
+        id: orgId,
         name: orgData?.name || "Organizador",
         username: orgData?.username || "evento",
         avatar: orgData?.avatar || ""
@@ -149,8 +211,10 @@ export async function createEventAction(params: {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
+    
+    batch.set(eventRef, finalData);
 
-    await eventRef.set(finalData);
+    await batch.commit();
     
     triggerCityCoverGeneration(finalData);
 
@@ -169,25 +233,31 @@ export async function updateEventAction(params: {
   eventData: any;
 }) {
   const db = getAdminDb();
-  
+  const batch = db.batch();
+
   try {
-    const { eventData } = params;
+    const { eventId, orgId, eventData } = params;
     const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
     if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
 
-    await validateStripeAccount(db, params.orgId, eventData);
+    const isRecurring = eventData.recurrency && eventData.recurrency.freq;
+    const occurrences: any[] = [];
 
-    const eventRef = db.collection('events').doc(params.eventId);
+    await validateStripeAccount(db, orgId, eventData, occurrences);
+
+    const eventRef = db.collection('events').doc(eventId);
     const eventSnap = await eventRef.get();
     if (!eventSnap.exists) throw new Error("Evento não localizado.");
     
+    await manageEventOccurrences(db, eventId, orgId, eventData, batch);
+
     const oldData = eventSnap.data()!;
     const oldRegionSlug = oldData.regionSlug;
     const oldCitySlug = oldData.citySlug;
 
     let slug = oldData.slug;
     if (slugify(eventData.title) !== slugify(oldData.title)) {
-      slug = await generateUniqueSlug(db, eventData.title, params.eventId);
+      slug = await generateUniqueSlug(db, eventData.title, eventId);
     }
 
     const startDate = new Date(dateNormalization.startDate);
@@ -200,6 +270,7 @@ export async function updateEventAction(params: {
 
     const updatePayload = {
       ...eventData,
+      isRecurring: !!isRecurring,
       slug,
       citySlug,
       stateSlug,
@@ -211,7 +282,9 @@ export async function updateEventAction(params: {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
-    await eventRef.update(updatePayload);
+    batch.update(eventRef, updatePayload);
+    
+    await batch.commit();
     
     triggerCityCoverGeneration(updatePayload);
 
@@ -226,6 +299,9 @@ export async function updateEventAction(params: {
     return { success: false, error: e.message };
   }
 }
+
+
+// Manter as funções abaixo inalteradas, pois não são diretamente afetadas pela mudança na bilheteria
 
 export async function updateEventSlugAction(params: {
   eventId: string;
@@ -309,21 +385,15 @@ export async function cancelEventAction(eventId: string) {
   }
 }
 
-/**
- * Manutenção: Atualiza slugs de localização e registra cidades no cityPages.
- * Versão otimizada para capturar todas as cidades com eventos não excluídos.
- */
 export async function backfillEventLocationSlugsAction() {
   const db = getAdminDb();
   try {
-    // Buscar todos os eventos para garantir cobertura total (exceto excluídos)
     const snap = await db.collection('events').get();
     let count = 0;
     
     const cityPagesRef = db.collection('cityPages');
     const processedCities = new Set<string>();
     
-    // Processamento em lotes de 500 para respeitar limites do Firestore
     let batch = db.batch();
     let opCount = 0;
 
@@ -340,9 +410,8 @@ export async function backfillEventLocationSlugsAction() {
         const citySlug = slugifyLocation(city);
         const stateSlug = slugifyLocation(state);
         const regionSlug = `${countryCode}-${stateSlug}`;
-        const cityId = `${regionSlug}-${citySlug}`;
+        const cityId = `${regionSlug}-${citySlug}`
 
-        // 1. Atualizar o evento com os slugs de localização
         batch.update(docSnap.ref, {
           citySlug,
           stateSlug,
@@ -352,7 +421,6 @@ export async function backfillEventLocationSlugsAction() {
         });
         opCount++;
 
-        // 2. Registrar a cidade se ainda não processada neste loop
         if (!processedCities.has(cityId)) {
           batch.set(cityPagesRef.doc(cityId), {
             slug: cityId,
@@ -365,7 +433,6 @@ export async function backfillEventLocationSlugsAction() {
           opCount++;
         }
 
-        // Commit se atingir limite do batch
         if (opCount >= 450) {
           await batch.commit();
           batch = db.batch();

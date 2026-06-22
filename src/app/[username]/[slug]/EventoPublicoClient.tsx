@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where } from "firebase/firestore"
+import { doc, collection, query, where, getDoc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,18 +11,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { 
   Calendar, 
   MapPin, 
-  ArrowLeft, 
   Info,
   BadgeCheck,
   Loader2,
   Share2,
-  Tag,
-  Users,
   ShieldAlert,
   Clock,
-  Navigation,
-  ChevronRight,
-  ChevronDown
+  Navigation
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -31,14 +26,12 @@ import { cn } from "@/lib/utils"
 import { BilheteriaPublic, EventSEO, EventCoOrganizers } from "@/components/events"
 import { FollowButton } from "@/components/organizer/FollowButton"
 import Footer from "@/components/layout/Footer"
-import { AgeRatingBadge, AgeRatingWarning } from "@/lib/age-rating"
+import { AgeRatingBadge } from "@/lib/age-rating"
 import { PublicHeader } from "@/components/layout/PublicHeader"
 import { ShareModal } from "@/components/sharing/ShareModal"
 import { RichText } from "@/components/ui/rich-text"
-import { toast } from "@/hooks/use-toast"
 import dynamic from "next/dynamic"
 import { format, startOfToday, addDays } from "date-fns"
-import { ptBR } from "date-fns/locale"
 import { EventActionModal } from "@/components/events/EventActionModal"
 import { formatFullAddress } from "@/lib/location-utils"
 import {
@@ -48,8 +41,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
-const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
   ssr: false,
@@ -62,22 +53,15 @@ interface EventoPublicoClientProps {
 }
 
 export default function EventoPublicoClient({ id, username }: EventoPublicoClientProps) {
-  const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
   
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = React.useState(false)
-  const [now, setNow] = React.useState<Date | null>(null)
   const [selectedOccurrenceId, setSelectedOccurrenceId] = React.useState<string | null>(null)
-
-  // Atualiza o relógio a cada minuto para manter sincronia de visibilidade
-  React.useEffect(() => {
-    setNow(new Date());
-    const timer = setInterval(() => setNow(new Date()), 60000)
-    return () => clearInterval(timer)
-  }, [])
+  const [selectedOccurrenceData, setSelectedOccurrenceData] = React.useState<any>(null)
+  const [occurrenceLoading, setOccurrenceLoading] = React.useState(false)
 
   const eventRef = React.useMemo(() => (db && id) ? doc(db, "events", id) : null, [db, id])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
@@ -96,67 +80,37 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !id || !event?.isRecurring) return null;
-    const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
+    const today = startOfToday();
     return query(
       collection(db, "recurring_occurrences"),
-      where("parentId", "==", id),
-      where("status", "==", "active"),
-      where("date", ">=", yesterdayStr)
+      where("eventId", "==", id),
+      where("start_date", ">=", today)
     )
   }, [db, id, event?.isRecurring]);
 
-  const { data: rawOccurrences } = useCollection<any>(occurrencesQuery);
+  const { data: upcomingOccurrences, loading: occurrencesLoading } = useCollection<any>(occurrencesQuery);
 
-  const upcomingOccurrences = React.useMemo(() => {
-    if (!rawOccurrences || !now) return [];
-    
-    return rawOccurrences
-      .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
-      .filter(o => {
-        const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
-        return now < endThreshold;
-      })
-      .sort((a: any, b: any) => a._dt.getTime() - b._dt.getTime());
-  }, [rawOccurrences, now]);
-
-  // Sincroniza seleção inicial da ocorrência
-  React.useEffect(() => {
-    if (upcomingOccurrences.length > 0 && !selectedOccurrenceId) {
-      setSelectedOccurrenceId(upcomingOccurrences[0].id);
+  const handleOccurrenceSelection = async (occurrenceId: string) => {
+    if (!db || !occurrenceId) return;
+    setSelectedOccurrenceId(occurrenceId);
+    setOccurrenceLoading(true);
+    try {
+      const occRef = doc(db, "recurring_occurrences", occurrenceId);
+      const occSnap = await getDoc(occRef);
+      if (occSnap.exists()) {
+        setSelectedOccurrenceData(occSnap.data());
+      } else {
+        setSelectedOccurrenceData(null);
+      }
+    } finally {
+      setOccurrenceLoading(false);
     }
-  }, [upcomingOccurrences, selectedOccurrenceId]);
-
-  /**
-   * RESOLUÇÃO DA BILHETERIA:
-   * Prioriza 'batches' da ocorrência se existirem (Bilheteria Independente).
-   * Caso contrário, usa os lotes globais da série (Bilheteria Compartilhada).
-   */
-  const effectiveEventData = React.useMemo(() => {
-    if (!event) return null;
-    if (!event.isRecurring || upcomingOccurrences.length === 0) return event;
-
-    const selectedOcc = upcomingOccurrences.find(o => o.id === selectedOccurrenceId) || upcomingOccurrences[0];
-    const dateStr = selectedOcc.date + 'T' + (selectedOcc.startTime || '19:00') + ':00';
-    
-    return {
-      ...event,
-      date: dateStr,
-      occurrenceId: selectedOcc.id,
-      ingressosVendidos: selectedOcc.ingressosVendidos || 0,
-      capacidadeTotal: selectedOcc.capacidadeMaxima || event.capacidadeTotal,
-      // PONTO DE PIVOT: Sobrescreve lotes globais se a sessão tiver sua própria bilheteria
-      batches: (selectedOcc.batches && selectedOcc.batches.length > 0) ? selectedOcc.batches : event.batches,
-      _isAutoUpdated: true,
-      _isIndependentTicketing: !!(selectedOcc.batches && selectedOcc.batches.length > 0)
-    };
-  }, [event, upcomingOccurrences, selectedOccurrenceId]);
+  }
 
   const formatDate = (dateValue: any) => {
     if (!dateValue) return "A definir";
     try {
-      let d: Date;
-      if (dateValue.toDate) d = dateValue.toDate();
-      else d = new Date(dateValue);
+      const d = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     } catch (e) { return "---"; }
   };
@@ -164,63 +118,59 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
   const formatTime = (dateValue: any) => {
     if (!dateValue) return "";
     try {
-      let d: Date;
-      if (dateValue.toDate) d = dateValue.toDate();
-      else d = new Date(dateValue);
+      const d = dateValue.toDate ? dateValue.toDate() : new Date(dateValue);
       return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     } catch (e) { return ""; }
   };
 
-  const content = React.useMemo(() => {
-    if (eventLoading) {
-      return (
-        <div className="flex flex-col items-center justify-center py-32 gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando Experiência...</p>
+  const renderLoading = () => (
+    <div className="flex flex-col items-center justify-center py-32 gap-4">
+      <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando Experiência...</p>
+    </div>
+  )
+
+  const renderNotFound = () => (
+    <div className="flex flex-col items-center justify-center py-32 gap-6 text-center px-6">
+        <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
+        <div className="space-y-2">
+          <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Evento Indisponível</h2>
+          <p className="text-muted-foreground font-medium max-w-sm mx-auto uppercase text-xs leading-relaxed">
+              O projeto que você procura não foi localizado ou não está mais ativo na rede Viby.
+          </p>
         </div>
-      );
-    }
+        <Button asChild className="rounded-xl h-12 px-8 font-black uppercase italic">
+          <Link href="/dashboard">Ver Outros Eventos</Link>
+        </Button>
+    </div>
+  )
 
-    if (!event || !effectiveEventData) {
-      return (
-        <div className="flex flex-col items-center justify-center py-32 gap-6 text-center px-6">
-           <ShieldAlert className="w-16 h-16 text-muted-foreground opacity-20" />
-           <div className="space-y-2">
-              <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Evento Indisponível</h2>
-              <p className="text-muted-foreground font-medium max-w-sm mx-auto uppercase text-xs leading-relaxed">
-                 O projeto que você procura não foi localizado ou não está mais ativo na rede Viby.
-              </p>
-           </div>
-           <Button asChild className="rounded-xl h-12 px-8 font-black uppercase italic">
-              <Link href="/dashboard">Ver Outros Eventos</Link>
-           </Button>
-        </div>
-      );
-    }
+  if (eventLoading) return renderLoading();
+  if (!event) return renderNotFound();
+  
+  const displayDate = selectedOccurrenceData?.start_date || event.startDate;
+  const displayEndDate = selectedOccurrenceData?.end_date || event.endDate;
 
-    const start = { date: formatDate(effectiveEventData.date), time: formatTime(effectiveEventData.date) };
-    const end = effectiveEventData.endDate ? { date: formatDate(effectiveEventData.endDate), time: formatTime(effectiveEventData.endDate) } : null;
+  const start = { date: formatDate(displayDate), time: formatTime(displayDate) };
+  const end = displayEndDate ? { date: formatDate(displayEndDate), time: formatTime(displayEndDate) } : null;
 
-    const isCuradoria = event.curationType === 'curadoria' || 
-                        event.curatorProfile === 'viby' || 
-                        (event.organizationId === VIBY_OFFICIAL_UID && (event.type === 'divulgacao' || event.type === 'externo'));
+  const isCuradoria = event.curationType === 'curadoria' || (event.organizationId === "dd9665af-ad6d-405c-a51d-08220fecf96f" && (event.type === 'divulgacao' || event.type === 'externo'));
 
-    const addressLines = formatFullAddress(event.address || {
-      venueName: event.location,
-      city: event.city,
-      stateRegion: event.state
-    });
+  const addressLines = formatFullAddress(event.address || { venueName: event.location, city: event.city, stateRegion: event.state });
+  const locationQuery = encodeURIComponent(addressLines.join(' '));
 
-    const locationQuery = encodeURIComponent(addressLines.join(' '));
+  const lat = event.address?.latitude ?? -23.55052;
+  const lng = event.address?.longitude ?? -46.633308;
 
-    const lat = event.latitude !== undefined && event.latitude !== null ? event.latitude : (event.address?.latitude !== undefined ? event.address.latitude : -23.55052);
-    const lng = event.longitude !== undefined && event.longitude !== null ? event.longitude : (event.address?.longitude !== undefined ? event.address.longitude : -46.633308);
+  return (
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
+      <EventSEO event={event} username={username} />
+      <PublicHeader showBack />
 
-    return (
-      <div className="animate-in fade-in duration-700">
+      <main className="flex-1 animate-in fade-in duration-700">
         <div className="relative h-[40vh] md:h-[60vh] w-full overflow-hidden">
           <Image 
-            src={event.image || "https://picsum.photos/seed/vibyeventos/1200/800"} 
+            src={event.image || "/img/placeholder.png"} 
             alt={event.title} 
             fill 
             className="object-cover"
@@ -244,39 +194,33 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
         <div className="container mx-auto px-4 py-12 max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
           <div className="lg:col-span-8 space-y-12">
             
-            {/* Seletor de Sessões (Exibido apenas se houver múltiplas ocorrências) */}
-            {event.isRecurring && upcomingOccurrences.length > 1 && (
+            {event.isRecurring && (
                <section className="space-y-6">
                   <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-secondary" /> Escolha sua Sessão
                   </h3>
                   <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden p-8">
-                     <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-                        <Select value={selectedOccurrenceId || ""} onValueChange={setSelectedOccurrenceId}>
-                           <SelectTrigger className="h-14 rounded-2xl border-dashed border-secondary/30 font-bold text-lg px-6 uppercase italic text-primary">
-                              <SelectValue placeholder="Selecione a data e horário" />
-                           </SelectTrigger>
-                           <SelectContent className="rounded-2xl max-h-[300px]">
-                              {upcomingOccurrences.map((occ) => (
-                                 <SelectItem key={occ.id} value={occ.id} className="cursor-pointer py-3 border-b last:border-0 border-dashed">
-                                    <div className="flex items-center gap-4">
-                                       <Calendar className="w-4 h-4 text-secondary" />
-                                       <div className="flex flex-col">
-                                          <span className="font-bold text-sm">
-                                             {new Date(occ.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', weekday: 'short' })}
-                                             <span className="mx-2 opacity-30">|</span>
-                                             {occ.startTime} às {occ.endTime}
-                                          </span>
-                                          {occ.batches && occ.batches.length > 0 && (
-                                            <span className="text-[9px] font-black uppercase text-secondary">Preços exclusivos para esta data</span>
-                                          )}
-                                       </div>
+                     <Select value={selectedOccurrenceId || ""} onValueChange={handleOccurrenceSelection} disabled={occurrencesLoading}>
+                        <SelectTrigger className="h-14 rounded-2xl border-dashed border-secondary/30 font-bold text-lg px-6 uppercase italic text-primary">
+                           <SelectValue placeholder="Selecione a data e horário" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-2xl max-h-[300px]">
+                           {upcomingOccurrences?.map((occ) => (
+                              <SelectItem key={occ.id} value={occ.id} className="cursor-pointer py-3 border-b last:border-0 border-dashed">
+                                 <div className="flex items-center gap-4">
+                                    <Calendar className="w-4 h-4 text-secondary" />
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-sm">
+                                          {format(occ.start_date.toDate(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                                          <span className="mx-2 opacity-30">|</span>
+                                          {format(occ.start_date.toDate(), "HH:mm")} às {format(occ.end_date.toDate(), "HH:mm")}
+                                        </span>
                                     </div>
-                                 </SelectItem>
-                              ))}
-                           </SelectContent>
-                        </Select>
-                     </div>
+                                 </div>
+                              </SelectItem>
+                           ))}
+                        </SelectContent>
+                     </Select>
                   </Card>
                </section>
             )}
@@ -285,9 +229,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Sobre a Experiência</h3>
                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
                   <CardContent className="p-8 md:p-10">
-                    <div className="prose prose-slate max-w-none">
-                      <RichText content={event.description} className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed" />
-                    </div>
+                    <RichText content={event.description} className="prose prose-slate max-w-none text-lg md:text-xl font-medium text-foreground/80 leading-relaxed" />
                   </CardContent>
                </Card>
             </section>
@@ -295,7 +237,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <Card className="border-none shadow-sm rounded-3xl bg-white p-6 flex items-center gap-4">
                   <div className="p-3 bg-secondary/5 rounded-2xl text-secondary"><Calendar className="w-6 h-6" /></div>
-                  <div><p className="text-[9px] font-black uppercase text-muted-foreground">Data Selecionada</p><p className="font-bold text-sm text-primary uppercase">{start.date}</p></div>
+                  <div><p className="text-[9px] font-black uppercase text-muted-foreground">Data</p><p className="font-bold text-sm text-primary uppercase">{start.date}</p></div>
                </Card>
                <Card className="border-none shadow-sm rounded-3xl bg-white p-6 flex items-center gap-4">
                   <div className="p-3 bg-secondary/5 rounded-2xl text-secondary"><Clock className="w-6 h-6" /></div>
@@ -306,28 +248,19 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
             <section className="space-y-6">
                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Localização</h3>
                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-                  <div className="h-64 w-full"><LocationMap latitude={lat} longitude={lng} interactive={false} onChange={() => {}} /></div>
+                  <div className="h-64 w-full"><LocationMap latitude={lat} longitude={lng} interactive={false} /></div>
                   <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
                      <div className="space-y-1 text-center md:text-left">
                         {addressLines.map((line, idx) => (
-                          <p key={idx} className={cn(
-                            "leading-tight uppercase",
-                            idx === 0 ? "font-black text-2xl italic tracking-tighter text-primary" : "text-xs font-medium text-muted-foreground"
-                          )}>
-                            {line}
-                          </p>
+                          <p key={idx} className={cn("leading-tight uppercase", idx === 0 ? "font-black text-2xl italic tracking-tighter text-primary" : "text-xs font-medium text-muted-foreground")}>{line}</p>
                         ))}
                      </div>
                      <div className="flex flex-col sm:flex-row gap-3">
                         <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
-                           <a href={`https://www.google.com/maps/search/?api=1&query=${locationQuery}`} target="_blank">
-                              <MapPin className="w-4 h-4" /> Google Maps
-                           </a>
+                           <a href={`https://www.google.com/maps/search/?api=1&query=${locationQuery}`} target="_blank" rel="noopener noreferrer"><MapPin className="w-4 h-4" /> Google Maps</a>
                         </Button>
                         <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
-                           <a href={`https://www.waze.com/ul?q=${locationQuery}&navigate=yes`} target="_blank">
-                              <Navigation className="w-4 h-4" /> Waze
-                           </a>
+                           <a href={`https://www.waze.com/ul?q=${locationQuery}&navigate=yes`} target="_blank" rel="noopener noreferrer"><Navigation className="w-4 h-4" /> Waze</a>
                         </Button>
                      </div>
                   </CardContent>
@@ -339,10 +272,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
           <aside className="lg:col-span-4 space-y-8">
             <section className="sticky top-24 space-y-8">
-               <AgeRatingBadge code={event.ageRatingCode || "free"} showLabel className="px-2" />
+               <AgeRatingBadge code={event.ageRating?.code || "free"} showLabel className="px-2" />
                
                <BilheteriaPublic 
-                 event={effectiveEventData} 
+                 event={event}
+                 occurrence={selectedOccurrenceData}
+                 occurrenceLoading={occurrenceLoading}
                  globalFees={globalFees} 
                  promotions={promotions} 
                  orgSettings={org} 
@@ -355,7 +290,7 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                         <AvatarFallback className="font-bold text-xl uppercase">{org?.name?.charAt(0)}</AvatarFallback>
                      </Avatar>
                      <div className="flex-1">
-                        <div className="flex items-center gap-1.5"><h4 className="font-bold text-base leading-none">{org?.name}</h4>{(org?.verified || org?.isVerified) && <BadgeCheck className="w-4 h-4 text-blue-500" />}</div>
+                        <div className="flex items-center gap-1.5"><h4 className="font-bold text-base leading-none">{org?.name}</h4>{(org?.verified) && <BadgeCheck className="w-4 h-4 text-blue-500" />}</div>
                         <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">@{org?.username}</p>
                      </div>
                   </div>
@@ -371,42 +306,29 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
             </section>
           </aside>
         </div>
-      </div>
-    );
-  }, [event, eventLoading, effectiveEventData, org, globalFees, promotions, id, username, isShareModalOpen, isActionModalOpen, upcomingOccurrences, selectedOccurrenceId]);
-
-  return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
-      <EventSEO event={effectiveEventData} username={username} />
-      <PublicHeader showBack />
-
-      <main className="flex-1">
-        {content}
       </main>
 
       <Footer />
 
-      {effectiveEventData && (
-        <ShareModal 
-          isOpen={isShareModalOpen} 
-          onOpenChange={setIsShareModalOpen} 
-          data={{
-            title: effectiveEventData.title,
-            username: username,
-            url: `/${username}/${effectiveEventData.slug || id}`,
-            logoUrl: effectiveEventData.image,
-            bannerUrl: effectiveEventData.image,
-            type: 'event',
-            organizationId: effectiveEventData.organizationId,
-            eventId: id
-          }}
-        />
-      )}
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onOpenChange={setIsShareModalOpen} 
+        data={{
+          title: event.title,
+          username: username,
+          url: `/${username}/${event.slug || id}`,
+          logoUrl: event.image,
+          bannerUrl: event.image,
+          type: 'event',
+          organizationId: event.organizationId,
+          eventId: id
+        }}
+      />
 
       <EventActionModal 
         isOpen={isActionModalOpen} 
         onOpenChange={setIsActionModalOpen} 
-        event={effectiveEventData} 
+        event={event} 
       />
     </div>
   )

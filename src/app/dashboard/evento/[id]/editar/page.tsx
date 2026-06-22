@@ -31,7 +31,6 @@ import { Label } from "@/components/ui/label"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { updateEventAction } from "@/app/actions/events"
-import { generateOccurrences } from "@/services/recurring-event-service"
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
@@ -88,15 +87,6 @@ export default function EditarEventoPage() {
   useEffect(() => {
     if (event) {
       const legacyAddress = event.address || {};
-      
-      // LOG AUDITORIA INICIALIZAÇÃO
-      console.log("[Viby-Audit] Carregando evento para edição:", {
-        id: event.id,
-        top_lat: event.latitude,
-        top_lng: event.longitude,
-        nested_lat: legacyAddress.latitude,
-        nested_lng: legacyAddress.longitude
-      });
 
       const addr = {
         venueName: legacyAddress.venueName || event.location || "",
@@ -109,7 +99,6 @@ export default function EditarEventoPage() {
         country: legacyAddress.country || "Brasil",
         countryCode: legacyAddress.countryCode || "BR",
         postalCode: legacyAddress.postalCode || event.cep || "",
-        // CORREÇÃO: Verificação explícita contra null/undefined para permitir 0.00
         latitude: legacyAddress.latitude !== undefined && legacyAddress.latitude !== null ? legacyAddress.latitude : (event.latitude !== undefined ? event.latitude : null),
         longitude: legacyAddress.longitude !== undefined && legacyAddress.longitude !== null ? legacyAddress.longitude : (event.longitude !== undefined ? event.longitude : null),
         formattedAddress: legacyAddress.formattedAddress || "",
@@ -132,16 +121,13 @@ export default function EditarEventoPage() {
         tags: event.tags || [],
         ageRatingCode: event.ageRating?.code || "free",
         address: addr,
-        isRecurring: event.isRecurring || false,
-        frequency: event.frequency || "weekly",
-        recurringEndDate: event.recurringEndDate || "",
-        customOccurrences: event.customOccurrences || [],
+        recurrency: event.recurrency || {},
         currency: event.currency || dashboardCurrency || "BRL",
         curationType: event.curationType || "realização"
       })
       setTicketMode(event.ticketMode || 'free')
       setBatches(event.batches || [])
-      setTotalCapacity(event.capacidadeTotal || 100)
+      setTotalCapacity(event.capacity || 100)
     }
   }, [event, dashboardCurrency])
 
@@ -165,21 +151,16 @@ export default function EditarEventoPage() {
     e.preventDefault()
     if (!db || !eventRef || !currentOrg) return
 
+    const isRecurring = formData.recurrency && formData.recurrency.freq;
+    const activeBatches = isRecurring ? batches : (formData.type === 'interno' ? batches : []);
+
     const isPaid = formData.type === 'interno' && 
-      batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
+      activeBatches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
 
     if (isPaid && !currentOrg.stripeAccountId) {
       toast({ variant: "destructive", title: "Ação Bloqueada", description: "Para vender ingressos é necessário configurar sua conta de recebimento Stripe." });
       return;
     }
-
-    // LOG AUDITORIA PRÉ-SAVE
-    console.log("[Viby-Audit] Preparando salvamento do evento:", {
-      id: eventId,
-      lat_to_save: formData.address.latitude,
-      lng_to_save: formData.address.longitude,
-      is_customized: formData.address.isCustomized
-    });
 
     setLoading(true)
     try {
@@ -201,11 +182,10 @@ export default function EditarEventoPage() {
         date: toISO(formData.startDate),
         startDate: toISO(formData.startDate),
         endDate: toISO(formData.endDate),
-        recurringEndDate: toISO(formData.recurringEndDate),
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
-        capacidadeTotal: totalCapacity,
-        batches: formData.type === 'interno' ? batches : [],
+        capacity: totalCapacity,
+        batches: activeBatches,
         searchKeywords,
         city: formData.address.city,
         location: formData.address.neighborhood || formData.address.venueName || formData.address.city,
@@ -223,22 +203,6 @@ export default function EditarEventoPage() {
 
       if (!result.success) throw new Error(result.error);
 
-      if (formData.isRecurring) {
-        await generateOccurrences(eventId, {
-          name: formData.title,
-          description: formData.description,
-          organizationId: currentOrg.id,
-          organizerName: currentOrg.name,
-          frequency: formData.frequency as any,
-          startDate: formData.startDate.split('T')[0],
-          endDate: formData.recurringEndDate,
-          startTime: formData.startDate.split('T')[1] || "19:00",
-          endTime: formData.endDate.split('T')[1] || "22:00",
-          capacidadeMaxima: totalCapacity,
-          customOccurrences: formData.customOccurrences
-        });
-      }
-
       toast({ title: "Evento Atualizado!" })
       router.push(`/${result.username}/${result.slug || eventId}`);
     } catch (error: any) {
@@ -252,8 +216,7 @@ export default function EditarEventoPage() {
 
   const hasStripeAccount = !!currentOrg?.stripeAccountId;
   const isVibyOfficial = currentOrg?.id === VIBY_OFFICIAL_UID;
-  const isCurrentEventPaid = formData.type === 'interno' && 
-    batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
+  const isPaidEvent = formData.type === 'interno' && batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0));
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -362,14 +325,14 @@ export default function EditarEventoPage() {
                   <EventDateTime startDate={formData.startDate} endDate={formData.endDate} onStartDateChange={v => setFormData({...formData, startDate: v})} onEndDateChange={v => setFormData({...formData, endDate: v})} />
 
                   <EventRecurrence 
-                    isRecurring={formData.isRecurring}
-                    onIsRecurringChange={v => setFormData({...formData, isRecurring: v})}
-                    frequency={formData.frequency}
-                    onFrequencyChange={v => setFormData({...formData, frequency: v})}
-                    recurringEndDate={formData.recurringEndDate}
-                    onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})}
-                    customOccurrences={formData.customOccurrences}
-                    onCustomOccurrencesChange={v => setFormData({...formData, customOccurrences: v})}
+                    isRecurring={!!formData.recurrency?.freq}
+                    onIsRecurringChange={v => setFormData({...formData, recurrency: v ? { ...formData.recurrency, freq: 'weekly' } : {} })}
+                    frequency={formData.recurrency?.freq}
+                    onFrequencyChange={v => setFormData({...formData, recurrency: { ...formData.recurrency, freq: v }})}
+                    recurringEndDate={formatDateForInput(formData.recurrency?.until)}
+                    onRecurringEndDateChange={v => setFormData({...formData, recurrency: { ...formData.recurrency, until: v }})}
+                    customOccurrences={formData.recurrency?.customOccurrences || []}
+                    onCustomOccurrencesChange={v => setFormData({...formData, recurrency: { ...formData.recurrency, customOccurrences: v }})}
                   />
 
                   <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
@@ -386,7 +349,7 @@ export default function EditarEventoPage() {
 
         <TabsContent value="bilheteria">
            <div className="space-y-8">
-              {isCurrentEventPaid && !hasStripeAccount && (
+              {isPaidEvent && !hasStripeAccount && (
                  <Card className="border-none shadow-xl rounded-[2rem] bg-white overflow-hidden animate-in zoom-in-95">
                     <div className="bg-orange-500 p-8 flex items-center text-white gap-4">
                        <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-xl border border-white/20">
@@ -410,6 +373,7 @@ export default function EditarEventoPage() {
               <BilheteriaAdmin 
                  mode={ticketMode} onModeChange={setTicketMode} batches={batches} onBatchesChange={setBatches} totalCapacity={totalCapacity} onTotalCapacityChange={setTotalCapacity}
                  eventCurrency={formData.currency as CurrencyCode} onCurrencyChange={v => setFormData({...formData, currency: v})}
+                 isRecurring={!!formData.recurrency?.freq}
               />
            </div>
         </TabsContent>

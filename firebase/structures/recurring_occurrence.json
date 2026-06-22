@@ -1,0 +1,44 @@
+
+{
+  "collection": "recurring_occurrences",
+  "comment": "Represents a single session of a recurring event, now containing its own ticketing and capacity data.",
+  "fields": {
+    "eventId": "string",
+    "organizationId": "string",
+    "start_date": "timestamp",
+    "end_date": "timestamp",
+    "capacity": {
+      "type": "number",
+      "comment": "Maximum number of attendees for this specific session."
+    },
+    "sales": {
+      "type": "map",
+      "fields": {
+        "totalSold": {
+          "type": "number",
+          "comment": "Total tickets sold for this session."
+        },
+        "totalValue": {
+          "type": "number",
+          "comment": "Total revenue for this session."
+        }
+      }
+    },
+    "batches": {
+      "type": "array",
+      "comment": "Array of ticket batches specific to this session.",
+      "items": {
+        "type": "map",
+        "fields": {
+          "id": "string",
+          "name": "string",
+          "price": "number",
+          "currency": "string",
+          "quantity": "number",
+          "sold": "number",
+          "isFree": "boolean"
+        }
+      }
+    }
+  }
+}
