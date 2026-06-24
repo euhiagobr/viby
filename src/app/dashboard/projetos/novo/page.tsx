@@ -29,7 +29,11 @@ import {
   Layout,
   RefreshCw,
   Copy,
-  Trash2
+  Trash2,
+  Trophy,
+  CheckCircle2,
+  Plus,
+  AlertTriangle
 } from "lucide-react"
 import Link from "next/link"
 import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates, safeParseDate } from "@/lib/utils"
@@ -65,6 +69,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import useSWR from 'swr'
+import { fetcher, WC_ENDPOINTS } from '@/lib/services/worldCupService'
 
 const DEFAULT_EVENT_IMAGE = "https://picsum.photos/seed/event/1200/800";
 
@@ -107,7 +113,8 @@ export default function NovoEventoWizard() {
     recurringEndDate: "",
     customOccurrences: [] as any[],
     currency: dashboardCurrency || "BRL",
-    curationType: "realização"
+    curationType: "realização",
+    matches: [] as any[]
   })
 
   const [ticketMode, setTicketMode] = useState<any>('free')
@@ -115,6 +122,63 @@ export default function NovoEventoWizard() {
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
+
+  const { data: wcMatchesData } = useSWR<any>(WC_ENDPOINTS.matches, fetcher);
+
+  const availableTeams = React.useMemo(() => {
+    if (!wcMatchesData?.matches) return [];
+    const teams = new Map();
+    wcMatchesData.matches.forEach((m: any) => {
+      teams.set(m.homeTeam.id, { name: m.homeTeam.name, flag: m.homeTeam.crest });
+      teams.set(m.awayTeam.id, { name: m.awayTeam.name, flag: m.awayTeam.crest });
+    });
+    return Array.from(teams.entries()).map(([id, data]) => ({ id, ...data })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [wcMatchesData]);
+
+  const [matchSelection, setMatchSelection] = useState({ teamA: "", teamB: "" });
+
+  const showWcSection = formData.tags.includes('copa') && formData.tags.includes('temjogo');
+
+  useEffect(() => {
+    if (!showWcSection && formData.matches.length > 0) {
+      setFormData(prev => ({ ...prev, matches: [] }));
+    }
+  }, [showWcSection, formData.matches.length]);
+
+  const handleAddMatch = () => {
+    const { teamA, teamB } = matchSelection;
+    if (!teamA || !teamB || teamA === teamB) return;
+
+    const match = wcMatchesData.matches.find((m: any) => 
+      (m.homeTeam.id.toString() === teamA && m.awayTeam.id.toString() === teamB) ||
+      (m.homeTeam.id.toString() === teamB && m.awayTeam.id.toString() === teamA)
+    );
+
+    if (!match) {
+      toast({ variant: "destructive", title: "Partida não encontrada", description: "Não localizamos este confronto na base oficial." });
+      return;
+    }
+
+    if (formData.matches.some(m => m.matchId === match.id.toString())) {
+      toast({ variant: "destructive", title: "Partida duplicada", description: "Este jogo já foi adicionado." });
+      return;
+    }
+
+    const newMatch = {
+      matchId: match.id.toString(),
+      teamA: match.homeTeam.id.toString(),
+      teamB: match.awayTeam.id.toString(),
+      teamAName: match.homeTeam.name,
+      teamBName: match.awayTeam.name,
+      teamAFlag: match.homeTeam.crest,
+      teamBFlag: match.awayTeam.crest,
+      kickoffAt: match.utcDate
+    };
+
+    setFormData(prev => ({ ...prev, matches: [...prev.matches, newMatch] }));
+    setMatchSelection({ teamA: "", teamB: "" });
+    toast({ title: "Jogo adicionado!" });
+  };
 
   const handleImageUpload = async (file: File) => {
     if (!storage || !user) return
@@ -311,14 +375,14 @@ export default function NovoEventoWizard() {
                  </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                       <h3 className="text-[10px] font-black uppercase opacity-60">Categoria</h3>
                        <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v, categoryName: categories?.find(c => c.id === v)?.name})}>
                           <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                           <SelectContent className="rounded-xl">{categories?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                        </Select>
                     </div>
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Classificação</Label>
+                       <h3 className="text-[10px] font-black uppercase opacity-60">Classificação</h3>
                        <Select value={formData.ageRatingCode} onValueChange={v => setFormData({...formData, ageRatingCode: v})}>
                           <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
                           <SelectContent className="rounded-xl">
@@ -327,8 +391,70 @@ export default function NovoEventoWizard() {
                        </Select>
                     </div>
                  </div>
+
                  <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
                  <EventTags tags={formData.tags} onChange={v => setFormData({...formData, tags: v})} />
+
+                 {showWcSection && (
+                   <div className="space-y-6 pt-6 border-t border-dashed border-secondary/20 animate-in zoom-in-95">
+                      <div className="flex items-center gap-3">
+                         <div className="p-2 bg-[#ffdf00]/10 rounded-lg text-[#002776]"><Trophy className="w-6 h-6" /></div>
+                         <div>
+                            <h3 className="text-xl font-black italic uppercase tracking-tighter text-primary">Jogos transmitidos</h3>
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase">Selecione os confrontos oficiais da Copa</p>
+                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                         <div className="md:col-span-5 space-y-2">
+                            <Label className="text-[10px] font-black uppercase opacity-40">Seleção 1</Label>
+                            <Select value={matchSelection.teamA} onValueChange={v => setMatchSelection({...matchSelection, teamA: v})}>
+                               <SelectTrigger className="h-12 rounded-xl"><SelectValue placeholder="Time da Casa" /></SelectTrigger>
+                               <SelectContent className="max-h-[300px]">
+                                  {availableTeams.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name.toUpperCase()}</SelectItem>)}
+                               </SelectContent>
+                            </Select>
+                         </div>
+                         <div className="md:col-span-1 flex justify-center pb-3 opacity-20"><X className="w-4 h-4" /></div>
+                         <div className="md:col-span-5 space-y-2">
+                            <Label className="text-[10px] font-black uppercase opacity-40">Seleção 2</Label>
+                            <Select value={matchSelection.teamB} onValueChange={v => setMatchSelection({...matchSelection, teamB: v})}>
+                               <SelectTrigger className="h-12 rounded-xl"><SelectValue placeholder="Visitante" /></SelectTrigger>
+                               <SelectContent className="max-h-[300px]">
+                                  {availableTeams.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name.toUpperCase()}</SelectItem>)}
+                               </SelectContent>
+                            </Select>
+                         </div>
+                         <div className="md:col-span-1">
+                            <Button type="button" onClick={handleAddMatch} className="h-12 w-full bg-[#009c3b] text-white rounded-xl shadow-lg"><Plus className="w-5 h-5" /></Button>
+                         </div>
+                      </div>
+
+                      <div className="space-y-3">
+                         {formData.matches.length === 0 ? (
+                            <div className="py-10 text-center border-2 border-dashed rounded-3xl opacity-20 italic">Nenhum jogo vinculado</div>
+                         ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                               {formData.matches.map((m, i) => (
+                                 <div key={i} className="p-4 bg-muted/20 rounded-2xl border flex items-center justify-between group">
+                                    <div className="flex items-center gap-3">
+                                       <div className="flex items-center -space-x-2">
+                                          <img src={m.teamAFlag} className="w-6 h-6 rounded-full border-2 border-white shadow-sm" />
+                                          <img src={m.teamBFlag} className="w-6 h-6 rounded-full border-2 border-white shadow-sm" />
+                                       </div>
+                                       <div>
+                                          <p className="text-[10px] font-black uppercase italic text-primary truncate max-w-[150px]">{m.teamAName} × {m.teamBName}</p>
+                                          <p className="text-[8px] font-bold text-muted-foreground uppercase">{new Date(m.kickoffAt).toLocaleDateString('pt-BR')} às {new Date(m.kickoffAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                       </div>
+                                    </div>
+                                    <button type="button" onClick={() => setFormData(prev => ({ ...prev, matches: prev.matches.filter((_, idx) => idx !== i) }))} className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
+                                 </div>
+                               ))}
+                            </div>
+                         )}
+                      </div>
+                   </div>
+                 )}
               </CardContent>
            </Card>
            <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,7 +20,8 @@ import {
   ChevronRight,
   Inbox,
   Clock,
-  Coins
+  Coins,
+  Flag
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -37,6 +39,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { COPA_TAGS } from "@/lib/constants"
+import useSWR from 'swr'
+import { fetcher, WC_ENDPOINTS } from '@/lib/services/worldCupService'
 
 export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?: any[] }) {
   const db = useFirestore()
@@ -47,6 +51,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   const [searchCity, setSearchCity] = React.useState("")
   const [priceFilter, setPriceFilter] = React.useState("all")
   const [dateFilter, setDateFilter] = React.useState("all")
+  const [teamFilter, setTeamFilter] = React.useState("all")
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
   const [now, setNow] = React.useState<Date | null>(null)
 
@@ -54,6 +59,18 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   const [lastVisible, setLastVisible] = React.useState<DocumentSnapshot | null>(null)
   const [hasMore, setHasMore] = React.useState(initialEvents.length >= 12)
   const [isFetching, setIsFetching] = React.useState(false)
+
+  const { data: wcMatchesData } = useSWR<any>(WC_ENDPOINTS.matches, fetcher);
+
+  const availableTeams = React.useMemo(() => {
+    if (!wcMatchesData?.matches) return [];
+    const teams = new Map();
+    wcMatchesData.matches.forEach((m: any) => {
+      teams.set(m.homeTeam.id, { name: m.homeTeam.name, crest: m.homeTeam.crest });
+      teams.set(m.awayTeam.id, { name: m.awayTeam.name, crest: m.awayTeam.crest });
+    });
+    return Array.from(teams.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [wcMatchesData]);
 
   // Pipeline de Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
@@ -171,6 +188,13 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
 
       if (!titleMatch || !cityMatch) return false;
 
+      if (teamFilter !== 'all') {
+        const matchFound = e.matches?.some((m: any) => 
+          m.teamAName === teamFilter || m.teamBName === teamFilter
+        );
+        if (!matchFound) return false;
+      }
+
       if (priceFilter !== 'all') {
         const minPrice = e.startingPrice ?? 0;
         if (priceFilter === 'free' && minPrice > 0) return false;
@@ -197,13 +221,14 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       if (timeDiff !== 0) return timeDiff;
       return a._distanceMeters - b._distanceMeters;
     });
-  }, [rawEvents, allOccurrences, loadingOccs, search, searchCity, priceFilter, dateFilter, userLocation, now]);
+  }, [rawEvents, allOccurrences, loadingOccs, search, searchCity, priceFilter, dateFilter, teamFilter, userLocation, now]);
 
   const clearFilters = () => {
     setSearch("");
     setSearchCity("");
     setPriceFilter("all");
     setDateFilter("all");
+    setTeamFilter("all");
   };
 
   const handleGlobalSearchManual = () => {
@@ -235,10 +260,10 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
 
             <Card className="bg-white/10 backdrop-blur-2xl border-white/10 rounded-[3rem] p-6 md:p-8 shadow-2xl mt-12 w-full text-left">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                <div className="md:col-span-4 relative">
+                <div className="md:col-span-3 relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
                   <Input 
-                    placeholder="Buscar por local ou festa..." 
+                    placeholder="Local ou festa..." 
                     className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -247,24 +272,28 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
                 <div className="md:col-span-3 relative">
                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#ffdf00]" />
                   <Input 
-                    placeholder="Qual cidade?" 
+                    placeholder="Cidade?" 
                     className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"
                     value={searchCity}
                     onChange={(e) => setSearchCity(e.target.value)}
                   />
                 </div>
-                <div className="md:col-span-3">
-                   <Select value={priceFilter} onValueChange={setPriceFilter}>
+                <div className="md:col-span-4">
+                   <Select value={teamFilter} onValueChange={setTeamFilter}>
                       <SelectTrigger className="bg-white/5 border-white/10 h-14 rounded-2xl text-white">
-                         <Coins className="w-4 h-4 text-[#009c3b] mr-2" />
-                         <SelectValue placeholder="Preço" />
+                         <Flag className="w-4 h-4 text-[#009c3b] mr-2" />
+                         <SelectValue placeholder="Filtrar por Seleção" />
                       </SelectTrigger>
-                      <SelectContent>
-                         <SelectItem value="all">Qualquer valor</SelectItem>
-                         <SelectItem value="free">Gratuito</SelectItem>
-                         <SelectItem value="20">Até R$ 20</SelectItem>
-                         <SelectItem value="50">Até R$ 50</SelectItem>
-                         <SelectItem value="100">Até R$ 100</SelectItem>
+                      <SelectContent className="max-h-[300px]">
+                         <SelectItem value="all">Todas as seleções</SelectItem>
+                         {availableTeams.map(t => (
+                           <SelectItem key={t.name} value={t.name}>
+                              <div className="flex items-center gap-2">
+                                 <img src={t.crest} className="w-4 h-4 rounded-full" />
+                                 {t.name.toUpperCase()}
+                              </div>
+                           </SelectItem>
+                         ))}
                       </SelectContent>
                    </Select>
                 </div>
@@ -286,15 +315,27 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
             <p className="text-muted-foreground font-medium text-lg">Os locais mais próximos transmitindo a emoção da Copa.</p>
           </div>
           <div className="flex items-center gap-3">
+             <Select value={priceFilter} onValueChange={setPriceFilter}>
+                <SelectTrigger className="w-40 rounded-xl h-11 border-dashed">
+                   <Coins className="w-4 h-4 mr-2 text-[#009c3b]" />
+                   <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                   <SelectItem value="all">Qualquer valor</SelectItem>
+                   <SelectItem value="free">Gratuito</SelectItem>
+                   <SelectItem value="20">Até R$ 20</SelectItem>
+                   <SelectItem value="50">Até R$ 50</SelectItem>
+                   <SelectItem value="100">Até R$ 100</SelectItem>
+                </SelectContent>
+             </Select>
              <Select value={dateFilter} onValueChange={setDateFilter}>
                 <SelectTrigger className="w-40 rounded-xl h-11 border-dashed">
                    <Clock className="w-4 h-4 mr-2 text-[#002776]" />
                    <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                   <SelectItem value="all">Todos os jogos</SelectItem>
+                   <SelectItem value="all">Todos os dias</SelectItem>
                    <SelectItem value="today">Hoje</SelectItem>
-                   <SelectItem value="week">Esta semana</SelectItem>
                 </SelectContent>
              </Select>
           </div>
@@ -317,11 +358,11 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
                <Inbox className="w-12 h-12" />
             </div>
             <div className="space-y-2">
-               <h3 className="text-2xl font-black uppercase italic text-primary">Ainda não encontramos locais transmitindo a Copa nesta região.</h3>
-               <p className="text-muted-foreground font-medium uppercase text-xs tracking-widest">Novos eventos são adicionados diariamente.</p>
+               <h3 className="text-2xl font-black uppercase italic text-primary">Ainda não encontramos locais transmitindo estes confrontos.</h3>
+               <p className="text-muted-foreground font-medium uppercase text-xs tracking-widest">Tente mudar o filtro de seleção ou cidade.</p>
             </div>
             <Button variant="outline" onClick={clearFilters} className="rounded-full font-bold h-12 px-8 uppercase italic border-2">
-               Explorar todos os eventos
+               Ver toda a agenda
             </Button>
           </div>
         )}

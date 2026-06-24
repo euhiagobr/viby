@@ -1,7 +1,8 @@
+
 "use client"
 
 import * as React from "react"
-import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag, RefreshCw } from "lucide-react"
+import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag, RefreshCw, Trophy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -152,10 +153,12 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   const versionedImageUrl = getVersionedImageUrl(event.image, event.imageVersion);
   const displayCategory = event.categoryName || event.category || event.categoryLabel || event.categoria;
   
-  // URL Canônica: /[username]/[slug ou id]
   const eventSlug = event.slug || event.id;
   const username = event.organizer?.username || 'evento';
   const canonicalPath = `/${username}/${eventSlug}`;
+
+  const firstMatch = event.matches?.[0];
+  const additionalMatches = event.matches?.length > 1 ? event.matches.length - 1 : 0;
 
   return (
     <Link 
@@ -212,7 +215,21 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
         </div>
 
         <CardContent className="p-5 flex flex-col flex-1 gap-4">
-          <div className="space-y-1">
+          <div className="space-y-2">
+            {firstMatch && (
+              <div className="bg-[#002776]/5 p-2 rounded-xl flex items-center justify-between border border-[#002776]/10 animate-in fade-in zoom-in-95">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center -space-x-1.5">
+                    <img src={firstMatch.teamAFlag} className="w-4 h-4 rounded-full border border-white shadow-sm" alt="" />
+                    <img src={firstMatch.teamBFlag} className="w-4 h-4 rounded-full border border-white shadow-sm" alt="" />
+                  </div>
+                  <span className="text-[10px] font-black uppercase italic text-[#002776] truncate">{firstMatch.teamAName} × {firstMatch.teamBName}</span>
+                </div>
+                {additionalMatches > 0 && (
+                  <Badge className="bg-[#ffdf00] text-[#002776] border-none text-[8px] font-black h-4 px-1.5">+{additionalMatches} JOGOS</Badge>
+                )}
+              </div>
+            )}
             <div className="flex justify-between items-start gap-2">
               <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title}</h3>
               <EventInterest event={event} showButton={false} variant="compact" />

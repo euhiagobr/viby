@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -16,7 +17,9 @@ import {
   Share2,
   ShieldAlert,
   Clock,
-  Navigation
+  Navigation,
+  Trophy,
+  Zap
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -105,6 +108,11 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     }
   }, [event?.isRecurring, upcomingOccurrences, selectedOccurrenceId, occurrencesLoading]);
 
+  const sortedWcMatches = React.useMemo(() => {
+    if (!event?.matches || event.matches.length === 0) return [];
+    return [...event.matches].sort((a, b) => new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime());
+  }, [event?.matches]);
+
   const formatDate = (dateValue: any) => {
     const d = safeParseDate(dateValue);
     if (!d) return "A definir";
@@ -173,6 +181,11 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                 <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg">
                   {event.categoryName || "Evento"}
                 </Badge>
+                {event.tags?.includes('copa') && (
+                  <Badge className="bg-[#ffdf00] text-[#002776] border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
+                    <Trophy className="w-3 h-3 fill-current" /> Especial Copa 2026
+                  </Badge>
+                )}
               </div>
               <h1 className="text-4xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-[0.85]">{event.title}</h1>
             </div>
@@ -182,6 +195,38 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
         <div className="container mx-auto px-4 py-12 max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
           <div className="lg:col-span-8 space-y-12">
             
+            {sortedWcMatches.length > 0 && (
+              <section className="space-y-6 animate-in slide-in-from-top-4">
+                 <h3 className="text-xl font-black uppercase italic tracking-tighter text-[#002776] px-2 flex items-center gap-3">
+                   <Trophy className="w-6 h-6 fill-[#ffdf00]" /> Jogos transmitidos neste local
+                 </h3>
+                 <div className="grid grid-cols-1 gap-4">
+                    {sortedWcMatches.map((m, i) => (
+                      <Card key={i} className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden group">
+                         <CardContent className="p-8 flex items-center justify-between gap-6">
+                            <div className="flex items-center gap-8 flex-1">
+                               <div className="flex flex-col items-center gap-2 w-24">
+                                  <img src={m.teamAFlag} className="w-12 h-8 object-cover rounded shadow-md border" alt="" />
+                                  <span className="text-[10px] font-black uppercase text-primary text-center leading-tight">{m.teamAName}</span>
+                               </div>
+                               <div className="text-xl font-black italic opacity-20">VS</div>
+                               <div className="flex flex-col items-center gap-2 w-24">
+                                  <img src={m.teamBFlag} className="w-12 h-8 object-cover rounded shadow-md border" alt="" />
+                                  <span className="text-[10px] font-black uppercase text-primary text-center leading-tight">{m.teamBName}</span>
+                               </div>
+                            </div>
+                            <div className="text-right space-y-1">
+                               <Badge className="bg-[#009c3b] text-white font-black uppercase text-[8px] mb-1">Oficial FIFA</Badge>
+                               <p className="text-sm font-black text-primary italic uppercase">{new Date(m.kickoffAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</p>
+                               <p className="text-xs font-bold text-muted-foreground uppercase flex items-center justify-end gap-1.5"><Clock className="w-3 h-3 text-[#ffdf00]" /> {new Date(m.kickoffAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                         </CardContent>
+                      </Card>
+                    ))}
+                 </div>
+              </section>
+            )}
+
             {event.isRecurring && upcomingOccurrences && upcomingOccurrences.length > 0 && (
                <section className="space-y-6">
                   <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2 flex items-center gap-2">
