@@ -4,7 +4,7 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: '*',
-      allow: '/',
+      allow: ['/', '/suporte/faq'],
       disallow: [
         '/admin/',
         '/dashboard/',
@@ -13,8 +13,7 @@ export default function robots(): MetadataRoute.Robots {
         '/checkout/',
         '/redefinir-senha',
         '/onboarding',
-        '/suporte/',
-        '/recorrente/'
+        '/suporte/'
       ],
     },
     sitemap: [

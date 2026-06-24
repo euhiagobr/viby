@@ -59,9 +59,6 @@ export async function generateMetadata(): Promise<Metadata> {
         { url: iconUrl, sizes: '180x180', type: 'image/png' },
       ],
     },
-    alternates: {
-      canonical: '/',
-    },
     openGraph: {
       title: siteName,
       description,
