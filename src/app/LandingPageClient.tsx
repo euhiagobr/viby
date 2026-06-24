@@ -28,7 +28,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
     getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {});
   }, []);
 
-  // Hook Mestre de Dados
+  // Hook Mestre de Dados - Filtra por 'published' ou 'Ativo' para compatibilidade
   const { 
     feed, 
     isFetching, 

@@ -27,7 +27,7 @@ interface EventCardProps {
   isSponsored?: boolean
 }
 
-export function EventCard({ event, userLocation, isSponsored }: EventCardProps) {
+export function EventCard({ event: rawEvent, userLocation, isSponsored }: EventCardProps) {
   const router = useRouter()
   const { user } = useUser(useAuth())
   const { formatPriceWithOriginal } = useCurrency()
@@ -39,6 +39,14 @@ export function EventCard({ event, userLocation, isSponsored }: EventCardProps) 
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Normalização de dados para suportar estrutura aninhada (Draft) e legada (Flat)
+  const event = React.useMemo(() => {
+    if (rawEvent.status === 'draft' || rawEvent.data) {
+      return { ...rawEvent, ...rawEvent.data, id: rawEvent.id };
+    }
+    return rawEvent;
+  }, [rawEvent]);
 
   const eventDates = React.useMemo(() => {
     const start = safeParseDate(event.date) || new Date();

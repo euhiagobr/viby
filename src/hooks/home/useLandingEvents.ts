@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -6,8 +7,7 @@ import { collection, query, where, orderBy, limit, getDocs, startAfter, Document
 
 /**
  * Hook de busca de eventos para a Landing Page.
- * Removido filtro de data do Firestore para suportar mixed-types (String/Timestamp)
- * e garantir que pais de recorrências não sejam descartados precocemente.
+ * Filtra apenas por eventos 'published' ou 'Ativo' (legado).
  */
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
@@ -22,14 +22,13 @@ export function useLandingEvents(initialEvents: any[] = []) {
     
     setIsFetching(true);
     try {
-      // Carregamos lotes maiores no banco pois o filtro de visibilidade (vencidos) ocorre no cliente
       const fetchLimit = isInitial ? 60 : 30;
 
       let q;
       if (isInitial) {
         q = query(
           collection(db, "events"),
-          where("status", "==", "Ativo"),
+          where("status", "in", ["Ativo", "published"]),
           orderBy("date", "asc"),
           limit(fetchLimit)
         );
@@ -39,7 +38,7 @@ export function useLandingEvents(initialEvents: any[] = []) {
         
         q = query(
           collection(db, "events"),
-          where("status", "==", "Ativo"),
+          where("status", "in", ["Ativo", "published"]),
           orderBy("date", "asc"),
           startAfter(cursor),
           limit(fetchLimit)
