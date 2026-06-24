@@ -42,10 +42,21 @@ export function EventCard({ event: rawEvent, userLocation, isSponsored }: EventC
 
   // Normalização de dados para suportar estrutura aninhada (Draft) e legada (Flat)
   const event = React.useMemo(() => {
-    if (rawEvent.status === 'draft' || rawEvent.data) {
-      return { ...rawEvent, ...rawEvent.data, id: rawEvent.id };
+    // Se o evento estiver no estado 'draft', priorizamos o objeto 'data'
+    if (rawEvent.status === 'draft' && rawEvent.data) {
+      return { 
+        ...rawEvent, 
+        ...rawEvent.data, 
+        // startDate do form mapeado para date se necessário
+        date: rawEvent.data.date || rawEvent.data.startDate || rawEvent.date,
+        id: rawEvent.id 
+      };
     }
-    return rawEvent;
+    // Para eventos já publicados ('Ativo'), usamos a raiz mas verificamos se restou lixo do rascunho
+    return {
+      ...rawEvent,
+      date: rawEvent.date || rawEvent.startDate
+    };
   }, [rawEvent]);
 
   const eventDates = React.useMemo(() => {
@@ -196,7 +207,7 @@ export function EventCard({ event: rawEvent, userLocation, isSponsored }: EventC
             )}
             {!isEnded && (
               <div className="flex items-center gap-1.5">
-                 <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/90 p-1.5 rounded-lg shadow-md" />
+                 <AgeRatingBadge code={event.ageRating?.code || "free"} className="bg-white/90 p-1.5 rounded-xl shadow-lg" />
                  {event.isRecurring && (
                    <Badge className="bg-secondary text-white border-none shadow-md px-1.5 h-5">
                       <RefreshCw className="w-2.5 h-2.5 animate-spin-slow" />
@@ -239,7 +250,7 @@ export function EventCard({ event: rawEvent, userLocation, isSponsored }: EventC
               </div>
             )}
             <div className="flex justify-between items-start gap-2">
-              <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title}</h3>
+              <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title || t('event.untitled')}</h3>
               <EventInterest event={event} showButton={false} variant="compact" />
             </div>
             <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>

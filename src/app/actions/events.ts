@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -103,7 +104,7 @@ export async function publishEventAction(eventId: string, finalData: any) {
     const { data: draftData } = eventSnap.data() as any;
 
     // Normalização para compatibilidade com sistema atual
-    const title = finalData.title || draftData.title;
+    const title = finalData.title || draftData?.title || "";
     const baseSlug = slugify(title);
     
     const city = finalData.address?.city || "";
@@ -113,13 +114,20 @@ export async function publishEventAction(eventId: string, finalData: any) {
     const citySlug = slugifyLocation(city);
     const regionSlug = buildRegionParam(countryCode, state);
 
-    const updatePayload = {
+    // Mapeamento crucial: startDate (usado no form) -> date (usado nas vitrines)
+    const eventDate = finalData.startDate || draftData?.startDate || null;
+
+    const updatePayload: any = {
       ...finalData,
-      status: 'Ativo', // Transição de estado para o status oficial da plataforma
+      date: eventDate, // Campo fundamental para as queries de vitrine
+      status: 'Ativo', 
       slug: baseSlug,
       citySlug,
       regionSlug,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      // Limpar campos de rascunho
+      data: admin.firestore.FieldValue.delete(),
+      step: admin.firestore.FieldValue.delete()
     };
 
     await eventRef.update(updatePayload);
@@ -243,7 +251,7 @@ export async function updateEventAction(params: {
 
   try {
     const { eventId, orgId, eventData } = params;
-    const dateNormalization = normalizeEventDates(eventData.startDate, eventData.endDate);
+    const dateNormalization = normalizeEventDates(eventData.startDate || eventData.date, eventData.endDate);
     if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
 
     const eventRef = db.collection('events').doc(eventId);
@@ -255,6 +263,7 @@ export async function updateEventAction(params: {
     
     const updatePayload = {
       ...eventData,
+      date: eventData.startDate || eventData.date, // Normaliza o campo date
       status: oldData.status === 'draft' ? 'Ativo' : oldData.status,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
