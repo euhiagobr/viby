@@ -1,3 +1,4 @@
+
 {
   "placeholderImages": [
     {
@@ -5,6 +6,42 @@
       "description": "Background for hero section showing a concert crowd",
       "imageUrl": "https://picsum.photos/seed/viby-event-concert/1920/1080",
       "imageHint": "concert event"
+    },
+    {
+      "id": "oktoberfest-bg",
+      "description": "Traditional German beer festival with tents and people celebrating",
+      "imageUrl": "https://picsum.photos/seed/oktober-beer-fest/1920/1080",
+      "imageHint": "beer festival"
+    },
+    {
+      "id": "halloween-bg",
+      "description": "Spooky night background with fog and jack-o-lanterns",
+      "imageUrl": "https://picsum.photos/seed/halloween-horror/1920/1080",
+      "imageHint": "halloween party"
+    },
+    {
+      "id": "semana-farroupilha-bg",
+      "description": "Gaucho landscape with traditional pampa elements",
+      "imageUrl": "https://picsum.photos/seed/gaucho-tradition/1920/1080",
+      "imageHint": "gaucho pampa"
+    },
+    {
+      "id": "natal-bg",
+      "description": "Magical christmas lights and winter holiday atmosphere",
+      "imageUrl": "https://picsum.photos/seed/christmas-vibes-2026/1920/1080",
+      "imageHint": "christmas lights"
+    },
+    {
+      "id": "ano-novo-bg",
+      "description": "Celebration of the new year with grand fireworks display",
+      "imageUrl": "https://picsum.photos/seed/newyear-party-fire/1920/1080",
+      "imageHint": "fireworks party"
+    },
+    {
+      "id": "carnaval-bg",
+      "description": "Vibrant and colorful brazilian carnival parade",
+      "imageUrl": "https://picsum.photos/seed/carnival-brazil-colors/1920/1080",
+      "imageHint": "carnival parade"
     }
   ]
 }
