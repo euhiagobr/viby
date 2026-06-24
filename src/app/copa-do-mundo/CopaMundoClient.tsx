@@ -97,7 +97,6 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
     if (!db || isFetching) return
     setIsFetching(true)
     try {
-      // FILTRO CENTRAL: Ativo
       let q;
       if (isInitial) {
         q = query(
@@ -355,14 +354,12 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
           </div>
         </div>
 
-        {processedEvents.length > 0 ? (
+        {processedEvents.filter(e => e.status === 'Ativo').length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-            {processedEvents.map((event) => (
+            {processedEvents.filter(e => e.status === 'Ativo').map((event) => (
               <EventCard 
                 key={event.id} 
-                event={event} 
-                userLocation={userLocation} 
-                isSponsored={event.isSponsored} 
+                event={{ ...event, userLocation, isSponsored: event.isSponsored }} 
               />
             ))}
           </div>

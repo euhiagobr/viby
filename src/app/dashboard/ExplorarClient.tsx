@@ -23,7 +23,6 @@ import {
   AlertTriangle
 } from "lucide-react"
 import { useState, useEffect } from "react"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
@@ -56,6 +55,7 @@ import { format, startOfToday, addDays, endOfWeek, isSameDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useTranslation } from "@/i18n/i18n-context"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function ExplorarClient({ initialEvents = [] }: { initialEvents?: any[] }) {
   const { t } = useTranslation()
@@ -86,7 +86,6 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
   const [isFetching, setIsFetching] = useState(false)
   const [isInitialLoad, setIsInitialLoad] = useState(initialEvents.length === 0)
 
-  // Atualiza o relógio a cada minuto para manter sincronia de visibilidade
   useEffect(() => {
     setNow(new Date())
     const timer = setInterval(() => setNow(new Date()), 60000)
@@ -111,7 +110,6 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
     
     setIsFetching(true)
     try {
-      // FILTRO CENTRAL: Ativo
       const q = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
@@ -455,7 +453,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
 
                {unifiedFeed.length > 0 && (
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                    {unifiedFeed.map((item: any, idx: number) => (
+                    {unifiedFeed.filter(item => item.type === 'ad' || (item.data && item.data.status === 'Ativo')).map((item: any, idx: number) => (
                       item.type === 'ad' ? (
                         <AdsRenderer 
                           key={`ad-slot-${item.adIndex}-${idx}`} 
@@ -466,9 +464,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
                       ) : (
                         <EventCard 
                           key={`event-${item.data.id}-${idx}`} 
-                          event={item.data} 
-                          userLocation={userLocation} 
-                          isSponsored={item.data.isSponsored} 
+                          event={{ ...item.data, userLocation, isSponsored: item.data.isSponsored }} 
                         />
                       )
                     ))}

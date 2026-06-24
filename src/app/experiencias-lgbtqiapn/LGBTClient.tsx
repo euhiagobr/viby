@@ -60,7 +60,6 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
     if (!db || isFetching) return
     setIsFetching(true)
     try {
-      // FILTRO CENTRAL: Ativo
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - 60);
 
@@ -132,10 +131,8 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
       }
       return { ...e, date: effectiveDate };
     }).filter(event => {
-      // Regra de Visibilidade Resiliente à Recorrência
       if (!isEventVisible(event, refTime)) return false;
 
-      // Base Filter (LGBT)
       const byCategory = LGBT_CATEGORY_IDS.includes(event.categoryId)
       const byTags = event.tags?.some((tag: string) => 
         LGBT_TAGS.includes(tag.toLowerCase())
@@ -237,7 +234,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="end">
                   <div className="p-3 border-b grid grid-cols-3 gap-2">
-                      <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
+                      <Button variant="ghost" size="sm" className={cn("text-[9px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
                       <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'tomorrow' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
                       <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'week' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
                   </div>
@@ -261,9 +258,9 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
 
           {isFetching && rawEvents.length === 0 ? (
             <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-white" /></div>
-          ) : displayEvents.length > 0 ? (
+          ) : displayEvents.filter(e => e.status === 'Ativo').length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {displayEvents.map((event) => (
+              {displayEvents.filter(e => e.status === 'Ativo').map((event) => (
                 <div key={event.id} className="relative group/lgbt">
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 via-yellow-500 to-purple-500 rounded-3xl opacity-20 group-hover/lgbt:opacity-100 transition-opacity blur-[2px] group-hover/lgbt:blur-md" />
                   <div className="relative">

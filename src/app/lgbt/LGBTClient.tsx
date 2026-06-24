@@ -215,9 +215,9 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
 
           {loading && (!rawEvents || rawEvents.length === 0) ? (
             <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-white" /></div>
-          ) : displayEvents.length > 0 ? (
+          ) : displayEvents.filter(e => e.status === 'Ativo').length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {displayEvents.map((event) => (
+              {displayEvents.filter(e => e.status === 'Ativo').map((event) => (
                 <div key={event.id} className="relative group/lgbt">
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 via-yellow-500 to-purple-500 rounded-3xl opacity-20 group-hover/lgbt:opacity-100 transition-opacity blur-[2px] group-hover/lgbt:blur-md" />
                   <div className="relative">

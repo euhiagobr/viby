@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -25,9 +24,11 @@ export function HomeEventsGrid({ feed, userLocation }: HomeEventsGridProps) {
         ) : (
           <EventCard 
             key={item.data.id} 
-            event={item.data} 
-            userLocation={userLocation} 
-            isSponsored={item.data.isSponsored}
+            event={{ 
+              ...item.data, 
+              userLocation, 
+              isSponsored: item.data.isSponsored 
+            }} 
           />
         )
       ))}

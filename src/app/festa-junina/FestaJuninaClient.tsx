@@ -69,12 +69,11 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
     if (!db || isFetching) return
     setIsFetching(true)
     try {
-      // FILTRO CENTRAL: published
       let q;
       if (isInitial) {
         q = query(
           collection(db, "events"),
-          where("status", "==", "published"),
+          where("status", "==", "Ativo"),
           where("tags", "array-contains-any", ["festajunina", "junina"]),
           limit(30)
         );
@@ -82,7 +81,7 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
         const cursor = lastVisible;
         q = query(
           collection(db, "events"),
-          where("status", "==", "published"),
+          where("status", "==", "Ativo"),
           where("tags", "array-contains-any", ["festajunina", "junina"]),
           ...(cursor ? [startAfter(cursor)] : []),
           limit(12)
@@ -324,7 +323,7 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
       )}
 
       {/* DESTAQUES */}
-      {featuredEvents.length > 0 && (
+      {featuredEvents.filter(e => e.status === 'Ativo').length > 0 && (
         <section className="py-20 bg-[#fffbeb]">
            <div className="container mx-auto px-4 space-y-12">
               <div className="flex items-center gap-3 px-2">
@@ -332,8 +331,8 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
                  <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Eventos Juninos em Destaque</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                 {featuredEvents.map(event => (
-                   <EventCard key={event.id} event={event} isSponsored />
+                 {featuredEvents.filter(e => e.status === 'Ativo').map(event => (
+                   <EventCard key={event.id} event={{ ...event, isSponsored: true }} />
                  ))}
               </div>
            </div>
@@ -398,13 +397,12 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
           </div>
         </div>
 
-        {processedEvents.length > 0 ? (
+        {processedEvents.filter(e => e.status === 'Ativo').length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-            {processedEvents.map((event) => (
+            {processedEvents.filter(e => e.status === 'Ativo').map((event) => (
               <EventCard 
                 key={event.id} 
-                event={event} 
-                userLocation={userLocation} 
+                event={{ ...event, userLocation }} 
               />
             ))}
           </div>

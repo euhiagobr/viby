@@ -1,17 +1,14 @@
-
 "use client"
 
 import * as React from "react"
-import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag, RefreshCw, Trophy } from "lucide-react"
+import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag, RefreshCw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { cn, safeParseDate } from "@/lib/utils"
-import { type Coordinates } from "@/lib/location-utils"
-import { calculateDistanceMeters, isEventVisible } from "@/lib/event-scoring-utils"
+import { calculateDistanceMeters } from "@/lib/event-scoring-utils"
 import { useAuth, useUser } from "@/firebase"
 import { AgeRatingBadge } from "@/lib/age-rating"
 import { EventInterest } from "./EventInterest"
@@ -24,13 +21,14 @@ const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 interface EventCardProps {
   event: any 
-  userLocation?: Coordinates | null
-  isSponsored?: boolean
 }
 
-export function EventCard({ event: rawEvent, userLocation, isSponsored }: EventCardProps) {
-  const router = useRouter()
-  const { user } = useUser(useAuth())
+/**
+ * Componente Único de Renderização de Eventos.
+ * Consome exclusivamente campos da raiz do objeto event.
+ */
+export function EventCard({ event }: EventCardProps) {
+  const { userLocation, isSponsored } = event;
   const { formatPriceWithOriginal } = useCurrency()
   const { t, language } = useTranslation()
 
@@ -40,17 +38,6 @@ export function EventCard({ event: rawEvent, userLocation, isSponsored }: EventC
   React.useEffect(() => {
     setMounted(true);
   }, []);
-
-  /**
-   * REGRA DE OURO: Fonte única de verdade.
-   * Ignora event.data para garantir que apenas dados finais do documento sejam renderizados.
-   */
-  const event = React.useMemo(() => {
-    return {
-      ...rawEvent,
-      date: rawEvent.date || rawEvent.startDate
-    };
-  }, [rawEvent]);
 
   const eventDates = React.useMemo(() => {
     const start = safeParseDate(event.date) || new Date();
