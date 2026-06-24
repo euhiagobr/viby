@@ -61,12 +61,11 @@ async function getInitialEvents() {
     const db = getAdminDb();
     
     // Removido filtro de data rígido no banco para evitar conflitos de tipos (String vs Timestamp)
-    // e permitir que eventos recorrentes (cuja data base do pai é antiga) sejam localizados.
-    // A filtragem temporal agora acontece 100% no cliente através do pipeline de visibilidade.
+    // e permitir que o pipeline de visibilidade do cliente (HomeFeed) processe os dados corretamente.
     const snap = await db.collection('events')
-      .where('status', '==', 'Ativo')
+      .where('status', 'in', ['Ativo', 'published'])
       .orderBy('date', 'asc')
-      .limit(60) // Carrega um lote maior para compensar a filtragem em memória
+      .limit(60) 
       .get();
       
     if (snap.empty) return [];

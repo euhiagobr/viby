@@ -7,7 +7,7 @@ import { collection, query, where, orderBy, limit, getDocs, startAfter, Document
 
 /**
  * Hook de busca de eventos para a Landing Page.
- * Filtra apenas por eventos 'published' ou 'Ativo' (legado).
+ * Suporta o novo status 'published' do sistema de rascunhos.
  */
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
@@ -34,13 +34,14 @@ export function useLandingEvents(initialEvents: any[] = []) {
         );
       } else {
         const lastEvent = rawEvents[rawEvents.length - 1];
-        const cursor = lastVisible || (lastEvent?.date?.seconds ? lastEvent.date : (lastEvent?.date ? new Date(lastEvent.date) : null));
+        // Resolução resiliente do cursor
+        const cursorValue = lastVisible || (lastEvent?.date?.seconds ? lastEvent.date : (lastEvent?.date ? new Date(lastEvent.date) : null));
         
         q = query(
           collection(db, "events"),
           where("status", "in", ["Ativo", "published"]),
           orderBy("date", "asc"),
-          startAfter(cursor),
+          ...(cursorValue ? [startAfter(cursorValue)] : []),
           limit(fetchLimit)
         );
       }

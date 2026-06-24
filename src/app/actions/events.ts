@@ -10,7 +10,7 @@ import { revalidatePath } from 'next/cache';
 
 /**
  * Utilitário para converter objetos complexos (Timestamps) em tipos primitivos
- * para tráfego seguro entre Server e Client Components.
+ * para tráfego seguro entre Server e Client Components no Next.js 15.
  */
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
@@ -74,7 +74,7 @@ export async function getOrCreateDraftAction(userId: string, orgId: string) {
 }
 
 /**
- * Salva o estado atual do rascunho.
+ * Salva o estado atual do rascunho de forma incremental.
  */
 export async function saveDraftAction(eventId: string, step: number, data: any) {
   const db = getAdminDb();
@@ -91,7 +91,7 @@ export async function saveDraftAction(eventId: string, step: number, data: any) 
 }
 
 /**
- * Publica um evento a partir de um rascunho.
+ * Publica um evento a partir de um rascunho, "achatando" os dados no nível raiz do documento.
  */
 export async function publishEventAction(eventId: string, finalData: any) {
   const db = getAdminDb();
@@ -101,31 +101,31 @@ export async function publishEventAction(eventId: string, finalData: any) {
     
     if (!eventSnap.exists) throw new Error("Rascunho não encontrado.");
     
-    const { data: draftData } = eventSnap.data() as any;
+    const draftData = eventSnap.data()?.data || {};
 
     // Normalização para compatibilidade com sistema atual
-    const title = finalData.title || draftData?.title || "";
+    const title = finalData.title || draftData.title || "";
     const baseSlug = slugify(title);
     
-    const city = finalData.address?.city || "";
-    const state = finalData.address?.stateRegion || "";
-    const countryCode = (finalData.address?.countryCode || "br").toLowerCase();
+    const city = finalData.address?.city || draftData.address?.city || "";
+    const state = finalData.address?.stateRegion || draftData.address?.stateRegion || "";
+    const countryCode = (finalData.address?.countryCode || draftData.address?.countryCode || "br").toLowerCase();
     
     const citySlug = slugifyLocation(city);
     const regionSlug = buildRegionParam(countryCode, state);
 
-    // Mapeamento crucial: startDate (usado no form) -> date (usado nas vitrines)
-    const eventDate = finalData.startDate || draftData?.startDate || null;
+    // Mapeamento crucial: startDate (usado no form) -> date (usado nas vitrines e ordenação)
+    const eventDate = finalData.startDate || finalData.date || draftData.startDate || draftData.date || null;
 
     const updatePayload: any = {
       ...finalData,
-      date: eventDate, // Campo fundamental para as queries de vitrine
-      status: 'Ativo', 
+      date: eventDate, 
+      status: 'published', // Altera para published conforme nova regra de rascunhos
       slug: baseSlug,
       citySlug,
       regionSlug,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      // Limpar campos de rascunho
+      // Remove campos residuais de rascunho para limpar o documento
       data: admin.firestore.FieldValue.delete(),
       step: admin.firestore.FieldValue.delete()
     };
@@ -145,7 +145,7 @@ export async function publishEventAction(eventId: string, finalData: any) {
 export async function backfillEventLocationSlugsAction() {
   const db = getAdminDb();
   try {
-    const snap = await db.collection('events').where('status', '==', 'Ativo').get();
+    const snap = await db.collection('events').where('status', 'in', ['Ativo', 'published']).get();
     const batch = db.batch();
     let count = 0;
 
@@ -263,8 +263,8 @@ export async function updateEventAction(params: {
     
     const updatePayload = {
       ...eventData,
-      date: eventData.startDate || eventData.date, // Normaliza o campo date
-      status: oldData.status === 'draft' ? 'Ativo' : oldData.status,
+      date: eventData.startDate || eventData.date, 
+      status: oldData.status === 'draft' ? 'published' : oldData.status,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 

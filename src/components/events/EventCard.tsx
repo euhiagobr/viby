@@ -5,6 +5,7 @@ import * as React from "react"
 import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag, RefreshCw, Trophy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -40,19 +41,16 @@ export function EventCard({ event: rawEvent, userLocation, isSponsored }: EventC
     setMounted(true);
   }, []);
 
-  // Normalização de dados para suportar estrutura aninhada (Draft) e legada (Flat)
+  // Normalização de dados: Sempre tenta mesclar 'data' se existir, para cobrir transições de draft e publicações incompletas
   const event = React.useMemo(() => {
-    // Se o evento estiver no estado 'draft', priorizamos o objeto 'data'
-    if (rawEvent.status === 'draft' && rawEvent.data) {
+    if (rawEvent.data && typeof rawEvent.data === 'object') {
       return { 
         ...rawEvent, 
         ...rawEvent.data, 
-        // startDate do form mapeado para date se necessário
-        date: rawEvent.data.date || rawEvent.data.startDate || rawEvent.date,
+        date: rawEvent.data.date || rawEvent.data.startDate || rawEvent.date || rawEvent.startDate,
         id: rawEvent.id 
       };
     }
-    // Para eventos já publicados ('Ativo'), usamos a raiz mas verificamos se restou lixo do rascunho
     return {
       ...rawEvent,
       date: rawEvent.date || rawEvent.startDate
