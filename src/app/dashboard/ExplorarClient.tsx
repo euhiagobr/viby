@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -112,9 +111,10 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
     
     setIsFetching(true)
     try {
+      // FILTRO CENTRAL: published
       const q = query(
         collection(db, "events"),
-        where("status", "==", "Ativo"),
+        where("status", "==", "published"),
         orderBy("date", "asc"),
         ...(isInitial ? [limit(9)] : [startAfter(lastVisible), limit(6)])
       )
@@ -173,7 +173,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
-      if (!isEventVisible(e)) return false
+      if (!isEventVisible(e, now)) return false
       
       const searchNorm = normalizeText(search);
       const matchesSearch = !search || 
@@ -370,7 +370,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
 
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("rounded-xl h-11 border-dashed gap-2 font-bold text-xs uppercase", dateFilter !== 'all' && "bg-secondary/10 border-secondary text-secondary")}>
+              <Button variant="outline" className={cn("rounded-xl h-11 border-dashed gap-2 font-bold text-xs uppercase", dateFilter !== 'all' && "bg-secondary text-white border-secondary")}>
                 <CalendarIcon className="h-4 w-4" />
                 {dateFilter === 'today' ? t('home.today') :
                  dateFilter === 'tomorrow' ? t('home.tomorrow') :

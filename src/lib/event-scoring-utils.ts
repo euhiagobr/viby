@@ -17,14 +17,14 @@ export function calculateDistanceMeters(coords1: Coordinates, coords2: Coordinat
 
 /**
  * Define se um evento deve ser exibido nas vitrines públicas.
- * Regra: Eventos ativos cujo horário de encerramento ainda não passou.
- * Atualizado: Para eventos recorrentes, considera a data final da série.
+ * REGRA ABSOLUTA: Apenas status "published" é visível.
  */
 export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   if (!event || event.status === 'Excluído') return false;
   
-  // Status 'Oculto' permite visualização via link direto mas remove das vitrines
-  if (event.status !== 'Ativo') return false;
+  // REGRA DE OURO: Apenas eventos publicados entram nas vitrines.
+  // Status 'Oculto' permite visualização via link direto mas remove das vitrines.
+  if (event.status !== 'published') return false;
   
   const now = nowOverride ? nowOverride.getTime() : new Date().getTime();
   

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -98,11 +97,12 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
     if (!db || isFetching) return
     setIsFetching(true)
     try {
+      // FILTRO CENTRAL: published
       let q;
       if (isInitial) {
         q = query(
           collection(db, "events"),
-          where("status", "==", "Ativo"),
+          where("status", "==", "published"),
           where("tags", "array-contains-any", COPA_TAGS),
           limit(30)
         );
@@ -110,7 +110,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
         const cursor = lastVisible;
         q = query(
           collection(db, "events"),
-          where("status", "==", "Ativo"),
+          where("status", "==", "published"),
           where("tags", "array-contains-any", COPA_TAGS),
           ...(cursor ? [startAfter(cursor)] : []),
           limit(12)
@@ -195,7 +195,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       }
       return { ...e, date: effectiveDate, endDate: effectiveEndDate, _nextOccurrences: nextOccurrences };
     }).filter(e => {
-      if (!isEventVisible(e, refTime) && (!e.isRecurring || !loadingOccs)) return false;
+      if (!isEventVisible(e, refTime)) return false;
       
       const titleMatch = !search || normalizeText(e.title || "").includes(searchNorm);
       const cityMatch = !searchCity || normalizeText(e.city || "").includes(cityNorm);

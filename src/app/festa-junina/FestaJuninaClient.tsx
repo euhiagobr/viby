@@ -69,11 +69,12 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
     if (!db || isFetching) return
     setIsFetching(true)
     try {
+      // FILTRO CENTRAL: published
       let q;
       if (isInitial) {
         q = query(
           collection(db, "events"),
-          where("status", "==", "Ativo"),
+          where("status", "==", "published"),
           where("tags", "array-contains-any", ["festajunina", "junina"]),
           limit(30)
         );
@@ -81,7 +82,7 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
         const cursor = lastVisible;
         q = query(
           collection(db, "events"),
-          where("status", "==", "Ativo"),
+          where("status", "==", "published"),
           where("tags", "array-contains-any", ["festajunina", "junina"]),
           ...(cursor ? [startAfter(cursor)] : []),
           limit(12)
@@ -151,7 +152,7 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
-      if (!isEventVisible(e, refTime) && (!e.isRecurring || !loadingOccs)) return false;
+      if (!isEventVisible(e, refTime)) return false;
       
       const titleMatch = !search || normalizeText(e.title || "").includes(searchNorm);
       const cityMatch = !searchCity || normalizeText(e.city || "").includes(cityNorm);

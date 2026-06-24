@@ -60,6 +60,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
     if (!db || isFetching) return
     setIsFetching(true)
     try {
+      // FILTRO CENTRAL: published
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - 60);
 
@@ -67,7 +68,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
       if (isInitial) {
         q = query(
           collection(db, "events"), 
-          where("status", "==", "Ativo"), 
+          where("status", "==", "published"), 
           where("date", ">=", thresholdDate),
           orderBy("date", "asc"),
           limit(30)
@@ -76,7 +77,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
         const cursor = lastVisible || (rawEvents.length > 0 ? rawEvents[rawEvents.length - 1].date : null);
         q = query(
           collection(db, "events"), 
-          where("status", "==", "Ativo"), 
+          where("status", "==", "published"), 
           where("date", ">=", thresholdDate),
           orderBy("date", "asc"),
           startAfter(cursor),
@@ -132,8 +133,9 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
       return { ...e, date: effectiveDate };
     }).filter(event => {
       // Regra de Visibilidade Resiliente à Recorrência
-      if (!isEventVisible(event, refTime) && (!event.isRecurring || !loadingOccs)) return false;
+      if (!isEventVisible(event, refTime)) return false;
 
+      // Base Filter (LGBT)
       const byCategory = LGBT_CATEGORY_IDS.includes(event.categoryId)
       const byTags = event.tags?.some((tag: string) => 
         LGBT_TAGS.includes(tag.toLowerCase())

@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -170,13 +169,13 @@ export default function ProfilePageClient({ username }: { username: string }) {
   }, [db, profileType, profileData?.id, isOwner]);
   const { data: userRegistrations } = useCollection<any>(userRegistrationsQuery);
 
-  // Busca de Eventos da Organização
+  // Busca de Eventos da Organização - FILTRO CENTRAL: published
   const orgEventsQuery = useMemoFirebase(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return null;
     return query(
       collection(db, "events"),
       where("organizationId", "==", profileData.id),
-      where("status", "==", "Ativo")
+      where("status", "==", "published")
     );
   }, [db, profileData?.id, profileType]);
 
@@ -194,7 +193,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
   }, [db, profileData?.id, profileType])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
-  // Busca de Eventos em Parceria
+  // Busca de Eventos em Parceria - FILTRO CENTRAL: published
   React.useEffect(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return;
 
@@ -216,7 +215,8 @@ export default function ProfilePageClient({ username }: { username: string }) {
         });
 
         const results = await Promise.all(eventPromises);
-        setPartnershipEvents(results.filter(e => e !== null && e.status === 'Ativo'));
+        // Apenas eventos publicados
+        setPartnershipEvents(results.filter(e => e !== null && e.status === 'published'));
       } catch (e: any) {
         console.warn("Erro ao buscar parcerias:", e.message);
       } finally {
