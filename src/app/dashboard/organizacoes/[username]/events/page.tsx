@@ -201,6 +201,7 @@ export default function OrganizationEventsPage() {
     if (!db || !eventToDelete) return;
     setIsDeleting(true);
     try {
+      // 1. Verificar se existem vendas ativas
       const salesQuery = query(
         collection(db, "registrations"),
         where("eventId", "==", eventToDelete.id),
@@ -210,18 +211,25 @@ export default function OrganizationEventsPage() {
       const salesSnap = await getDocs(salesQuery);
       const eventRef = doc(db, "events", eventToDelete.id);
 
+      const batch = writeBatch(db);
+
       if (!salesSnap.empty) {
-        await updateDoc(eventRef, { status: "Oculto", updatedAt: serverTimestamp() });
+        // Se tem vendas, apenas oculta para não quebrar os vouchers dos clientes
+        batch.update(eventRef, { status: "Oculto", updatedAt: serverTimestamp() });
         toast({ title: "Evento Ocultado", description: "Vendas detectadas. O projeto foi retirado do ar mas os vouchers continuam válidos." });
       } else {
-        const batch = writeBatch(db);
+        // Se não tem vendas, marca como excluído
         batch.update(eventRef, { status: "Excluído", updatedAt: serverTimestamp() });
-        const regsQuery = query(collection(db, "registrations"), where("eventId", "==", eventToDelete.id));
-        const regsSnap = await getDocs(regsQuery);
-        regsSnap.forEach((regDoc) => batch.delete(regDoc.ref));
-        await batch.commit();
+        
+        // Limpar sessões recorrentes órfãs (Recurring Occurrences)
+        const occsQuery = query(collection(db, "recurring_occurrences"), where("parentId", "==", eventToDelete.id));
+        const occsSnap = await getDocs(occsQuery);
+        occsSnap.forEach(d => batch.delete(d.ref));
+        
         toast({ title: "Evento removido" });
       }
+      
+      await batch.commit();
     } catch (error: any) {
       errorEmitter.emit("permission-error", new FirestorePermissionError({ path: `events/${eventToDelete?.id}`, operation: "update" }));
     } finally {
@@ -395,7 +403,7 @@ function EventRow({
         <div className="flex justify-between items-start gap-2">
           <div className="space-y-1">
              <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
-             {event.isRecurring && <Badge className="bg-secondary text-white text-[7px] font-black uppercase h-3.5"><RefreshCw className="w-2   mr-1 animate-spin-slow" /> Série Recorrente</Badge>}
+             {event.isRecurring && <Badge className="bg-secondary text-white text-[7px] font-black uppercase h-3.5"><RefreshCw className="w-2 mr-1 animate-spin-slow" /> Série Recorrente</Badge>}
           </div>
           {isAtLeastEditor && (
             <DropdownMenu>

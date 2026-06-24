@@ -6,8 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 
 /**
  * @fileOverview Resolução de Eventos da Organização Viby.
- * Esta rota atua como um pass-through para garantir que URLs como /viby/[slug]
- * resolvam eventos corretamente, sem conflitar com /viby/marca.
+ * Filtra eventos excluídos para garantir integridade.
  */
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -38,9 +37,6 @@ function stripHtml(text: string): string {
 
 async function getVibyEventData(slugParam: string) {
   const rawSlugOrId = decodeURIComponent(slugParam).trim();
-  
-  // Se o slug for 'marca', deixamos o Next.js resolver via /viby/marca/page.tsx
-  // Embora a rota estática tenha prioridade, esta é uma camada extra de segurança.
   if (rawSlugOrId === 'marca') return { skip: true };
 
   try {
@@ -55,12 +51,18 @@ async function getVibyEventData(slugParam: string) {
       .limit(1).get();
     
     if (!queryBySlug.empty) {
-      eventDoc = { id: queryBySlug.docs[0].id, ...queryBySlug.docs[0].data() };
+      const data = queryBySlug.docs[0].data();
+      if (data.status !== 'Excluído') {
+        eventDoc = { id: queryBySlug.docs[0].id, ...data };
+      }
     } else {
       // 2. Fallback: Buscar por ID direto
       const eventByIdSnap = await db.collection("events").doc(rawSlugOrId).get();
-      if (eventByIdSnap.exists && eventByIdSnap.data()?.organizationId === VIBY_OFFICIAL_UID) {
-        eventDoc = { id: eventByIdSnap.id, ...eventByIdSnap.data() };
+      if (eventByIdSnap.exists) {
+        const data = eventByIdSnap.data();
+        if (data?.organizationId === VIBY_OFFICIAL_UID && data.status !== 'Excluído') {
+          eventDoc = { id: eventByIdSnap.id, ...data };
+        }
       }
     }
 
@@ -68,7 +70,6 @@ async function getVibyEventData(slugParam: string) {
 
     return serializeData(eventDoc);
   } catch (e) {
-    console.error("[getVibyEventData] Erro:", e);
     return null;
   }
 }
@@ -109,9 +110,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function VibyEventRoute({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  
-  // Se for 'marca', o Next.js já deveria ter resolvido para /viby/marca/page.tsx
-  // mas se chegou aqui, redirecionamos para garantir a integridade.
   if (id === 'marca') redirect('/viby/marca');
 
   const event = await getVibyEventData(id);

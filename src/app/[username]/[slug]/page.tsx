@@ -6,7 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 
 /**
  * @fileOverview Rota Canônica Unificada: /[username]/[slug]
- * Resolve o evento verificando o vínculo com o username da organização.
+ * Resolve o evento verificando o vínculo com o username da organização e o status.
  */
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -39,32 +39,30 @@ async function getEventData(usernameParam: string, slugParam: string) {
   const rawUsername = decodeURIComponent(usernameParam).trim();
   const rawSlugOrId = decodeURIComponent(slugParam).trim();
   
-  console.log(`[DEBUG-ROUTING] INICIANDO RESOLUÇÃO: userParam="${rawUsername}", slugParam="${rawSlugOrId}"`);
-  
   try {
     const db = getAdminDb();
     let eventDoc = null;
 
-    // 1. Tentar localizar por slug textual (case-insensitive convention, mas armazenado lower)
+    // 1. Tentar localizar por slug textual
     const slugLower = rawSlugOrId.toLowerCase();
     const queryBySlug = await db.collection("events")
       .where("slug", "==", slugLower)
       .limit(1).get();
     
     if (!queryBySlug.empty) {
-      eventDoc = { id: queryBySlug.docs[0].id, ...queryBySlug.docs[0].data() };
-      console.log(`[DEBUG-ROUTING] Evento localizado via SLUG: "${slugLower}" (ID: ${eventDoc.id})`);
+      const data = queryBySlug.docs[0].data();
+      if (data.status !== 'Excluído') {
+        eventDoc = { id: queryBySlug.docs[0].id, ...data };
+      }
     } else {
-      // 2. Fallback: Buscar por ID direto (CASE-SENSITIVE)
+      // 2. Fallback: Buscar por ID direto
       const eventByIdSnap = await db.collection("events").doc(rawSlugOrId).get();
       if (eventByIdSnap.exists && eventByIdSnap.data()!.status !== 'Excluído') {
         eventDoc = { id: eventByIdSnap.id, ...eventByIdSnap.data() };
-        console.log(`[DEBUG-ROUTING] Evento localizado via ID direto: "${rawSlugOrId}"`);
       }
     }
 
     if (!eventDoc) {
-      console.log(`[DEBUG-ROUTING] FALHA: Evento não localizado no Firestore para: "${rawSlugOrId}"`);
       return null;
     }
 
@@ -73,43 +71,31 @@ async function getEventData(usernameParam: string, slugParam: string) {
     const orgId = eventDoc.organizationId || eventDoc.organizerId;
     
     if (!actualUsername) {
-      console.log(`[DEBUG-ROUTING] Username não disponível no cache do evento. Buscando org ID: ${orgId}`);
-      
       if (orgId === VIBY_OFFICIAL_UID) {
         actualUsername = "viby";
-        console.log(`[DEBUG-ROUTING] Identificado como VIBY OFFICIAL via constante UID.`);
       } else if (orgId) {
         const orgSnap = await db.collection("organizations").doc(orgId).get();
         if (orgSnap.exists) {
           actualUsername = orgSnap.data()?.username?.toLowerCase() || orgSnap.id;
-          console.log(`[DEBUG-ROUTING] Username resolvido na coleção: "${actualUsername}"`);
         }
       }
     }
 
-    // Validação de Integridade de Rota
     const canonicalSlug = eventDoc.slug || eventDoc.id;
     const urlUsernameLower = rawUsername.toLowerCase();
     
-    // É o username correto? Ou é o fallback 'evento'? Ou é o ID da organização?
     const isCorrectUsername = actualUsername === urlUsernameLower || orgId === rawUsername;
     const isCanonicalSlug = rawSlugOrId === canonicalSlug;
 
-    console.log(`[DEBUG-ROUTING] Validação: CorrectUser=${isCorrectUsername} (URL:"${urlUsernameLower}" vs DB:"${actualUsername}"), CanonicalSlug=${isCanonicalSlug}`);
-
-    // Se a URL não for a canônica ideal, redirecionamos para o padrão /[username]/[slug]
     if (!isCorrectUsername || !isCanonicalSlug) {
-      // Se temos um username melhor, usamos ele. Se não, mantemos o da URL se ele resolveu a org.
       const targetUsername = actualUsername || (orgId === rawUsername ? rawUsername : 'evento');
       const redirectUrl = `/${targetUsername}/${canonicalSlug}`;
       
       if (decodeURIComponent(redirectUrl) !== `/${rawUsername}/${rawSlugOrId}`) {
-        console.log(`[DEBUG-ROUTING] REDIRECIONANDO para URL canônica: ${redirectUrl}`);
         return { redirect: redirectUrl };
       }
     }
 
-    // Processar recorrência para SEO
     if (eventDoc.isRecurring) {
       try {
         const todayStr = new Date().toISOString().split('T')[0];
@@ -125,13 +111,12 @@ async function getEventData(usernameParam: string, slugParam: string) {
           if (nextOcc.endTime) eventDoc.endDate = `${nextOcc.date}T${nextOcc.endTime}:00`;
         }
       } catch (occError) {
-        console.error(`[DEBUG-ROUTING] Erro ao resolver recorrência para SEO:`, occError);
+        console.error(`[SEO-Recurrence] Error:`, occError);
       }
     }
 
     return serializeData(eventDoc);
   } catch (e) {
-    console.error("[getEventData] Erro crítico na resolução:", e);
     return null;
   }
 }
