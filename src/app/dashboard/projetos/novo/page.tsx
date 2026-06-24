@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -134,7 +133,7 @@ export default function NovoEventoWizard() {
       if (m.homeTeam && m.homeTeam.id) teams.set(m.homeTeam.id, { id: m.homeTeam.id, name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', flag: m.homeTeam.crest });
       if (m.awayTeam && m.awayTeam.id) teams.set(m.awayTeam.id, { id: m.awayTeam.id, name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', flag: m.awayTeam.crest });
     });
-    return Array.from(teams.values()).sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+    return Array.from(teams.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [wcMatchesData]);
 
   const [matchSelection, setMatchSelection] = useState({ teamA: "", teamB: "" });
@@ -374,7 +373,16 @@ export default function NovoEventoWizard() {
            <Card className="border-none shadow-sm rounded-[2rem] bg-white">
               <CardContent className="p-8 space-y-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <EventType value={formData.type} onChange={v => setFormData({...formData, type: v})} />
+                    <EventType 
+                      value={formData.type} 
+                      onChange={v => setFormData({...formData, type: v})} 
+                      externalUrl={formData.externalUrl}
+                      onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
+                      startingPrice={formData.startingPrice}
+                      onStartingPriceChange={v => setFormData({...formData, startingPrice: v})}
+                      disclosurePrices={formData.disclosurePrices}
+                      onDisclosurePricesChange={v => setFormData({...formData, disclosurePrices: v})}
+                    />
                     <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
                  </div>
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
