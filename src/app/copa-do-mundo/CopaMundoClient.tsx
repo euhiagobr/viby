@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -57,7 +58,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
   const [rawEvents, setRawEvents] = React.useState<any[]>(initialEvents)
   const [lastVisible, setLastVisible] = React.useState<DocumentSnapshot | null>(null)
   const [hasMore, setHasMore] = React.useState(initialEvents.length >= 12)
-  const [isFetching, setIsFetching] = setIsFetching(false)
+  const [isFetching, setIsFetching] = React.useState(false)
 
   const { data: wcMatchesData } = useSWR<any>(WC_ENDPOINTS.matches, fetcher);
 
@@ -68,7 +69,11 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
       if (m.homeTeam) teams.set(m.homeTeam.id, { name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', flag: m.homeTeam.crest });
       if (m.awayTeam) teams.set(m.awayTeam.id, { name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', flag: m.awayTeam.crest });
     });
-    return Array.from(teams.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return Array.from(teams.values()).sort((a: any, b: any) => {
+      const nameA = a?.name || "";
+      const nameB = b?.name || "";
+      return nameA.localeCompare(nameB);
+    });
   }, [wcMatchesData]);
 
   // Pipeline de Ocorrências para eventos recorrentes
@@ -288,7 +293,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
                          {availableTeams.map(t => (
                            <SelectItem key={t.name} value={t.name}>
                               <div className="flex items-center gap-2">
-                                 <img src={t.crest} className="w-4 h-4 rounded-full" />
+                                 <img src={t.flag} className="w-4 h-4 rounded-full" />
                                  {t.name.toUpperCase()}
                               </div>
                            </SelectItem>

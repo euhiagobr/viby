@@ -1,39 +1,48 @@
+
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
-import { collection, query, orderBy, serverTimestamp, increment, doc } from "firebase/firestore"
+import { collection, query, orderBy, serverTimestamp, increment, doc, getDoc, getDocs, where, limit, writeBatch } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Progress } from "@/components/ui/progress"
+import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { 
   Loader2, 
   ArrowLeft, 
+  Plus, 
   Check, 
-  ChevronRight, 
-  Save, 
-  Zap, 
-  Calendar, 
-  Ticket, 
-  Building2, 
-  ShieldCheck, 
-  Info,
-  Layers,
+  X, 
+  Upload, 
+  Building2,
+  Globe,
+  Camera,
   MapPin,
+  Phone,
+  Mail,
+  Instagram,
+  Fingerprint,
+  Info,
+  User,
+  ShieldCheck,
+  AlertTriangle,
   Clock,
-  Layout,
-  RefreshCw,
-  Copy,
-  Trash2,
+  ChevronRight,
+  Save,
   Trophy,
   CheckCircle2,
-  Plus,
-  AlertTriangle,
-  X
+  Zap,
+  Trash2
 } from "lucide-react"
 import Link from "next/link"
 import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates, safeParseDate } from "@/lib/utils"
@@ -55,14 +64,6 @@ import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { createEventAction } from "@/app/actions/events"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Accordion,
   AccordionContent,
@@ -86,7 +87,7 @@ export default function NovoEventoWizard() {
 
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [uploadProgress, setUploadProgress] = setUploadProgress(null)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
     title: "",
@@ -132,9 +133,11 @@ export default function NovoEventoWizard() {
       if (m.homeTeam) teams.set(m.homeTeam.id, { name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', flag: m.homeTeam.crest });
       if (m.awayTeam) teams.set(m.awayTeam.id, { name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', flag: m.awayTeam.crest });
     });
-    return Array.from(teams.entries())
-      .map(([id, data]) => ({ id, ...data }))
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return Array.from(teams.values()).sort((a: any, b: any) => {
+      const nameA = a?.name || "";
+      const nameB = b?.name || "";
+      return nameA.localeCompare(nameB);
+    });
   }, [wcMatchesData]);
 
   const [matchSelection, setMatchSelection] = useState({ teamA: "", teamB: "" });
@@ -188,7 +191,7 @@ export default function NovoEventoWizard() {
     const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', 
-      (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
+      (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100), 
       () => setUploadProgress(null), 
       async () => {
         const url = await getDownloadURL(uploadTask.snapshot.ref)

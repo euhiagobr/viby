@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -87,7 +88,14 @@ export default function EditarEventoWizard() {
   const [sessions, setSessions] = useState<any[]>([])
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
 
-  const eventRef = React.useMemo(() => (db && eventId) ? doc(db, "events", eventId) : null, [db, eventId])
+  const eventRef = React.useMemo(() => {
+    if (!db || !eventId) return null
+    try {
+      return doc(db, "events", eventId)
+    } catch (e) {
+      return null
+    }
+  }, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
@@ -108,9 +116,11 @@ export default function EditarEventoWizard() {
       if (m.homeTeam) teams.set(m.homeTeam.id, { name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', flag: m.homeTeam.crest });
       if (m.awayTeam) teams.set(m.awayTeam.id, { name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', flag: m.awayTeam.crest });
     });
-    return Array.from(teams.entries())
-      .map(([id, data]) => ({ id, ...data }))
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return Array.from(teams.values()).sort((a: any, b: any) => {
+      const nameA = a?.name || "";
+      const nameB = b?.name || "";
+      return nameA.localeCompare(nameB);
+    });
   }, [wcMatchesData]);
 
   const [matchSelection, setMatchSelection] = useState({ teamA: "", teamB: "" });
@@ -215,7 +225,7 @@ export default function EditarEventoWizard() {
     const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', 
-      (s) => setUploadProgress((s.bytesTransferred / s.totalBytes) * 100), 
+      (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100), 
       () => setUploadProgress(null), 
       async () => {
         const url = await getDownloadURL(uploadTask.snapshot.ref)
