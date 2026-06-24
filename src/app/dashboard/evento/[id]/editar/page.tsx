@@ -113,14 +113,10 @@ export default function EditarEventoWizard() {
     if (!wcMatchesData?.matches) return [];
     const teams = new Map();
     wcMatchesData.matches.forEach((m: any) => {
-      if (m.homeTeam) teams.set(m.homeTeam.id, { name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', flag: m.homeTeam.crest });
-      if (m.awayTeam) teams.set(m.awayTeam.id, { name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', flag: m.awayTeam.crest });
+      if (m.homeTeam && m.homeTeam.id) teams.set(m.homeTeam.id, { id: m.homeTeam.id, name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', flag: m.homeTeam.crest });
+      if (m.awayTeam && m.awayTeam.id) teams.set(m.awayTeam.id, { id: m.awayTeam.id, name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', flag: m.awayTeam.crest });
     });
-    return Array.from(teams.values()).sort((a: any, b: any) => {
-      const nameA = a?.name || "";
-      const nameB = b?.name || "";
-      return nameA.localeCompare(nameB);
-    });
+    return Array.from(teams.values()).sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
   }, [wcMatchesData]);
 
   const [matchSelection, setMatchSelection] = useState({ teamA: "", teamB: "" });
@@ -178,19 +174,15 @@ export default function EditarEventoWizard() {
 
   const showWcSection = formData?.tags.includes('copa') && formData?.tags.includes('temjogo');
 
-  useEffect(() => {
-    if (!showWcSection && formData?.matches?.length > 0) {
-      setFormData(prev => ({ ...prev, matches: [] }));
-    }
-  }, [showWcSection, formData?.matches?.length]);
-
   const handleAddMatch = () => {
     const { teamA, teamB } = matchSelection;
     if (!teamA || !teamB || teamA === teamB) return;
 
+    if (!wcMatchesData?.matches) return;
+
     const match = wcMatchesData.matches.find((m: any) => 
-      (m.homeTeam.id.toString() === teamA && m.awayTeam.id.toString() === teamB) ||
-      (m.homeTeam.id.toString() === teamB && m.awayTeam.id.toString() === teamA)
+      (m.homeTeam?.id?.toString() === teamA && m.awayTeam?.id?.toString() === teamB) ||
+      (m.homeTeam?.id?.toString() === teamB && m.awayTeam?.id?.toString() === teamA)
     );
 
     if (!match) {
@@ -460,8 +452,8 @@ export default function EditarEventoWizard() {
                           <div key={i} className="p-4 bg-muted/20 rounded-2xl border flex items-center justify-between group">
                             <div className="flex items-center gap-3">
                               <div className="flex items-center -space-x-2">
-                                <img src={m.teamAFlag} className="w-6 h-6 rounded-full border-2 border-white shadow-sm" />
-                                <img src={m.teamBFlag} className="w-6 h-6 rounded-full border-2 border-white shadow-sm" />
+                                <img src={m.teamAFlag} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
+                                <img src={m.teamBFlag} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
                               </div>
                               <div>
                                 <p className="text-[10px] font-black uppercase italic text-primary truncate max-w-[150px]">{m.teamAName} × {m.teamBName}</p>

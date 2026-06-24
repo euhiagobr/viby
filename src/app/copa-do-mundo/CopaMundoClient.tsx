@@ -66,8 +66,18 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
     if (!wcMatchesData?.matches) return [];
     const teams = new Map();
     wcMatchesData.matches.forEach((m: any) => {
-      if (m.homeTeam) teams.set(m.homeTeam.id, { name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', flag: m.homeTeam.crest });
-      if (m.awayTeam) teams.set(m.awayTeam.id, { name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', flag: m.awayTeam.crest });
+      if (m.homeTeam && m.homeTeam.id) {
+        teams.set(m.homeTeam.id, { 
+          name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', 
+          flag: m.homeTeam.crest 
+        });
+      }
+      if (m.awayTeam && m.awayTeam.id) {
+        teams.set(m.awayTeam.id, { 
+          name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', 
+          flag: m.awayTeam.crest 
+        });
+      }
     });
     return Array.from(teams.values()).sort((a: any, b: any) => {
       const nameA = a?.name || "";
