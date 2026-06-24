@@ -10,6 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const db = getAdminDb();
 
+    // 1. Rotas Estáticas
     const routes: MetadataRoute.Sitemap = [
       { url: `${baseUrl}/`, lastModified: new Date(), changeFrequency: 'daily', priority: 1.0 },
       { url: `${baseUrl}/dashboard`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.8 },
@@ -24,7 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       { url: `${baseUrl}/privacidade`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.3 },
     ];
 
-    // Páginas de Perfil (Usuários e Marcas)
+    // 2. Perfis de Usuários e Organizações
     const usernamesSnap = await db.collection('usernames').get();
     usernamesSnap.forEach(doc => {
       const username = doc.id;
@@ -36,7 +37,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     });
 
-    // Páginas de Eventos (Rota Canônica: /[username]/[slug])
+    // 3. Eventos Ativos (Rota Canônica: /[username]/[slug])
     const eventsSnap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .get();
@@ -60,13 +61,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.9
       });
 
-      // Coletar caminhos de cidades dinâmicas
       if (event.regionSlug && event.citySlug) {
         cityPaths.add(`${event.regionSlug}/${event.citySlug}`);
       }
     });
 
-    // Adicionar Páginas de Cidades
+    // 4. Páginas de Cidades
     cityPaths.forEach(path => {
       routes.push({
         url: `${baseUrl}/o-que-fazer-em/${path}`,

@@ -4,7 +4,11 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: '*',
-      allow: ['/', '/suporte/faq'],
+      allow: [
+        '/', 
+        '/suporte/faq',
+        '/recorrente/'
+      ],
       disallow: [
         '/admin/',
         '/dashboard/',
