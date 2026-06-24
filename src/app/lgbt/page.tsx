@@ -1,10 +1,9 @@
-
-import { redirect } from 'next/navigation';
+import { permanentRedirect } from 'next/navigation';
 
 /**
- * @fileOverview Redirecionador para a rota canônica de diversidade.
- * Evita conteúdo duplicado entre /lgbt e /experiencias-lgbtqiapn.
+ * @fileOverview Redirecionador Permanente (301) para a rota canônica de diversidade.
+ * Consolida autoridade de SEO na rota /experiencias-lgbtqiapn.
  */
 export default function LgbtRedirect() {
-  redirect('/experiencias-lgbtqiapn');
+  permanentRedirect('/experiencias-lgbtqiapn');
 }

@@ -5,10 +5,10 @@ import FAQClient from "./FAQClient"
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 export const metadata: Metadata = {
-  title: 'Perguntas Frequentes',
+  title: 'FAQ | Central de Ajuda Viby',
   description: 'Tire suas dúvidas sobre o funcionamento da Viby: ingressos, organizações, pagamentos e segurança.',
   keywords: ['faq', 'ajuda', 'suporte', 'viby', 'dúvidas'],
-  alternates: { canonical: '/suporte/faq' },
+  alternates: { canonical: 'https://viby.club/suporte/faq' },
   openGraph: {
     title: 'FAQ | Central de Ajuda Viby',
     description: 'Tire suas dúvidas sobre o funcionamento da Viby: ingressos, organizações, pagamentos e segurança.',

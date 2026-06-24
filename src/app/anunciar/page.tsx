@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import { Metadata } from "next"
 import OrganizerLandingPage from "./OrganizerLandingPage"
@@ -7,7 +6,7 @@ export const metadata: Metadata = {
   title: 'Venda Ingressos e Divulgue seus Eventos | Viby para Organizadores',
   description: 'A plataforma completa para produtores de eventos. Venda ingressos online, gerencie participantes com QR Code e alcance milhares de pessoas.',
   keywords: ['venda de ingressos', 'produtor de eventos', 'organizador de festas', 'divulgação de eventos', 'viby', 'gestão de eventos'],
-  alternates: { canonical: '/anunciar' },
+  alternates: { canonical: 'https://viby.club/anunciar' },
   openGraph: {
     title: 'Venda Ingressos e Divulgue seus Eventos | Viby',
     description: 'Crie eventos, venda ingressos online, receba pagamentos com segurança e alcance mais pessoas.',
