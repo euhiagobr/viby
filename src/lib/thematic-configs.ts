@@ -26,12 +26,12 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     slug: "oktoberfest",
     title: "Oktoberfest: encontre festas, eventos e celebrações cervejeiras",
     description: "Descubra festas de Oktoberfest, eventos temáticos, celebrações alemãs, festivais de cerveja, música e gastronomia em um só lugar.",
-    intro: "Procurando o melhor da cultura alemã? Explore a agenda completa de Oktoberfest e festivais de cerveja.",
-    tags: ["oktober", "oktoberfest", "cerveja", "chopp"],
+    intro: "Procurando o melhor da cultura alemã? Explore a agenda completa de Oktoberfest e festivais de cerveja com muito chopp e tradição.",
+    tags: ["oktober", "oktoberfest", "cerveja", "chopp", "alemã"],
     heroBg: getImg('oktoberfest-bg')?.imageUrl || "",
     heroHint: getImg('oktoberfest-bg')?.imageHint || "beer festival",
-    themeColor: "bg-[#78350f]",
-    accentColor: "text-[#78350f]",
+    themeColor: "bg-[#000000]", // Preto da bandeira
+    accentColor: "text-[#facc15]", // Dourado/Cerveja
     iconName: 'beer',
   },
   halloween: {
@@ -43,7 +43,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     heroBg: getImg('halloween-bg')?.imageUrl || "",
     heroHint: getImg('halloween-bg')?.imageHint || "halloween party",
     themeColor: "bg-[#4c1d95]",
-    accentColor: "text-[#4c1d95]",
+    accentColor: "text-[#f97316]", // Laranja abóbora
     iconName: 'ghost',
   },
   "semana-farroupilha": {
@@ -55,7 +55,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     heroBg: getImg('semana-farroupilha-bg')?.imageUrl || "",
     heroHint: getImg('semana-farroupilha-bg')?.imageHint || "gaucho landscape",
     themeColor: "bg-[#166534]",
-    accentColor: "text-[#166534]",
+    accentColor: "text-[#991b1b]", // Vermelho Farroupilha
     iconName: 'flame',
   },
   natal: {
@@ -67,7 +67,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     heroBg: getImg('natal-bg')?.imageUrl || "",
     heroHint: getImg('natal-bg')?.imageHint || "christmas lights",
     themeColor: "bg-[#991b1b]",
-    accentColor: "text-[#991b1b]",
+    accentColor: "text-[#166534]", // Verde Natal
     iconName: 'gift',
   },
   "ano-novo": {
@@ -78,8 +78,8 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     tags: ["anonovo", "ano novo", "ano-novo", "reveillon", "réveillon", "virada", "viradadoano", "virada-do-ano"],
     heroBg: getImg('ano-novo-bg')?.imageUrl || "",
     heroHint: getImg('ano-novo-bg')?.imageHint || "fireworks party",
-    themeColor: "bg-[#1e293b]",
-    accentColor: "text-[#1e293b]",
+    themeColor: "bg-[#0f172a]",
+    accentColor: "text-[#facc15]", // Dourado virada
     iconName: 'sparkles',
   },
   carnaval: {
@@ -91,7 +91,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     heroBg: getImg('carnaval-bg')?.imageUrl || "",
     heroHint: getImg('carnaval-bg')?.imageHint || "carnival parade",
     themeColor: "bg-[#e11d48]",
-    accentColor: "text-[#e11d48]",
+    accentColor: "text-[#facc15]", // Amarelo vibrante
     iconName: 'music',
   }
 };
