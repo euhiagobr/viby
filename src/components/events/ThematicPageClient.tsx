@@ -155,7 +155,7 @@ export default function ThematicPageClient({
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '00:00'}:00`) }))
+            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '19:00'}:00`) }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
           const nextValid = sorted.find(o => {
@@ -242,11 +242,11 @@ export default function ThematicPageClient({
       <section className={cn("relative min-h-[50vh] flex items-center justify-center overflow-hidden text-white", config.themeColor)}>
         <div className="absolute inset-0 opacity-40 pointer-events-none">
            <div 
-             className="absolute inset-0 bg-cover bg-center grayscale" 
+             className="absolute inset-0 bg-cover bg-center" 
              style={{ backgroundImage: `url(${config.heroBg})` }}
              data-ai-hint={config.heroHint}
            />
-           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/20" />
+           <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/80" />
         </div>
         <div className="container mx-auto px-4 relative z-10 py-20 text-center">
           <div className="max-w-4xl mx-auto space-y-6 flex flex-col items-center">

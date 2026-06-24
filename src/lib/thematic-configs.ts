@@ -29,9 +29,9 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     intro: "Procurando o melhor da cultura alemã? Explore a agenda completa de Oktoberfest e festivais de cerveja com muito chopp e tradição.",
     tags: ["oktober", "oktoberfest", "cerveja", "chopp", "alemã"],
     heroBg: getImg('oktoberfest-bg')?.imageUrl || "",
-    heroHint: getImg('oktoberfest-bg')?.imageHint || "beer festival",
-    themeColor: "bg-[#000000]", // Preto da bandeira
-    accentColor: "text-[#facc15]", // Dourado/Cerveja
+    heroHint: getImg('oktoberfest-bg')?.imageHint || "beer festival celebration",
+    themeColor: "bg-[#1c0d02]", // Marrom amadeirado escuro
+    accentColor: "text-[#f59e0b]", // Âmbar (cor da cerveja)
     iconName: 'beer',
   },
   halloween: {
