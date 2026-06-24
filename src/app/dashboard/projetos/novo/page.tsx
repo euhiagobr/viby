@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -33,7 +32,8 @@ import {
   Trophy,
   CheckCircle2,
   Plus,
-  AlertTriangle
+  AlertTriangle,
+  X
 } from "lucide-react"
 import Link from "next/link"
 import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates, safeParseDate } from "@/lib/utils"
@@ -86,7 +86,7 @@ export default function NovoEventoWizard() {
 
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [uploadProgress, setUploadProgress] = setUploadProgress(null)
   
   const [formData, setFormData] = useState({
     title: "",
@@ -129,10 +129,12 @@ export default function NovoEventoWizard() {
     if (!wcMatchesData?.matches) return [];
     const teams = new Map();
     wcMatchesData.matches.forEach((m: any) => {
-      teams.set(m.homeTeam.id, { name: m.homeTeam.name, flag: m.homeTeam.crest });
-      teams.set(m.awayTeam.id, { name: m.awayTeam.name, flag: m.awayTeam.crest });
+      if (m.homeTeam) teams.set(m.homeTeam.id, { name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', flag: m.homeTeam.crest });
+      if (m.awayTeam) teams.set(m.awayTeam.id, { name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', flag: m.awayTeam.crest });
     });
-    return Array.from(teams.entries()).map(([id, data]) => ({ id, ...data })).sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(teams.entries())
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [wcMatchesData]);
 
   const [matchSelection, setMatchSelection] = useState({ teamA: "", teamB: "" });
@@ -323,7 +325,7 @@ export default function NovoEventoWizard() {
       const occurrencesPayload = sessions.map(s => ({
         date: s.date.split('T')[0],
         startTime: s.date.split('T')[1]?.substring(0, 5) || "19:00",
-        endTime: s.endDate.split('T')[1]?.substring(0, 5) || "22:00",
+        endTime: s.date.split('T')[1]?.substring(0, 5) || "22:00",
         batches: s.batches,
         capacidadeMaxima: s.capacity
       }));

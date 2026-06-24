@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -106,10 +105,12 @@ export default function EditarEventoWizard() {
     if (!wcMatchesData?.matches) return [];
     const teams = new Map();
     wcMatchesData.matches.forEach((m: any) => {
-      teams.set(m.homeTeam.id, { name: m.homeTeam.name, flag: m.homeTeam.crest });
-      teams.set(m.awayTeam.id, { name: m.awayTeam.name, flag: m.awayTeam.crest });
+      if (m.homeTeam) teams.set(m.homeTeam.id, { name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', flag: m.homeTeam.crest });
+      if (m.awayTeam) teams.set(m.awayTeam.id, { name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', flag: m.awayTeam.crest });
     });
-    return Array.from(teams.entries()).map(([id, data]) => ({ id, ...data })).sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(teams.entries())
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [wcMatchesData]);
 
   const [matchSelection, setMatchSelection] = useState({ teamA: "", teamB: "" });

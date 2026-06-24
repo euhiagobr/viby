@@ -1,5 +1,4 @@
-
-'use client';
+"use client"
 
 import * as React from 'react';
 import useSWR from 'swr';
@@ -70,9 +69,19 @@ export default function TabelaClient() {
   const brazilNextMatch = React.useMemo(() => {
     if (!matchesData?.matches) return null;
     return matchesData.matches.find(m => 
-      (m.homeTeam.id === BRAZIL_ID || m.awayTeam.id === BRAZIL_ID) && 
+      (m.homeTeam?.id === BRAZIL_ID || m.awayTeam?.id === BRAZIL_ID) && 
       (m.status === 'SCHEDULED' || m.status === 'TIMED' || m.status === 'IN_PLAY')
     );
+  }, [matchesData]);
+
+  const availableTeams = React.useMemo(() => {
+    if (!matchesData?.matches) return [];
+    const teams = new Map();
+    matchesData.matches.forEach((m: any) => {
+      if (m.homeTeam) teams.set(m.homeTeam.id, { name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', crest: m.homeTeam.crest });
+      if (m.awayTeam) teams.set(m.awayTeam.id, { name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', crest: m.awayTeam.crest });
+    });
+    return Array.from(teams.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [matchesData]);
 
   const groupedMatches = React.useMemo(() => {
@@ -150,7 +159,7 @@ export default function TabelaClient() {
                      <p className="text-[10px] font-black uppercase opacity-40 tracking-widest flex items-center gap-2"><Clock className="w-3.5 h-3.5" /> Próximo Jogo</p>
                      {loadingMatches ? <div className="space-y-2"><Skeleton className="h-4 w-40 bg-white/10" /><Skeleton className="h-3 w-32 bg-white/10" /></div> : brazilNextMatch ? (
                        <div className="space-y-1">
-                          <p className="font-black text-sm uppercase italic text-[#ffdf00] truncate">vs {brazilNextMatch.homeTeam.id === BRAZIL_ID ? brazilNextMatch.awayTeam.name : brazilNextMatch.homeTeam.name}</p>
+                          <p className="font-black text-sm uppercase italic text-[#ffdf00] truncate">vs {brazilNextMatch.homeTeam?.id === BRAZIL_ID ? brazilNextMatch.awayTeam?.name : brazilNextMatch.homeTeam?.name}</p>
                           <p className="text-xs font-bold uppercase">{new Date(brazilNextMatch.utcDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} • {new Date(brazilNextMatch.utcDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
                           {brazilNextMatch.venue && <p className="text-[9px] font-bold opacity-50 uppercase truncate flex items-center gap-1"><MapPin className="w-2.5 h-2.5" /> {brazilNextMatch.venue}</p>}
                        </div>
@@ -333,17 +342,17 @@ function MatchCard({ match }: { match: Match }) {
           <div className="p-8 flex items-center justify-between gap-4">
              <div className="flex flex-col items-center gap-3 flex-1 min-w-0">
                 <div className="h-10 w-12 bg-muted rounded overflow-hidden relative border shadow-sm">
-                   <img src={match.homeTeam.crest} alt="" className="object-cover w-full h-full" />
+                   {match.homeTeam && <img src={match.homeTeam.crest} alt="" className="object-cover w-full h-full" />}
                 </div>
-                <span className="font-black text-sm uppercase italic text-primary text-center leading-none truncate w-full">{match.homeTeam.shortName || match.homeTeam.name}</span>
+                <span className="font-black text-sm uppercase italic text-primary text-center leading-none truncate w-full">{match.homeTeam?.shortName || match.homeTeam?.name || 'TBD'}</span>
              </div>
              
              <div className="flex flex-col items-center gap-2 shrink-0">
-                { (isFinished || isLive || match.score.fullTime.home !== null) ? (
+                { (isFinished || isLive || (match.score?.fullTime?.home !== null)) ? (
                    <div className="text-3xl font-black italic tracking-tighter flex items-center gap-4 bg-primary text-white px-6 py-2 rounded-2xl shadow-lg">
-                      <span>{match.score.fullTime.home ?? 0}</span>
+                      <span>{match.score?.fullTime?.home ?? 0}</span>
                       <span className="opacity-20 text-sm">X</span>
-                      <span>{match.score.fullTime.away ?? 0}</span>
+                      <span>{match.score?.fullTime?.away ?? 0}</span>
                    </div>
                 ) : (
                    <div className="text-[10px] font-black uppercase opacity-20 italic">VS</div>
@@ -352,9 +361,9 @@ function MatchCard({ match }: { match: Match }) {
 
              <div className="flex flex-col items-center gap-3 flex-1 min-w-0">
                 <div className="h-10 w-12 bg-muted rounded overflow-hidden relative border shadow-sm">
-                   <img src={match.awayTeam.crest} alt="" className="object-cover w-full h-full" />
+                   {match.awayTeam && <img src={match.awayTeam.crest} alt="" className="object-cover w-full h-full" />}
                 </div>
-                <span className="font-black text-sm uppercase italic text-primary text-center leading-none truncate w-full">{match.awayTeam.shortName || match.awayTeam.name}</span>
+                <span className="font-black text-sm uppercase italic text-primary text-center leading-none truncate w-full">{match.awayTeam?.shortName || match.awayTeam?.name || 'TBD'}</span>
              </div>
           </div>
           <div className="p-4 border-t border-dashed bg-muted/5 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -363,7 +372,7 @@ function MatchCard({ match }: { match: Match }) {
              </div>
              {!isFinished && (
                <Button asChild variant="ghost" size="sm" className="h-8 rounded-xl font-black uppercase italic text-[9px] gap-2 text-secondary hover:bg-secondary/10">
-                  <Link href={`/copa-do-mundo?search=${encodeURIComponent(match.homeTeam.name)}`}>
+                  <Link href={`/copa-do-mundo?search=${encodeURIComponent(match.homeTeam?.name || '')}`}>
                      <Tv className="w-3 h-3" /> Onde Assistir
                   </Link>
                </Button>
