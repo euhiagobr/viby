@@ -6,15 +6,14 @@ export const revalidate = 3600; // Cache de 1 hora
 
 /**
  * @fileOverview Fonte Única e Oficial de Verdade para o sitemap.xml da Viby.
- * Otimizado para performance: Queries com limite e serialização robusta.
+ * Otimizado para performance: Queries com limite e serialização robusta para evitar timeouts no Google.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://viby.club';
   
-  // 1. Rotas Estáticas Públicas (Sempre retornadas mesmo se o DB falhar)
+  // 1. Rotas Estáticas Públicas
   const routes: MetadataRoute.Sitemap = [
     { url: `${baseUrl}/`, lastModified: new Date(), changeFrequency: 'daily', priority: 1.0 },
-    { url: `${baseUrl}/dashboard`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.8 },
     { url: `${baseUrl}/copa-do-mundo`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.95 },
     { url: `${baseUrl}/copa-do-mundo/tabela`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.9 },
     { url: `${baseUrl}/para-organizadores`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.7 },
@@ -29,8 +28,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const db = getAdminDb();
 
-    // 2. Perfis de Usuários e Organizações (Limitado aos últimos 2000 para performance)
-    const usernamesSnap = await db.collection('usernames').limit(2000).get();
+    // 2. Perfis de Usuários e Organizações
+    // Limitamos a consulta para garantir que o Google não sofra timeout (Máx 1500 perfis por sitemap principal)
+    const usernamesSnap = await db.collection('usernames')
+      .select('uid', 'type')
+      .limit(1500)
+      .get();
+
     usernamesSnap.forEach(doc => {
       routes.push({
         url: `${baseUrl}/${doc.id}`,
@@ -41,11 +45,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
 
     // 3. Eventos Ativos (Rota Canônica: /[username]/[slug])
-    // Limitado a 3000 eventos ativos para evitar payload excessivo
+    // Selecionamos apenas os campos necessários para reduzir o payload e tempo de resposta
     const eventsSnap = await db.collection('events')
       .where('status', '==', 'Ativo')
+      .select('slug', 'organizer.username', 'updatedAt', 'regionSlug', 'citySlug')
       .orderBy('date', 'desc')
-      .limit(3000)
+      .limit(2500)
       .get();
 
     const cityPaths = new Set<string>();
@@ -87,8 +92,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
 
   } catch (error) {
-    console.error("[Sitemap Generation Failure] Returning partial static routes", error);
-    // Em caso de erro no Firestore, retorna apenas as rotas estáticas para não deixar o sitemap vazio
+    console.error("[Sitemap Generation Failure] Returning static routes only", error);
   }
 
   return routes;
