@@ -8,36 +8,36 @@ import { getAdminDb } from "@/lib/firebase/admin"
 import * as admin from 'firebase-admin';
 
 export const metadata: Metadata = {
-  title: "Festa Junina 2026 | Encontre Arraiás e Eventos na Viby",
+  title: "Festa Junina Vibyeventos",
   description:
-    "Descubra festas juninas, arraiás, quermesses e eventos temáticos em todo o Brasil. Encontre sua próxima Festa Junina na Viby.",
+    "Evento de Festa Junina com comidas típicas, música, atrações e ingressos disponíveis",
   alternates: {
     canonical: "https://viby.club/festa-junina",
   },
   openGraph: {
-    title: "Festa Junina 2026 | Encontre Arraiás e Eventos na Viby",
+    title: "Festa Junina Vibyeventos",
     description:
-      "Descubra festas juninas, arraiás, quermesses e eventos temáticos em todo o Brasil. Encontre sua próxima Festa Junina na Viby.",
+      "Evento de Festa Junina com comidas típicas, música, atrações e ingressos disponíveis",
     url: "https://viby.club/festa-junina",
     siteName: "Viby",
     type: "website",
     locale: "pt_BR",
     images: [
       {
-        url: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417",
+        url: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fjunnina.jpeg?alt=media&token=be078e49-c9ff-479d-b769-3a99edce440b",
         width: 1200,
         height: 630,
-        alt: "Festa Junina na Viby"
+        alt: "Festa Junina Vibyeventos"
       }
     ]
   },
   twitter: {
     card: "summary_large_image",
-    title: "Festa Junina 2026 | Encontre Arraiás e Eventos na Viby",
+    title: "Festa Junina Vibyeventos",
     description:
-      "Descubra festas juninas, arraiás, quermesses e eventos temáticos em todo o Brasil. Encontre sua próxima Festa Junina na Viby.",
+      "Evento de Festa Junina com comidas típicas, música, atrações e ingressos disponíveis",
     images: [
-      "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417"
+      "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fjunnina.jpeg?alt=media&token=be078e49-c9ff-479d-b769-3a99edce440b"
     ]
   }
 };

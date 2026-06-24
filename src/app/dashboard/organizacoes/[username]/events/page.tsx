@@ -53,6 +53,7 @@ import { toast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { format, startOfToday, addDays } from "date-fns";
+import { EventCard } from '@/components/events/EventCard';
 
 export default function OrganizationEventsPage() {
   const { currentOrg, userRole } = useCurrentOrganization();
@@ -176,37 +177,6 @@ export default function OrganizationEventsPage() {
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
   const canCheckIn = ['owner', 'admin', 'editor', 'checkin'].includes(userRole || '');
 
-  const formatDate = (dateValue: any) => {
-    if (!dateValue) return "A definir";
-    try {
-      let d: Date;
-      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
-        d = dateValue.toDate();
-      } else if (dateValue && typeof dateValue === 'object' && 'seconds' in dateValue) {
-        d = new Date(dateValue.seconds * 1000);
-      } else {
-        d = new Date(dateValue);
-      }
-      return isNaN(d.getTime()) ? "A definir" : d.toLocaleDateString('pt-BR');
-    } catch (e) { return "A definir"; }
-  };
-
-  const formatTime = (dateValue: any) => {
-    if (!dateValue) return "";
-    try {
-      let d: Date;
-      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
-        d = dateValue.toDate();
-      } else if (dateValue && typeof dateValue === 'object' && 'seconds' in dateValue) {
-        d = new Date(dateValue.seconds * 1000);
-      } else {
-        d = new Date(dateValue);
-      }
-      if (isNaN(d.getTime())) return "";
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    } catch (e) { return ""; }
-  };
-
   const confirmDelete = async () => {
     if (!db || !eventToDelete) return;
     setIsDeleting(true);
@@ -295,18 +265,48 @@ export default function OrganizationEventsPage() {
           {loading ? (
             <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
           ) : upcomingEvents.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
               {upcomingEvents.map((event) => (
-                <EventRow 
-                  key={event.id} 
-                  event={event} 
-                  currentOrg={currentOrg} 
-                  isAtLeastEditor={isAtLeastEditor} 
-                  canCheckIn={canCheckIn} 
-                  formatDate={formatDate}
-                  formatTime={formatTime}
-                  setEventToDelete={setEventToDelete}
-                />
+                <div key={event.id} className="relative group/edit-card">
+                   <EventCard event={event} />
+                   
+                   {isAtLeastEditor && (
+                     <div className="absolute top-4 right-4 z-30 opacity-0 group-hover/edit-card:opacity-100 transition-opacity">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full shadow-2xl border-4 border-white">
+                              <MoreHorizontal className="w-5 h-5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="rounded-xl w-48">
+                             <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/evento/${event.id}/editar`} className="flex items-center gap-2 py-2 cursor-pointer">
+                                   <Edit className="w-4 h-4" /> Editar Evento
+                                </Link>
+                             </DropdownMenuItem>
+                             <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/evento/${event.id}/cupons`} className="flex items-center gap-2 py-2 cursor-pointer">
+                                   <TicketPercent className="w-4 h-4 text-secondary" /> Cupons
+                                </Link>
+                             </DropdownMenuItem>
+                             <DropdownMenuSeparator />
+                             <DropdownMenuItem 
+                               className="flex items-center gap-2 text-destructive focus:text-destructive py-2 cursor-pointer"
+                               onSelect={() => setEventToDelete({ id: event.id, title: event.title })}
+                             >
+                               <Trash2 className="w-4 h-4" /> Remover
+                             </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                     </div>
+                   )}
+
+                   <div className="absolute bottom-6 right-6 z-30 opacity-0 group-hover/edit-card:opacity-100 transition-opacity flex flex-col gap-2">
+                      <Button variant="secondary" size="sm" asChild className="rounded-xl h-9 px-4 font-black uppercase italic text-[9px] gap-2 shadow-xl">
+                         <Link href={`/dashboard/evento/${event.id}/publico`}><Users className="w-3.5 h-3.5" /> Público</Link>
+                      </Button>
+                   </div>
+                </div>
               ))}
             </div>
           ) : (
@@ -321,19 +321,11 @@ export default function OrganizationEventsPage() {
           {loading ? (
             <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
           ) : pastEvents.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
               {pastEvents.map((event) => (
-                <EventRow 
-                  key={event.id} 
-                  event={event} 
-                  currentOrg={currentOrg} 
-                  isAtLeastEditor={isAtLeastEditor} 
-                  canCheckIn={canCheckIn} 
-                  formatDate={formatDate}
-                  formatTime={formatTime}
-                  setEventToDelete={setEventToDelete}
-                  isPast
-                />
+                <div key={event.id} className="opacity-75 grayscale-[0.3]">
+                   <EventCard event={event} />
+                </div>
               ))}
             </div>
           ) : (
@@ -349,19 +341,11 @@ export default function OrganizationEventsPage() {
           {loading ? (
             <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
           ) : deletedEvents.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
               {deletedEvents.map((event) => (
-                <EventRow 
-                  key={event.id} 
-                  event={event} 
-                  currentOrg={currentOrg} 
-                  isAtLeastEditor={false} // Desativa edição para deletados
-                  canCheckIn={canCheckIn} 
-                  formatDate={formatDate}
-                  formatTime={formatTime}
-                  setEventToDelete={() => {}} // Remove ação de deletar da lixeira
-                  isDeleted
-                />
+                <div key={event.id} className="opacity-50 grayscale">
+                   <EventCard event={event} />
+                </div>
               ))}
             </div>
           ) : (
@@ -396,126 +380,6 @@ export default function OrganizationEventsPage() {
       </AlertDialog>
     </div>
   );
-}
-
-function EventRow({ 
-  event, 
-  currentOrg, 
-  isAtLeastEditor, 
-  canCheckIn, 
-  formatDate, 
-  formatTime, 
-  setEventToDelete,
-  isPast = false,
-  isDeleted = false
-}: any) {
-  const dateValue = event._effectiveDate || event.date || event.startDate;
-  const time = formatTime(dateValue);
-
-  return (
-    <Card className={cn(
-      "overflow-hidden border-none shadow-sm transition-all rounded-[1.5rem] bg-white group",
-      (isPast || isDeleted) && "opacity-75 grayscale-[0.3]"
-    )}>
-      <div className="relative h-40 bg-muted">
-        {event.image ? (
-          <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-        ) : (
-          <div className="flex items-center justify-center h-full opacity-20"><Megaphone className="w-12 h-12" /></div>
-        )}
-        <div className="absolute top-3 right-3">
-           <Badge className={cn(
-             "uppercase text-[9px] font-black px-2.5 h-6 shadow-sm border-none",
-             event.status === 'Ativo' ? 'bg-white/90 text-primary' : 
-             event.status === 'Excluído' ? 'bg-red-500 text-white' :
-             'bg-orange-500 text-white'
-           )}>
-             {event.status || 'Ativo'}
-           </Badge>
-        </div>
-      </div>
-      <div className="p-5 space-y-4">
-        <div className="flex justify-between items-start gap-2">
-          <div className="space-y-1">
-             <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
-             {event.isRecurring && <Badge className="bg-secondary text-white text-[7px] font-black uppercase h-3.5"><RefreshCw className="w-2 h-2 mr-1 animate-spin-slow" /> Série Recorrente</Badge>}
-          </div>
-          {isAtLeastEditor && !isDeleted && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="rounded-xl w-48">
-                <DropdownMenuItem asChild>
-                   <Link href={`/dashboard/evento/${event.id}/editar`} className="flex items-center gap-2 py-2 cursor-pointer">
-                      <Edit className="w-4 h-4" /> Editar Evento
-                   </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                   <Link href={`/dashboard/evento/${event.id}/cupons`} className="flex items-center gap-2 py-2 cursor-pointer">
-                      <TicketPercent className="w-4 h-4 text-secondary" /> Cupons
-                   </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  className="flex items-center gap-2 text-destructive focus:text-destructive py-2 cursor-pointer"
-                  onSelect={() => setEventToDelete({ id: event.id, title: event.title })}
-                >
-                  <Trash2 className="w-4 h-4" /> Remover
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-
-        <div className="space-y-1.5 pt-3 border-t border-dashed">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
-            <Calendar className="w-3.5 h-3.5 text-secondary" />
-            <span>{formatDate(dateValue)}</span>
-            {time && (
-              <><span className="mx-1 opacity-30">|</span><Clock className="w-3.5 h-3.5 text-secondary" /><span>{time}</span></>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
-            <MapPin className="w-3.5 h-3.5 text-secondary" />
-            <span className="line-clamp-1">{event.city || event.location || "Local não definido"}</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 pt-1">
-          {isDeleted ? (
-            <div className="flex items-center gap-2 p-3 bg-muted/40 rounded-xl text-muted-foreground italic text-[9px] uppercase font-black">
-               <ShieldAlert className="w-4 h-4 opacity-40" /> Inacessível ao Público
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-               <Button variant="outline" size="sm" className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5 border-secondary text-secondary hover:bg-secondary/5" asChild>
-                 <Link href={`/${currentOrg?.username || 'evento'}/${event.slug || event.id}`} target="_blank">Visualizar</Link>
-               </Button>
-               <Button 
-                 variant="secondary" 
-                 size="sm" 
-                 disabled={!canCheckIn}
-                 className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5" 
-                 asChild
-               >
-                 <Link href={`/dashboard/evento/${event.id}/publico`}>
-                    <Users className="w-3.5 h-3.5" /> Público
-                 </Link>
-               </Button>
-            </div>
-          )}
-          {isDeleted && canCheckIn && (
-            <Button variant="ghost" size="sm" className="text-[9px] font-black uppercase h-8 rounded-lg gap-2" asChild>
-               <Link href={`/dashboard/evento/${event.id}/publico`}>Consultar Ingressos Vendidos <ArrowRight className="w-3 h-3" /></Link>
-            </Button>
-          )}
-        </div>
-      </div>
-    </Card>
-  )
 }
 
 function NoEventsPlaceholder({ message, isAtLeastEditor, icon: Icon = Megaphone }: any) {
