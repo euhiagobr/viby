@@ -21,7 +21,7 @@ export interface ThematicConfig {
   heroBg: string;
   themeColor: string; // Tailwind class
   accentColor: string; // Tailwind class for text/borders
-  icon: any;
+  iconName: 'beer' | 'ghost' | 'flame' | 'gift' | 'sparkles' | 'music';
 }
 
 export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
@@ -34,7 +34,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     heroBg: "https://picsum.photos/seed/oktoberfest/1920/1080",
     themeColor: "bg-[#78350f]",
     accentColor: "text-[#78350f]",
-    icon: Beer,
+    iconName: 'beer',
   },
   halloween: {
     slug: "halloween",
@@ -45,7 +45,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     heroBg: "https://picsum.photos/seed/halloween/1920/1080",
     themeColor: "bg-[#4c1d95]",
     accentColor: "text-[#4c1d95]",
-    icon: Ghost,
+    iconName: 'ghost',
   },
   "semana-farroupilha": {
     slug: "semana-farroupilha",
@@ -56,7 +56,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     heroBg: "https://picsum.photos/seed/gaucho/1920/1080",
     themeColor: "bg-[#166534]",
     accentColor: "text-[#166534]",
-    icon: Flame,
+    iconName: 'flame',
   },
   natal: {
     slug: "natal",
@@ -67,7 +67,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     heroBg: "https://picsum.photos/seed/christmas/1920/1080",
     themeColor: "bg-[#991b1b]",
     accentColor: "text-[#991b1b]",
-    icon: Gift,
+    iconName: 'gift',
   },
   "ano-novo": {
     slug: "ano-novo",
@@ -78,7 +78,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     heroBg: "https://picsum.photos/seed/newyear/1920/1080",
     themeColor: "bg-[#1e293b]",
     accentColor: "text-[#1e293b]",
-    icon: Sparkles,
+    iconName: 'sparkles',
   },
   carnaval: {
     slug: "carnaval",
@@ -89,6 +89,6 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     heroBg: "https://picsum.photos/seed/carnival/1920/1080",
     themeColor: "bg-[#e11d48]",
     accentColor: "text-[#e11d48]",
-    icon: Music,
+    iconName: 'music',
   }
 };

@@ -14,7 +14,13 @@ import {
   Clock,
   Coins,
   Inbox,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Beer,
+  Ghost,
+  Flame,
+  Gift,
+  Sparkles,
+  Music
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -36,6 +42,15 @@ import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { ThematicConfig } from "@/lib/thematic-configs"
 import { PublicHeader } from "@/components/layout/PublicHeader"
 import Footer from "@/components/layout/Footer"
+
+const ICON_MAP = {
+  beer: Beer,
+  ghost: Ghost,
+  flame: Flame,
+  gift: Gift,
+  sparkles: Sparkles,
+  music: Music,
+};
 
 export default function ThematicPageClient({ 
   initialEvents = [], 
@@ -59,6 +74,8 @@ export default function ThematicPageClient({
   const [lastVisible, setLastVisible] = React.useState<DocumentSnapshot | null>(null)
   const [hasMore, setHasMore] = React.useState(initialEvents.length >= 12)
   const [isFetching, setIsFetching] = React.useState(false)
+
+  const IconComponent = ICON_MAP[config.iconName] || Sparkles;
 
   // Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
@@ -137,7 +154,7 @@ export default function ThematicPageClient({
         const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '19:00'}:00`) }))
+            .map(o => ({ ...o, _dt: new Date(`${o.date}T${o.startTime || '00:00'}:00`) }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
           const nextValid = sorted.find(o => {
@@ -229,7 +246,7 @@ export default function ThematicPageClient({
         <div className="container mx-auto px-4 relative z-10 py-20 text-center">
           <div className="max-w-4xl mx-auto space-y-6 flex flex-col items-center">
             <Badge className="bg-white/20 backdrop-blur-md text-white border-none px-6 py-2 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
-              <config.icon className="w-4 h-4" /> Viby Temático
+              <IconComponent className="w-4 h-4" /> Viby Temático
             </Badge>
             <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.8] text-white drop-shadow-2xl">
               {config.slug.replace('-', ' ').toUpperCase()} <br /> <span className="opacity-80">2026</span>
