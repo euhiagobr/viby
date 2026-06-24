@@ -44,6 +44,21 @@ export const LGBT_TAGS = [
   "diversidade", "pride", "parada lgbt"
 ];
 
+export const JUNINA_TAGS = [
+  "festajunina",
+  "junina",
+  "arraia",
+  "arraiá",
+  "quermesse",
+  "sao joao",
+  "são joão",
+  "forro",
+  "forró",
+  "quadrilha",
+  "milho",
+  "fogueira"
+];
+
 export const LGBT_CATEGORY_IDS = [
   "bNr5g766mc0vGskU1RBq",
   "bnxzzfbroJjdEjwlBfy0"
