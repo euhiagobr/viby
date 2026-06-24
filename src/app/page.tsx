@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import LandingPageClient from "./LandingPageClient"
@@ -60,10 +61,14 @@ async function getInitialEvents() {
   try {
     const db = getAdminDb();
     
-    // Removido filtro de data rígido no banco para evitar conflitos de tipos (String vs Timestamp)
-    // e permitir que o pipeline de visibilidade do cliente (HomeFeed) processe os dados corretamente.
+    // Janela de 30 dias para capturar pais de recorrências ativas
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - 30);
+    const dateThreshold = admin.firestore.Timestamp.fromDate(thresholdDate);
+
     const snap = await db.collection('events')
       .where('status', 'in', ['Ativo', 'published'])
+      .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
       .limit(60) 
       .get();

@@ -92,6 +92,7 @@ export async function saveDraftAction(eventId: string, step: number, data: any) 
 
 /**
  * Publica um evento a partir de um rascunho, "achatando" os dados no nível raiz do documento.
+ * Normaliza a data para um Timestamp real do Firestore.
  */
 export async function publishEventAction(eventId: string, finalData: any) {
   const db = getAdminDb();
@@ -103,7 +104,6 @@ export async function publishEventAction(eventId: string, finalData: any) {
     
     const draftData = eventSnap.data()?.data || {};
 
-    // Normalização para compatibilidade com sistema atual
     const title = finalData.title || draftData.title || "";
     const baseSlug = slugify(title);
     
@@ -114,18 +114,19 @@ export async function publishEventAction(eventId: string, finalData: any) {
     const citySlug = slugifyLocation(city);
     const regionSlug = buildRegionParam(countryCode, state);
 
-    // Mapeamento crucial: startDate (usado no form) -> date (usado nas vitrines e ordenação)
-    const eventDate = finalData.startDate || finalData.date || draftData.startDate || draftData.date || null;
+    // Normalização de Data: Converter String ISO do formulário para Timestamp do Firestore
+    const startStr = finalData.startDate || finalData.date || draftData.startDate || draftData.date || null;
+    const eventDate = startStr ? admin.firestore.Timestamp.fromDate(new Date(startStr)) : null;
 
     const updatePayload: any = {
       ...finalData,
       date: eventDate, 
-      status: 'published', // Altera para published conforme nova regra de rascunhos
+      status: 'published',
       slug: baseSlug,
       citySlug,
       regionSlug,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      // Remove campos residuais de rascunho para limpar o documento
+      // Limpeza de campos de rascunho
       data: admin.firestore.FieldValue.delete(),
       step: admin.firestore.FieldValue.delete()
     };
@@ -261,9 +262,13 @@ export async function updateEventAction(params: {
     const oldData = eventSnap.data()!;
     let slug = oldData.slug;
     
+    // Normalização de Data para Timestamp
+    const startStr = eventData.startDate || eventData.date;
+    const eventDate = startStr ? admin.firestore.Timestamp.fromDate(new Date(startStr)) : null;
+
     const updatePayload = {
       ...eventData,
-      date: eventData.startDate || eventData.date, 
+      date: eventDate, 
       status: oldData.status === 'draft' ? 'published' : oldData.status,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };

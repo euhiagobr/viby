@@ -3,6 +3,7 @@ import * as React from "react"
 import { Metadata } from "next"
 import ExplorarClient from "./ExplorarClient"
 import { getAdminDb } from "@/lib/firebase/admin"
+import * as admin from 'firebase-admin';
 
 export const metadata: Metadata = {
   title: 'Explorar Eventos | Viby',
@@ -37,10 +38,10 @@ async function getInitialEvents() {
     // Janela de 30 dias para capturar pais de recorrências ativas
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - 30);
-    const dateThreshold = thresholdDate.toISOString();
+    const dateThreshold = admin.firestore.Timestamp.fromDate(thresholdDate);
 
     const snap = await db.collection('events')
-      .where('status', '==', 'Ativo')
+      .where('status', 'in', ['Ativo', 'published'])
       .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
       .limit(12)

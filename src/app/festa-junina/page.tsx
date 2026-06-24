@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import FestaJuninaClient from "./FestaJuninaClient"
@@ -5,6 +6,7 @@ import { JUNINA_TAGS } from "@/lib/constants"
 import { ThematicHeader } from "@/components/layout/ThematicHeader"
 import Footer from '@/components/layout/Footer';
 import { getAdminDb } from "@/lib/firebase/admin"
+import * as admin from 'firebase-admin';
 
 export const metadata: Metadata = {
   title: "Festa Junina 2026 | Encontre Arraiás e Eventos na Viby",
@@ -62,7 +64,7 @@ async function getJuninaEvents() {
   try {
     const db = getAdminDb();
     const snap = await db.collection('events')
-      .where('status', '==', 'Ativo')
+      .where('status', 'in', ['Ativo', 'published'])
       .where('tags', 'array-contains-any', JUNINA_TAGS)
       .limit(40)
       .get();
