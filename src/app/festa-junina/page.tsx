@@ -8,16 +8,16 @@ import { getAdminDb } from "@/lib/firebase/admin"
 import * as admin from 'firebase-admin';
 
 export const metadata: Metadata = {
-  title: "Festa Junina Vibyeventos",
+  title: "Qual a sua Viby no Arraiá? | Viby Brasil",
   description:
-    "Evento de Festa Junina com comidas típicas, música, atrações e ingressos disponíveis",
+    "Encontre os melhores arraiás e quermesses. Viva a tradição junina perto de você com a Viby.",
   alternates: {
     canonical: "https://viby.club/festa-junina",
   },
   openGraph: {
-    title: "Festa Junina Vibyeventos",
+    title: "Qual a sua Viby no Arraiá?",
     description:
-      "Evento de Festa Junina com comidas típicas, música, atrações e ingressos disponíveis",
+      "Encontre os melhores arraiás e quermesses. Viva a tradição junina perto de você com a Viby.",
     url: "https://viby.club/festa-junina",
     siteName: "Viby",
     type: "website",
@@ -27,15 +27,15 @@ export const metadata: Metadata = {
         url: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fjunnina.jpeg?alt=media&token=be078e49-c9ff-479d-b769-3a99edce440b",
         width: 1200,
         height: 630,
-        alt: "Festa Junina Vibyeventos"
+        alt: "Qual a sua Viby no Arraiá?"
       }
     ]
   },
   twitter: {
     card: "summary_large_image",
-    title: "Festa Junina Vibyeventos",
+    title: "Qual a sua Viby no Arraiá?",
     description:
-      "Evento de Festa Junina com comidas típicas, música, atrações e ingressos disponíveis",
+      "Encontre os melhores arraiás e quermesses. Viva a tradição junina perto de você com a Viby.",
     images: [
       "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fjunnina.jpeg?alt=media&token=be078e49-c9ff-479d-b769-3a99edce440b"
     ]
