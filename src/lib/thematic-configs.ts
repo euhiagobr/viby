@@ -1,12 +1,5 @@
 
-import { 
-  Beer, 
-  Ghost, 
-  Flame, 
-  Gift, 
-  Sparkles, 
-  Music
-} from "lucide-react";
+import { PlaceHolderImages } from "./placeholder-images";
 
 /**
  * @fileOverview Configurações mestre para as páginas temáticas da Viby.
@@ -20,10 +13,13 @@ export interface ThematicConfig {
   intro: string;
   tags: string[];
   heroBg: string;
+  heroHint: string;
   themeColor: string; // Tailwind class
   accentColor: string; // Tailwind class for text/borders
   iconName: 'beer' | 'ghost' | 'flame' | 'gift' | 'sparkles' | 'music';
 }
+
+const getImg = (id: string) => PlaceHolderImages.find(img => img.id === id);
 
 export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
   oktoberfest: {
@@ -32,7 +28,8 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     description: "Descubra festas de Oktoberfest, eventos temáticos, celebrações alemãs, festivais de cerveja, música e gastronomia em um só lugar.",
     intro: "Procurando o melhor da cultura alemã? Explore a agenda completa de Oktoberfest e festivais de cerveja.",
     tags: ["oktober", "oktoberfest", "cerveja", "chopp"],
-    heroBg: "https://picsum.photos/seed/oktober-beer-fest/1920/1080",
+    heroBg: getImg('oktoberfest-bg')?.imageUrl || "",
+    heroHint: getImg('oktoberfest-bg')?.imageHint || "beer festival",
     themeColor: "bg-[#78350f]",
     accentColor: "text-[#78350f]",
     iconName: 'beer',
@@ -43,7 +40,8 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     description: "Encontre festas de Halloween, eventos temáticos, fantasias, baladas, rolês de terror e celebrações de Dia das Bruxas.",
     intro: "Doces ou travessuras? Prepare sua fantasia e encontre os eventos mais assustadores da temporada.",
     tags: ["halloween", "diadasbruxas", "dia-das-bruxas", "dia das bruxas"],
-    heroBg: "https://picsum.photos/seed/halloween-horror/1920/1080",
+    heroBg: getImg('halloween-bg')?.imageUrl || "",
+    heroHint: getImg('halloween-bg')?.imageHint || "halloween party",
     themeColor: "bg-[#4c1d95]",
     accentColor: "text-[#4c1d95]",
     iconName: 'ghost',
@@ -54,7 +52,8 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     description: "Descubra eventos da Semana Farroupilha, fandangos, programações em CTGs, celebrações tradicionalistas, música gaúcha e experiências culturais.",
     intro: "Celebre o orgulho gaúcho! Encontre a programação completa de CTGs e eventos tradicionalistas.",
     tags: ["ctg", "semanafarroupilha", "semana-farroupilha", "semana farroupilha"],
-    heroBg: "https://picsum.photos/seed/gaucho-tradition/1920/1080",
+    heroBg: getImg('semana-farroupilha-bg')?.imageUrl || "",
+    heroHint: getImg('semana-farroupilha-bg')?.imageHint || "gaucho landscape",
     themeColor: "bg-[#166534]",
     accentColor: "text-[#166534]",
     iconName: 'flame',
@@ -65,7 +64,8 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     description: "Encontre eventos de Natal, feiras natalinas, shows, programações em família, apresentações especiais e experiências temáticas.",
     intro: "A magia do Natal está no ar. Descubra feiras, corais e eventos especiais para toda a família.",
     tags: ["natal", "natalino", "papai-noel", "papainoel"],
-    heroBg: "https://picsum.photos/seed/christmas-vibes-2026/1920/1080",
+    heroBg: getImg('natal-bg')?.imageUrl || "",
+    heroHint: getImg('natal-bg')?.imageHint || "christmas lights",
     themeColor: "bg-[#991b1b]",
     accentColor: "text-[#991b1b]",
     iconName: 'gift',
@@ -76,7 +76,8 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     description: "Descubra festas de Ano Novo, Réveillon, eventos de virada, celebrações, shows e experiências para começar o ano.",
     intro: "Comece o ano com o pé direito. Encontre as melhores festas de virada e Réveillon.",
     tags: ["anonovo", "ano novo", "ano-novo", "reveillon", "réveillon", "virada", "viradadoano", "virada-do-ano"],
-    heroBg: "https://picsum.photos/seed/newyear-party-fire/1920/1080",
+    heroBg: getImg('ano-novo-bg')?.imageUrl || "",
+    heroHint: getImg('ano-novo-bg')?.imageHint || "fireworks party",
     themeColor: "bg-[#1e293b]",
     accentColor: "text-[#1e293b]",
     iconName: 'sparkles',
@@ -87,7 +88,8 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     description: "Encontre blocos de rua, festas de Carnaval, desfiles, ensaios, eventos temáticos e rolês carnavalescos.",
     intro: "Abram alas! Encontre os blocos de rua mais animados e a programação completa de Carnaval.",
     tags: ["carnaval", "bloco", "blocos", "blocoderua", "bloco-de-rua", "bloco de rua"],
-    heroBg: "https://picsum.photos/seed/carnival-brazil-colors/1920/1080",
+    heroBg: getImg('carnaval-bg')?.imageUrl || "",
+    heroHint: getImg('carnaval-bg')?.imageHint || "carnival parade",
     themeColor: "bg-[#e11d48]",
     accentColor: "text-[#e11d48]",
     iconName: 'music',

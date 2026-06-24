@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -163,7 +164,7 @@ export default function ThematicPageClient({
           });
 
           if (nextValid) {
-            effectiveDate = `${nextValid.date}T${nextValid.startTime || '19:00'}:00`;
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
           }
         }
       }
@@ -240,7 +241,11 @@ export default function ThematicPageClient({
       {/* HERO */}
       <section className={cn("relative min-h-[50vh] flex items-center justify-center overflow-hidden text-white", config.themeColor)}>
         <div className="absolute inset-0 opacity-40 pointer-events-none">
-           <div className="absolute inset-0 bg-cover bg-center grayscale" style={{ backgroundImage: `url(${config.heroBg})` }} />
+           <div 
+             className="absolute inset-0 bg-cover bg-center grayscale" 
+             style={{ backgroundImage: `url(${config.heroBg})` }}
+             data-ai-hint={config.heroHint}
+           />
            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/20" />
         </div>
         <div className="container mx-auto px-4 relative z-10 py-20 text-center">
