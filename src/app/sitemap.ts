@@ -6,11 +6,35 @@ export const revalidate = 3600; // Cache de 1 hora
 
 /**
  * @fileOverview Fonte Única e Oficial de Verdade para o sitemap.xml da Viby.
- * Otimizado para performance: Queries com limite e serialização robusta para evitar timeouts no Google.
+ * Otimizado para resiliência: Garante que dados corrompidos não quebrem o XML.
  */
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://viby.club';
+
+const baseUrl = 'https://viby.club';
+
+/**
+ * Helper para garantir que a data seja serializável para o XML do sitemap.
+ */
+function parseSafeDate(dateData: any): Date {
+  if (!dateData) return new Date();
   
+  try {
+    // Caso seja um Timestamp do Admin SDK
+    if (typeof dateData.toDate === 'function') {
+      return dateData.toDate();
+    }
+    // Caso venha como objeto serializado do servidor
+    if (dateData._seconds) {
+      return new Date(dateData._seconds * 1000);
+    }
+    // Fallback para string ou Date nativo
+    const d = new Date(dateData);
+    return isNaN(d.getTime()) ? new Date() : d;
+  } catch (e) {
+    return new Date();
+  }
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 1. Rotas Estáticas Públicas
   const routes: MetadataRoute.Sitemap = [
     { url: `${baseUrl}/`, lastModified: new Date(), changeFrequency: 'daily', priority: 1.0 },
@@ -28,29 +52,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const db = getAdminDb();
 
-    // 2. Perfis de Usuários e Organizações
-    // Limitamos a consulta para garantir que o Google não sofra timeout (Máx 1500 perfis por sitemap principal)
+    // 2. Perfis (Usernames)
     const usernamesSnap = await db.collection('usernames')
-      .select('uid', 'type')
-      .limit(1500)
+      .limit(1000)
       .get();
 
     usernamesSnap.forEach(doc => {
-      routes.push({
-        url: `${baseUrl}/${doc.id}`,
-        lastModified: new Date(),
-        changeFrequency: 'weekly',
-        priority: 0.6
-      });
+      const data = doc.data();
+      const username = doc.id; // O ID do documento na coleção usernames é o próprio username
+      if (username && !username.includes(' ')) {
+        routes.push({
+          url: `${baseUrl}/${username}`,
+          lastModified: new Date(),
+          changeFrequency: 'weekly',
+          priority: 0.6
+        });
+      }
     });
 
     // 3. Eventos Ativos (Rota Canônica: /[username]/[slug])
-    // Selecionamos apenas os campos necessários para reduzir o payload e tempo de resposta
     const eventsSnap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .select('slug', 'organizer.username', 'updatedAt', 'regionSlug', 'citySlug')
-      .orderBy('date', 'desc')
-      .limit(2500)
+      .limit(2000)
       .get();
 
     const cityPaths = new Set<string>();
@@ -58,16 +82,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     eventsSnap.forEach(doc => {
       const event = doc.data();
       const slug = event.slug || doc.id;
-      const username = event.organizer?.username || 'evento';
+      const username = event.organizer?.username;
       
-      let lastMod: Date;
-      if (event.updatedAt && typeof event.updatedAt.toDate === 'function') {
-        lastMod = event.updatedAt.toDate();
-      } else if (event.updatedAt && event.updatedAt._seconds) {
-        lastMod = new Date(event.updatedAt._seconds * 1000);
-      } else {
-        lastMod = new Date();
-      }
+      // VALIDAÇÃO CRÍTICA: Se não houver username ou slug, não gera a URL para não quebrar o sitemap
+      if (!username || !slug) return;
+
+      const lastMod = parseSafeDate(event.updatedAt);
 
       routes.push({
         url: `${baseUrl}/${username}/${slug}`,
@@ -92,8 +112,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
 
   } catch (error) {
-    console.error("[Sitemap Generation Failure] Returning static routes only", error);
+    console.error("[Sitemap Generation Failure]", error);
   }
 
-  return routes;
+  // Filtragem final para garantir que nenhum objeto inválido foi inserido por erro de processamento
+  return routes.filter(route => 
+    route.url && 
+    !route.url.includes('undefined') && 
+    !route.url.includes('null')
+  );
 }
