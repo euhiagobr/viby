@@ -11,11 +11,11 @@ export const metadata: Metadata = {
   description: 'A maior vitrine de eventos do Brasil. Encontre e compre ingressos para os melhores shows, festivais, workshops e baladas perto de você com segurança.',
   keywords: ['ingressos', 'shows hoje', 'festivais brasil', 'comprar ingressos online', 'viby', 'baladas', 'eventos culturais'],
   alternates: {
-    canonical: '/',
+    canonical: 'https://viby.club',
   },
   openGraph: {
-    title: 'Viby | Descubra e Viva Experiências Incríveis',
-    description: 'Encontre a sua próxima experiência cultural. Ingressos para os melhores eventos do Brasil em um só lugar.',
+    title: 'Viby | Ingressos para Shows, Festas e Eventos na sua Cidade',
+    description: 'A maior vitrine de eventos do Brasil. Encontre e compre ingressos para os melhores shows, festivais, workshops e baladas perto de você com segurança.',
     url: 'https://viby.club',
     siteName: 'Viby',
     images: [
