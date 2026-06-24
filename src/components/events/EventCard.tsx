@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -158,8 +157,8 @@ export function EventCard({ event }: EventCardProps) {
   const username = event.organizer?.username || 'evento';
   const canonicalPath = `/${username}/${eventSlug}`;
 
-  // Resolução de Localização Resiliente
-  const locationLabel = event.location || event.address?.venueName || event.address?.neighborhood || event.city || "Local a definir";
+  // Resolução de Localização Resiliente - Priorizando a Cidade conforme solicitado
+  const locationLabel = event.city || event.address?.city || event.location || event.address?.venueName || "Local a definir";
 
   return (
     <Link 
