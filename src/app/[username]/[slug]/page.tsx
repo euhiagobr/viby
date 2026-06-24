@@ -7,6 +7,7 @@ import { notFound, redirect } from 'next/navigation';
 /**
  * @fileOverview Rota Canônica Unificada: /[username]/[slug]
  * Resolve o evento verificando o vínculo com o username da organização e o status.
+ * Bloqueia acesso a eventos 'Excluído' ou 'Oculto'.
  */
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -51,14 +52,18 @@ async function getEventData(usernameParam: string, slugParam: string) {
     
     if (!queryBySlug.empty) {
       const data = queryBySlug.docs[0].data();
-      if (data.status !== 'Excluído') {
+      // REGRA: Apenas eventos 'Ativo' ou 'Privado' são acessíveis. 'Oculto' e 'Excluído' dão 404.
+      if (!['Excluído', 'Oculto'].includes(data.status)) {
         eventDoc = { id: queryBySlug.docs[0].id, ...data };
       }
     } else {
       // 2. Fallback: Buscar por ID direto
       const eventByIdSnap = await db.collection("events").doc(rawSlugOrId).get();
-      if (eventByIdSnap.exists && eventByIdSnap.data()!.status !== 'Excluído') {
-        eventDoc = { id: eventByIdSnap.id, ...eventByIdSnap.data() };
+      if (eventByIdSnap.exists) {
+        const data = eventByIdSnap.data();
+        if (!['Excluído', 'Oculto'].includes(data!.status)) {
+          eventDoc = { id: eventByIdSnap.id, ...eventByIdSnap.data() };
+        }
       }
     }
 

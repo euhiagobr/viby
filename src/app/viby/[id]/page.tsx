@@ -6,7 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 
 /**
  * @fileOverview Resolução de Eventos da Organização Viby.
- * Filtra eventos excluídos para garantir integridade.
+ * Bloqueia acesso a eventos excluídos ou ocultos.
  */
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -52,7 +52,7 @@ async function getVibyEventData(slugParam: string) {
     
     if (!queryBySlug.empty) {
       const data = queryBySlug.docs[0].data();
-      if (data.status !== 'Excluído') {
+      if (!['Excluído', 'Oculto'].includes(data.status)) {
         eventDoc = { id: queryBySlug.docs[0].id, ...data };
       }
     } else {
@@ -60,7 +60,7 @@ async function getVibyEventData(slugParam: string) {
       const eventByIdSnap = await db.collection("events").doc(rawSlugOrId).get();
       if (eventByIdSnap.exists) {
         const data = eventByIdSnap.data();
-        if (data?.organizationId === VIBY_OFFICIAL_UID && data.status !== 'Excluído') {
+        if (data?.organizationId === VIBY_OFFICIAL_UID && !['Excluído', 'Oculto'].includes(data.status)) {
           eventDoc = { id: eventByIdSnap.id, ...data };
         }
       }

@@ -4,7 +4,7 @@ import { permanentRedirect, notFound } from 'next/navigation';
 /**
  * @fileOverview Redirecionador Permanente (301).
  * Migra tráfego de /eventos/[slug] para o novo canônico /[username]/[slug].
- * Filtra eventos excluídos para evitar resolução de links mortos.
+ * Bloqueia eventos excluídos ou ocultos.
  */
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -22,7 +22,7 @@ async function getEventData(slugParam: string) {
     
     if (!queryBySlug.empty) {
       const data = queryBySlug.docs[0].data();
-      if (data.status !== 'Excluído') {
+      if (!['Excluído', 'Oculto'].includes(data.status)) {
         return { id: queryBySlug.docs[0].id, ...data };
       }
     }
@@ -31,7 +31,7 @@ async function getEventData(slugParam: string) {
     const docSnap = await db.collection("events").doc(rawSlugOrId).get();
     if (docSnap.exists) {
       const data = docSnap.data();
-      if (data?.status !== 'Excluído') {
+      if (!['Excluído', 'Oculto'].includes(data?.status)) {
         return { id: docSnap.id, ...data };
       }
     }
