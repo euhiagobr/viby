@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -15,6 +16,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import { 
   Loader2, 
@@ -42,7 +44,8 @@ import {
   CheckCircle2,
   Zap,
   Trash2,
-  Handshake
+  Handshake,
+  Copy
 } from "lucide-react"
 import Link from "next/link"
 import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates, safeParseDate } from "@/lib/utils"
@@ -617,8 +620,8 @@ export default function NovoEventoWizard() {
            </Card>
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(3)} className="h-20 px-8 rounded-[2.5rem] font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 hover:scale-102 transition-all">
-                 {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Save className="w-6 h-6" />}
+              <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 transition-all active:scale-95">
+                 {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
                  Publicar Todas as Datas
               </Button>
            </div>
