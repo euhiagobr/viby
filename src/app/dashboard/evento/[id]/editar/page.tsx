@@ -174,6 +174,12 @@ export default function EditarEventoWizard() {
 
   const showWcSection = formData?.tags.includes('copa') && formData?.tags.includes('temjogo');
 
+  useEffect(() => {
+    if (!showWcSection && formData?.matches?.length > 0) {
+      setFormData(prev => ({ ...prev, matches: [] }));
+    }
+  }, [showWcSection, formData?.matches?.length]);
+
   const handleAddMatch = () => {
     const { teamA, teamB } = matchSelection;
     if (!teamA || !teamB || teamA === teamB) return;
@@ -451,7 +457,7 @@ export default function EditarEventoWizard() {
                         {formData.matches?.map((m, i) => (
                           <div key={i} className="p-4 bg-muted/20 rounded-2xl border flex items-center justify-between group">
                             <div className="flex items-center gap-3">
-                              <div className="flex items-center -space-x-2">
+                              <div className="flex items-center -space-x-1.5">
                                 <img src={m.teamAFlag} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
                                 <img src={m.teamBFlag} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
                               </div>
