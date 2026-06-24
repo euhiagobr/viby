@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import CopaMundoClient from "./CopaMundoClient"
@@ -7,24 +8,24 @@ import Footer from '@/components/layout/Footer';
 import { getAdminDb } from "@/lib/firebase/admin"
 import * as admin from 'firebase-admin';
 
+const COPA_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fcopaviby.png?alt=media&token=250b69d7-8f77-41b9-a2fc-e6a74dfeb082";
+
 export const metadata: Metadata = {
-  title: "Qual a sua Viby na Copa? | Viby Brasil",
-  description:
-    "Juntos rumo ao Hexa! Descubra locais e experiências para viver a Copa do Mundo 2026.",
+  title: "Qual a sua Viby na Copa? | Onde assistir a Copa 2026",
+  description: "Juntos rumo ao Hexa! Encontre bares, festas e arenas transmitindo os jogos da Copa do Mundo 2026.",
   alternates: {
     canonical: "https://viby.club/copa-do-mundo",
   },
   openGraph: {
-    title: "Qual a sua Viby na Copa?",
-    description:
-      "Juntos rumo ao Hexa! Descubra locais e experiências para viver a Copa do Mundo 2026.",
+    title: "Qual a sua Viby na Copa? | Viby Brasil",
+    description: "Saiba onde assistir aos jogos do Brasil e viva a emoção da Copa 2026.",
     url: "https://viby.club/copa-do-mundo",
     siteName: "Viby",
     type: "website",
     locale: "pt_BR",
     images: [
       {
-        url: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fcopaviby.png?alt=media&token=250b69d7-8f77-41b9-a2fc-e6a74dfeb082",
+        url: COPA_OG_IMAGE,
         width: 1200,
         height: 630,
         alt: "Qual a sua Viby na Copa?"
@@ -33,12 +34,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Qual a sua Viby na Copa?",
-    description:
-      "Juntos rumo ao Hexa! Descubra locais e experiências para viver a Copa do Mundo 2026.",
-    images: [
-      "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fcopaviby.png?alt=media&token=250b69d7-8f77-41b9-a2fc-e6a74dfeb082"
-    ]
+    title: "Copa do Mundo 2026 na Viby",
+    description: "Descubra os melhores locais para torcer pelo Brasil.",
+    images: [COPA_OG_IMAGE]
   }
 };
 
@@ -63,7 +61,6 @@ async function getCopaEvents() {
   try {
     const db = getAdminDb();
     
-    // FILTRO CENTRAL: Apenas status 'Ativo'
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .where('tags', 'array-contains-any', COPA_TAGS)
@@ -81,8 +78,17 @@ async function getCopaEvents() {
 export default async function CopaMundoPage() {
   const initialEvents = await getCopaEvents();
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": "Guia de Eventos Copa do Mundo 2026",
+    "description": "Lista de locais transmitindo jogos da Copa do Mundo.",
+    "url": "https://viby.club/copa-do-mundo"
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-[#009c3b] selection:text-white">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <CopaHeader />
       <CopaMundoClient initialEvents={initialEvents} />
       <Footer />

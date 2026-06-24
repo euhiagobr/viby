@@ -1,22 +1,25 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import { getAdminDb } from "@/lib/firebase/admin"
 import LGBTClient from "./LGBTClient"
 import * as admin from 'firebase-admin'
 
+const VIBY_LGBT_OG = 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibydiversidadecapa.png?alt=media&token=238e4bbd-1bb6-4ddd-9e36-c81287f8ed54';
+
 export const metadata: Metadata = {
-  title: "Viby celebrando a Diversidade",
+  title: "Viby celebrando a Diversidade | Eventos LGBTQIAPN+",
   description: "Descubra eventos, roteiros e lugares que celebram a diversidade e acolhem todo mundo. Siga sua vibe na Viby.",
-  alternates: { canonical: 'https://viby.com/lgbt' },
+  alternates: { canonical: 'https://viby.club/experiencias-lgbtqiapn' },
   openGraph: {
     title: "Viby celebrando a Diversidade",
-    description: "Descubra eventos, roteiros e lugares que celebram a diversidade e acolhem todo mundo. Siga sua vibe na Viby.",
-    url: 'https://viby.com/lgbt',
+    description: "Os melhores rolês LGBTQIAPN+ em um só lugar. Encontre sua comunidade.",
+    url: 'https://viby.club/experiencias-lgbtqiapn',
     siteName: 'Viby',
     type: 'website',
     locale: 'pt_BR',
     images: [{ 
-      url: 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibydiversidadecapa.png?alt=media&token=238e4bbd-1bb6-4ddd-9e36-c81287f8ed54', 
+      url: VIBY_LGBT_OG, 
       width: 1200, 
       height: 630,
       alt: "Viby celebrando a Diversidade"
@@ -25,8 +28,8 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: "Viby celebrando a Diversidade",
-    description: "Descubra eventos, roteiros e lugares que celebram a diversidade e acolhem todo mundo. Siga sua vibe na Viby.",
-    images: ['https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibydiversidadecapa.png?alt=media&token=238e4bbd-1bb6-4ddd-9e36-c81287f8ed54']
+    description: "Explore a agenda cultural LGBTQIAPN+ na Viby.",
+    images: [VIBY_LGBT_OG]
   }
 }
 
@@ -51,7 +54,6 @@ async function getInitialEvents() {
   try {
     const db = getAdminDb();
     
-    // Janela de 30 dias para capturar pais de recorrências ativas
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - 30);
     const dateThreshold = admin.firestore.Timestamp.fromDate(thresholdDate);
@@ -72,5 +74,23 @@ async function getInitialEvents() {
 
 export default async function ExperienciasLGBTQ() {
   const initialEvents = await getInitialEvents();
-  return <LGBTClient initialEvents={initialEvents} />
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": "Experiências LGBTQIAPN+ na Viby",
+    "description": "Agenda cultural e eventos focados na diversidade.",
+    "url": "https://viby.club/experiencias-lgbtqiapn",
+    "about": {
+      "@type": "Thing",
+      "name": "LGBTQIAPN+ Culture"
+    }
+  };
+
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <LGBTClient initialEvents={initialEvents} />
+    </>
+  );
 }
