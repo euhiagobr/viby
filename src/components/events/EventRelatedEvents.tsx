@@ -12,7 +12,7 @@ import {
   CarouselPrevious 
 } from "@/components/ui/carousel";
 import { Sparkles } from "lucide-react";
-import { cn, normalizeText, safeParseDate } from "@/lib/utils";
+import { cn, safeParseDate } from "@/lib/utils";
 
 interface EventRelatedEventsProps {
   currentEventId: string;
@@ -30,8 +30,6 @@ const CAMPAIGN_GROUPS: Record<string, string[]> = {
   NATAL: ['natal']
 };
 
-const ALL_SPECIAL_TAGS = Object.values(CAMPAIGN_GROUPS).flat();
-
 export function EventRelatedEvents({ currentEventId, currentTags, className }: EventRelatedEventsProps) {
   const db = useFirestore();
   
@@ -40,7 +38,7 @@ export function EventRelatedEvents({ currentEventId, currentTags, className }: E
     return query(
       collection(db, "events"),
       where("status", "==", "Ativo"),
-      limit(50) // Buscamos um lote maior para filtrar localmente por tags
+      limit(100)
     );
   }, [db]);
 
@@ -50,25 +48,29 @@ export function EventRelatedEvents({ currentEventId, currentTags, className }: E
     if (!allEvents || allEvents.length === 0) return [];
 
     const now = new Date();
-    const normalizedCurrentTags = currentTags.map(t => t.toLowerCase());
+    const normalizedCurrentTags = (currentTags || []).map(t => t.toLowerCase());
 
-    // Identifica o grupo de campanha do evento atual
-    const currentGroup = Object.entries(CAMPAIGN_GROUPS).find(([_, tags]) => 
+    // 1. Identificar a campanha do evento atual
+    const currentGroupKey = Object.entries(CAMPAIGN_GROUPS).find(([_, tags]) => 
       tags.some(t => normalizedCurrentTags.includes(t))
     )?.[0];
 
+    // Se o evento atual não pertence a uma campanha especial, não mostramos relacionados
+    if (!currentGroupKey) return [];
+
+    const allowedTags = CAMPAIGN_GROUPS[currentGroupKey];
+
     return allEvents
       .filter(ev => {
-        // Regras básicas de filtro
         if (ev.id === currentEventId) return false;
         
         const evTags = (ev.tags || []).map((t: string) => t.toLowerCase());
         
-        // Deve possuir pelo menos uma tag especial
-        const hasSpecialTag = evTags.some((t: string) => ALL_SPECIAL_TAGS.includes(t));
-        if (!hasSpecialTag) return false;
+        // 2. REGRA DE OURO: Deve pertencer à MESMA campanha
+        const isSameCampaign = evTags.some((t: string) => allowedTags.includes(t));
+        if (!isSameCampaign) return false;
 
-        // Filtro de data (apenas futuros ou acontecendo)
+        // 3. Filtro de data (apenas futuros ou acontecendo)
         const d = safeParseDate(ev.date);
         const end = ev.endDate ? safeParseDate(ev.endDate) : (d ? new Date(d.getTime() + 4 * 3600000) : null);
         if (end && end < now) return false;
@@ -78,32 +80,20 @@ export function EventRelatedEvents({ currentEventId, currentTags, className }: E
       .map(ev => {
         const evTags = (ev.tags || []).map((t: string) => t.toLowerCase());
         
-        // 1. Mesmo grupo de campanha?
-        const evGroup = Object.entries(CAMPAIGN_GROUPS).find(([_, tags]) => 
-          tags.some(t => evTags.includes(t))
-        )?.[0];
-        const isSameGroup = currentGroup && evGroup === currentGroup;
-
-        // 2. Sobreposição de tags especiais
+        // Cálculo de relevância para ordenação
         const overlapCount = evTags.filter((t: string) => normalizedCurrentTags.includes(t)).length;
-
-        // 3. Data
         const evDate = safeParseDate(ev.date)?.getTime() || 0;
 
         return {
           ...ev,
           _score: {
-            sameGroup: isSameGroup ? 1 : 0,
             overlap: overlapCount,
             date: evDate
           }
         };
       })
       .sort((a, b) => {
-        // Ordenação por Relevância
-        if (b._score.sameGroup !== a._score.sameGroup) {
-          return b._score.sameGroup - a._score.sameGroup;
-        }
+        // Ordenação por Relevância: Tags em comum -> Data mais próxima
         if (b._score.overlap !== a._score.overlap) {
           return b._score.overlap - a._score.overlap;
         }
