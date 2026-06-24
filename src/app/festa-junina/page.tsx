@@ -64,7 +64,7 @@ async function getJuninaEvents() {
   try {
     const db = getAdminDb();
     const snap = await db.collection('events')
-      .where('status', 'in', ['Ativo', 'published'])
+      .where('status', '==', 'published')
       .where('tags', 'array-contains-any', JUNINA_TAGS)
       .limit(40)
       .get();

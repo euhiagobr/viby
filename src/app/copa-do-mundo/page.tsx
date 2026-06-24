@@ -64,10 +64,9 @@ async function getCopaEvents() {
   try {
     const db = getAdminDb();
     
-    // Na Copa, queremos ver tudo o que está tagueado, mesmo que tenha sido criado há mais tempo
-    // Removemos o threshold rígido de data para garantir que o "pai" de recorrências seja encontrado
+    // FILTRO CENTRAL: Apenas status 'published'
     const snap = await db.collection('events')
-      .where('status', '==', 'Ativo')
+      .where('status', '==', 'published')
       .where('tags', 'array-contains-any', COPA_TAGS)
       .limit(40)
       .get();

@@ -91,8 +91,7 @@ export async function saveDraftAction(eventId: string, step: number, data: any) 
 }
 
 /**
- * Publica um evento a partir de um rascunho, "achatando" os dados no nível raiz do documento.
- * Normaliza a data para um Timestamp real do Firestore.
+ * Publica um evento a partir de um rascunho, eliminando a estrutura de draft e movendo dados para a raiz.
  */
 export async function publishEventAction(eventId: string, finalData: any) {
   const db = getAdminDb();
@@ -107,26 +106,30 @@ export async function publishEventAction(eventId: string, finalData: any) {
     const title = finalData.title || draftData.title || "";
     const baseSlug = slugify(title);
     
-    const city = finalData.address?.city || draftData.address?.city || "";
+    const city = finalData.city || finalData.address?.city || draftData.address?.city || "";
+    const location = finalData.location || finalData.address?.neighborhood || finalData.address?.venueName || draftData.address?.neighborhood || "";
     const state = finalData.address?.stateRegion || draftData.address?.stateRegion || "";
     const countryCode = (finalData.address?.countryCode || draftData.address?.countryCode || "br").toLowerCase();
     
     const citySlug = slugifyLocation(city);
     const regionSlug = buildRegionParam(countryCode, state);
 
-    // Normalização de Data: Converter String ISO do formulário para Timestamp do Firestore
+    // Normalização de Data: Converter String ISO para Timestamp
     const startStr = finalData.startDate || finalData.date || draftData.startDate || draftData.date || null;
     const eventDate = startStr ? admin.firestore.Timestamp.fromDate(new Date(startStr)) : null;
 
     const updatePayload: any = {
       ...finalData,
+      title,
+      city,
+      location,
       date: eventDate, 
       status: 'published',
       slug: baseSlug,
       citySlug,
       regionSlug,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      // Limpeza de campos de rascunho
+      // Eliminação total da estrutura de rascunho no documento publicado
       data: admin.firestore.FieldValue.delete(),
       step: admin.firestore.FieldValue.delete()
     };
@@ -141,12 +144,12 @@ export async function publishEventAction(eventId: string, finalData: any) {
 }
 
 /**
- * Utilitário de manutenção para popular slugs de localização em eventos antigos.
+ * Utilitário de manutenção para popular slugs de localização em eventos.
  */
 export async function backfillEventLocationSlugsAction() {
   const db = getAdminDb();
   try {
-    const snap = await db.collection('events').where('status', 'in', ['Ativo', 'published']).get();
+    const snap = await db.collection('events').where('status', '==', 'published').get();
     const batch = db.batch();
     let count = 0;
 
@@ -262,14 +265,13 @@ export async function updateEventAction(params: {
     const oldData = eventSnap.data()!;
     let slug = oldData.slug;
     
-    // Normalização de Data para Timestamp
     const startStr = eventData.startDate || eventData.date;
     const eventDate = startStr ? admin.firestore.Timestamp.fromDate(new Date(startStr)) : null;
 
     const updatePayload = {
       ...eventData,
       date: eventDate, 
-      status: oldData.status === 'draft' ? 'published' : oldData.status,
+      status: 'published',
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 

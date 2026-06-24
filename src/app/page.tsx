@@ -66,8 +66,9 @@ async function getInitialEvents() {
     thresholdDate.setDate(thresholdDate.getDate() - 30);
     const dateThreshold = admin.firestore.Timestamp.fromDate(thresholdDate);
 
+    // FILTRO CENTRAL: Apenas status 'published'
     const snap = await db.collection('events')
-      .where('status', 'in', ['Ativo', 'published'])
+      .where('status', '==', 'published')
       .where('date', '>=', dateThreshold)
       .orderBy('date', 'asc')
       .limit(60) 

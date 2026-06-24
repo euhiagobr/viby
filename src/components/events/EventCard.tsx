@@ -41,16 +41,11 @@ export function EventCard({ event: rawEvent, userLocation, isSponsored }: EventC
     setMounted(true);
   }, []);
 
-  // Normalização de dados: Sempre tenta mesclar 'data' se existir, para cobrir transições de draft e publicações incompletas
+  /**
+   * REGRA DE OURO: Fonte única de verdade.
+   * Ignora event.data para garantir que apenas dados finais do documento sejam renderizados.
+   */
   const event = React.useMemo(() => {
-    if (rawEvent.data && typeof rawEvent.data === 'object') {
-      return { 
-        ...rawEvent, 
-        ...rawEvent.data, 
-        date: rawEvent.data.date || rawEvent.data.startDate || rawEvent.date || rawEvent.startDate,
-        id: rawEvent.id 
-      };
-    }
     return {
       ...rawEvent,
       date: rawEvent.date || rawEvent.startDate

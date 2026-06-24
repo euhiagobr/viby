@@ -28,7 +28,10 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
     getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {});
   }, []);
 
-  // Hook Mestre de Dados - Filtra por 'published' ou 'Ativo' para compatibilidade
+  /**
+   * Hook Mestre de Dados - FILTRO CENTRAL: Apenas 'published'.
+   * O hook useHomeFeed deve gerenciar a filtragem de rascunhos.
+   */
   const { 
     feed, 
     isFetching, 

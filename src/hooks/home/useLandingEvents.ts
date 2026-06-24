@@ -7,7 +7,7 @@ import { collection, query, where, orderBy, limit, getDocs, startAfter, Document
 
 /**
  * Hook de busca de eventos para a Landing Page.
- * Suporta o novo status 'published' do sistema de rascunhos.
+ * Filtro CENTRAL: Apenas status 'published' é visível publicamente.
  */
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
@@ -28,7 +28,7 @@ export function useLandingEvents(initialEvents: any[] = []) {
       if (isInitial) {
         q = query(
           collection(db, "events"),
-          where("status", "in", ["Ativo", "published"]),
+          where("status", "==", "published"),
           orderBy("date", "asc"),
           limit(fetchLimit)
         );
@@ -39,7 +39,7 @@ export function useLandingEvents(initialEvents: any[] = []) {
         
         q = query(
           collection(db, "events"),
-          where("status", "in", ["Ativo", "published"]),
+          where("status", "==", "published"),
           orderBy("date", "asc"),
           ...(cursorValue ? [startAfter(cursorValue)] : []),
           limit(fetchLimit)
