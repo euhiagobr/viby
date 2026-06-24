@@ -1,9 +1,8 @@
-
-"use client"
+'use client';
 
 import * as React from "react"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, getDoc } from "firebase/firestore"
+import { doc, setDoc, collection, query, where, getDoc } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -33,7 +32,7 @@ import { PublicHeader } from "@/components/layout/PublicHeader"
 import { ShareModal } from "@/components/sharing/ShareModal"
 import { RichText } from "@/components/ui/rich-text"
 import dynamic from "next/dynamic"
-import { format, startOfToday } from "date-fns"
+import { format, startOfToday, addDays } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { EventActionModal } from "@/components/events/EventActionModal"
 import { formatFullAddress } from "@/lib/location-utils"
@@ -44,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { EventRelatedEvents } from "@/components/events/EventRelatedEvents"
 
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
   ssr: false,
@@ -341,6 +341,12 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                      <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-2" onClick={() => setIsShareModalOpen(true)}><Share2 className="w-5 h-5" /></Button>
                   </div>
                </Card>
+               
+               {/* Eventos Relacionados / Especiais */}
+               <EventRelatedEvents 
+                currentEventId={id} 
+                currentTags={event.tags || []} 
+               />
 
                <div className="flex items-center justify-center">
                   <Button variant="link" className="text-[9px] font-black uppercase text-muted-foreground opacity-30 hover:opacity-100" onClick={() => setIsActionModalOpen(true)}>Problemas com este evento?</Button>
