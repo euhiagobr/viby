@@ -23,7 +23,9 @@ import {
   RefreshCw,
   History,
   Inbox,
-  Clock
+  Clock,
+  ShieldAlert,
+  Archive
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -88,18 +90,24 @@ export default function OrganizationEventsPage() {
 
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery);
 
-  const { upcomingEvents, pastEvents } = React.useMemo(() => {
-    if (!rawEvents) return { upcomingEvents: [], pastEvents: [] };
+  const { upcomingEvents, pastEvents, deletedEvents } = React.useMemo(() => {
+    if (!rawEvents) return { upcomingEvents: [], pastEvents: [], deletedEvents: [] };
 
     const upcoming: any[] = [];
     const past: any[] = [];
+    const deleted: any[] = [];
 
     const filtered = rawEvents.filter(e => 
-      e.status !== 'Excluído' && 
       (!search || e.title?.toLowerCase().includes(search.toLowerCase()))
     );
 
     filtered.forEach(e => {
+      // Regra: Se está excluído ou oculto, vai para a lixeira/deletados
+      if (e.status === 'Excluído' || e.status === 'Oculto') {
+        deleted.push({ ...e, _effectiveDate: e.date || e.startDate });
+        return;
+      }
+
       let isEventPast = false;
       let effectiveDate = e.date || e.startDate;
 
@@ -159,8 +167,9 @@ export default function OrganizationEventsPage() {
 
     upcoming.sort(sortByCreation);
     past.sort(sortByCreation);
+    deleted.sort(sortByCreation);
 
-    return { upcomingEvents: upcoming, pastEvents: past };
+    return { upcomingEvents: upcoming, pastEvents: past, deletedEvents: deleted };
   }, [rawEvents, allOccurrences, search, now]);
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
@@ -201,7 +210,6 @@ export default function OrganizationEventsPage() {
     if (!db || !eventToDelete) return;
     setIsDeleting(true);
     try {
-      // 1. Verificar se existem vendas ativas
       const salesQuery = query(
         collection(db, "registrations"),
         where("eventId", "==", eventToDelete.id),
@@ -214,18 +222,13 @@ export default function OrganizationEventsPage() {
       const batch = writeBatch(db);
 
       if (!salesSnap.empty) {
-        // Se tem vendas, apenas oculta para não quebrar os vouchers dos clientes
         batch.update(eventRef, { status: "Oculto", updatedAt: serverTimestamp() });
         toast({ title: "Evento Ocultado", description: "Vendas detectadas. O projeto foi retirado do ar mas os vouchers continuam válidos." });
       } else {
-        // Se não tem vendas, marca como excluído
         batch.update(eventRef, { status: "Excluído", updatedAt: serverTimestamp() });
-        
-        // Limpar sessões recorrentes órfãs (Recurring Occurrences)
         const occsQuery = query(collection(db, "recurring_occurrences"), where("parentId", "==", eventToDelete.id));
         const occsSnap = await getDocs(occsQuery);
         occsSnap.forEach(d => batch.delete(d.ref));
-        
         toast({ title: "Evento removido" });
       }
       
@@ -272,14 +275,18 @@ export default function OrganizationEventsPage() {
       </div>
 
       <Tabs defaultValue="upcoming" className="w-full space-y-8">
-        <TabsList className="bg-muted/50 p-1 rounded-xl h-12">
+        <TabsList className="bg-muted/50 p-1 rounded-xl h-12 flex-wrap">
           <TabsTrigger value="upcoming" className="rounded-lg px-6 font-bold gap-2 data-[state=active]:bg-white">
             <Calendar className="w-4 h-4" />
-            Próximos / Gestão ({upcomingEvents.length})
+            Ativos ({upcomingEvents.length})
           </TabsTrigger>
-          <TabsTrigger value="past" className="rounded-lg px-8 font-bold gap-2 data-[state=active]:bg-white">
+          <TabsTrigger value="past" className="rounded-lg px-6 font-bold gap-2 data-[state=active]:bg-white">
             <History className="w-4 h-4" />
-            Passados ({pastEvents.length})
+            Histórico ({pastEvents.length})
+          </TabsTrigger>
+          <TabsTrigger value="deleted" className="rounded-lg px-6 font-bold gap-2 data-[state=active]:bg-white">
+            <Trash2 className="w-4 h-4" />
+            Deletados ({deletedEvents.length})
           </TabsTrigger>
         </TabsList>
 
@@ -336,6 +343,33 @@ export default function OrganizationEventsPage() {
             />
           )}
         </TabsContent>
+
+        <TabsContent value="deleted" className="m-0">
+          {loading ? (
+            <div className="py-20 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
+          ) : deletedEvents.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {deletedEvents.map((event) => (
+                <EventRow 
+                  key={event.id} 
+                  event={event} 
+                  currentOrg={currentOrg} 
+                  isAtLeastEditor={false} // Desativa edição para deletados
+                  canCheckIn={canCheckIn} 
+                  formatDate={formatDate}
+                  formatTime={formatTime}
+                  setEventToDelete={() => {}} // Remove ação de deletar da lixeira
+                  isDeleted
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-border flex flex-col items-center justify-center gap-4 opacity-40">
+               <Archive className="w-12 h-12" />
+               <p className="text-xs font-black uppercase tracking-widest italic">A lixeira está vazia</p>
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       <AlertDialog open={!!eventToDelete} onOpenChange={(open) => !open && setEventToDelete(null)}>
@@ -371,18 +405,16 @@ function EventRow({
   formatDate, 
   formatTime, 
   setEventToDelete,
-  isPast = false 
+  isPast = false,
+  isDeleted = false
 }: any) {
   const dateValue = event._effectiveDate || event.date || event.startDate;
   const time = formatTime(dateValue);
-  const slugOrId = event.slug || event.id;
-  const username = currentOrg?.username || event.organizer?.username || 'evento';
-  const eventLink = `/${username}/${slugOrId}`;
 
   return (
     <Card className={cn(
-      "overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-[1.5rem] bg-white group",
-      isPast && "opacity-75 grayscale-[0.3]"
+      "overflow-hidden border-none shadow-sm transition-all rounded-[1.5rem] bg-white group",
+      (isPast || isDeleted) && "opacity-75 grayscale-[0.3]"
     )}>
       <div className="relative h-40 bg-muted">
         {event.image ? (
@@ -393,7 +425,9 @@ function EventRow({
         <div className="absolute top-3 right-3">
            <Badge className={cn(
              "uppercase text-[9px] font-black px-2.5 h-6 shadow-sm border-none",
-             event.status === 'Ativo' ? 'bg-white/90 text-primary' : 'bg-muted text-muted-foreground'
+             event.status === 'Ativo' ? 'bg-white/90 text-primary' : 
+             event.status === 'Excluído' ? 'bg-red-500 text-white' :
+             'bg-orange-500 text-white'
            )}>
              {event.status || 'Pendente'}
            </Badge>
@@ -403,9 +437,9 @@ function EventRow({
         <div className="flex justify-between items-start gap-2">
           <div className="space-y-1">
              <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
-             {event.isRecurring && <Badge className="bg-secondary text-white text-[7px] font-black uppercase h-3.5"><RefreshCw className="w-2 mr-1 animate-spin-slow" /> Série Recorrente</Badge>}
+             {event.isRecurring && <Badge className="bg-secondary text-white text-[7px] font-black uppercase h-3.5"><RefreshCw className="w-2 h-2 mr-1 animate-spin-slow" /> Série Recorrente</Badge>}
           </div>
-          {isAtLeastEditor && (
+          {isAtLeastEditor && !isDeleted && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full shrink-0">
@@ -416,11 +450,6 @@ function EventRow({
                 <DropdownMenuItem asChild>
                    <Link href={`/dashboard/evento/${event.id}/editar`} className="flex items-center gap-2 py-2 cursor-pointer">
                       <Edit className="w-4 h-4" /> Editar Evento
-                   </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                   <Link href={eventLink} target="_blank" className="flex items-center gap-2 py-2 cursor-pointer">
-                      <Eye className="w-4 h-4" /> Ver Anúncio
                    </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -443,7 +472,7 @@ function EventRow({
         <div className="space-y-1.5 pt-3 border-t border-dashed">
           <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
             <Calendar className="w-3.5 h-3.5 text-secondary" />
-            <span>{event.isRecurring && !isPast ? "Próxima: " : ""}{formatDate(dateValue)}</span>
+            <span>{formatDate(dateValue)}</span>
             {time && (
               <><span className="mx-1 opacity-30">|</span><Clock className="w-3.5 h-3.5 text-secondary" /><span>{time}</span></>
             )}
@@ -454,21 +483,34 @@ function EventRow({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          <Button variant="outline" size="sm" className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5 border-secondary text-secondary hover:bg-secondary/5" asChild>
-            <Link href={eventLink} target="_blank">Visualizar</Link>
-          </Button>
-          <Button 
-            variant="secondary" 
-            size="sm" 
-            disabled={!canCheckIn}
-            className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5" 
-            asChild
-          >
-            <Link href={`/dashboard/evento/${event.id}/publico`}>
-               <Users className="w-3.5 h-3.5" /> Público
-            </Link>
-          </Button>
+        <div className="grid grid-cols-1 gap-2 pt-1">
+          {isDeleted ? (
+            <div className="flex items-center gap-2 p-3 bg-muted/40 rounded-xl text-muted-foreground italic text-[9px] uppercase font-black">
+               <ShieldAlert className="w-4 h-4 opacity-40" /> Inacessível ao Público
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+               <Button variant="outline" size="sm" className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5 border-secondary text-secondary hover:bg-secondary/5" asChild>
+                 <Link href={`/${currentOrg?.username || 'evento'}/${event.slug || event.id}`} target="_blank">Visualizar</Link>
+               </Button>
+               <Button 
+                 variant="secondary" 
+                 size="sm" 
+                 disabled={!canCheckIn}
+                 className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5" 
+                 asChild
+               >
+                 <Link href={`/dashboard/evento/${event.id}/publico`}>
+                    <Users className="w-3.5 h-3.5" /> Público
+                 </Link>
+               </Button>
+            </div>
+          )}
+          {isDeleted && canCheckIn && (
+            <Button variant="ghost" size="sm" className="text-[9px] font-black uppercase h-8 rounded-lg gap-2" asChild>
+               <Link href={`/dashboard/evento/${event.id}/publico`}>Consultar Ingressos Vendidos <ArrowRight className="w-3 h-3" /></Link>
+            </Button>
+          )}
         </div>
       </div>
     </Card>
