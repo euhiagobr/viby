@@ -4,13 +4,17 @@ import { getAdminDb } from '@/lib/firebase/admin';
 export const dynamic = 'force-dynamic';
 export const revalidate = 3600;
 
+/**
+ * @fileOverview Fonte Única e Oficial de Verdade para o sitemap.xml da Viby.
+ * Consolida rotas estáticas, perfis de usuários/marcas, eventos e páginas de cidades.
+ */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://viby.club';
   
   try {
     const db = getAdminDb();
 
-    // 1. Rotas Estáticas
+    // 1. Rotas Estáticas Públicas
     const routes: MetadataRoute.Sitemap = [
       { url: `${baseUrl}/`, lastModified: new Date(), changeFrequency: 'daily', priority: 1.0 },
       { url: `${baseUrl}/dashboard`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.8 },

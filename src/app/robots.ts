@@ -1,9 +1,8 @@
-
 import { MetadataRoute } from 'next';
 
 /**
- * Fonte oficial de verdade para o robots.txt da Viby.
- * Define as permissões de rastreamento e aponta para o sitemap principal.
+ * @fileOverview Fonte Única e Oficial de Verdade para o robots.txt da Viby.
+ * Define as permissões de rastreamento e aponta para o sitemap principal consolidado.
  */
 export default function robots(): MetadataRoute.Robots {
   return {
