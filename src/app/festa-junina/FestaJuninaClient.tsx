@@ -36,17 +36,7 @@ import { cn, normalizeText } from "@/lib/utils"
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils"
 import { isEventVisible, calculateDistanceMeters } from "@/lib/event-scoring-utils"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
-import { JUNINA_TAGS } from "@/lib/constants"
-
-const QUICK_CATEGORIES = [
-  { label: "Arraiá", tags: ["arraia", "arraiá"] },
-  { label: "Quermesse", tags: ["quermesse"] },
-  { label: "Forró", tags: ["forro", "forró"] },
-  { label: "Quadrilha", tags: ["quadrilha"] },
-  { label: "Sertanejo", tags: ["sertanejo"] },
-  { label: "Evento Familiar", tags: ["familiar", "familia", "família"] },
-  { label: "Universitário", tags: ["universitario", "universitário"] },
-]
+import { JUNINA_TAGS, JUNINA_THEMATIC_MAP } from "@/lib/constants"
 
 export default function FestaJuninaClient({ initialEvents = [] }: { initialEvents?: any[] }) {
   const db = useFirestore()
@@ -84,7 +74,7 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
-          where("tags", "array-contains-any", JUNINA_TAGS),
+          where("tags", "array-contains-any", ["festajunina", "junina"]),
           limit(30)
         );
       } else {
@@ -92,7 +82,7 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
         q = query(
           collection(db, "events"),
           where("status", "==", "Ativo"),
-          where("tags", "array-contains-any", JUNINA_TAGS),
+          where("tags", "array-contains-any", ["festajunina", "junina"]),
           ...(cursor ? [startAfter(cursor)] : []),
           limit(12)
         );
@@ -169,8 +159,10 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
       if (!titleMatch || !cityMatch) return false;
 
       if (selectedQuickCat) {
-        const cat = QUICK_CATEGORIES.find(c => c.label === selectedQuickCat);
-        const hasTag = e.tags?.some((t: string) => cat?.tags.includes(t.toLowerCase()));
+        const hasTag = e.tags?.some((t: string) => {
+          const normalizedTag = t.toLowerCase();
+          return JUNINA_THEMATIC_MAP[normalizedTag] === selectedQuickCat;
+        });
         if (!hasTag) return false;
       }
 
@@ -219,6 +211,24 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
     });
   }, [rawEvents, allOccurrences, loadingOccs, search, searchCity, priceFilter, dateFilter, customDate, selectedQuickCat, userLocation, now]);
 
+  // Geração dinâmica das categorias disponíveis baseada nos eventos presentes
+  const dynamicCategories = React.useMemo(() => {
+    const categoriesSet = new Set<string>();
+    rawEvents.forEach(e => {
+      const hasPrimaryTag = e.tags?.some((t: string) => {
+        const nt = t.toLowerCase();
+        return nt === "festajunina" || nt === "junina";
+      });
+      if (hasPrimaryTag) {
+        e.tags?.forEach((t: string) => {
+          const label = JUNINA_THEMATIC_MAP[t.toLowerCase()];
+          if (label) categoriesSet.add(label);
+        });
+      }
+    });
+    return Array.from(categoriesSet).sort();
+  }, [rawEvents]);
+
   const featuredEvents = React.useMemo(() => {
     return processedEvents.filter(e => e.isFeatured || e.isSponsored).slice(0, 3);
   }, [processedEvents]);
@@ -241,7 +251,6 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
     <div className="flex flex-col min-h-screen bg-[#fefce8]">
       {/* HERO SECTION */}
       <section className="relative min-h-[70vh] flex items-center justify-center overflow-hidden bg-[#78350f] text-white">
-        {/* Bandeirinhas SVG Pattern */}
         <div className="absolute top-0 left-0 w-full h-24 z-20 pointer-events-none opacity-80" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'100\' height=\'40\' viewBox=\'0 0 100 40\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0 L20 30 L40 0 L60 30 L80 0 L100 30 L100 0 Z\' fill=\'%23facc15\'/%3E%3C/svg%3E")', backgroundRepeat: 'repeat-x' }} />
         
         <div className="absolute inset-0 opacity-30 pointer-events-none">
@@ -292,24 +301,26 @@ export default function FestaJuninaClient({ initialEvents = [] }: { initialEvent
         </div>
       </section>
 
-      {/* CATEGORIAS RÁPIDAS */}
-      <section className="py-12 bg-white border-b overflow-x-auto scrollbar-hide">
-        <div className="container mx-auto px-4 flex justify-center gap-4 min-w-max">
-           {QUICK_CATEGORIES.map((cat) => (
-             <Button
-               key={cat.label}
-               variant={selectedQuickCat === cat.label ? "default" : "outline"}
-               onClick={() => setSelectedQuickCat(selectedQuickCat === cat.label ? null : cat.label)}
-               className={cn(
-                 "rounded-full px-8 h-12 font-black uppercase italic text-xs tracking-widest transition-all",
-                 selectedQuickCat === cat.label ? "bg-[#78350f] text-white border-none shadow-lg" : "border-[#78350f]/20 text-[#78350f] hover:bg-[#78350f]/5"
-               )}
-             >
-               {cat.label}
-             </Button>
-           ))}
-        </div>
-      </section>
+      {/* CATEGORIAS RÁPIDAS DINÂMICAS */}
+      {dynamicCategories.length > 0 && (
+        <section className="py-12 bg-white border-b overflow-x-auto scrollbar-hide">
+          <div className="container mx-auto px-4 flex justify-center gap-4 min-w-max">
+             {dynamicCategories.map((label) => (
+               <Button
+                 key={label}
+                 variant={selectedQuickCat === label ? "default" : "outline"}
+                 onClick={() => setSelectedQuickCat(selectedQuickCat === label ? null : label)}
+                 className={cn(
+                   "rounded-full px-8 h-12 font-black uppercase italic text-xs tracking-widest transition-all",
+                   selectedQuickCat === label ? "bg-[#78350f] text-white border-none shadow-lg" : "border-[#78350f]/20 text-[#78350f] hover:bg-[#78350f]/5"
+                 )}
+               >
+                 {label}
+               </Button>
+             ))}
+          </div>
+        </section>
+      )}
 
       {/* DESTAQUES */}
       {featuredEvents.length > 0 && (

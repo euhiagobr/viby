@@ -56,8 +56,29 @@ export const JUNINA_TAGS = [
   "forró",
   "quadrilha",
   "milho",
-  "fogueira"
+  "fogueira",
+  "sertanejo",
+  "familiar",
+  "familia",
+  "família",
+  "universitario",
+  "universitário"
 ];
+
+export const JUNINA_THEMATIC_MAP: Record<string, string> = {
+  "arraia": "Arraiá",
+  "arraiá": "Arraiá",
+  "quermesse": "Quermesse",
+  "forro": "Forró",
+  "forró": "Forró",
+  "quadrilha": "Quadrilha",
+  "sertanejo": "Sertanejo",
+  "familiar": "Evento Familiar",
+  "familia": "Evento Familiar",
+  "família": "Evento Familiar",
+  "universitario": "Universitário",
+  "universitário": "Universitário"
+};
 
 export const LGBT_CATEGORY_IDS = [
   "bNr5g766mc0vGskU1RBq",
