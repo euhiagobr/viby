@@ -5,13 +5,13 @@ import FAQClient from "./FAQClient"
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 export const metadata: Metadata = {
-  title: 'FAQ | Central de Ajuda Viby',
-  description: 'Tire suas dúvidas sobre o funcionamento da Viby: ingressos, organizações, pagamentos e segurança.',
-  keywords: ['faq', 'ajuda', 'suporte', 'viby', 'dúvidas'],
+  title: 'Central de Ajuda e FAQ | Suporte Oficial Viby',
+  description: 'Tire suas dúvidas sobre ingressos, estornos, segurança da conta e como anunciar seu evento na Viby. Estamos aqui para ajudar.',
+  keywords: ['faq viby', 'ajuda ingressos', 'estorno viby', 'suporte ao organizador', 'segurança viby'],
   alternates: { canonical: 'https://viby.club/suporte/faq' },
   openGraph: {
     title: 'FAQ | Central de Ajuda Viby',
-    description: 'Tire suas dúvidas sobre o funcionamento da Viby: ingressos, organizações, pagamentos e segurança.',
+    description: 'Precisa de ajuda? Encontre respostas rápidas para as dúvidas mais comuns de usuários e produtores.',
     url: 'https://viby.club/suporte/faq',
     siteName: 'Viby',
     type: 'website',
@@ -20,8 +20,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'FAQ | Central de Ajuda Viby',
-    description: 'Tire suas dúvidas sobre o funcionamento da Viby: ingressos, organizações, pagamentos e segurança.',
+    title: 'Suporte Viby | Perguntas Frequentes',
+    description: 'Tudo o que você precisa saber sobre a plataforma Viby em um só lugar.',
     images: [VIBY_OG_IMAGE]
   },
   robots: {

@@ -129,8 +129,8 @@ export async function generateMetadata({ params }: { params: Promise<{ region: s
     description,
     alternates: { canonical: `https://viby.club/o-que-fazer-em/${region}/${city}` },
     openGraph: {
-      title,
-      description,
+      title: title,
+      description: description,
       url: `https://viby.club/o-que-fazer-em/${region}/${city}`,
       siteName: 'Viby',
       images: [{ url: image, width: 1200, height: 630, alt: `O que fazer em ${data.cityName}` }],
@@ -139,8 +139,8 @@ export async function generateMetadata({ params }: { params: Promise<{ region: s
     },
     twitter: {
       card: 'summary_large_image',
-      title,
-      description,
+      title: title,
+      description: description,
       images: [image],
     },
     robots: { index: true, follow: true }

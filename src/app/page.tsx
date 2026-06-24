@@ -7,32 +7,32 @@ import * as admin from 'firebase-admin';
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 export const metadata: Metadata = {
-  title: 'Viby | Descubra e Viva Experiências Incríveis',
-  description: 'A maior vitrine de eventos do Brasil. Encontre shows, festivais, workshops e muito mais na sua cidade.',
-  keywords: ['eventos', 'ingressos', 'shows', 'experiências', 'viby', 'baladas', 'festivais'],
+  title: 'Viby | Ingressos para Shows, Festas e Eventos na sua Cidade',
+  description: 'A maior vitrine de eventos do Brasil. Encontre e compre ingressos para os melhores shows, festivais, workshops e baladas perto de você com segurança.',
+  keywords: ['ingressos', 'shows hoje', 'festivais brasil', 'comprar ingressos online', 'viby', 'baladas', 'eventos culturais'],
   alternates: {
     canonical: '/',
   },
   openGraph: {
     title: 'Viby | Descubra e Viva Experiências Incríveis',
-    description: 'A maior vitrine de eventos do Brasil. Encontre shows, festivais, workshops e muito mais na sua cidade.',
+    description: 'Encontre a sua próxima experiência cultural. Ingressos para os melhores eventos do Brasil em um só lugar.',
     url: 'https://viby.club',
     siteName: 'Viby',
-    type: 'website',
-    locale: 'pt_BR',
     images: [
       {
         url: VIBY_OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: 'Viby',
+        alt: 'Viby - Viva o agora',
       },
     ],
+    locale: 'pt_BR',
+    type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Viby | Descubra e Viva Experiências Incríveis',
-    description: 'A maior vitrine de eventos do Brasil. Encontre shows, festivais, workshops e muito mais na sua cidade.',
+    title: 'Viby | Ingressos para Shows e Eventos',
+    description: 'A sua próxima experiência está na Viby. Explore a agenda cultural da sua cidade.',
     images: [VIBY_OG_IMAGE],
   },
   robots: {

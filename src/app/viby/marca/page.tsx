@@ -5,13 +5,13 @@ import { PublicHeader } from '@/components/layout/PublicHeader';
 import { Footer } from '@/components/layout/Footer';
 
 export const metadata: Metadata = {
-  title: 'Material de Marca | Viby Club Official',
-  description: 'Acesse e baixe os logotipos, ícones e materiais oficiais da Viby para sua divulgação no Media Kit oficial.',
-  keywords: ['media kit', 'brand assets', 'logos viby', 'identidade visual viby', 'marketing viby'],
+  title: 'Media Kit Oficial | Logotipos e Identidade Visual Viby',
+  description: 'Acesse o guia de marca oficial da Viby. Baixe logotipos em alta resolução, ícones e materiais de apoio para sua divulgação oficial.',
+  keywords: ['media kit viby', 'logos viby', 'marca oficial viby', 'identidade visual', 'ativos de marca'],
   alternates: { canonical: 'https://viby.club/viby/marca' },
   openGraph: {
-    title: 'Media Kit Oficial | Viby Club',
-    description: 'Recursos visuais e mídias oficiais para parceiros e organizadores da rede Viby.',
+    title: 'Media Kit Oficial | Viby Club Assets',
+    description: 'Recursos visuais e diretrizes de marca oficiais para parceiros, imprensa e organizadores da rede Viby.',
     url: 'https://viby.club/viby/marca',
     siteName: 'Viby',
     type: 'website',
@@ -20,13 +20,13 @@ export const metadata: Metadata = {
       url: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417",
       width: 1200,
       height: 630,
-      alt: "Media Kit Viby"
+      alt: "Media Kit Oficial Viby"
     }]
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Media Kit Oficial | Viby Club',
-    description: 'Acesse e baixe os logotipos e materiais oficiais da Viby.',
+    title: 'Viby Media Kit | Guia de Marca',
+    description: 'Baixe os ativos oficiais da Viby para sua produção.',
     images: ["https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417"]
   }
 };

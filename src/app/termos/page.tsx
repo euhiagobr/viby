@@ -11,13 +11,13 @@ import { getAdminDb } from "@/lib/firebase/admin"
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 export const metadata: Metadata = {
-  title: 'Termos de Uso',
-  description: 'Leia os termos de serviço da Viby para organizadores e participantes de eventos.',
-  keywords: ['termos', 'uso', 'serviço', 'viby', 'jurídico'],
+  title: 'Termos e Condições de Uso | Regras da Plataforma Viby',
+  description: 'Conheça os termos de serviço da Viby para organizadores e participantes. Transparência e segurança jurídica para quem vive e organiza experiências.',
+  keywords: ['termos de uso', 'regras do site', 'contrato viby', 'termos para produtores', 'segurança jurídica'],
   alternates: { canonical: 'https://viby.club/termos' },
   openGraph: {
     title: 'Termos e Condições de Uso | Viby',
-    description: 'Leia os termos de serviço da Viby para organizadores e participantes de eventos.',
+    description: 'Leia as regras e condições para utilização da plataforma Viby por usuários e produtores.',
     url: 'https://viby.club/termos',
     siteName: 'Viby',
     type: 'website',
@@ -26,8 +26,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Termos e Condições de Uso | Viby',
-    description: 'Leia os termos de serviço da Viby para organizadores e participantes de eventos.',
+    title: 'Termos de Uso Viby',
+    description: 'Regras de utilização da plataforma.',
     images: [VIBY_OG_IMAGE]
   },
   robots: {

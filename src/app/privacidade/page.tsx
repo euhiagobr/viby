@@ -11,13 +11,13 @@ import { getAdminDb } from "@/lib/firebase/admin"
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 export const metadata: Metadata = {
-  title: 'Política de Privacidade',
-  description: 'Saiba como a Viby protege seus dados e garante a segurança da sua identidade digital e transações.',
-  keywords: ['privacidade', 'segurança', 'dados', 'viby', 'lgpd'],
+  title: 'Política de Privacidade | Proteção de Dados Viby',
+  description: 'Saiba como a Viby protege seus dados e garante a segurança da sua identidade digital e transações em conformidade com a LGPD.',
+  keywords: ['privacidade', 'segurança de dados', 'lgpd viby', 'proteção ao usuário'],
   alternates: { canonical: 'https://viby.club/privacidade' },
   openGraph: {
     title: 'Privacidade e Proteção de Dados | Viby',
-    description: 'Saiba como a Viby protege seus dados e garante a segurança da sua identidade digital e transações.',
+    description: 'Compromisso com a segurança e transparência no tratamento dos seus dados pessoais.',
     url: 'https://viby.club/privacidade',
     siteName: 'Viby',
     type: 'website',
@@ -26,8 +26,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Privacidade e Proteção de Dados | Viby',
-    description: 'Saiba como a Viby protege seus dados e garante a segurança da sua identidade digital e transações.',
+    title: 'Privacidade Viby',
+    description: 'Como cuidamos da sua segurança digital.',
     images: [VIBY_OG_IMAGE]
   },
   robots: {
