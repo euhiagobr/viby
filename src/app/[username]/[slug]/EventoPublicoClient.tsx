@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useDoc, useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, setDoc, collection, query, where, getDoc } from "firebase/firestore"
+import { doc, collection, query, where } from "firebase/firestore"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,14 +17,13 @@ import {
   ShieldAlert,
   Clock,
   Navigation,
-  Trophy,
-  Zap
+  Trophy
 } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { cn, safeParseDate } from "@/lib/utils"
-import { BilheteriaPublic, EventSEO, EventCoOrganizers } from "@/components/events"
+import { BilheteriaPublic, EventCoOrganizers } from "@/components/events"
 import { FollowButton } from "@/components/organizer/FollowButton"
 import Footer from "@/components/layout/Footer"
 import { AgeRatingBadge } from "@/lib/age-rating"
@@ -32,7 +31,7 @@ import { PublicHeader } from "@/components/layout/PublicHeader"
 import { ShareModal } from "@/components/sharing/ShareModal"
 import { RichText } from "@/components/ui/rich-text"
 import dynamic from "next/dynamic"
-import { format, startOfToday, addDays } from "date-fns"
+import { format, startOfToday } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { EventActionModal } from "@/components/events/EventActionModal"
 import { formatFullAddress } from "@/lib/location-utils"
@@ -53,19 +52,27 @@ const LocationMap = dynamic(() => import("@/components/events/LocationMap").then
 interface EventoPublicoClientProps {
   id: string
   username: string
+  initialData?: any
 }
 
-export default function EventoPublicoClient({ id, username }: EventoPublicoClientProps) {
+/**
+ * @fileOverview Componente Client adaptado para SSR.
+ * Recebe initialData vindo do servidor para renderização imediata de conteúdo crítico.
+ */
+export default function EventoPublicoClient({ id, username, initialData }: EventoPublicoClientProps) {
   const db = useFirestore()
   const auth = useAuth()
-  const { user } = useUser(auth)
   
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = React.useState(false)
   const [selectedOccurrenceId, setSelectedOccurrenceId] = React.useState<string | null>(null)
 
+  // Real-time listener para manter o estado atualizado (ex: bilheteria)
   const eventRef = React.useMemo(() => (db && id) ? doc(db, "events", id) : null, [db, id])
-  const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
+  const { data: realTimeEvent, loading: eventLoading } = useDoc<any>(eventRef)
+
+  // PRIORIDADE: Dados em tempo real > Dados iniciais (SSR)
+  const event = realTimeEvent || initialData;
 
   const organizationRef = React.useMemo(() => 
     (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, 
@@ -125,7 +132,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
     return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
 
-  if (eventLoading) return (
+  // Se não temos dados e ainda está carregando no client (ex: navegação client-side pura)
+  if (eventLoading && !initialData) return (
     <div className="flex flex-col items-center justify-center py-32 gap-4">
       <Loader2 className="w-10 h-10 animate-spin text-secondary" />
       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando Experiência...</p>
@@ -161,7 +169,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white overflow-x-hidden w-full">
-      <EventSEO event={event} username={username} />
       <PublicHeader showBack />
 
       <main className="flex-1 animate-in fade-in duration-700">

@@ -6,9 +6,8 @@ import { notFound, redirect } from 'next/navigation';
 
 /**
  * @fileOverview Rota Canônica Unificada: /[username]/[slug]
- * Resolve o evento verificando o vínculo com o username da organização e o status.
- * Implementa REDIRECIONAMENTO AUTOMÁTICO para o formato canônico se acessado via ID.
- * FILTRO CENTRAL: Apenas status 'Ativo' é acessível publicamente.
+ * Implementação de SSR (Server-Side Rendering) para conteúdo crítico de SEO.
+ * O HTML inicial agora contém Nome, Descrição, Data e Local.
  */
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -85,8 +84,6 @@ async function getEventData(usernameParam: string, slugParam: string) {
     const targetUsername = actualUsername || 'evento';
     
     // REGRA DE REDIRECIONAMENTO CANÔNICO
-    // Se o username no URL for diferente do canônico (ou for o ID)
-    // OU se o slug no URL for diferente do canônico (ou for o ID)
     const isCorrectUsername = rawUsername === targetUsername;
     const isCorrectSlug = rawSlugOrId === canonicalSlug;
 
@@ -94,6 +91,7 @@ async function getEventData(usernameParam: string, slugParam: string) {
       return { redirect: `/${targetUsername}/${canonicalSlug}` };
     }
 
+    // Tratamento de Recorrência para SEO
     if (eventDoc.isRecurring) {
       try {
         const todayStr = new Date().toISOString().split('T')[0];
@@ -105,7 +103,7 @@ async function getEventData(usernameParam: string, slugParam: string) {
         
         if (!occSnap.empty) {
           const nextOcc = occSnap.docs[0].data();
-          eventDoc.date = `${nextOcc.date}T${nextOcc.startTime || '00:00'}:00`;
+          eventDoc.date = `${nextOcc.date}T${nextOcc.startTime || '19:00'}:00`;
           if (nextOcc.endTime) eventDoc.endDate = `${nextOcc.date}T${nextOcc.endTime}:00`;
         }
       } catch (occError) {
@@ -126,7 +124,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   if (!event || event.redirect) return { title: 'Evento Indisponível | Viby', robots: { index: false } };
 
   const title = `${event.title} | Viby`;
-  const description = stripHtml(event.description || "").substring(0, 160);
+  const description = stripHtml(event.description || "").substring(0, 160) || `Confira ${event.title} na Viby.`;
   const image = event.image || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
   const url = `https://viby.club/${username}/${slug}`;
 
@@ -160,6 +158,7 @@ export default async function CanonicalEventPage({ params }: { params: Promise<{
   if (!event) notFound();
   if (event.redirect) redirect(event.redirect);
 
+  // Implementação centralizada do JSON-LD (Schema.org)
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
@@ -172,25 +171,30 @@ export default async function CanonicalEventPage({ params }: { params: Promise<{
     "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
     "location": {
       "@type": "Place",
-      "name": event.location || event.address?.venueName,
+      "name": event.location || event.address?.venueName || "Local do Evento",
       "address": {
         "@type": "PostalAddress",
-        "addressLocality": event.city,
-        "addressRegion": event.state,
+        "streetAddress": event.address?.addressLine1 || "",
+        "addressLocality": event.city || event.address?.city || "",
+        "addressRegion": event.state || event.address?.stateRegion || "",
+        "postalCode": event.address?.postalCode || "",
         "addressCountry": "BR"
       }
     },
     "organizer": {
       "@type": "Organization",
-      "name": event.organizer?.name,
+      "name": event.organizer?.name || "Viby Organizer",
       "url": `https://viby.club/${event.organizer?.username || 'evento'}`
     }
   };
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <EventoPublicoClient id={event.id} username={username} />
+      <script 
+        type="application/ld+json" 
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} 
+      />
+      <EventoPublicoClient id={event.id} username={username} initialData={event} />
     </>
   );
 }
