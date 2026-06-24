@@ -393,7 +393,7 @@ export default function EditarEventoWizard() {
                  <EventType value={formData.type} onChange={v => setFormData({...formData, type: v})} />
                  <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                   <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v, categoryName: categories?.find((c: any) => c.id === v)?.name})}>
@@ -409,6 +409,16 @@ export default function EditarEventoWizard() {
                       {['free', '10', '12', '14', '16', 'not_recommended_18', 'adults_only_18'].map(c => <SelectItem key={c} value={c}>{getAgeRatingConfig(c).label}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase opacity-60">Tipo de Vínculo</Label>
+                   <Select value={formData.curationType} onValueChange={v => setFormData({...formData, curationType: v})}>
+                      <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                         <SelectItem value="realização">Realização Direta</SelectItem>
+                         <SelectItem value="curadoria">Curadoria de Terceiros</SelectItem>
+                      </SelectContent>
+                   </Select>
                 </div>
               </div>
               <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
