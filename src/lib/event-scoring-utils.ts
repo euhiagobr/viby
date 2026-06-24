@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Lógica de filtragem e normalização de eventos Viby.
  * Foco em: "Perto de você" (Filtro) e "No tempo certo" (Ordenação).
@@ -18,12 +19,13 @@ export function calculateDistanceMeters(coords1: Coordinates, coords2: Coordinat
 /**
  * Define se um evento deve ser exibido nas vitrines públicas.
  * REGRA ABSOLUTA: Apenas status "Ativo" é visível.
+ * QUALQUER EVENTO EM MODO 'DRAFT' OU DIFERENTE DE 'ATIVO' SERÁ OCULTADO.
  */
 export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
-  if (!event || event.status === 'Excluído') return false;
+  if (!event) return false;
   
   // REGRA DE OURO: Apenas eventos Ativos entram nas vitrines.
-  // Status 'Oculto' permite visualização via link direto mas remove das vitrines.
+  // Status 'Excluído' ou 'draft' não aparecem.
   if (event.status !== 'Ativo') return false;
   
   const now = nowOverride ? nowOverride.getTime() : new Date().getTime();

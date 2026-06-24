@@ -1,10 +1,11 @@
+
 "use client"
 
 import * as React from "react"
 import { useFirestore, useAuth, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, where, limit } from "firebase/firestore"
-import { EventTimelineCard } from "@/components/events/EventTimelineCard"
-import { Loader2, Heart, Users, Sparkles } from "lucide-react"
+import { EventCard } from "@/components/events/EventCard"
+import { Loader2, Heart, Users, Sparkles, Inbox } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { format, startOfToday, addDays } from "date-fns"
@@ -84,7 +85,7 @@ export default function TenhoInteressePage() {
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
-      return isEventVisible(e);
+      return isEventVisible(e, now);
     }).sort((a, b) => {
       const tA = a.date?.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime();
       const tB = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
@@ -122,7 +123,7 @@ export default function TenhoInteressePage() {
           <div className="text-center space-y-2">
             <p className="text-xl font-bold">Seu feed está vazio.</p>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              Siga seus produtores favoritos para ver as publicações deles aqui no estilo timeline.
+              Siga seus produtores favoritos para ver as publicações deles aqui.
             </p>
           </div>
           <Button asChild className="bg-secondary text-white font-black px-10 h-12 rounded-full shadow-lg hover:scale-105 transition-transform uppercase italic">
@@ -136,6 +137,7 @@ export default function TenhoInteressePage() {
       ) : !events || events.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[3rem] border-2 border-dashed border-border gap-6 shadow-sm mx-4">
           <div className="text-center space-y-2">
+            <Inbox className="w-10 h-10 mx-auto opacity-10" />
             <p className="text-xl font-bold">Tudo em dia!</p>
             <p className="text-sm text-muted-foreground">
               As marcas que você segue ainda não publicaram eventos novos.
@@ -145,7 +147,7 @@ export default function TenhoInteressePage() {
       ) : (
         <div className="flex flex-col gap-10 px-4">
           {events.map((event: any) => (
-            <EventTimelineCard key={event.id} event={event} />
+            <EventCard key={event.id} event={event} />
           ))}
         </div>
       )}

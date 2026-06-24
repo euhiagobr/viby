@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -25,7 +26,8 @@ interface EventCardProps {
 
 /**
  * Componente Único de Renderização de Eventos.
- * Consome exclusivamente campos da raiz do objeto event.
+ * FONTE DE VERDADE: Consome exclusivamente campos da raiz do objeto event.
+ * PROIBIDO: Usar event.data.*
  */
 export function EventCard({ event }: EventCardProps) {
   const { userLocation, isSponsored } = event;
@@ -156,8 +158,8 @@ export function EventCard({ event }: EventCardProps) {
   const username = event.organizer?.username || 'evento';
   const canonicalPath = `/${username}/${eventSlug}`;
 
-  const firstMatch = event.matches?.[0];
-  const additionalMatches = event.matches?.length > 1 ? event.matches.length - 1 : 0;
+  // Resolução de Localização Resiliente
+  const locationLabel = event.location || event.address?.venueName || event.address?.neighborhood || event.city || "Local a definir";
 
   return (
     <Link 
@@ -215,20 +217,6 @@ export function EventCard({ event }: EventCardProps) {
 
         <CardContent className="p-5 flex flex-col flex-1 gap-4">
           <div className="space-y-2">
-            {firstMatch && (
-              <div className="bg-[#002776]/5 p-2 rounded-xl flex items-center justify-between border border-[#002776]/10 animate-in fade-in zoom-in-95">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex items-center -space-x-1.5">
-                    <img src={firstMatch.teamAFlag} className="w-4 h-4 rounded-full border border-white shadow-sm" alt="" />
-                    <img src={firstMatch.teamBFlag} className="w-4 h-4 rounded-full border border-white shadow-sm" alt="" />
-                  </div>
-                  <span className="text-[10px] font-black uppercase italic text-[#002776] truncate">{firstMatch.teamAName} × {firstMatch.teamBName}</span>
-                </div>
-                {additionalMatches > 0 && (
-                  <Badge className="bg-[#ffdf00] text-[#002776] border-none text-[8px] font-black h-4 px-1.5">+{additionalMatches} JOGOS</Badge>
-                )}
-              </div>
-            )}
             <div className="flex justify-between items-start gap-2">
               <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title || t('event.untitled')}</h3>
               <EventInterest event={event} showButton={false} variant="compact" />
@@ -236,10 +224,10 @@ export function EventCard({ event }: EventCardProps) {
             <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
           </div>
 
-          <div className="flex items-center justify-between pt-3 mt-auto border-t border-dashed border-border/60">
-             <div className="flex flex-col gap-0.5">
-                <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60">{t('event.when')}</p>
-                <div className="flex items-center gap-1 text-[11px] font-black text-primary">
+          <div className="grid grid-cols-2 gap-4 py-3 border-y border-dashed border-border/60">
+             <div className="space-y-1">
+                <p className="text-[8px] font-black uppercase text-muted-foreground opacity-50 tracking-widest">{t('event.when')}</p>
+                <div className="flex items-center gap-1 text-[10px] font-black text-primary">
                    <Calendar className="w-3 h-3 text-secondary" />
                    <span className="whitespace-nowrap">{eventDates.start.toLocaleDateString(language, { day: '2-digit', month: 'short' })}</span>
                    <span className="mx-0.5 opacity-20">|</span>
@@ -247,7 +235,16 @@ export function EventCard({ event }: EventCardProps) {
                    {eventDates.start.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
                 </div>
              </div>
-             <div className="text-right">
+             <div className="space-y-1">
+                <p className="text-[8px] font-black uppercase text-muted-foreground opacity-50 tracking-widest">{t('event.where')}</p>
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-primary">
+                   <MapPin className="w-3 h-3 text-secondary" /> <span className="truncate">{locationLabel}</span>
+                </div>
+             </div>
+          </div>
+
+          <div className="flex items-center justify-between mt-auto">
+             <div className="text-right flex-1">
                 {pricingDisplay}
              </div>
           </div>
