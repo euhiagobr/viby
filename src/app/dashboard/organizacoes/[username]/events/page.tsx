@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -25,7 +26,8 @@ import {
   Inbox,
   Clock,
   ShieldAlert,
-  Archive
+  Archive,
+  ArrowRight
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';

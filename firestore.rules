@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -45,6 +46,18 @@ service cloud.firestore {
     match /follows/{followId} {
       allow read: if true;
       allow write: if isSignedIn() && (followId.split('_')[0] == request.auth.uid);
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && resource.data.targetUid == request.auth.uid;
+      allow create: if true;
+      allow update: if isSignedIn() && resource.data.targetUid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.targetUid == request.auth.uid;
+    }
+
+    match /qr_scans/{scanId} {
+      allow create: if true;
+      allow read: if isAdmin() || (isSignedIn() && isOrgMember(resource.data.organizationId));
     }
 
     match /brand_assets/{assetId} {
@@ -136,7 +149,7 @@ service cloud.firestore {
     match /registrations/{regId} {
       allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.userId || isOrgMember(resource.data.organizationId)));
       allow create: if isSignedIn(); 
-      allow update: if isAdmin();
+      allow update: if isAdmin() || (isSignedIn() && isOrgMember(resource.data.organizationId));
     }
 
     match /registrations_locks/{lockId} {
@@ -190,6 +203,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /audit_logs/{id} {
+      allow create: if true;
+      allow read: if isAdmin();
+    }
+
     match /ads/{adId} {
       allow read: if true;
       allow write: if isAdmin() || isSignedIn();
@@ -239,6 +257,11 @@ service cloud.firestore {
 
     match /{path=**}/partners/{partnerId} {
       allow read: if true;
+    }
+    
+    // Fallback para subcoleções não mapeadas de documentos públicos
+    match /{path=**}/viewers/{userId} {
+      allow create: if true;
     }
   }
 }
