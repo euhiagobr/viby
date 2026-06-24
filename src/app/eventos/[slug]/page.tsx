@@ -3,7 +3,7 @@ import { permanentRedirect, notFound } from 'next/navigation';
 
 /**
  * @fileOverview Redirecionador Permanente (301).
- * Migra tráfego de /eventos/[slug] para o novo canônico /[username]/[slug].
+ * Migra tráfego de /eventos/[slug] ou /eventos/[id] para o novo canônico /[username]/[slug].
  * Bloqueia eventos excluídos ou ocultos.
  */
 

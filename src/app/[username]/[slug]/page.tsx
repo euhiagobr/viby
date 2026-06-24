@@ -7,6 +7,7 @@ import { notFound, redirect } from 'next/navigation';
 /**
  * @fileOverview Rota Canônica Unificada: /[username]/[slug]
  * Resolve o evento verificando o vínculo com o username da organização e o status.
+ * Implementa REDIRECIONAMENTO AUTOMÁTICO para o formato canônico se acessado via ID.
  * FILTRO CENTRAL: Apenas status 'Ativo' é acessível publicamente.
  */
 
@@ -37,7 +38,7 @@ function stripHtml(text: string): string {
 }
 
 async function getEventData(usernameParam: string, slugParam: string) {
-  const rawUsername = decodeURIComponent(usernameParam).trim();
+  const rawUsername = decodeURIComponent(usernameParam).trim().toLowerCase();
   const rawSlugOrId = decodeURIComponent(slugParam).trim();
   
   try {
@@ -81,18 +82,16 @@ async function getEventData(usernameParam: string, slugParam: string) {
     }
 
     const canonicalSlug = eventDoc.slug || eventDoc.id;
-    const urlUsernameLower = rawUsername.toLowerCase();
+    const targetUsername = actualUsername || 'evento';
     
-    const isCorrectUsername = actualUsername === urlUsernameLower || orgId === rawUsername;
-    const isCanonicalSlug = rawSlugOrId === canonicalSlug;
+    // REGRA DE REDIRECIONAMENTO CANÔNICO
+    // Se o username no URL for diferente do canônico (ou for o ID)
+    // OU se o slug no URL for diferente do canônico (ou for o ID)
+    const isCorrectUsername = rawUsername === targetUsername;
+    const isCorrectSlug = rawSlugOrId === canonicalSlug;
 
-    if (!isCorrectUsername || !isCanonicalSlug) {
-      const targetUsername = actualUsername || (orgId === rawUsername ? rawUsername : 'evento');
-      const redirectUrl = `/${targetUsername}/${canonicalSlug}`;
-      
-      if (decodeURIComponent(redirectUrl) !== `/${rawUsername}/${rawSlugOrId}`) {
-        return { redirect: redirectUrl };
-      }
+    if (!isCorrectUsername || !isCorrectSlug) {
+      return { redirect: `/${targetUsername}/${canonicalSlug}` };
     }
 
     if (eventDoc.isRecurring) {
