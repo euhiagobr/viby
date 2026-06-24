@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -7,8 +6,29 @@ import { slugify } from '@/lib/slug-utils';
 import { normalizeEventDates } from '@/lib/utils';
 import { slugifyLocation, buildRegionParam } from '@/lib/city-utils';
 import { revalidatePath } from 'next/cache';
-import { generateAndPersistCityCover } from './city-pages';
-import { recordAuditLog } from './audit';
+
+/**
+ * Utilitário para converter objetos complexos (Timestamps) em tipos primitivos
+ * para tráfego seguro entre Server e Client Components.
+ */
+function serializeData(data: any): any {
+  if (data === null || data === undefined) return null;
+  if (typeof data.toDate === 'function') return data.toDate().toISOString();
+  if (data instanceof Date) return data.toISOString();
+  if (Array.isArray(data)) return data.map(item => serializeData(item));
+  if (typeof data === 'object') {
+    const proto = Object.getPrototypeOf(data);
+    if (proto !== null && proto !== Object.prototype) return String(data);
+    const serialized: any = {};
+    for (const key in data) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        serialized[key] = serializeData(data[key]);
+      }
+    }
+    return serialized;
+  }
+  return data;
+}
 
 /**
  * Busca um rascunho ativo para o usuário ou cria um novo se não existir.
@@ -24,7 +44,7 @@ export async function getOrCreateDraftAction(userId: string, orgId: string) {
 
     if (!draftQuery.empty) {
       const draft = draftQuery.docs[0];
-      return { success: true, id: draft.id, ...draft.data() };
+      return serializeData({ success: true, id: draft.id, ...draft.data() });
     }
 
     // Criar novo rascunho
@@ -46,7 +66,7 @@ export async function getOrCreateDraftAction(userId: string, orgId: string) {
     };
 
     await newDraftRef.set(initialData);
-    return { success: true, ...initialData };
+    return serializeData({ success: true, ...initialData });
   } catch (e: any) {
     return { success: false, error: e.message };
   }
@@ -81,7 +101,6 @@ export async function publishEventAction(eventId: string, finalData: any) {
     if (!eventSnap.exists) throw new Error("Rascunho não encontrado.");
     
     const { data: draftData } = eventSnap.data() as any;
-    const orgId = eventSnap.data()?.organizationId;
 
     // Normalização para compatibilidade com sistema atual
     const title = finalData.title || draftData.title;
@@ -96,7 +115,7 @@ export async function publishEventAction(eventId: string, finalData: any) {
 
     const updatePayload = {
       ...finalData,
-      status: 'published', // Transição de estado
+      status: 'Ativo', // Transição de estado para o status oficial da plataforma
       slug: baseSlug,
       citySlug,
       regionSlug,
@@ -112,7 +131,108 @@ export async function publishEventAction(eventId: string, finalData: any) {
   }
 }
 
-// Mantendo funções legadas para compatibilidade de edição direta
+/**
+ * Utilitário de manutenção para popular slugs de localização em eventos antigos.
+ */
+export async function backfillEventLocationSlugsAction() {
+  const db = getAdminDb();
+  try {
+    const snap = await db.collection('events').where('status', '==', 'Ativo').get();
+    const batch = db.batch();
+    let count = 0;
+
+    snap.forEach(docSnap => {
+      const data = docSnap.data();
+      if (!data.citySlug || !data.regionSlug) {
+        const city = data.city || data.address?.city || "";
+        const state = data.state || data.address?.stateRegion || "";
+        const countryCode = (data.countryCode || data.address?.countryCode || "br").toLowerCase();
+        
+        const citySlug = slugifyLocation(city);
+        const regionSlug = buildRegionParam(countryCode, state);
+        
+        batch.update(docSnap.ref, { citySlug, regionSlug });
+        count++;
+      }
+    });
+
+    if (count > 0) await batch.commit();
+    return { success: true, count };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Atualiza o slug de um evento manualmente.
+ */
+export async function updateEventSlugAction(params: { eventId: string, orgId: string, manualSlug: string }) {
+  const db = getAdminDb();
+  try {
+    const slug = slugify(params.manualSlug);
+    const eventRef = db.collection('events').doc(params.eventId);
+    
+    await eventRef.update({ 
+      slug, 
+      updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+    });
+    
+    return { success: true, slug };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Transfere a propriedade de um evento para outra organização.
+ */
+export async function transferEventAction(params: { eventId: string, targetOrgUsername: string, adminUid: string, adminName: string }) {
+  const db = getAdminDb();
+  try {
+    const orgSnap = await db.collection('organizations').where('username', '==', params.targetOrgUsername).limit(1).get();
+    if (orgSnap.empty) throw new Error("Organização destino não encontrada.");
+    
+    const targetOrg = orgSnap.docs[0].data();
+    const eventRef = db.collection('events').doc(params.eventId);
+    const oldSnap = await eventRef.get();
+    const oldData = oldSnap.data()!;
+
+    const batch = db.batch();
+    
+    batch.update(eventRef, {
+      organizationId: targetOrg.id,
+      organizerId: targetOrg.ownerId,
+      organizer: {
+        id: targetOrg.id,
+        name: targetOrg.name,
+        username: targetOrg.username,
+        avatar: targetOrg.avatar || ""
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    const logRef = db.collection('event_transfer_audit').doc();
+    batch.set(logRef, {
+      eventId: params.eventId,
+      eventName: oldData.title,
+      oldOrganizationId: oldData.organizationId,
+      oldOrganizationName: oldData.organizer?.name || "N/A",
+      oldOrganizationUsername: oldData.organizer?.username || "N/A",
+      newOrganizationId: targetOrg.id,
+      newOrganizationName: targetOrg.name,
+      newOrganizationUsername: targetOrg.username,
+      adminUid: params.adminUid,
+      adminName: params.adminName,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    await batch.commit();
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 export async function updateEventAction(params: {
   eventId: string;
   orgId: string;
@@ -135,7 +255,7 @@ export async function updateEventAction(params: {
     
     const updatePayload = {
       ...eventData,
-      status: oldData.status === 'draft' ? 'published' : oldData.status,
+      status: oldData.status === 'draft' ? 'Ativo' : oldData.status,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
@@ -143,7 +263,7 @@ export async function updateEventAction(params: {
     await batch.commit();
     
     revalidatePath('/');
-    return { success: true, slug, username: oldData.organizer?.username };
+    return serializeData({ success: true, slug, username: oldData.organizer?.username });
   } catch (e: any) {
     return { success: false, error: e.message };
   }
