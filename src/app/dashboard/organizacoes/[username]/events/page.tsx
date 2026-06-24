@@ -56,7 +56,7 @@ import { format, startOfToday, addDays } from "date-fns";
 import { EventCard } from '@/components/events/EventCard';
 
 export default function OrganizationEventsPage() {
-  const { currentOrg, userRole } = useCurrentOrganization();
+  const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization();
   const db = useFirestore();
   const [search, setSearch] = React.useState("");
   const [eventToDelete, setEventToDelete] = React.useState<{id: string, title: string} | null>(null);
@@ -175,7 +175,6 @@ export default function OrganizationEventsPage() {
   }, [rawEvents, allOccurrences, search, now]);
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
-  const canCheckIn = ['owner', 'admin', 'editor', 'checkin'].includes(userRole || '');
 
   const confirmDelete = async () => {
     if (!db || !eventToDelete) return;
