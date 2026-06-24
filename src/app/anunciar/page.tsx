@@ -2,6 +2,8 @@ import * as React from "react"
 import { Metadata } from "next"
 import OrganizerLandingPage from "./OrganizerLandingPage"
 
+const VIBY_CAPA = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
+
 export const metadata: Metadata = {
   title: 'Venda Ingressos e Divulgue seu Evento | Viby para Produtores',
   description: 'A plataforma completa para organizadores de eventos. Venda ingressos online, gerencie participantes com QR Code e alcance milhares de pessoas na rede Viby.',
@@ -14,13 +16,13 @@ export const metadata: Metadata = {
     siteName: 'Viby',
     type: 'website',
     locale: 'pt_BR',
-    images: [{ url: 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417', width: 1200, height: 630 }]
+    images: [{ url: VIBY_CAPA, width: 1200, height: 630 }]
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Venda Ingressos na Viby',
     description: 'Transforme sua produção com a melhor tecnologia de bilheteria e alcance do Brasil.',
-    images: ['https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417']
+    images: [VIBY_CAPA]
   }
 }
 

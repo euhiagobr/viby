@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import { Metadata } from "next"
 import CopaMundoClient from "./CopaMundoClient"
@@ -34,8 +33,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Copa do Mundo 2026 na Viby",
-    description: "Descubra os melhores locais para torcer pelo Brasil.",
+    title: "Qual a sua Viby na Copa? | Viby Brasil",
+    description: "Saiba onde assistir aos jogos do Brasil e viva a emoção da Copa 2026.",
     images: [COPA_OG_IMAGE]
   }
 };

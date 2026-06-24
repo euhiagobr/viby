@@ -11,6 +11,7 @@ import { notFound, redirect } from 'next/navigation';
  */
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
+const VIBY_DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
@@ -73,7 +74,7 @@ async function getEventData(usernameParam: string, slugParam: string) {
       if (orgId === VIBY_OFFICIAL_UID) {
         actualUsername = "viby";
       } else if (orgId) {
-        const orgSnap = await db.collection("organizations").doc(orgId).get();
+        const orgSnap = await db.collection('organizations').doc(orgId).get();
         if (orgSnap.exists) {
           actualUsername = orgSnap.data()?.username?.toLowerCase() || orgSnap.id;
         }
@@ -125,7 +126,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 
   const title = `${event.title} | Viby`;
   const description = stripHtml(event.description || "").substring(0, 160) || `Confira ${event.title} na Viby.`;
-  const image = event.image || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
+  const image = event.image || VIBY_DEFAULT_EVENT_IMAGE;
   const url = `https://viby.club/${username}/${slug}`;
 
   return {

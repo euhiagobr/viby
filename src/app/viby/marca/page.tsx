@@ -2,7 +2,9 @@ import * as React from 'react';
 import { Metadata } from 'next';
 import BrandAssetsClient from './BrandAssetsClient';
 import { PublicHeader } from '@/components/layout/PublicHeader';
-import { Footer } from '@/components/layout/Footer';
+import Footer from '@/components/layout/Footer';
+
+const VIBY_CAPA = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
 
 export const metadata: Metadata = {
   title: 'Media Kit Oficial | Logotipos e Identidade Visual Viby',
@@ -17,7 +19,7 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'pt_BR',
     images: [{ 
-      url: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417",
+      url: VIBY_CAPA,
       width: 1200,
       height: 630,
       alt: "Media Kit Oficial Viby"
@@ -27,7 +29,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Viby Media Kit | Guia de Marca',
     description: 'Baixe os ativos oficiais da Viby para sua produção.',
-    images: ["https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417"]
+    images: [VIBY_CAPA]
   }
 };
 

@@ -7,6 +7,8 @@ import Footer from '@/components/layout/Footer';
 import { getAdminDb } from "@/lib/firebase/admin"
 import * as admin from 'firebase-admin';
 
+const JUNINA_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fjunnina.jpeg?alt=media&token=be078e49-c9ff-479d-b769-3a99edce440b";
+
 export const metadata: Metadata = {
   title: "Qual a sua Viby no Arraiá? | Viby Brasil",
   description:
@@ -24,7 +26,7 @@ export const metadata: Metadata = {
     locale: "pt_BR",
     images: [
       {
-        url: "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fjunnina.jpeg?alt=media&token=be078e49-c9ff-479d-b769-3a99edce440b",
+        url: JUNINA_OG_IMAGE,
         width: 1200,
         height: 630,
         alt: "Qual a sua Viby no Arraiá?"
@@ -36,9 +38,7 @@ export const metadata: Metadata = {
     title: "Qual a sua Viby no Arraiá?",
     description:
       "Encontre os melhores arraiás e quermesses. Viva a tradição junina perto de você com a Viby.",
-    images: [
-      "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fjunnina.jpeg?alt=media&token=be078e49-c9ff-479d-b769-3a99edce440b"
-    ]
+    images: [JUNINA_OG_IMAGE]
   }
 };
 

@@ -16,7 +16,7 @@ const RESERVED_ROUTES = [
   'experiencias-lgbtqiapn', 'copa-do-mundo', 'o-que-fazer-em', 'evento', 'eventos'
 ];
 
-const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
+const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
 
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
