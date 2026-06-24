@@ -2,10 +2,10 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
-import { collection, query, orderBy, serverTimestamp, doc, getDoc, getDocs, where, limit } from "firebase/firestore"
+import { collection, query, orderBy, serverTimestamp, doc, getDocs, where, limit } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -55,13 +55,13 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import useSWR from 'swr'
 import { fetcher, WC_ENDPOINTS } from '@/lib/services/worldCupService'
 
-const DEFAULT_EVENT_IMAGE = "https://picsum.photos/seed/event/1200/800";
+const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 export default function NovoEventoWizard() {
   const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
-  const { user, profile } = useUser(auth)
+  const { user, profile, loading: authLoading, isInitialized } = useUser(auth)
   const app = useFirebaseApp()
   const { currentOrg } = useCurrentOrganization()
   const { currency: dashboardCurrency } = useCurrency();
@@ -110,9 +110,23 @@ export default function NovoEventoWizard() {
   const { data: categories } = useCollection<any>(categoriesQuery)
   const { data: wcMatchesData } = useSWR<any>(WC_ENDPOINTS.matches, fetcher);
 
+  const availableTeams = React.useMemo(() => {
+    if (!wcMatchesData?.matches) return [];
+    const teams = new Map();
+    wcMatchesData.matches.forEach((m: any) => {
+      if (m.homeTeam && m.homeTeam.id) teams.set(m.homeTeam.id, { id: m.homeTeam.id, name: m.homeTeam.name || m.homeTeam.shortName || 'TBD', flag: m.homeTeam.crest });
+      if (m.awayTeam && m.awayTeam.id) teams.set(m.awayTeam.id, { id: m.awayTeam.id, name: m.awayTeam.name || m.awayTeam.shortName || 'TBD', flag: m.awayTeam.crest });
+    });
+    return Array.from(teams.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [wcMatchesData]);
+
+  const [matchSelection, setMatchSelection] = useState({ teamA: "", teamB: "" });
+
+  const showWcSection = formData?.tags.includes('copa') && formData?.tags.includes('temjogo');
+
   // Recuperação do Rascunho
   useEffect(() => {
-    if (!user || !currentOrg) return;
+    if (!isInitialized || authLoading || !user || !currentOrg) return;
 
     const initDraft = async () => {
       const res = await getOrCreateDraftAction(user.uid, currentOrg.id);
@@ -128,7 +142,7 @@ export default function NovoEventoWizard() {
     };
 
     initDraft();
-  }, [user, currentOrg]);
+  }, [user, currentOrg, isInitialized, authLoading]);
 
   // Auto-Save com Debounce
   useEffect(() => {
@@ -215,7 +229,7 @@ export default function NovoEventoWizard() {
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
       const finalPayload = {
         ...formData,
-        organizer: { id: currentOrg.id, name: currentOrg.name, username: currentOrg.username, avatar: currentOrg.avatar || "" },
+        organizationId: currentOrg.id,
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
         capacidadeTotal: sessions.reduce((acc, s) => acc + (s.capacity || 0), 0),
@@ -249,12 +263,43 @@ export default function NovoEventoWizard() {
       });
 
       toast({ title: "Evento Publicado!", description: "Seu rascunho agora está no ar." });
-      router.push(`/${currentOrg.username}/${result.slug}`);
+      
+      // REDIRECIONAMENTO CANÔNICO: /{username}/{slug}
+      router.push(`/${result.username}/${result.slug}`);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro na publicação", description: error.message });
       setPublishing(false);
     }
   }
+
+  const handleAddMatch = () => {
+    const { teamA, teamB } = matchSelection;
+    if (!teamA || !teamB || teamA === teamB) return;
+
+    const match = wcMatchesData.matches.find((m: any) => 
+      (m.homeTeam?.id?.toString() === teamA && m.awayTeam?.id?.toString() === teamB) ||
+      (m.homeTeam?.id?.toString() === teamB && m.awayTeam?.id?.toString() === teamA)
+    );
+
+    if (!match) {
+      toast({ variant: "destructive", title: "Partida não encontrada" });
+      return;
+    }
+
+    const newMatch = {
+      matchId: match.id.toString(),
+      teamA: match.homeTeam.id.toString(),
+      teamB: match.awayTeam.id.toString(),
+      teamAName: match.homeTeam.name,
+      teamBName: match.awayTeam.name,
+      teamAFlag: match.homeTeam.crest,
+      teamBFlag: match.awayTeam.crest,
+      kickoffAt: match.utcDate
+    };
+
+    setFormData(prev => ({ ...prev, matches: [...(prev.matches || []), newMatch] }));
+    setMatchSelection({ teamA: "", teamB: "" });
+  };
 
   if (loading) return <div className="flex justify-center py-32"><Loader2 className="animate-spin text-secondary w-12 h-12" /></div>
 
@@ -325,6 +370,67 @@ export default function NovoEventoWizard() {
               </div>
               <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
               <EventTags tags={formData.tags} onChange={v => setFormData({...formData, tags: v})} />
+
+              {showWcSection && (
+                <div className="space-y-6 pt-6 border-t border-dashed border-secondary/20 animate-in zoom-in-95">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-[#ffdf00]/10 rounded-lg text-[#002776]"><Trophy className="w-6 h-6" /></div>
+                    <div>
+                      <h3 className="text-xl font-black italic uppercase tracking-tighter text-primary">Jogos transmitidos</h3>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Base oficial da Copa</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                    <div className="md:col-span-5 space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-40">Seleção 1</Label>
+                      <Select value={matchSelection.teamA} onValueChange={v => setMatchSelection({...matchSelection, teamA: v})}>
+                        <SelectTrigger className="h-12 rounded-xl"><SelectValue placeholder="Time 1" /></SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {availableTeams.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name.toUpperCase()}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="md:col-span-1 flex justify-center pb-3 opacity-20"><X className="w-4 h-4" /></div>
+                    <div className="md:col-span-5 space-y-2">
+                      <Label className="text-[10px] font-black uppercase opacity-40">Seleção 2</Label>
+                      <Select value={matchSelection.teamB} onValueChange={v => setMatchSelection({...matchSelection, teamB: v})}>
+                        <SelectTrigger className="h-12 rounded-xl"><SelectValue placeholder="Time 2" /></SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {availableTeams.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name.toUpperCase()}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="md:col-span-1">
+                      <Button type="button" onClick={handleAddMatch} className="h-12 w-full bg-[#009c3b] text-white rounded-xl shadow-lg"><Plus className="w-5 h-5" /></Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {(formData.matches || []).length === 0 ? (
+                      <div className="py-10 text-center border-2 border-dashed rounded-3xl opacity-20 italic">Nenhum jogo vinculado</div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {formData.matches.map((m: any, i: number) => (
+                          <div key={i} className="p-4 bg-muted/20 rounded-2xl border flex items-center justify-between group">
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center -space-x-1.5">
+                                <img src={m.teamAFlag} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
+                                <img src={m.teamBFlag} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-black uppercase italic text-primary truncate max-w-[150px]">{m.teamAName} × {m.teamBName}</p>
+                                <p className="text-[8px] font-bold text-muted-foreground uppercase">{new Date(m.kickoffAt).toLocaleDateString('pt-BR')} às {new Date(m.kickoffAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                              </div>
+                            </div>
+                            <button type="button" onClick={() => setFormData((prev: any) => ({ ...prev, matches: prev.matches.filter((_: any, idx: number) => idx !== i) }))} className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
            </Card>
            <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
            <Button onClick={handleNextStep} className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Próximo Passo <ChevronRight className="w-5 h-5" /></Button>

@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -90,7 +91,7 @@ export async function saveDraftAction(eventId: string, step: number, data: any) 
 }
 
 /**
- * Publica um evento a partir de um rascunho, eliminando a estrutura de draft e movendo dados para a raiz.
+ * Publica um evento a partir de um rascunho, movendo dados para a raiz e definindo o slug canônico.
  */
 export async function publishEventAction(eventId: string, finalData: any) {
   const db = getAdminDb();
@@ -100,35 +101,44 @@ export async function publishEventAction(eventId: string, finalData: any) {
     
     if (!eventSnap.exists) throw new Error("Rascunho não encontrado.");
     
-    const draftData = eventSnap.data()?.data || {};
+    const draftData = eventSnap.data() || {};
+    const orgId = finalData.organizationId || draftData.organizationId;
+    
+    // Buscar dados reais da organização para garantir o username na URL
+    const orgSnap = await db.collection('organizations').doc(orgId).get();
+    const org = orgSnap.exists ? orgSnap.data() : null;
 
-    const title = finalData.title || draftData.title || "";
+    const title = finalData.title || "";
     const baseSlug = slugify(title);
     
-    const city = finalData.city || finalData.address?.city || draftData.address?.city || "";
-    const location = finalData.location || finalData.address?.neighborhood || finalData.address?.venueName || draftData.address?.neighborhood || "";
-    const state = finalData.address?.stateRegion || draftData.address?.stateRegion || "";
-    const countryCode = (finalData.address?.countryCode || draftData.address?.countryCode || "br").toLowerCase();
+    const city = finalData.city || finalData.address?.city || "";
+    const state = finalData.address?.stateRegion || "";
+    const countryCode = (finalData.address?.countryCode || "br").toLowerCase();
     
     const citySlug = slugifyLocation(city);
     const regionSlug = buildRegionParam(countryCode, state);
 
-    // Normalização de Data: Converter String ISO para Timestamp
-    const startStr = finalData.startDate || finalData.date || draftData.startDate || draftData.date || null;
+    const startStr = finalData.startDate || finalData.date || null;
     const eventDate = startStr ? admin.firestore.Timestamp.fromDate(new Date(startStr)) : null;
 
     const updatePayload: any = {
       ...finalData,
+      organizationId: orgId,
+      organizer: {
+        id: orgId,
+        name: org?.name || "Organizador",
+        username: org?.username || "evento",
+        avatar: org?.avatar || ""
+      },
       title,
       city,
-      location,
       date: eventDate, 
-      status: 'Ativo', // Voltou a ser Ativo para compatibilidade
+      status: 'Ativo',
       slug: baseSlug,
       citySlug,
       regionSlug,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      // Eliminação total da estrutura de rascunho no documento publicado
+      // Limpeza de rascunho
       data: admin.firestore.FieldValue.delete(),
       step: admin.firestore.FieldValue.delete()
     };
@@ -136,15 +146,65 @@ export async function publishEventAction(eventId: string, finalData: any) {
     await eventRef.update(updatePayload);
     
     revalidatePath('/');
-    return { success: true, id: eventId, slug: baseSlug };
+    return { 
+      success: true, 
+      id: eventId, 
+      slug: baseSlug, 
+      username: org?.username || 'evento' 
+    };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
 }
 
 /**
- * Utilitário de manutenção para popular slugs de localização em eventos.
+ * Atualiza um evento existente.
  */
+export async function updateEventAction(params: {
+  eventId: string;
+  orgId: string;
+  eventData: any;
+}) {
+  const db = getAdminDb();
+  try {
+    const { eventId, orgId, eventData } = params;
+    
+    const orgSnap = await db.collection('organizations').doc(orgId).get();
+    const org = orgSnap.exists ? orgSnap.data() : null;
+
+    const eventRef = db.collection('events').doc(eventId);
+    const eventSnap = await eventRef.get();
+    if (!eventSnap.exists) throw new Error("Evento não localizado.");
+
+    const oldData = eventSnap.data()!;
+    let slug = eventData.slug || oldData.slug || slugify(eventData.title);
+    
+    const startStr = eventData.startDate || eventData.date;
+    const eventDate = startStr ? admin.firestore.Timestamp.fromDate(new Date(startStr)) : null;
+
+    const updatePayload = {
+      ...eventData,
+      organizer: {
+        id: orgId,
+        name: org?.name || oldData.organizer?.name,
+        username: org?.username || oldData.organizer?.username,
+        avatar: org?.avatar || oldData.organizer?.avatar
+      },
+      date: eventDate, 
+      status: 'Ativo',
+      slug,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await eventRef.update(updatePayload);
+    
+    revalidatePath('/');
+    return serializeData({ success: true, slug, username: org?.username || oldData.organizer?.username });
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 export async function backfillEventLocationSlugsAction() {
   const db = getAdminDb();
   try {
@@ -174,9 +234,6 @@ export async function backfillEventLocationSlugsAction() {
   }
 }
 
-/**
- * Atualiza o slug de um evento manualmente.
- */
 export async function updateEventSlugAction(params: { eventId: string, orgId: string, manualSlug: string }) {
   const db = getAdminDb();
   try {
@@ -194,9 +251,6 @@ export async function updateEventSlugAction(params: { eventId: string, orgId: st
   }
 }
 
-/**
- * Transfere a propriedade de um evento para outra organização.
- */
 export async function transferEventAction(params: { eventId: string, targetOrgUsername: string, adminUid: string, adminName: string }) {
   const db = getAdminDb();
   try {
@@ -239,46 +293,6 @@ export async function transferEventAction(params: { eventId: string, targetOrgUs
 
     await batch.commit();
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-export async function updateEventAction(params: {
-  eventId: string;
-  orgId: string;
-  eventData: any;
-}) {
-  const db = getAdminDb();
-  const batch = db.batch();
-
-  try {
-    const { eventId, orgId, eventData } = params;
-    const dateNormalization = normalizeEventDates(eventData.startDate || eventData.date, eventData.endDate);
-    if (!dateNormalization.isValid) throw new Error(dateNormalization.error);
-
-    const eventRef = db.collection('events').doc(eventId);
-    const eventSnap = await eventRef.get();
-    if (!eventSnap.exists) throw new Error("Evento não localizado.");
-
-    const oldData = eventSnap.data()!;
-    let slug = oldData.slug;
-    
-    const startStr = eventData.startDate || eventData.date;
-    const eventDate = startStr ? admin.firestore.Timestamp.fromDate(new Date(startStr)) : null;
-
-    const updatePayload = {
-      ...eventData,
-      date: eventDate, 
-      status: 'Ativo',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    };
-
-    batch.update(eventRef, updatePayload);
-    await batch.commit();
-    
-    revalidatePath('/');
-    return serializeData({ success: true, slug, username: oldData.organizer?.username });
   } catch (e: any) {
     return { success: false, error: e.message };
   }
