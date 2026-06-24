@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -8,7 +7,7 @@ import { notFound, redirect } from 'next/navigation';
 /**
  * @fileOverview Rota Canônica Unificada: /[username]/[slug]
  * Resolve o evento verificando o vínculo com o username da organização e o status.
- * FILTRO CENTRAL: Apenas status 'published' é acessível publicamente.
+ * FILTRO CENTRAL: Apenas status 'Ativo' é acessível publicamente.
  */
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -49,7 +48,7 @@ async function getEventData(usernameParam: string, slugParam: string) {
     const slugLower = rawSlugOrId.toLowerCase();
     const queryBySlug = await db.collection("events")
       .where("slug", "==", slugLower)
-      .where("status", "==", "published")
+      .where("status", "==", "Ativo")
       .limit(1).get();
     
     if (!queryBySlug.empty) {
@@ -57,7 +56,7 @@ async function getEventData(usernameParam: string, slugParam: string) {
     } else {
       // 2. Fallback: Buscar por ID direto
       const eventByIdSnap = await db.collection("events").doc(rawSlugOrId).get();
-      if (eventByIdSnap.exists && eventByIdSnap.data()?.status === "published") {
+      if (eventByIdSnap.exists && eventByIdSnap.data()?.status === "Ativo") {
         eventDoc = { id: eventByIdSnap.id, ...eventByIdSnap.data() };
       }
     }

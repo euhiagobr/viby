@@ -97,12 +97,12 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
     if (!db || isFetching) return
     setIsFetching(true)
     try {
-      // FILTRO CENTRAL: published
+      // FILTRO CENTRAL: Ativo
       let q;
       if (isInitial) {
         q = query(
           collection(db, "events"),
-          where("status", "==", "published"),
+          where("status", "==", "Ativo"),
           where("tags", "array-contains-any", COPA_TAGS),
           limit(30)
         );
@@ -110,7 +110,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
         const cursor = lastVisible;
         q = query(
           collection(db, "events"),
-          where("status", "==", "published"),
+          where("status", "==", "Ativo"),
           where("tags", "array-contains-any", COPA_TAGS),
           ...(cursor ? [startAfter(cursor)] : []),
           limit(12)
@@ -269,7 +269,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
               SAIBA ONDE ASSISTIR À <span className="text-[#009c3b]">COPA</span> DO <span className="text-[#ffdf00]">MUNDO</span>
             </h1>
             <p className="text-lg md:text-2xl font-medium opacity-80 max-w-2xl mx-auto leading-relaxed">
-              Encontre bares, festas, telões, restaurantes e eventos transmitindo os jogos da Copa do Mundo perto de você.
+              Encontre bares, festas, telões, restaurantes e eventos transmitindo os jogos da Copa do Mundo para você.
             </p>
 
             <Card className="bg-white/10 backdrop-blur-2xl border-white/10 rounded-[3rem] p-6 md:p-8 shadow-2xl mt-12 w-full text-left">

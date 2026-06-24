@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import { Metadata } from "next"
 import { getAdminDb } from "@/lib/firebase/admin"

@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import { Metadata } from "next"
 import FestaJuninaClient from "./FestaJuninaClient"
@@ -64,7 +63,7 @@ async function getJuninaEvents() {
   try {
     const db = getAdminDb();
     const snap = await db.collection('events')
-      .where('status', '==', 'published')
+      .where('status', '==', 'Ativo')
       .where('tags', 'array-contains-any', JUNINA_TAGS)
       .limit(40)
       .get();

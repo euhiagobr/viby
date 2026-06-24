@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -7,7 +6,7 @@ import { collection, query, where, orderBy, limit, getDocs, startAfter, Document
 
 /**
  * Hook de busca de eventos para a Landing Page.
- * Filtro CENTRAL: Apenas status 'published' é visível publicamente.
+ * Filtro CENTRAL: Apenas status 'Ativo' é visível publicamente.
  */
 export function useLandingEvents(initialEvents: any[] = []) {
   const db = useFirestore();
@@ -28,7 +27,7 @@ export function useLandingEvents(initialEvents: any[] = []) {
       if (isInitial) {
         q = query(
           collection(db, "events"),
-          where("status", "==", "published"),
+          where("status", "==", "Ativo"),
           orderBy("date", "asc"),
           limit(fetchLimit)
         );
@@ -39,7 +38,7 @@ export function useLandingEvents(initialEvents: any[] = []) {
         
         q = query(
           collection(db, "events"),
-          where("status", "==", "published"),
+          where("status", "==", "Ativo"),
           orderBy("date", "asc"),
           ...(cursorValue ? [startAfter(cursorValue)] : []),
           limit(fetchLimit)

@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -431,7 +430,7 @@ function EventRow({
              event.status === 'Excluído' ? 'bg-red-500 text-white' :
              'bg-orange-500 text-white'
            )}>
-             {event.status || 'Pendente'}
+             {event.status || 'Ativo'}
            </Badge>
         </div>
       </div>

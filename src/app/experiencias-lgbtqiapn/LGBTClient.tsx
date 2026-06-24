@@ -60,7 +60,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
     if (!db || isFetching) return
     setIsFetching(true)
     try {
-      // FILTRO CENTRAL: published
+      // FILTRO CENTRAL: Ativo
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - 60);
 
@@ -68,7 +68,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
       if (isInitial) {
         q = query(
           collection(db, "events"), 
-          where("status", "==", "published"), 
+          where("status", "==", "Ativo"), 
           where("date", ">=", thresholdDate),
           orderBy("date", "asc"),
           limit(30)
@@ -77,7 +77,7 @@ export default function LGBTClient({ initialEvents = [] }: { initialEvents: any[
         const cursor = lastVisible || (rawEvents.length > 0 ? rawEvents[rawEvents.length - 1].date : null);
         q = query(
           collection(db, "events"), 
-          where("status", "==", "published"), 
+          where("status", "==", "Ativo"), 
           where("date", ">=", thresholdDate),
           orderBy("date", "asc"),
           startAfter(cursor),

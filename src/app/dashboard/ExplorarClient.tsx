@@ -111,10 +111,10 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
     
     setIsFetching(true)
     try {
-      // FILTRO CENTRAL: published
+      // FILTRO CENTRAL: Ativo
       const q = query(
         collection(db, "events"),
-        where("status", "==", "published"),
+        where("status", "==", "Ativo"),
         orderBy("date", "asc"),
         ...(isInitial ? [limit(9)] : [startAfter(lastVisible), limit(6)])
       )

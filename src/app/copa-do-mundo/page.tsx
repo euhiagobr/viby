@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import { Metadata } from "next"
 import CopaMundoClient from "./CopaMundoClient"
@@ -64,9 +63,9 @@ async function getCopaEvents() {
   try {
     const db = getAdminDb();
     
-    // FILTRO CENTRAL: Apenas status 'published'
+    // FILTRO CENTRAL: Apenas status 'Ativo'
     const snap = await db.collection('events')
-      .where('status', '==', 'published')
+      .where('status', '==', 'Ativo')
       .where('tags', 'array-contains-any', COPA_TAGS)
       .limit(40)
       .get();

@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -124,7 +123,7 @@ export async function publishEventAction(eventId: string, finalData: any) {
       city,
       location,
       date: eventDate, 
-      status: 'published',
+      status: 'Ativo', // Voltou a ser Ativo para compatibilidade
       slug: baseSlug,
       citySlug,
       regionSlug,
@@ -149,7 +148,7 @@ export async function publishEventAction(eventId: string, finalData: any) {
 export async function backfillEventLocationSlugsAction() {
   const db = getAdminDb();
   try {
-    const snap = await db.collection('events').where('status', '==', 'published').get();
+    const snap = await db.collection('events').where('status', '==', 'Ativo').get();
     const batch = db.batch();
     let count = 0;
 
@@ -271,7 +270,7 @@ export async function updateEventAction(params: {
     const updatePayload = {
       ...eventData,
       date: eventDate, 
-      status: 'published',
+      status: 'Ativo',
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
