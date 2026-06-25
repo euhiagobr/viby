@@ -1,0 +1,43 @@
+
+{
+  "audit_version": "1.0.0",
+  "status": "DESCRIPTIVE_FACTUAL",
+  "hierarquia_de_taxas": {
+    "ordem_de_precedencia": [
+      "1. configOrganizacao: campos customBuyerMarkup, customOrganizerPercent, customOrganizerMinFee em /organizations/{id}",
+      "2. settings/promotions: campanhas ativas para comprador e organizador em /settings/promotions",
+      "3. configGlobal: taxas padrao em /settings/fees",
+      "4. constants/hardcoded: fallbacks VIBY_BUYER_MARKUP (15%), VIBY_ORGANIZER_FEE (10%) e VIBY_MIN_FEE_BRL (3.99) em src/lib/financial-utils.ts"
+    ],
+    "resolucao_de_valores": "A funcao calculateVibyOfficialSplit executa a checagem sequencial. Se um valor de nivel superior e nulo ou indefinido, o sistema consome o nivel seguinte."
+  },
+  "stripe_connect_fluxo": {
+    "application_fee_amount": "Calculado por item como a soma de buyerFee (markup) + organizerFee (comissao retida). Multiplicado pela quantidade e convertido para centavos.",
+    "transfer_data": "O campo destination e preenchido com o stripeAccountId da organizacao proprietaria do evento.",
+    "distribuicao_financeira": {
+      "comprador_paga": "Preco de Face + Taxa de Servico (Buyer Fee)",
+      "organizador_recebe": "Preco de Face - Comissao (Organizer Fee)",
+      "plataforma_retem": "Taxa de Servico + Comissao (Application Fee)"
+    },
+    "protecao_de_repasse": "Implementada 'Low Price Protection'. Se Preco de Face < Taxa Aplicada, o Organizer Fee e zerado e a diferenca e somada ao Buyer Fee, garantindo que o organizador nunca tenha saldo negativo e a transacao seja valida no Stripe."
+  },
+  "taxa_comprador": {
+    "calculo": "Baseado na porcentagem de markup aplicada sobre o preco de face.",
+    "promocoes": "Aplicadas se buyerPromoActive for true e a data atual estiver dentro do intervalo configurado.",
+    "overrides": "Marcas podem definir markup customizado que anula regras globais e promocoes."
+  },
+  "taxa_organizador": {
+    "calculo": "Maior valor entre (Preco * Porcentagem) e Taxa Minima.",
+    "moedas": "A Taxa Minima e convertida de BRL para a moeda do evento (USD/EUR) utilizando as cotacoes salvas em settings/currency_rates no momento do calculo."
+  },
+  "fluxo_do_carrinho": {
+    "local_do_calculo": "Frontend (src/services/payments/pay-button-service.ts) antes da criacao da sessao.",
+    "persistencia": "Snapshot financeiro completo e salvo na colecao 'orders' no momento do checkout.",
+    "abatimento_de_saldo": "Saldos de carteira (BRL) sao subtraidos do valor unitario de cada item proporcionalmente antes do envio ao Stripe."
+  },
+  "consistencia_do_sistema": {
+    "unificacao": "Checkout, AdminImposto (Ledger) e Simulador utilizam a mesma funcao calculateVibyOfficialSplit.",
+    "ledger": "A colecao tax_tickets armazena os valores convertidos e fixados em BRL para auditoria fiscal imutavel.",
+    "webhook": "O processamento de fulfillment no stripe/route.ts utiliza os dados financeiros pre-calculados e salvos no documento da ordem."
+  }
+}
