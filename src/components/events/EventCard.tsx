@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag, RefreshCw } from "lucide-react"
+import { Calendar, MapPin, Clock, Navigation, Megaphone, BadgeCheck, Zap, ArrowRight, Tag, RefreshCw, Beer } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -20,7 +20,8 @@ import Link from "next/link"
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
 interface EventCardProps {
-  event: any 
+  event: any;
+  thematicTheme?: 'oktoberfest' | 'default';
 }
 
 /**
@@ -28,7 +29,7 @@ interface EventCardProps {
  * FONTE DE VERDADE: Consome exclusivamente campos da raiz do objeto event.
  * PROIBIDO: Usar event.data.*
  */
-export function EventCard({ event }: EventCardProps) {
+export function EventCard({ event, thematicTheme = 'default' }: EventCardProps) {
   const { userLocation, isSponsored } = event;
   const { formatPriceWithOriginal } = useCurrency()
   const { t, language } = useTranslation()
@@ -157,7 +158,6 @@ export function EventCard({ event }: EventCardProps) {
   const username = event.organizer?.username || 'evento';
   const canonicalPath = `/${username}/${eventSlug}`;
 
-  // Resolução de Localização Resiliente - Priorizando a Cidade conforme solicitado
   const locationLabel = event.city || event.address?.city || event.location || event.address?.venueName || "Local a definir";
 
   return (
@@ -166,10 +166,16 @@ export function EventCard({ event }: EventCardProps) {
       className={cn(
         "group flex flex-col h-full overflow-hidden border-none shadow-md bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-2xl cursor-pointer relative",
         isSponsored && "ring-1 ring-secondary/20",
+        thematicTheme === 'oktoberfest' && "ring-2 ring-[#0057B8]/30",
         isEnded && "opacity-60 grayscale"
       )}
     >
       <Card className="flex flex-col h-full border-none shadow-none bg-transparent">
+        {/* Adorno Bávaro para Oktoberfest */}
+        {thematicTheme === 'oktoberfest' && (
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-bavarian z-30 opacity-80" />
+        )}
+
         {isSponsored && !isEnded && (
           <div className="absolute top-0 right-0 z-20">
             <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1 shadow-lg">
@@ -201,8 +207,11 @@ export function EventCard({ event }: EventCardProps) {
           {!isEnded && (
             <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
               {displayCategory && (
-                <Badge className="bg-white/90 text-primary border-none shadow-md px-3 py-1.5 text-[9px] font-black uppercase flex items-center gap-1">
-                  <Tag className="w-2.5 h-2.5" /> {displayCategory}
+                <Badge className={cn(
+                  "bg-white/90 border-none shadow-md px-3 py-1.5 text-[9px] font-black uppercase flex items-center gap-1",
+                  thematicTheme === 'oktoberfest' ? "text-[#0057B8]" : "text-primary"
+                )}>
+                  {thematicTheme === 'oktoberfest' ? <Beer className="w-2.5 h-2.5" /> : <Tag className="w-2.5 h-2.5" />} {displayCategory}
                 </Badge>
               )}
               {distanceMeters !== null && (
@@ -214,10 +223,18 @@ export function EventCard({ event }: EventCardProps) {
           )}
         </div>
 
-        <CardContent className="p-5 flex flex-col flex-1 gap-4">
+        <CardContent className={cn(
+          "p-5 flex flex-col flex-1 gap-4",
+          thematicTheme === 'oktoberfest' && "bg-[#fdf6e3]/30"
+        )}>
           <div className="space-y-2">
             <div className="flex justify-between items-start gap-2">
-              <h3 className="text-lg font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors line-clamp-1 leading-tight">{event.title || t('event.untitled')}</h3>
+              <h3 className={cn(
+                "text-lg font-black uppercase italic tracking-tighter transition-colors line-clamp-1 leading-tight",
+                thematicTheme === 'oktoberfest' ? "text-[#0057B8] group-hover:text-[#facc15]" : "text-primary group-hover:text-secondary"
+              )}>
+                {event.title || t('event.untitled')}
+              </h3>
               <EventInterest event={event} showButton={false} variant="compact" />
             </div>
             <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{event.organizer?.name}</p>
@@ -248,7 +265,12 @@ export function EventCard({ event }: EventCardProps) {
              </div>
           </div>
 
-          <div className="w-full h-10 bg-primary text-white flex items-center justify-center font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md group-hover:bg-secondary shrink-0">
+          <div className={cn(
+            "w-full h-10 flex items-center justify-center font-black rounded-xl uppercase italic text-[10px] gap-2 shadow-md transition-colors shrink-0",
+            thematicTheme === 'oktoberfest' 
+              ? "bg-[#0057B8] text-white group-hover:bg-[#ea580c]" 
+              : "bg-primary text-white group-hover:bg-secondary"
+          )}>
              {isCuradoria ? "Ver Detalhes" : t('event.guarantee_presence')} <ArrowRight className="w-3.5 h-3.5" />
           </div>
         </CardContent>

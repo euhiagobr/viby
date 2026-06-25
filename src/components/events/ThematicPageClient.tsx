@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -21,7 +20,8 @@ import {
   Flame,
   Gift,
   Sparkles,
-  Music
+  Music,
+  Users
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -77,6 +77,7 @@ export default function ThematicPageClient({
   const [isFetching, setIsFetching] = React.useState(false)
 
   const IconComponent = ICON_MAP[config.iconName] || Sparkles;
+  const isOktoberfest = config.slug === 'oktoberfest';
 
   // Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
@@ -164,7 +165,7 @@ export default function ThematicPageClient({
           });
 
           if (nextValid) {
-            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+            effectiveDate = `${nextValid.date}T${nextValid.startTime || '19:00'}:00`;
           }
         }
       }
@@ -239,68 +240,136 @@ export default function ThematicPageClient({
       <PublicHeader showBack />
 
       {/* HERO */}
-      <section className={cn("relative min-h-[50vh] flex items-center justify-center overflow-hidden text-white", config.themeColor)}>
-        <div className="absolute inset-0 opacity-40 pointer-events-none">
+      <section className={cn(
+        "relative min-h-[65vh] flex items-center justify-center overflow-hidden text-white transition-all duration-700",
+        isOktoberfest ? "bg-[#0057B8]" : config.themeColor
+      )}>
+        {/* LUZES OKTOBERFEST */}
+        {isOktoberfest && (
+          <div className="absolute inset-0 z-20 pointer-events-none">
+             <div className="absolute top-10 left-1/4 w-3 h-3 bg-yellow-400 rounded-full blur-[2px] animate-twinkle" />
+             <div className="absolute top-24 left-1/2 w-4 h-4 bg-yellow-200 rounded-full blur-[3px] animate-twinkle [animation-delay:1s]" />
+             <div className="absolute top-16 right-1/3 w-3 h-3 bg-yellow-400 rounded-full blur-[2px] animate-twinkle [animation-delay:2s]" />
+          </div>
+        )}
+
+        <div className="absolute inset-0 opacity-50 pointer-events-none">
            <div 
              className="absolute inset-0 bg-cover bg-center" 
              style={{ backgroundImage: `url(${config.heroBg})` }}
              data-ai-hint={config.heroHint}
            />
-           <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/80" />
+           <div className={cn(
+             "absolute inset-0 bg-gradient-to-b from-black/70 via-black/30 to-black/80",
+             isOktoberfest && "from-[#0057B8]/40 via-transparent to-[#1c0d02]"
+           )} />
         </div>
+
         <div className="container mx-auto px-4 relative z-10 py-20 text-center">
-          <div className="max-w-4xl mx-auto space-y-6 flex flex-col items-center">
-            <Badge className="bg-white/20 backdrop-blur-md text-white border-none px-6 py-2 rounded-full font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
-              <IconComponent className="w-4 h-4" /> Viby Temático
+          <div className="max-w-4xl mx-auto space-y-8 flex flex-col items-center">
+            <Badge className={cn(
+              "backdrop-blur-md border-none px-6 py-2 rounded-full font-black uppercase text-xs tracking-widest flex items-center gap-2",
+              isOktoberfest ? "bg-[#facc15] text-[#0057B8] shadow-[#facc15]/20 shadow-xl" : "bg-white/20 text-white"
+            )}>
+              <IconComponent className="w-4 h-4 fill-current" /> Viby Temático
             </Badge>
-            <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter leading-[0.8] text-white drop-shadow-2xl">
-              {config.slug.replace('-', ' ').toUpperCase()} <br /> <span className="opacity-80">2026</span>
+            <h1 className={cn(
+              "text-6xl md:text-[10rem] font-black uppercase italic tracking-tighter leading-[0.8] drop-shadow-2xl",
+              isOktoberfest ? "text-white" : "text-white"
+            )}>
+              {config.title}
             </h1>
-            <p className="text-lg md:text-2xl font-medium opacity-90 max-w-2xl mx-auto leading-relaxed uppercase tracking-wide">
-              {config.description}
+            <p className="text-xl md:text-3xl font-medium opacity-95 max-w-2xl mx-auto leading-relaxed uppercase tracking-wide italic">
+              {config.intro}
             </p>
           </div>
         </div>
+
+        {/* BANDEIRINHAS BÁVARAS */}
+        {isOktoberfest && (
+          <div className="absolute bottom-0 left-0 w-full h-8 bg-bavarian opacity-40 z-10" />
+        )}
       </section>
 
-      {/* FEED */}
-      <section id="thematic-feed" className="py-20 container mx-auto px-4 flex-1">
-        <div className="max-w-3xl mb-16 space-y-4">
-           <h2 className={cn("text-3xl font-black uppercase italic tracking-tighter", config.accentColor)}>
-             {config.title}
-           </h2>
-           <p className="text-muted-foreground text-lg leading-relaxed font-medium">
-             {config.intro}
-           </p>
-        </div>
+      {/* SECTION: VIVA A TRADIÇÃO ALEMÃ (OKTOBERFEST ONLY) */}
+      {isOktoberfest && (
+        <section className="py-32 bg-white relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+              <Beer className="w-64 h-64 text-[#0057B8]" />
+           </div>
+           <div className="container mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+              <div className="space-y-10">
+                 <div className="space-y-4">
+                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-[#0057B8]">Cultura & Celebração</span>
+                    <h2 className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter text-primary leading-none">
+                      VIVA A <span className="text-[#0057B8]">TRADIÇÃO</span> ALEMÃ
+                    </h2>
+                 </div>
+                 <div className="space-y-6 text-lg md:text-xl text-muted-foreground font-medium leading-relaxed">
+                    <p>A Oktoberfest é muito mais que um festival; é a celebração da amizade (Gemütlichkeit), da gastronomia típica e do folclore que une gerações.</p>
+                    <p>Brinde com canecos de chope, saboreie o autêntico pretzel e dance ao som das bandas folclóricas em uma atmosfera vibrante e inesquecível.</p>
+                 </div>
+                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#facc15]/30 text-center shadow-sm hover:shadow-md transition-all">
+                       <Beer className="w-10 h-10 text-[#facc15] mx-auto mb-3" />
+                       <p className="text-[10px] font-black uppercase tracking-tight text-[#78350f]">Chope Gelado</p>
+                    </div>
+                    <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#facc15]/30 text-center shadow-sm hover:shadow-md transition-all">
+                       <Music className="w-10 h-10 text-[#0057B8] mx-auto mb-3" />
+                       <p className="text-[10px] font-black uppercase tracking-tight text-[#0057B8]">Bandas Típicas</p>
+                    </div>
+                    <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#facc15]/30 text-center shadow-sm hover:shadow-md transition-all">
+                       <Users className="w-10 h-10 text-[#ea580c] mx-auto mb-3" />
+                       <p className="text-[10px] font-black uppercase tracking-tight text-[#ea580c]">Confraternização</p>
+                    </div>
+                 </div>
+              </div>
+              <div className="relative group">
+                 <div className="absolute -inset-4 bg-[#0057B8]/10 rounded-[4rem] blur-2xl group-hover:bg-[#facc15]/10 transition-colors" />
+                 <div className="relative grid grid-cols-2 gap-4">
+                    <img src="https://picsum.photos/seed/pretzel/500/700" className="rounded-[3rem] shadow-2xl rotate-2" alt="Gastronomia" />
+                    <img src="https://picsum.photos/seed/beer-mug/500/700" className="rounded-[3rem] shadow-2xl -rotate-3 mt-12" alt="Canecos" />
+                 </div>
+              </div>
+           </div>
+        </section>
+      )}
 
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+      {/* FEED */}
+      <section id="thematic-feed" className="py-24 container mx-auto px-4 flex-1">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
           <div className="flex items-center gap-3 flex-wrap">
-             <div className="relative w-full sm:w-64">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 opacity-40" />
+             <div className="relative w-full sm:w-80">
+                <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4", isOktoberfest ? "text-[#0057B8]" : "opacity-40")} />
                 <Input 
-                  placeholder="Buscar evento..." 
-                  className="h-12 pl-12 rounded-2xl bg-white shadow-sm border-none"
+                  placeholder="Qual evento você busca?" 
+                  className={cn(
+                    "h-14 pl-12 rounded-2xl shadow-sm border-none text-sm font-bold uppercase",
+                    isOktoberfest ? "bg-[#fdf6e3] text-[#0057B8] placeholder:text-[#0057B8]/40" : "bg-white"
+                  )}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
              </div>
-             <div className="relative w-full sm:w-48">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 opacity-40" />
+             <div className="relative w-full sm:w-56">
+                <MapPin className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4", isOktoberfest ? "text-[#facc15]" : "opacity-40")} />
                 <Input 
                   placeholder="Cidade" 
-                  className="h-12 pl-12 rounded-2xl bg-white shadow-sm border-none"
+                  className={cn(
+                    "h-14 pl-12 rounded-2xl shadow-sm border-none text-sm font-bold uppercase",
+                    isOktoberfest ? "bg-[#fdf6e3] text-[#0057B8] placeholder:text-[#0057B8]/40" : "bg-white"
+                  )}
                   value={searchCity}
                   onChange={(e) => setSearchCity(e.target.value)}
                 />
              </div>
              
              <Select value={priceFilter} onValueChange={setPriceFilter}>
-                <SelectTrigger className="w-40 rounded-xl h-11 border-dashed bg-white">
-                   <Coins className="w-4 h-4 mr-2" />
+                <SelectTrigger className={cn("w-44 rounded-2xl h-14 border-none shadow-sm font-bold uppercase text-[10px]", isOktoberfest ? "bg-[#fdf6e3] text-[#0057B8]" : "bg-white")}>
+                   <Coins className={cn("w-4 h-4 mr-2", isOktoberfest ? "text-[#facc15]" : "")} />
                    <SelectValue placeholder="Preço" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-2xl border-none shadow-2xl">
                    <SelectItem value="all">Preço</SelectItem>
                    <SelectItem value="free">Gratuito</SelectItem>
                    <SelectItem value="20">Até R$ 20</SelectItem>
@@ -311,7 +380,7 @@ export default function ThematicPageClient({
 
              <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("rounded-xl h-11 border-dashed gap-2 font-bold text-xs uppercase bg-white", dateFilter !== 'all' && "bg-primary text-white border-primary")}>
+                  <Button variant="outline" className={cn("rounded-2xl h-14 border-none shadow-sm gap-2 font-black text-[10px] uppercase transition-all px-8", isOktoberfest ? "bg-[#fdf6e3] text-[#0057B8]" : "bg-white", dateFilter !== 'all' && "bg-primary text-white")}>
                     <CalendarIcon className="h-4 w-4" />
                     {dateFilter === 'today' ? 'Hoje' :
                      dateFilter === 'tomorrow' ? 'Amanhã' :
@@ -320,11 +389,11 @@ export default function ThematicPageClient({
                      'Quando?'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="end">
+                <PopoverContent className="w-auto p-0 rounded-[2rem] border-none shadow-2xl" align="end">
                   <div className="p-3 border-b grid grid-cols-3 gap-2">
-                      <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-primary text-white")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
-                      <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'tomorrow' && "bg-primary text-white")} onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
-                      <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'week' && "bg-primary text-white")} onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
+                      <Button variant="ghost" size="sm" className={cn("text-[9px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-primary text-white")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>Hoje</Button>
+                      <Button variant="ghost" size="sm" className={cn("text-[9px] font-black uppercase rounded-lg", dateFilter === 'tomorrow' && "bg-primary text-white")} onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>Amanhã</Button>
+                      <Button variant="ghost" size="sm" className={cn("text-[9px] font-black uppercase rounded-lg", dateFilter === 'week' && "bg-primary text-white")} onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>Semana</Button>
                   </div>
                   <Calendar
                     mode="single"
@@ -337,14 +406,14 @@ export default function ThematicPageClient({
              </Popover>
 
              {(search || searchCity || dateFilter !== 'all') && (
-               <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl text-destructive hover:bg-destructive/5" onClick={clearFilters}>
-                 <FilterX className="w-4 h-4" />
+               <Button variant="ghost" size="icon" className="h-14 w-14 rounded-2xl text-destructive hover:bg-destructive/5" onClick={clearFilters}>
+                 <FilterX className="w-5 h-5" />
                </Button>
              )}
           </div>
           
-          <div className="text-right">
-             <Badge variant="secondary" className="font-black h-8 px-4 rounded-xl uppercase text-[10px] tracking-widest">{processedEvents.length} eventos</Badge>
+          <div className="text-right flex flex-col items-end gap-2">
+             <Badge variant="secondary" className="font-black h-8 px-6 rounded-full uppercase text-[10px] tracking-widest bg-white shadow-sm border border-border/40">{processedEvents.length} Eventos</Badge>
           </div>
         </div>
 
@@ -354,11 +423,12 @@ export default function ThematicPageClient({
               <EventCard 
                 key={event.id} 
                 event={{ ...event, userLocation }} 
+                thematicTheme={isOktoberfest ? 'oktoberfest' : 'default'}
               />
             ))}
           </div>
         ) : (
-          <div className="py-32 text-center bg-white rounded-[4rem] border-2 border-dashed border-border shadow-inner flex flex-col items-center gap-6">
+          <div className="py-40 text-center bg-white rounded-[4rem] border-2 border-dashed border-border shadow-inner flex flex-col items-center gap-6">
             <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center opacity-20">
                <Inbox className="w-12 h-12" />
             </div>
@@ -366,20 +436,23 @@ export default function ThematicPageClient({
                <h3 className="text-2xl font-black uppercase italic text-primary">Ainda não encontramos eventos para este tema.</h3>
                <p className="text-muted-foreground font-medium uppercase text-xs tracking-widest">Mas estamos de olho nas próximas programações!</p>
             </div>
-            <Button variant="outline" onClick={clearFilters} className="rounded-2xl h-14 px-10 border-2 uppercase font-black italic">
-               Ver toda a agenda
+            <Button variant="outline" onClick={clearFilters} className="rounded-2xl h-14 px-10 border-2 uppercase font-black italic transition-all hover:scale-105 active:scale-95">
+               Limpar Busca
             </Button>
           </div>
         )}
 
         {hasMore && (
-           <div className="mt-20 flex justify-center">
+           <div className="mt-24 flex justify-center">
               <Button 
                 onClick={() => fetchMore(false)} 
                 disabled={isFetching}
-                className="h-14 px-12 bg-white text-primary font-black border-2 rounded-2xl hover:bg-muted transition-all"
+                className={cn(
+                  "h-16 px-16 font-black uppercase italic border-2 rounded-2xl shadow-xl transition-all",
+                  isOktoberfest ? "bg-[#0057B8] text-white border-none" : "bg-white text-primary"
+                )}
               >
-                {isFetching ? <Loader2 className="w-5 h-5 animate-spin" /> : "Carregar mais eventos"}
+                {isFetching ? <Loader2 className="w-5 h-5 animate-spin" /> : `Ver mais ${isOktoberfest ? 'Oktoberfests' : 'eventos'}`}
               </Button>
            </div>
         )}

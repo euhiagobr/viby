@@ -1,4 +1,3 @@
-
 import { PlaceHolderImages } from "./placeholder-images";
 
 /**
@@ -24,14 +23,14 @@ const getImg = (id: string) => PlaceHolderImages.find(img => img.id === id);
 export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
   oktoberfest: {
     slug: "oktoberfest",
-    title: "Oktoberfest: encontre festas, eventos e celebrações cervejeiras",
+    title: "OKTOBERFEST 2026",
     description: "Descubra festas de Oktoberfest, eventos temáticos, celebrações alemãs, festivais de cerveja, música e gastronomia em um só lugar.",
-    intro: "Procurando o melhor da cultura alemã? Explore a agenda completa de Oktoberfest e festivais de cerveja com muito chopp e tradição.",
-    tags: ["oktober", "oktoberfest", "cerveja", "chopp", "alemã"],
+    intro: "Encontre festas, bailes, festivais cervejeiros e celebrações alemãs em todo o Brasil.",
+    tags: ["oktober", "oktoberfest", "cerveja", "chopp", "chope", "alemã", "alemao", "germânica"],
     heroBg: getImg('oktoberfest-bg')?.imageUrl || "",
-    heroHint: getImg('oktoberfest-bg')?.imageHint || "beer festival celebration",
-    themeColor: "bg-[#1c0d02]", // Marrom amadeirado escuro
-    accentColor: "text-[#f59e0b]", // Âmbar (cor da cerveja)
+    heroHint: "beer festival crowd celebration tent",
+    themeColor: "bg-[#0057B8]", // Azul Bávaro
+    accentColor: "text-[#facc15]", // Dourado Cerveja
     iconName: 'beer',
   },
   halloween: {
@@ -41,7 +40,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     intro: "Doces ou travessuras? Prepare sua fantasia e encontre os eventos mais assustadores da temporada.",
     tags: ["halloween", "diadasbruxas", "dia-das-bruxas", "dia das bruxas"],
     heroBg: getImg('halloween-bg')?.imageUrl || "",
-    heroHint: getImg('halloween-bg')?.imageHint || "halloween party",
+    heroHint: "halloween party",
     themeColor: "bg-[#4c1d95]",
     accentColor: "text-[#f97316]", // Laranja abóbora
     iconName: 'ghost',
@@ -53,7 +52,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     intro: "Celebre o orgulho gaúcho! Encontre a programação completa de CTGs e eventos tradicionalistas.",
     tags: ["ctg", "semanafarroupilha", "semana-farroupilha", "semana farroupilha"],
     heroBg: getImg('semana-farroupilha-bg')?.imageUrl || "",
-    heroHint: getImg('semana-farroupilha-bg')?.imageHint || "gaucho landscape",
+    heroHint: "gaucho landscape",
     themeColor: "bg-[#166534]",
     accentColor: "text-[#991b1b]", // Vermelho Farroupilha
     iconName: 'flame',
@@ -65,7 +64,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     intro: "A magia do Natal está no ar. Descubra feiras, corais e eventos especiais para toda a família.",
     tags: ["natal", "natalino", "papai-noel", "papainoel"],
     heroBg: getImg('natal-bg')?.imageUrl || "",
-    heroHint: getImg('natal-bg')?.imageHint || "christmas lights",
+    heroHint: "christmas lights",
     themeColor: "bg-[#991b1b]",
     accentColor: "text-[#166534]", // Verde Natal
     iconName: 'gift',
@@ -77,7 +76,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     intro: "Comece o ano com o pé direito. Encontre as melhores festas de virada e Réveillon.",
     tags: ["anonovo", "ano novo", "ano-novo", "reveillon", "réveillon", "virada", "viradadoano", "virada-do-ano"],
     heroBg: getImg('ano-novo-bg')?.imageUrl || "",
-    heroHint: getImg('ano-novo-bg')?.imageHint || "fireworks party",
+    heroHint: "fireworks party",
     themeColor: "bg-[#0f172a]",
     accentColor: "text-[#facc15]", // Dourado virada
     iconName: 'sparkles',
@@ -89,7 +88,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     intro: "Abram alas! Encontre os blocos de rua mais animados e a programação completa de Carnaval.",
     tags: ["carnaval", "bloco", "blocos", "blocoderua", "bloco-de-rua", "bloco de rua"],
     heroBg: getImg('carnaval-bg')?.imageUrl || "",
-    heroHint: getImg('carnaval-bg')?.imageHint || "carnival parade",
+    heroHint: "carnival parade",
     themeColor: "bg-[#e11d48]",
     accentColor: "text-[#facc15]", // Amarelo vibrante
     iconName: 'music',
