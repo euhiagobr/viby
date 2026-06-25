@@ -17,11 +17,25 @@ interface EventItem {
 interface AgendaTemplateProps {
   events: EventItem[];
   format: 'A4' | 'instagram' | 'stories';
-  theme: 'viby' | 'claro' | 'escuro' | 'copa' | 'pride';
+  theme: 'viby' | 'claro' | 'escuro' | 'copa' | 'pride' | 'junina';
   logoUrl?: string;
   pageNumber?: number;
   totalPages?: number;
 }
+
+const Bandeirinhas = ({ color }: { color: string }) => (
+  <svg width="100%" height="60" viewBox="0 0 1000 60" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, zIndex: 20 }}>
+    {Array.from({ length: 20 }).map((_, i) => (
+      <path 
+        key={i} 
+        d={`M${i * 50} 0 L${i * 50 + 25} 55 L${(i + 1) * 50} 0 Z`} 
+        fill={i % 3 === 0 ? color : i % 3 === 1 ? '#ea580c' : '#facc15'} 
+        stroke="rgba(0,0,0,0.1)"
+        strokeWidth="1"
+      />
+    ))}
+  </svg>
+);
 
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const count = events.length;
@@ -67,10 +81,11 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
     claro: { bg: '#F8FAFC', text: '#000000', itemBg: '#FFFFFF', accent: '#2C52EE' },
     escuro: { bg: '#000000', text: '#FFFFFF', itemBg: '#111111', accent: '#2C52EE' },
     copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', itemBg: 'rgba(255,255,255,0.1)', accent: '#ffdf00' },
-    pride: { bg: 'linear-gradient(45deg, #FF0000, #FF8B00, #FFD300, #008121, #004CFF, #760089)', text: '#FFFFFF', itemBg: 'rgba(0,0,0,0.5)', accent: '#FFFFFF' }
+    pride: { bg: 'linear-gradient(45deg, #FF0000, #FF8B00, #FFD300, #008121, #004CFF, #760089)', text: '#FFFFFF', itemBg: 'rgba(0,0,0,0.5)', accent: '#FFFFFF' },
+    junina: { bg: 'linear-gradient(135deg, #451a03 0%, #78350f 100%)', text: '#fefce8', itemBg: 'rgba(254, 252, 232, 0.05)', accent: '#facc15' }
   }[theme];
 
-  const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : 'viby.club';
+  const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : theme === 'junina' ? 'viby.club/festa-junina' : 'viby.club';
   
   // Cálculo de altura para o container de imagem
   const getImageHeight = () => {
@@ -120,6 +135,8 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
     >
       <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '600px', height: '600px', background: `${colors.accent}15`, borderRadius: '50%', filter: 'blur(100px)' }} />
 
+      {theme === 'junina' && <Bandeirinhas color="#dc2626" />}
+
       {/* HEADER */}
       <div 
         className="viby-header"
@@ -135,12 +152,12 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-           <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride') ? '#000000' : '#FFFFFF', padding: '6px 20px', borderRadius: '50px', width: 'fit-content', fontSize: '18px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
-              {theme === 'copa' ? 'COPA 2026' : 'AGENDA'}
+           <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride' || theme === 'junina') ? '#000000' : '#FFFFFF', padding: '6px 20px', borderRadius: '50px', width: 'fit-content', fontSize: '18px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
+              {theme === 'copa' ? 'COPA 2026' : theme === 'junina' ? 'ARRAIÁ 2026' : 'AGENDA'}
            </div>
            <h1 style={{ fontSize: count === 1 ? '100px' : '80px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, lineHeight: 0.85, letterSpacing: '-4px' }}>
-              {theme === 'copa' ? 'ONDE ASSISTIR' : 'AGENDA'} <br />
-              <span style={{ opacity: 0.4, fontSize: '0.8em' }}>{theme === 'pride' ? 'DIVERSIDADE' : theme === 'copa' ? 'O BRASIL' : 'DA SEMANA'}</span>
+              {theme === 'copa' ? 'ONDE ASSISTIR' : theme === 'junina' ? 'FESTA JUNINA' : 'AGENDA'} <br />
+              <span style={{ opacity: 0.4, fontSize: '0.8em' }}>{theme === 'pride' ? 'DIVERSIDADE' : theme === 'copa' ? 'O BRASIL' : theme === 'junina' ? 'É TEMPO DE VIVER' : 'DA SEMANA'}</span>
            </h1>
         </div>
         {logoUrl && (
@@ -195,7 +212,8 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                  background: 'rgba(0,0,0,0.1)',
                  display: 'flex',
                  alignItems: 'center',
-                 justifyContent: 'center'
+                 justifyContent: 'center',
+                 border: theme === 'junina' ? '4px solid rgba(250, 204, 21, 0.2)' : 'none'
                }}
              >
                 <img 
@@ -293,3 +311,4 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
     </div>
   );
 }
+

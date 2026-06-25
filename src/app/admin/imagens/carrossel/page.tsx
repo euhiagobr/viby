@@ -26,7 +26,8 @@ import {
   Send,
   CheckCircle2,
   Monitor,
-  ImageIcon
+  ImageIcon,
+  Flame
 } from 'lucide-react';
 import { 
   Select, 
@@ -62,7 +63,7 @@ export default function CarouselGeneratorPage() {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   
-  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
+  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride' | 'junina'>('viby');
   const [aspectRatio, setAspectRatio] = React.useState<'1:1' | '4:5'>('1:1');
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
@@ -326,6 +327,7 @@ export default function CarouselGeneratorPage() {
                       <SelectItem value="viby">Viby (Padrão)</SelectItem>
                       <SelectItem value="copa">Copa do Mundo 2026</SelectItem>
                       <SelectItem value="pride">Pride / Diversidade</SelectItem>
+                      <SelectItem value="junina">Festa Junina (Arraiá)</SelectItem>
                       <SelectItem value="claro">Claro</SelectItem>
                       <SelectItem value="escuro">Escuro</SelectItem>
                    </SelectContent>

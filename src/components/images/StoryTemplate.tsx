@@ -7,9 +7,31 @@ import { QRCodeSVG } from 'qrcode.react';
 
 interface StoryTemplateProps {
   event: any;
-  theme: 'viby' | 'claro' | 'escuro' | 'copa' | 'pride';
+  theme: 'viby' | 'claro' | 'escuro' | 'copa' | 'pride' | 'junina' | 'junina_noite';
   logoUrl?: string;
 }
+
+const Bandeirinhas = ({ color }: { color: string }) => (
+  <svg width="100%" height="80" viewBox="0 0 1000 80" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, zIndex: 20 }}>
+    {Array.from({ length: 15 }).map((_, i) => (
+      <path 
+        key={i} 
+        d={`M${i * 67} 0 L${i * 67 + 33} 75 L${(i + 1) * 67} 0 Z`} 
+        fill={i % 3 === 0 ? color : i % 3 === 1 ? '#ea580c' : '#facc15'} 
+        stroke="rgba(0,0,0,0.1)"
+        strokeWidth="1"
+      />
+    ))}
+  </svg>
+);
+
+const BonfireSVG = () => (
+  <svg viewBox="0 0 100 100" style={{ width: '300px', height: '300px', opacity: 0.4, filter: 'blur(2px)' }}>
+    <path d="M50 10 Q 70 40 50 80 Q 30 40 50 10" fill="#facc15" />
+    <path d="M50 30 Q 65 50 50 85 Q 35 50 50 30" fill="#ea580c" />
+    <path d="M50 50 Q 55 60 50 90 Q 45 60 50 50" fill="#dc2626" />
+  </svg>
+);
 
 /**
  * @fileOverview Template de Stories Único otimizado para UX.
@@ -20,10 +42,12 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
     claro: { bg: '#F8FAFC', text: '#000000', accent: '#2C52EE', qrBg: '#FFFFFF' },
     escuro: { bg: '#000000', text: '#FFFFFF', accent: '#2C52EE', qrBg: '#111111' },
     copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', accent: '#ffdf00', qrBg: '#FFFFFF' },
-    pride: { bg: 'linear-gradient(45deg, #FF0000, #FF8B00, #FFD300, #008121, #004CFF, #760089)', text: '#FFFFFF', accent: '#FFFFFF', qrBg: '#FFFFFF' }
+    pride: { bg: 'linear-gradient(45deg, #FF0000, #FF8B00, #FFD300, #008121, #004CFF, #760089)', text: '#FFFFFF', accent: '#FFFFFF', qrBg: '#FFFFFF' },
+    junina: { bg: 'linear-gradient(135deg, #451a03 0%, #78350f 100%)', text: '#fefce8', accent: '#facc15', qrBg: '#fefce8' },
+    junina_noite: { bg: 'linear-gradient(to bottom, #000000, #451a03)', text: '#fefce8', accent: '#ea580c', qrBg: '#fefce8' }
   }[theme];
 
-  const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : 'viby.club';
+  const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : (theme.includes('junina') ? 'viby.club/festa-junina' : 'viby.club');
   const qrUrl = `https://viby.club/${event.organizer?.username || 'evento'}/${event.slug || event.id}?vsrc=qr_story`;
 
   const venueName = event.address?.venueName || event.location || "Local a definir";
@@ -57,9 +81,17 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
         alt="" 
       />
 
-      <div style={{ width: '100%', padding: '100px 80px 40px 80px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10, boxSizing: 'border-box' }}>
-        <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride') ? '#000000' : '#FFFFFF', padding: '12px 36px', borderRadius: '50px', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
-          Destaque
+      {theme.includes('junina') && <Bandeirinhas color="#dc2626" />}
+
+      {theme === 'junina_noite' && (
+        <div style={{ position: 'absolute', bottom: '150px', right: '-50px', transform: 'rotate(-10deg)' }}>
+           <BonfireSVG />
+        </div>
+      )}
+
+      <div style={{ width: '100%', padding: '120px 80px 40px 80px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 10, boxSizing: 'border-box' }}>
+        <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride' || theme.includes('junina')) ? '#000000' : '#FFFFFF', padding: '12px 36px', borderRadius: '50px', fontSize: '24px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
+          {theme.includes('junina') ? 'Arraiá' : 'Destaque'}
         </div>
         {logoUrl && <img src={logoUrl} crossOrigin="anonymous" style={{ width: '320px', height: '80px', objectFit: 'contain' }} alt="Logo" />}
       </div>
@@ -71,7 +103,7 @@ export function StoryTemplate({ event, theme, logoUrl }: StoryTemplateProps) {
           borderRadius: '40px', 
           overflow: 'hidden', 
           boxShadow: '0 50px 100px rgba(0,0,0,0.6)', 
-          border: '12px solid rgba(255,255,255,0.15)' 
+          border: `12px solid ${theme.includes('junina') ? 'rgba(250, 204, 21, 0.2)' : 'rgba(255,255,255,0.15)'}` 
         }}>
           <img 
             src={event.image} 

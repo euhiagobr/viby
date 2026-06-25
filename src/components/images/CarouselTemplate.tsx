@@ -8,11 +8,23 @@ import { QRCodeSVG } from 'qrcode.react';
 interface CarouselTemplateProps {
   event: any;
   aspectRatio: '1:1' | '4:5';
-  theme: 'viby' | 'claro' | 'escuro' | 'copa' | 'pride';
+  theme: 'viby' | 'claro' | 'escuro' | 'copa' | 'pride' | 'junina';
   logoUrl?: string;
   slideNumber?: number;
   totalSlides?: number;
 }
+
+const Bandeirinhas = ({ color }: { color: string }) => (
+  <svg width="100%" height="40" viewBox="0 0 1000 40" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, zIndex: 20 }}>
+    {Array.from({ length: 20 }).map((_, i) => (
+      <path 
+        key={i} 
+        d={`M${i * 50} 0 L${i * 50 + 25} 35 L${(i + 1) * 50} 0 Z`} 
+        fill={i % 3 === 0 ? color : i % 3 === 1 ? '#ea580c' : '#facc15'} 
+      />
+    ))}
+  </svg>
+);
 
 export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumber, totalSlides }: CarouselTemplateProps) {
   const config = {
@@ -25,7 +37,8 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
     claro: { bg: '#F8FAFC', text: '#000000', accent: '#2C52EE' },
     escuro: { bg: '#000000', text: '#FFFFFF', accent: '#2C52EE' },
     copa: { bg: 'linear-gradient(135deg, #002776 0%, #009c3b 100%)', text: '#FFFFFF', accent: '#ffdf00' },
-    pride: { bg: 'linear-gradient(45deg, #FF0000, #FF8B00, #FFD300, #008121, #004CFF, #760089)', text: '#FFFFFF', accent: '#FFFFFF' }
+    pride: { bg: 'linear-gradient(45deg, #FF0000, #FF8B00, #FFD300, #008121, #004CFF, #760089)', text: '#FFFFFF', accent: '#FFFFFF' },
+    junina: { bg: 'linear-gradient(135deg, #451a03 0%, #78350f 100%)', text: '#fefce8', accent: '#facc15' }
   }[theme];
 
   const qrUrl = `https://viby.club/${event.organizer?.username || 'evento'}/${event.slug || event.id}?vsrc=qr_carousel`;
@@ -49,6 +62,8 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
       }}
     >
       <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '400px', height: '400px', background: `${colors.accent}20`, borderRadius: '50%', filter: 'blur(80px)' }} />
+
+      {theme === 'junina' && <Bandeirinhas color="#dc2626" />}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '60px', position: 'relative', zIndex: 10, width: '100%', boxSizing: 'border-box' }}>
         {logoUrl ? <img src={logoUrl} crossOrigin="anonymous" style={{ width: '220px', height: '60px', objectFit: 'contain' }} alt="Logo" /> : <span style={{ fontSize: '32px', fontWeight: 900, fontStyle: 'italic' }}>VIBY</span>}
@@ -109,3 +124,4 @@ export function CarouselTemplate({ event, aspectRatio, theme, logoUrl, slideNumb
     </div>
   );
 }
+

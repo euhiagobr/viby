@@ -24,7 +24,8 @@ import {
   Camera,
   Send,
   CheckCircle2,
-  Monitor
+  Monitor,
+  Flame
 } from 'lucide-react';
 import { 
   Select, 
@@ -58,7 +59,7 @@ export default function StoriesGeneratorPage() {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   
-  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
+  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride' | 'junina' | 'junina_noite'>('viby');
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
   const { data: settings } = useDoc<any>(settingsRef);
@@ -303,6 +304,8 @@ export default function StoriesGeneratorPage() {
                       <SelectItem value="viby">Viby (Padrão)</SelectItem>
                       <SelectItem value="copa">Copa do Mundo 2026</SelectItem>
                       <SelectItem value="pride">Pride / Diversidade</SelectItem>
+                      <SelectItem value="junina">Festa Junina (Imersivo)</SelectItem>
+                      <SelectItem value="junina_noite">Arraiá Noite (Fogueira)</SelectItem>
                       <SelectItem value="claro">Minimalista Claro</SelectItem>
                       <SelectItem value="escuro">Deep Black</SelectItem>
                    </SelectContent>

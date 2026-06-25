@@ -33,7 +33,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   ChevronRight,
-  ListOrdered
+  ListOrdered,
+  Flame
 } from 'lucide-react';
 import { 
   Select, 
@@ -78,7 +79,7 @@ export default function AgendaGeneratorPage() {
   
   const [imageFormat, setImageFormat] = React.useState<'A4' | 'instagram' | 'stories'>('stories');
   const [itemsPerPage, setItemsPerPage] = React.useState<number>(4);
-  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
+  const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride' | 'junina'>('viby');
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
   const { data: settings } = useDoc<any>(settingsRef);
@@ -439,6 +440,7 @@ export default function AgendaGeneratorPage() {
                       <SelectItem value="viby">Viby (Padrão)</SelectItem>
                       <SelectItem value="copa">Copa do Mundo 2026</SelectItem>
                       <SelectItem value="pride">Pride / Diversidade</SelectItem>
+                      <SelectItem value="junina">Festa Junina (Arraiá)</SelectItem>
                       <SelectItem value="claro">Minimalista Claro</SelectItem>
                       <SelectItem value="escuro">Deep Black</SelectItem>
                    </SelectContent>
