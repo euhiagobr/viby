@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -28,7 +27,8 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
   const count = events.length;
 
   // REGRAS DE LAYOUT: 16:9 (Vertical) vs Square (Horizontal)
-  // Feed: 1, 2, 3 -> 16:9 | Stories: 1, 2, 3, 4 -> 16:9
+  // Feed: 1, 2, 3 -> Vertical | Stories: 1, 2, 3, 4 -> Vertical
+  // NOVO: Feed 4 eventos agora também prioriza proporção retangular para a imagem
   const isVerticalLayout = (format === 'stories' && count <= 4) || (format === 'instagram' && count <= 3) || (format === 'A4' && count <= 3);
   
   const baseConfig = {
@@ -76,7 +76,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
 
   // Dinâmica de fontes baseada na quantidade de itens
   const getTitleSize = () => {
-    if (!isVerticalLayout) return '32px';
+    if (!isVerticalLayout) return '28px'; // Reduzido ligeiramente para 4 eventos em linha
     if (count === 1) return '82px';
     if (count === 2) return '64px';
     if (count === 3) return '48px';
@@ -164,20 +164,33 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               overflow: 'hidden'
             }}
           >
-             {/* IMAGE WRAPPER */}
+             {/* IMAGE WRAPPER - PRIORIDADE: SEM CORTE (CONTAIN) */}
              <div 
                className="viby-card-image" 
                style={{ 
-                 width: isVerticalLayout ? '100%' : '140px', 
-                 height: isVerticalLayout ? 'auto' : '140px', 
-                 aspectRatio: isVerticalLayout ? '16/9' : '1/1',
+                 width: isVerticalLayout ? '100%' : '260px', // Aumentado para suportar 16:9 lateral
+                 height: isVerticalLayout ? 'auto' : '146px', // Altura calculada para 16:9 em 260px width
+                 aspectRatio: '16/9',
                  borderRadius: isVerticalLayout ? '35px' : '20px', 
                  overflow: 'hidden', 
                  flexShrink: 0,
-                 border: isVerticalLayout ? '6px solid rgba(255,255,255,0.1)' : 'none'
+                 border: isVerticalLayout ? '6px solid rgba(255,255,255,0.1)' : 'none',
+                 background: 'rgba(0,0,0,0.2)', // Fundo neutro para contain
+                 display: 'flex',
+                 alignItems: 'center',
+                 justifyContent: 'center'
                }}
              >
-                <img src={ev.image} crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                <img 
+                  src={ev.image} 
+                  crossOrigin="anonymous" 
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'contain' // REGRA CRÍTICA: Nunca cortar informações
+                  }} 
+                  alt="" 
+                />
              </div>
              
              {/* CONTENT WRAPPER */}
@@ -194,7 +207,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                }}
              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                   <span style={{ fontSize: isVerticalLayout && count < 3 ? '32px' : '20px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>
+                   <span style={{ fontSize: isVerticalLayout && count < 3 ? '32px' : '18px', fontWeight: 900, color: colors.accent, fontStyle: 'italic' }}>
                      {formatTemplateDate(ev.date)}
                    </span>
                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: colors.text, opacity: 0.3 }} />
@@ -215,7 +228,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                     letterSpacing: '-2px',
                     wordBreak: 'break-word',
                     display: '-webkit-box',
-                    WebkitLineClamp: isVerticalLayout ? 2 : 1,
+                    WebkitLineClamp: isVerticalLayout ? 2 : 2, // Permite 2 linhas mesmo no horizontal para títulos longos
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden'
                   }}
@@ -228,7 +241,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                       <circle cx="12" cy="10" r="3" />
                    </svg>
-                   <span style={{ fontSize: isVerticalLayout ? '22px' : '15px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                   <span style={{ fontSize: isVerticalLayout ? '22px' : '14px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
                      {ev.city}
                    </span>
                 </div>
