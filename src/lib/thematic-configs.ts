@@ -29,7 +29,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     tags: ["oktober", "oktoberfest", "cerveja", "chopp", "chope", "alemã", "alemao", "germânica"],
     heroBg: getImg('oktoberfest-bg')?.imageUrl || "",
     heroHint: "beer festival crowd celebration tent",
-    themeColor: "bg-[#0057B8]", // Azul Bávaro
+    themeColor: "bg-[#1c0d02]", // Marrom escuro/Noite acolhedora
     accentColor: "text-[#facc15]", // Dourado Cerveja
     iconName: 'beer',
   },

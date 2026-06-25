@@ -242,7 +242,7 @@ export default function ThematicPageClient({
       {/* HERO */}
       <section className={cn(
         "relative min-h-[65vh] flex items-center justify-center overflow-hidden text-white transition-all duration-700",
-        isOktoberfest ? "bg-[#0057B8]" : config.themeColor
+        isOktoberfest ? "bg-[#1c0d02]" : config.themeColor
       )}>
         {/* LUZES OKTOBERFEST */}
         {isOktoberfest && (
@@ -260,8 +260,8 @@ export default function ThematicPageClient({
              data-ai-hint={config.heroHint}
            />
            <div className={cn(
-             "absolute inset-0 bg-gradient-to-b from-black/70 via-black/30 to-black/80",
-             isOktoberfest && "from-[#0057B8]/40 via-transparent to-[#1c0d02]"
+             "absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/90",
+             isOktoberfest && "from-black/60 via-transparent to-[#1c0d02]"
            )} />
         </div>
 
@@ -269,19 +269,37 @@ export default function ThematicPageClient({
           <div className="max-w-4xl mx-auto space-y-8 flex flex-col items-center">
             <Badge className={cn(
               "backdrop-blur-md border-none px-6 py-2 rounded-full font-black uppercase text-xs tracking-widest flex items-center gap-2",
-              isOktoberfest ? "bg-[#facc15] text-[#0057B8] shadow-[#facc15]/20 shadow-xl" : "bg-white/20 text-white"
+              isOktoberfest ? "bg-[#facc15] text-[#1c0d02] shadow-[#facc15]/20 shadow-xl" : "bg-white/20 text-white"
             )}>
               <IconComponent className="w-4 h-4 fill-current" /> Viby Temático
             </Badge>
-            <h1 className={cn(
-              "text-6xl md:text-[10rem] font-black uppercase italic tracking-tighter leading-[0.8] drop-shadow-2xl",
-              isOktoberfest ? "text-white" : "text-white"
-            )}>
-              {config.title}
-            </h1>
+
+            <div className="relative group">
+              {isOktoberfest && (
+                <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center gap-20 opacity-20 group-hover:opacity-40 transition-opacity">
+                   <Beer className="w-16 h-16 rotate-12" />
+                   <Beer className="w-16 h-16 -rotate-12" />
+                </div>
+              )}
+              <h1 className={cn(
+                "text-6xl md:text-[10rem] font-black uppercase italic tracking-tighter leading-[0.8] drop-shadow-2xl",
+                isOktoberfest ? "text-[#facc15]" : "text-white"
+              )}>
+                {config.title}
+              </h1>
+            </div>
+
             <p className="text-xl md:text-3xl font-medium opacity-95 max-w-2xl mx-auto leading-relaxed uppercase tracking-wide italic">
               {config.intro}
             </p>
+
+            {isOktoberfest && (
+              <div className="flex gap-4 items-center">
+                 <div className="w-10 h-1 bg-[#000000]" />
+                 <div className="w-10 h-1 bg-[#DD0000]" />
+                 <div className="w-10 h-1 bg-[#FFCC00]" />
+              </div>
+            )}
           </div>
         </div>
 
@@ -295,14 +313,14 @@ export default function ThematicPageClient({
       {isOktoberfest && (
         <section className="py-32 bg-white relative overflow-hidden">
            <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
-              <Beer className="w-64 h-64 text-[#0057B8]" />
+              <Beer className="w-64 h-64 text-[#facc15]" />
            </div>
            <div className="container mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
               <div className="space-y-10">
                  <div className="space-y-4">
-                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-[#0057B8]">Cultura & Celebração</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-[#DD0000]">Cultura & Celebração</span>
                     <h2 className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter text-primary leading-none">
-                      VIVA A <span className="text-[#0057B8]">TRADIÇÃO</span> ALEMÃ
+                      VIVA A <span className="text-[#FFCC00]">TRADIÇÃO</span> ALEMÃ
                     </h2>
                  </div>
                  <div className="space-y-6 text-lg md:text-xl text-muted-foreground font-medium leading-relaxed">
@@ -315,17 +333,17 @@ export default function ThematicPageClient({
                        <p className="text-[10px] font-black uppercase tracking-tight text-[#78350f]">Chope Gelado</p>
                     </div>
                     <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#facc15]/30 text-center shadow-sm hover:shadow-md transition-all">
-                       <Music className="w-10 h-10 text-[#0057B8] mx-auto mb-3" />
-                       <p className="text-[10px] font-black uppercase tracking-tight text-[#0057B8]">Bandas Típicas</p>
+                       <Music className="w-10 h-10 text-[#DD0000] mx-auto mb-3" />
+                       <p className="text-[10px] font-black uppercase tracking-tight text-[#DD0000]">Bandas Típicas</p>
                     </div>
                     <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#facc15]/30 text-center shadow-sm hover:shadow-md transition-all">
-                       <Users className="w-10 h-10 text-[#ea580c] mx-auto mb-3" />
-                       <p className="text-[10px] font-black uppercase tracking-tight text-[#ea580c]">Confraternização</p>
+                       <Users className="w-10 h-10 text-primary mx-auto mb-3" />
+                       <p className="text-[10px] font-black uppercase tracking-tight text-primary">Confraternização</p>
                     </div>
                  </div>
               </div>
               <div className="relative group">
-                 <div className="absolute -inset-4 bg-[#0057B8]/10 rounded-[4rem] blur-2xl group-hover:bg-[#facc15]/10 transition-colors" />
+                 <div className="absolute -inset-4 bg-[#facc15]/10 rounded-[4rem] blur-2xl group-hover:bg-[#DD0000]/10 transition-colors" />
                  <div className="relative grid grid-cols-2 gap-4">
                     <img src="https://picsum.photos/seed/pretzel/500/700" className="rounded-[3rem] shadow-2xl rotate-2" alt="Gastronomia" />
                     <img src="https://picsum.photos/seed/beer-mug/500/700" className="rounded-[3rem] shadow-2xl -rotate-3 mt-12" alt="Canecos" />
@@ -340,24 +358,24 @@ export default function ThematicPageClient({
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
           <div className="flex items-center gap-3 flex-wrap">
              <div className="relative w-full sm:w-80">
-                <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4", isOktoberfest ? "text-[#0057B8]" : "opacity-40")} />
+                <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4", isOktoberfest ? "text-[#FFCC00]" : "opacity-40")} />
                 <Input 
                   placeholder="Qual evento você busca?" 
                   className={cn(
                     "h-14 pl-12 rounded-2xl shadow-sm border-none text-sm font-bold uppercase",
-                    isOktoberfest ? "bg-[#fdf6e3] text-[#0057B8] placeholder:text-[#0057B8]/40" : "bg-white"
+                    isOktoberfest ? "bg-[#fdf6e3] text-primary placeholder:text-primary/40" : "bg-white"
                   )}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
              </div>
              <div className="relative w-full sm:w-56">
-                <MapPin className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4", isOktoberfest ? "text-[#facc15]" : "opacity-40")} />
+                <MapPin className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4", isOktoberfest ? "text-[#DD0000]" : "opacity-40")} />
                 <Input 
                   placeholder="Cidade" 
                   className={cn(
                     "h-14 pl-12 rounded-2xl shadow-sm border-none text-sm font-bold uppercase",
-                    isOktoberfest ? "bg-[#fdf6e3] text-[#0057B8] placeholder:text-[#0057B8]/40" : "bg-white"
+                    isOktoberfest ? "bg-[#fdf6e3] text-primary placeholder:text-primary/40" : "bg-white"
                   )}
                   value={searchCity}
                   onChange={(e) => setSearchCity(e.target.value)}
@@ -365,7 +383,7 @@ export default function ThematicPageClient({
              </div>
              
              <Select value={priceFilter} onValueChange={setPriceFilter}>
-                <SelectTrigger className={cn("w-44 rounded-2xl h-14 border-none shadow-sm font-bold uppercase text-[10px]", isOktoberfest ? "bg-[#fdf6e3] text-[#0057B8]" : "bg-white")}>
+                <SelectTrigger className={cn("w-44 rounded-2xl h-14 border-none shadow-sm font-bold uppercase text-[10px]", isOktoberfest ? "bg-[#fdf6e3] text-primary" : "bg-white")}>
                    <Coins className={cn("w-4 h-4 mr-2", isOktoberfest ? "text-[#facc15]" : "")} />
                    <SelectValue placeholder="Preço" />
                 </SelectTrigger>
@@ -380,7 +398,7 @@ export default function ThematicPageClient({
 
              <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("rounded-2xl h-14 border-none shadow-sm gap-2 font-black text-[10px] uppercase transition-all px-8", isOktoberfest ? "bg-[#fdf6e3] text-[#0057B8]" : "bg-white", dateFilter !== 'all' && "bg-primary text-white")}>
+                  <Button variant="outline" className={cn("rounded-2xl h-14 border-none shadow-sm gap-2 font-black text-[10px] uppercase transition-all px-8", isOktoberfest ? "bg-[#fdf6e3] text-primary" : "bg-white", dateFilter !== 'all' && "bg-primary text-white")}>
                     <CalendarIcon className="h-4 w-4" />
                     {dateFilter === 'today' ? 'Hoje' :
                      dateFilter === 'tomorrow' ? 'Amanhã' :
@@ -449,7 +467,7 @@ export default function ThematicPageClient({
                 disabled={isFetching}
                 className={cn(
                   "h-16 px-16 font-black uppercase italic border-2 rounded-2xl shadow-xl transition-all",
-                  isOktoberfest ? "bg-[#0057B8] text-white border-none" : "bg-white text-primary"
+                  isOktoberfest ? "bg-[#DD0000] text-white border-none" : "bg-white text-primary"
                 )}
               >
                 {isFetching ? <Loader2 className="w-5 h-5 animate-spin" /> : `Ver mais ${isOktoberfest ? 'Oktoberfests' : 'eventos'}`}
