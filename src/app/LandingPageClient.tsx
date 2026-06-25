@@ -60,11 +60,11 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         setSearchCity={setSearchCity}
       />
 
-      {/* SEÇÃO DE CATEGORIAS DINÂMICAS */}
+      {/* SEÇÃO DE CATEGORIAS DINÂMICAS - Scroll Horizontal Oculto */}
       {!isInitialLoad && dynamicCategories.length > 0 && (
         <section className="bg-white border-b sticky top-16 z-30 shadow-sm overflow-hidden">
            <div className="container mx-auto px-4 py-4">
-              <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide py-1">
+              <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide py-1 flex-nowrap cursor-grab active:cursor-grabbing">
                  <Button
                     variant={selectedCategory === 'all' ? 'default' : 'ghost'}
                     size="sm"
