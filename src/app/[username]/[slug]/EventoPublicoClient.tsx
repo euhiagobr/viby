@@ -67,12 +67,26 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
   const [isActionModalOpen, setIsActionModalOpen] = React.useState(false)
   const [selectedOccurrenceId, setSelectedOccurrenceId] = React.useState<string | null>(null)
 
+  const hasTrackedView = React.useRef(false);
+
   // Real-time listener para manter o estado atualizado (ex: bilheteria)
   const eventRef = React.useMemo(() => (db && id) ? doc(db, "events", id) : null, [db, id])
   const { data: realTimeEvent, loading: eventLoading } = useDoc<any>(eventRef)
 
   // PRIORIDADE: Dados em tempo real > Dados iniciais (SSR)
   const event = realTimeEvent || initialData;
+
+  // Rastreamento de Visualização Interna
+  React.useEffect(() => {
+    if (id && !hasTrackedView.current) {
+      hasTrackedView.current = true;
+      fetch('/api/events/track-view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: id })
+      }).catch(() => {});
+    }
+  }, [id]);
 
   const organizationRef = React.useMemo(() => 
     (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, 
@@ -132,7 +146,6 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
     return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Se não temos dados e ainda está carregando no client (ex: navegação client-side pura)
   if (eventLoading && !initialData) return (
     <div className="flex flex-col items-center justify-center py-32 gap-4">
       <Loader2 className="w-10 h-10 animate-spin text-secondary" />

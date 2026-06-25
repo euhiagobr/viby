@@ -1,13 +1,32 @@
+'use client';
+
 import Script from 'next/script';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
 
 /**
- * Componente de rastreamento consolidado (Google Tag).
+ * @fileOverview Componente de rastreamento consolidado (Google Tag).
  * Gerencia o Google Ads (AW-18219134289) e o Google Analytics (G-WZBEXGZEDG).
+ * Inclui listener de rotas para garantir page_views em navegação SPA.
  */
 export function GoogleAdsTag() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).gtag) {
+      const url = pathname + searchParams.toString();
+      (window as any).gtag('config', 'G-WZBEXGZEDG', {
+        page_path: url,
+      });
+      (window as any).gtag('config', 'AW-18219134289', {
+        page_path: url,
+      });
+    }
+  }, [pathname, searchParams]);
+
   return (
     <>
-      {/* Script principal da Google Tag */}
       <Script
         src="https://www.googletagmanager.com/gtag/js?id=AW-18219134289"
         strategy="afterInteractive"
@@ -18,11 +37,8 @@ export function GoogleAdsTag() {
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
 
-          // Configuração Google Ads
-          gtag('config', 'AW-18219134289');
-          
-          // Configuração Google Analytics (GA4)
-          gtag('config', 'G-WZBEXGZEDG');
+          gtag('config', 'AW-18219134289', { 'send_page_view': false });
+          gtag('config', 'G-WZBEXGZEDG', { 'send_page_view': false });
         `}
       </Script>
     </>

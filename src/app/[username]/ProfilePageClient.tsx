@@ -50,21 +50,30 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null);
 
   const isAdmin = adminProfile !== null;
+  const hasTrackedView = React.useRef(false);
 
-  // Estado para eventos em parceria
+  // Rastreamento de Visualização Interna
+  React.useEffect(() => {
+    if (profileData?.id && !hasTrackedView.current) {
+      hasTrackedView.current = true;
+      fetch('/api/profiles/track-view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId: profileData.id, type: profileType })
+      }).catch(() => {});
+    }
+  }, [profileData?.id, profileType]);
+
   const [partnershipEvents, setPartnershipEvents] = React.useState<any[]>([]);
   const [loadingPartnerships, setLoadingPartnerships] = React.useState(false);
 
   React.useEffect(() => {
     setNow(new Date());
     getCurrentLocation().then(loc => { if(loc) setUserLocation(loc); }).catch(() => {});
-    
-    // Timer para atualizar visibilidade dos eventos
     const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  // Rastreamento de Scan de QR Code
   React.useEffect(() => {
     const vsrc = searchParams.get('vsrc');
     if (vsrc === 'qr' && profileData?.id && profileType === 'organization') {
@@ -75,7 +84,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
     }
   }, [searchParams, profileData?.id, profileType]);
 
-  // Busca de Dados Integrada via Índice de Usernames
   React.useEffect(() => {
     if (!db || !username) return;
     
@@ -112,7 +120,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
     fetchData();
   }, [db, username]);
 
-  // Auditoria de Propriedade/Acesso
   React.useEffect(() => {
     if (!db || !loggedUser?.uid || !profileData || !profileType) {
       setIsOwner(false);
@@ -136,7 +143,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
     checkOwnership();
   }, [db, loggedUser?.uid, profileData, profileType]);
 
-  // Busca de Dados de Gamificação (Apenas se for usuário)
   const gamificationRef = React.useMemo(() => 
     (db && profileType === 'user' && profileData?.id) ? doc(db, "user_gamification", profileData.id) : null, 
     [db, profileType, profileData?.id]
@@ -169,7 +175,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
   }, [db, profileType, profileData?.id, isOwner]);
   const { data: userRegistrations } = useCollection<any>(userRegistrationsQuery);
 
-  // Busca de Eventos da Organização - FILTRO CENTRAL: published
   const orgEventsQuery = useMemoFirebase(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return null;
     return query(
@@ -193,7 +198,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
   }, [db, profileData?.id, profileType])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
-  // Busca de Eventos em Parceria - FILTRO CENTRAL: published
   React.useEffect(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return;
 
@@ -215,7 +219,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
         });
 
         const results = await Promise.all(eventPromises);
-        // Apenas eventos publicados
         setPartnershipEvents(results.filter(e => e !== null && e.status === 'published'));
       } catch (e: any) {
         console.warn("Erro ao buscar parcerias:", e.message);
@@ -230,7 +233,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
   const { upcomingEvents, pastEvents } = React.useMemo(() => {
     if (!orgEvents) return { upcomingEvents: [], pastEvents: [] };
     
-    // Processa datas efetivas para recorrência baseadas no relógio 'now'
     const processed = orgEvents.map(e => {
        let effectiveDate = e.date;
        if (e.isRecurring) {
@@ -240,7 +242,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
             .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
-           // Encontra a primeira ocorrência que ainda não venceu o threshold de visibilidade (6h)
            const nextValid = sorted.find(o => {
              const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
              return now < endThreshold;
