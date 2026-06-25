@@ -11,7 +11,15 @@ import { type Coordinates } from '@/lib/location-utils';
  * Orquestrador do feed da Landing Page.
  * Unifica eventos, resolve recorrências e intercala anúncios.
  */
-export function useHomeFeed(initialEvents: any[], filters: { searchName: string, searchCity: string, userLocation: Coordinates | null }) {
+export function useHomeFeed(
+  initialEvents: any[], 
+  filters: { 
+    searchName: string, 
+    searchCity: string, 
+    selectedCategory: string,
+    userLocation: Coordinates | null 
+  }
+) {
   const [now, setNow] = useState<Date | null>(null);
   const [displayLimit, setDisplayLimit] = useState(9);
 
@@ -37,7 +45,18 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
     }
   }, [displayLimit, resolvedEvents.length, dbHasMore, isFetching, fetchFromDb]);
 
+  // Filtros aplicados aos eventos resolvidos
   const visibleEvents = useVisibleEvents(resolvedEvents, { ...filters, now });
+
+  // Geração dinâmica de categorias baseada em eventos resolvidos e ativos
+  const dynamicCategories = useMemo(() => {
+    const categoriesSet = new Set<string>();
+    resolvedEvents.forEach(e => {
+      // Apenas categorias de eventos que passariam no filtro de visibilidade básica (hoje em diante)
+      if (e.categoryName) categoriesSet.add(e.categoryName);
+    });
+    return Array.from(categoriesSet).sort();
+  }, [resolvedEvents]);
 
   const unifiedFeed = useMemo(() => {
     const feed: any[] = [];
@@ -72,6 +91,7 @@ export function useHomeFeed(initialEvents: any[], filters: { searchName: string,
 
   return { 
     feed: unifiedFeed, 
+    dynamicCategories,
     isFetching, 
     isInitialLoad, 
     hasMore: hasMoreUI, 

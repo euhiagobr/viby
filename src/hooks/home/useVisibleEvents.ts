@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -10,18 +9,54 @@ import { type Coordinates } from '@/lib/location-utils';
  * Filtra e ordena eventos visíveis.
  * Aplica ordenação rigorosa: Data (ASC) -> Distância (ASC).
  */
-export function useVisibleEvents(events: any[], filters: { searchName: string, searchCity: string, userLocation: Coordinates | null, now: Date | null }) {
+export function useVisibleEvents(
+  events: any[], 
+  filters: { 
+    searchName: string, 
+    searchCity: string, 
+    selectedCategory: string,
+    userLocation: Coordinates | null, 
+    now: Date | null 
+  }
+) {
   const visibleEvents = useMemo(() => {
-    const { searchName, searchCity, userLocation, now } = filters;
+    const { searchName, searchCity, selectedCategory, userLocation, now } = filters;
 
     const processed = events.filter(e => {
+      // 1. Visibilidade Temporal (Status Ativo e dentro da janela de 6h)
       if (!isEventVisible(e, now)) return false;
 
-      const nameNorm = normalizeText(searchName);
-      if (searchName && !normalizeText(e.title || "").includes(nameNorm)) return false;
+      // 2. Busca Inteligente (Nome, Local, Endereço, Bairro, Cidade, Estado)
+      if (searchName) {
+        const nameNorm = normalizeText(searchName);
+        const eventTitle = normalizeText(e.title || "");
+        const eventLocation = normalizeText(e.location || e.address?.venueName || "");
+        const eventAddress = normalizeText(e.address?.addressLine1 || e.address?.street || "");
+        const eventNeighborhood = normalizeText(e.address?.neighborhood || "");
+        const eventCity = normalizeText(e.city || "");
+        const eventState = normalizeText(e.state || e.address?.stateRegion || "");
+        
+        const matchesSearch = 
+          eventTitle.includes(nameNorm) ||
+          eventLocation.includes(nameNorm) ||
+          eventAddress.includes(nameNorm) ||
+          eventNeighborhood.includes(nameNorm) ||
+          eventCity.includes(nameNorm) ||
+          eventState.includes(nameNorm);
+
+        if (!matchesSearch) return false;
+      }
       
-      const cityNorm = normalizeText(searchCity);
-      if (searchCity && !normalizeText(`${e.city || ""} ${e.state || ""}`).includes(cityNorm)) return false;
+      // 3. Filtro de Cidade (Campo 2)
+      if (searchCity) {
+        const cityNorm = normalizeText(searchCity);
+        if (!normalizeText(`${e.city || ""} ${e.state || ""}`).includes(cityNorm)) return false;
+      }
+
+      // 4. Filtro de Categoria Dinâmico
+      if (selectedCategory !== "all") {
+        if (e.categoryName !== selectedCategory) return false;
+      }
       
       return true;
     }).map(e => {
