@@ -73,7 +73,7 @@ const WheatSVG = () => (
 
 const BatSVG = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-    <path d="M12,4.33C12.83,4.33 13.5,5 13.5,5.83C13.5,6.67 12.83,7.33 12,7.33C11.17,7.33 10.5,6.67 10.5,5.83C10.5,5 11.17,4.33 12,4.33M12,2C10.17,2 8.67,3.5 8.67,5.33C8.67,7.17 10.17,8.67 12,8.67C13.83,8.67 15.33,7.17 15.33,5.33C15.33,3.5 13.83,2 12,2M22,12C22,12 19,10 16,10C15,10 14,11 14,12C14,13 15,14 16,14C19,14 22,12 22,12M2,12C2,12 5,10 8,10C9,10 10,11 10,12C10,13 9,14 8,14C5,14 2,12 2,12Z" />
+    <path d="M12,4.33C12.83,4.33 13.5,5 13.5,5.83C13.5,6.67 12.83,7.33 12,7.33C11.17,7.33 10.5,5.83C10.5,5 11.17,4.33 12,4.33M12,2C10.17,2 8.67,3.5 8.67,5.33C8.67,7.17 10.17,8.67 12,8.67C13.83,8.67 15.33,7.17 15.33,5.33C15.33,3.5 13.83,2 12,2M22,12C22,12 19,10 16,10C15,10 14,11 14,12C14,13 15,14 16,14C19,14 22,12 22,12M2,12C2,12 5,10 8,10C9,10 10,11 10,12C10,13 9,14 8,14C5,14 2,12 2,12Z" />
   </svg>
 );
 
@@ -329,8 +329,8 @@ export default function ThematicPageClient({
                  </motion.div>
 
                  <div className="relative">
-                    <h1 className="text-7xl md:text-[12rem] font-black uppercase italic tracking-tighter leading-[0.75] text-white drop-shadow-[0_0_50px_rgba(45,10,69,0.8)]">
-                       HALLOW<br/><span className="text-[#FF6B00] animate-glow-orange">EEN</span>
+                    <h1 className="text-7xl md:text-[10rem] font-black uppercase italic tracking-tighter leading-[1] text-white drop-shadow-[0_0_50px_rgba(45,10,69,0.8)] whitespace-nowrap">
+                       HALLOW<span className="text-[#FF6B00] animate-glow-orange">EEN</span>
                     </h1>
                     <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-full text-center">
                        <p className="text-2xl md:text-4xl font-black uppercase italic tracking-[0.3em] text-purple-500/80">
@@ -559,7 +559,7 @@ export default function ThematicPageClient({
 
              {(search || searchCity || dateFilter !== 'all') && (
                <Button variant="ghost" size="icon" className="h-14 w-14 rounded-2xl text-destructive hover:bg-destructive/5" onClick={clearFilters}>
-                 <FilterX className="w-5 h-5" />
+                 <FilterX className="w-4 h-4" />
                </Button>
              )}
           </div>
