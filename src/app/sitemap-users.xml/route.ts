@@ -1,38 +1,33 @@
 import { getAdminDb } from '@/lib/firebase/admin';
-import { buildUrlSet, normalizeRoutes, resolveUserRoute } from '@/lib/sitemap-utils';
+import { buildUrlSet, normalizeRoutes, validateData, deduplicateGlobal, resolveUserRoute } from '@/lib/sitemap-utils';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * @fileOverview SITEMAP DE USUÁRIOS E MARCAS
- * Fonte: Coleção 'usernames'. 
- * Bloqueia IDs numéricos e garante usernames válidos.
- */
 export async function GET() {
   const db = getAdminDb();
   const globalSet = new Set<string>();
   
   try {
+    // 1. Load
     const snap = await db.collection('usernames').limit(5000).get();
 
+    // 2. Normalize
     const rawUrls = snap.docs.map(doc => {
-      const username = doc.id; // Document ID na coleção usernames é o próprio username
-      const route = resolveUserRoute(username);
-      
+      const route = resolveUserRoute(doc.id);
       if (!route) return null;
-
-      const data = doc.data();
       return {
         path: route,
-        lastmod: data.updatedAt?.toDate?.().toISOString() || new Date().toISOString(),
-        priority: '0.6',
-        changefreq: 'weekly'
+        lastmod: doc.data().updatedAt?.toDate?.().toISOString() || new Date().toISOString()
       };
     }).filter(Boolean) as any[];
 
-    const normalized = normalizeRoutes(rawUrls, globalSet);
+    // 3. Validate & 4. Deduplicate
+    const normalized = normalizeRoutes(rawUrls);
+    const validated = validateData(normalized);
+    const unique = deduplicateGlobal(validated, globalSet);
 
-    return new Response(buildUrlSet(normalized), {
+    // 5. Build
+    return new Response(buildUrlSet(unique), {
       headers: { 'Content-Type': 'application/xml' },
     });
   } catch (e) {

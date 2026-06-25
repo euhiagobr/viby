@@ -1,6 +1,10 @@
 /**
- * @fileOverview Utilitários para geração segura de XML para Sitemaps e Indexadores.
- * Implementa o pipeline de normalização, resolução de rotas e deduplicação global.
+ * @fileOverview Pipeline de processamento de sitemaps.
+ * 1. Load: Coleta de dados brutos.
+ * 2. Normalize: Conversão de IDs e caminhos.
+ * 3. Validate: Verificação de sanidade e segurança.
+ * 4. Deduplicate: Eliminação de duplicatas globais.
+ * 5. Build: Geração do XML.
  */
 
 export const BASE_URL = 'https://viby.club';
@@ -16,64 +20,55 @@ export const RESERVED_ROUTES = [
   'o-que-fazer-em', 'eventos', 'evento', 'perfil'
 ];
 
-/**
- * Valida se um username é elegível para indexação.
- * Proíbe IDs puramente numéricos e rotas reservadas.
- */
 export function isValidUsername(username: string | undefined): boolean {
   if (!username) return false;
   const lower = username.toLowerCase().trim();
-  
-  // Regras de Sanidade
   if (lower.length < 3) return false;
-  if (/^\d+$/.test(lower)) return false; // Proibição Crítica: Não indexar IDs numéricos
-  if (RESERVED_ROUTES.includes(lower)) return false; // Proibição Crítica: Não indexar rotas internas
-  
+  if (/^\d+$/.test(lower)) return false; 
+  if (RESERVED_ROUTES.includes(lower)) return false;
   return true;
 }
 
-/**
- * Resolve a rota canônica de um usuário ou organização.
- * Retorna null se for inválido, forçando a exclusão do sitemap.
- */
 export function resolveUserRoute(username: string | undefined): string | null {
   if (!isValidUsername(username)) return null;
   return `/${username!.toLowerCase().trim()}`;
 }
 
-/**
- * Normaliza e deduplica rotas contra um Set global.
- * Garante que nenhuma URL se repita entre diferentes sitemaps.
- */
 export function normalizeRoutes(
-  rawUrls: { path: string; lastmod?: string; priority?: string; changefreq?: string }[],
-  globalSet: Set<string>
+  rawUrls: { path: string; lastmod?: string; priority?: string; changefreq?: string }[]
 ) {
-  const uniqueUrls: any[] = [];
-
-  rawUrls.forEach(url => {
-    // Normalização de Path
+  return rawUrls.map(url => {
     const cleanPath = url.path.startsWith('/') ? url.path : `/${url.path}`;
-    const fullLoc = `${BASE_URL}${cleanPath}`.replace(/\/$/, ""); // Remove barra final se houver
-    
-    // Deduplicação Global
-    if (!globalSet.has(fullLoc)) {
-      globalSet.add(fullLoc);
-      uniqueUrls.push({
-        loc: fullLoc,
-        lastmod: url.lastmod || new Date().toISOString(),
-        priority: url.priority || '0.5',
-        changefreq: url.changefreq || 'weekly'
-      });
-    }
+    const loc = `${BASE_URL}${cleanPath}`.replace(/\/$/, "");
+    return {
+      loc,
+      lastmod: url.lastmod || new Date().toISOString(),
+      priority: url.priority || '0.5',
+      changefreq: url.changefreq || 'weekly'
+    };
   });
-
-  return uniqueUrls;
 }
 
-/**
- * Escapa caracteres especiais para XML.
- */
+export function validateData(urls: any[]) {
+  return urls.filter(url => {
+    try {
+      const parsed = new URL(url.loc);
+      const path = parsed.pathname.replace(/^\//, "").split('/')[0];
+      return !RESERVED_ROUTES.includes(path.toLowerCase());
+    } catch (e) {
+      return false;
+    }
+  });
+}
+
+export function deduplicateGlobal(urls: any[], globalSet: Set<string>) {
+  return urls.filter(url => {
+    if (globalSet.has(url.loc)) return false;
+    globalSet.add(url.loc);
+    return true;
+  });
+}
+
 export function escapeXml(unsafe: string): string {
   if (!unsafe) return "";
   return unsafe.replace(/[<>&'"]/g, (c) => {
@@ -88,10 +83,6 @@ export function escapeXml(unsafe: string): string {
   });
 }
 
-/**
- * Constrói o XML do sitemap (<urlset>).
- * Implementa o Fallback obrigatório (homepage) se o conjunto estiver vazio.
- */
 export function buildUrlSet(urls: { loc: string; lastmod: string; changefreq: string; priority: string }[]): string {
   const finalUrls = urls.length > 0 ? urls : [
     { loc: `${BASE_URL}`, lastmod: new Date().toISOString(), priority: '1.0', changefreq: 'daily' }
@@ -111,9 +102,6 @@ ${xmlItems}
 </urlset>`.trim();
 }
 
-/**
- * Constrói o XML do índice de sitemaps (<sitemapindex>).
- */
 export function buildSitemapIndex(sitemaps: { loc: string; lastmod: string }[]): string {
   const items = sitemaps.map(s => `
   <sitemap>

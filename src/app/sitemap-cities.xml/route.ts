@@ -1,37 +1,33 @@
 import { getAdminDb } from '@/lib/firebase/admin';
-import { buildUrlSet, normalizeRoutes } from '@/lib/sitemap-utils';
+import { buildUrlSet, normalizeRoutes, validateData, deduplicateGlobal } from '@/lib/sitemap-utils';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * @fileOverview SITEMAP DE CIDADES (GUIAS REGIONAIS)
- * Formato: /o-que-fazer-em/[region]/[city]
- */
 export async function GET() {
   const db = getAdminDb();
   const globalSet = new Set<string>();
   
   try {
+    // 1. Load
     const snap = await db.collection('cityPages').get();
     
+    // 2. Normalize
     const rawUrls = snap.docs.map(doc => {
       const data = doc.data();
-      const slugParts = doc.id.split('-'); // ID format: country-state-city (ex: br-rs-porto-alegre)
-      const country = slugParts[0];
-      const state = slugParts[1];
-      const city = slugParts.slice(2).join('-');
-      
+      const parts = doc.id.split('-'); 
       return {
-        path: `/o-que-fazer-em/${country}-${state}/${city}`,
-        lastmod: data.updatedAt?.toDate?.().toISOString() || new Date().toISOString(),
-        priority: '0.8',
-        changefreq: 'daily'
+        path: `/o-que-fazer-em/${parts[0]}-${parts[1]}/${parts.slice(2).join('-')}`,
+        lastmod: data.updatedAt?.toDate?.().toISOString() || new Date().toISOString()
       };
     });
 
-    const normalized = normalizeRoutes(rawUrls, globalSet);
+    // 3. Validate & 4. Deduplicate
+    const normalized = normalizeRoutes(rawUrls);
+    const validated = validateData(normalized);
+    const unique = deduplicateGlobal(validated, globalSet);
 
-    return new Response(buildUrlSet(normalized), {
+    // 5. Build
+    return new Response(buildUrlSet(unique), {
       headers: { 'Content-Type': 'application/xml' },
     });
   } catch (e) {

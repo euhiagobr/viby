@@ -1,30 +1,30 @@
-import { buildUrlSet, normalizeRoutes } from '@/lib/sitemap-utils';
+import { buildUrlSet, normalizeRoutes, validateData, deduplicateGlobal } from '@/lib/sitemap-utils';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * @fileOverview SITEMAP ESTÁTICO
- * Rotas institucionais e páginas fixas.
- */
 export async function GET() {
   const globalSet = new Set<string>();
   
+  // 1. Load & 2. Normalize
   const staticRoutes = [
     { path: '/', priority: '1.0', changefreq: 'daily' },
-    { path: '/copa-do-mundo', priority: '0.9', changefreq: 'daily' },
-    { path: '/festa-junina', priority: '0.9', changefreq: 'daily' },
-    { path: '/experiencias-lgbtqiapn', priority: '0.8', changefreq: 'daily' },
-    { path: '/anunciar', priority: '0.7', changefreq: 'weekly' },
-    { path: '/ganhe-dinheiro', priority: '0.7', changefreq: 'weekly' },
-    { path: '/suporte/faq', priority: '0.6', changefreq: 'weekly' },
-    { path: '/termos', priority: '0.3', changefreq: 'monthly' },
-    { path: '/privacidade', priority: '0.3', changefreq: 'monthly' },
-    { path: '/viby/marca', priority: '0.4', changefreq: 'monthly' },
+    { path: '/copa-do-mundo', priority: '0.9' },
+    { path: '/festa-junina', priority: '0.9' },
+    { path: '/experiencias-lgbtqiapn', priority: '0.8' },
+    { path: '/anunciar', priority: '0.7' },
+    { path: '/ganhe-dinheiro', priority: '0.7' },
+    { path: '/suporte/faq', priority: '0.6' },
+    { path: '/termos', priority: '0.3' },
+    { path: '/privacidade', priority: '0.3' }
   ];
 
-  const normalized = normalizeRoutes(staticRoutes, globalSet);
+  // 3. Validate & 4. Deduplicate
+  const normalized = normalizeRoutes(staticRoutes);
+  const validated = validateData(normalized);
+  const unique = deduplicateGlobal(validated, globalSet);
 
-  return new Response(buildUrlSet(normalized), {
+  // 5. Build
+  return new Response(buildUrlSet(unique), {
     headers: { 'Content-Type': 'application/xml' },
   });
 }

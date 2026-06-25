@@ -1,41 +1,39 @@
 import { getAdminDb } from '@/lib/firebase/admin';
-import { buildUrlSet, normalizeRoutes, isValidUsername } from '@/lib/sitemap-utils';
+import { buildUrlSet, normalizeRoutes, validateData, deduplicateGlobal, isValidUsername } from '@/lib/sitemap-utils';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * @fileOverview SITEMAP DE EVENTOS
- * Formato canônico: /[username]/[slug]
- * Apenas eventos com status 'Ativo'.
- */
 export async function GET() {
   const db = getAdminDb();
   const globalSet = new Set<string>();
   
   try {
+    // 1. Load
     const snap = await db.collection('events')
       .where('status', '==', 'Ativo')
       .limit(3000)
       .get();
 
+    // 2. Normalize
     const rawUrls = snap.docs.map(doc => {
       const data = doc.data();
       const username = data.organizer?.username || data.username;
-      const slug = data.slug || doc.id;
-      
       if (!isValidUsername(username)) return null;
 
       return {
-        path: `/${username.toLowerCase()}/${slug}`,
+        path: `/${username.toLowerCase()}/${data.slug || doc.id}`,
         lastmod: data.updatedAt?.toDate?.().toISOString() || new Date().toISOString(),
-        priority: '0.9',
-        changefreq: 'daily'
+        priority: '0.9'
       };
     }).filter(Boolean) as any[];
 
-    const normalized = normalizeRoutes(rawUrls, globalSet);
+    // 3. Validate & 4. Deduplicate
+    const normalized = normalizeRoutes(rawUrls);
+    const validated = validateData(normalized);
+    const unique = deduplicateGlobal(validated, globalSet);
 
-    return new Response(buildUrlSet(normalized), {
+    // 5. Build
+    return new Response(buildUrlSet(unique), {
       headers: { 'Content-Type': 'application/xml' },
     });
   } catch (e) {

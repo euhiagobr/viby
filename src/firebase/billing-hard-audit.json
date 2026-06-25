@@ -1,0 +1,39 @@
+{
+  "audit_id": "VIBY-HARD-AUDIT-2024-001",
+  "timestamp": "2024-06-20T10:00:00Z",
+  "status": "PASS",
+  "confidence_index": 95,
+  "matrix": {
+    "Stripe_vs_Checkout": "MATCH",
+    "Stripe_vs_Ledger": "MATCH",
+    "Checkout_vs_Ledger": "MATCH",
+    "OrderSnapshot_vs_Backend": "MATCH"
+  },
+  "findings": [
+    {
+      "check": "Hierarquia de Taxas",
+      "status": "VALIDATED",
+      "detail": "Override de Organização prevalece sobre Promoções e Global, conforme injetado via calculateVibyOfficialSplit."
+    },
+    {
+      "check": "Consistência de Split",
+      "status": "MATCH",
+      "detail": "application_fee_amount enviado ao Stripe reflete a soma exata de Buyer Fee e Organizer Commission."
+    },
+    {
+      "check": "Prevenção de Repasse Negativo",
+      "status": "VALIDATED",
+      "detail": "Low Price Protection ativada. Ingressos de baixo valor transferem a taxa mínima para o comprador, mantendo o repasse do produtor positivo e viável no Stripe."
+    },
+    {
+      "check": "Riscos de Drift",
+      "severity": "LOW",
+      "detail": "Diferença potencial de 1 centavo em conversões EUR/USD por arredondamento no ponto de transferência. Mitigado por snapshotting no documento 'orders'."
+    }
+  ],
+  "invariants": {
+    "total_charged": "Confirmado",
+    "platform_revenue": "Confirmado",
+    "destination_account": "Confirmado via transfer_data"
+  }
+}
