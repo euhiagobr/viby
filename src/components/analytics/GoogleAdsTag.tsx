@@ -1,3 +1,4 @@
+
 'use client';
 
 import Script from 'next/script';
@@ -7,43 +8,49 @@ import { useEffect, useCallback } from 'react';
 /**
  * @fileOverview Componente de rastreamento consolidado (Google Tag).
  * Gerencia o Google Ads (AW-18219134289) e o Google Analytics (G-WZBEXGZEDG).
- * Corrigido para lidar com carregamento assíncrono e garantir hit de landing page.
+ * Corrigido para garantir rastreamento em todas as rotas dinâmicas e navegações SPA.
  */
 export function GoogleAdsTag() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const trackPageView = useCallback(() => {
+  const sendPageView = useCallback((path: string) => {
     if (typeof window !== 'undefined' && (window as any).gtag) {
-      const queryString = searchParams.toString();
-      const url = pathname + (queryString ? `?${queryString}` : '');
+      // IMPORTANTE: Para SPAs com auto-tracking desativado, o hit deve ser enviado via 'event' 'page_view'
+      (window as any).gtag('event', 'page_view', {
+        page_path: path,
+        page_location: window.location.href,
+        page_title: document.title,
+        send_to: 'G-WZBEXGZEDG'
+      });
       
-      // Atualiza o caminho e envia o hit de visualização
-      (window as any).gtag('config', 'G-WZBEXGZEDG', {
-        page_path: url,
-      });
+      // Atualiza o contexto do Google Ads também
       (window as any).gtag('config', 'AW-18219134289', {
-        page_path: url,
+        page_path: path
       });
+      
       return true;
     }
     return false;
-  }, [pathname, searchParams]);
+  }, []);
 
   useEffect(() => {
-    // Tenta rastrear imediatamente
-    const tracked = trackPageView();
+    // Correção: Inclusão do '?' para searchParams se existirem
+    const query = searchParams.toString();
+    const url = pathname + (query ? `?${query}` : '');
+    
+    // Tenta rastrear a visualização
+    const tracked = sendPageView(url);
 
-    // Se o gtag ainda não estiver pronto (script carregando), 
-    // tenta novamente em intervalos curtos até ter sucesso
+    // Mecanismo de polling para garantir o rastreio da Landing Page 
+    // se o script do Google demorar a inicializar o objeto window.gtag
     if (!tracked) {
       const interval = setInterval(() => {
-        if (trackPageView()) {
+        if (sendPageView(url)) {
           clearInterval(interval);
         }
       }, 500);
 
-      // Timeout de segurança para não rodar infinitamente
       const timeout = setTimeout(() => clearInterval(interval), 10000);
 
       return () => {
@@ -51,7 +58,7 @@ export function GoogleAdsTag() {
         clearTimeout(timeout);
       };
     }
-  }, [trackPageView]);
+  }, [pathname, searchParams, sendPageView]);
 
   return (
     <>
@@ -65,7 +72,8 @@ export function GoogleAdsTag() {
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
 
-          // Desativa o hit automático para controle manual via componente de rota
+          // Desativa o hit automático global para evitar duplicação
+          // O rastreio é gerido manualmente pelo componente React
           gtag('config', 'AW-18219134289', { 'send_page_view': false });
           gtag('config', 'G-WZBEXGZEDG', { 'send_page_view': false });
         `}
