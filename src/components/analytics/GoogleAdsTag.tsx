@@ -1,4 +1,3 @@
-
 'use client';
 
 import Script from 'next/script';
@@ -8,7 +7,7 @@ import { useEffect, useCallback } from 'react';
 /**
  * @fileOverview Componente de rastreamento consolidado (Google Tag).
  * Gerencia o Google Ads (AW-18219134289) e o Google Analytics (G-WZBEXGZEDG).
- * Corrigido para garantir rastreamento em todas as rotas dinâmicas e navegações SPA.
+ * Implementado para garantir rastreamento em 100% das páginas, incluindo SPAs.
  */
 export function GoogleAdsTag() {
   const pathname = usePathname();
@@ -16,7 +15,7 @@ export function GoogleAdsTag() {
 
   const sendPageView = useCallback((path: string) => {
     if (typeof window !== 'undefined' && (window as any).gtag) {
-      // IMPORTANTE: Para SPAs com auto-tracking desativado, o hit deve ser enviado via 'event' 'page_view'
+      // Dispara evento manual de page_view para garantir captura em navegação interna (SPA)
       (window as any).gtag('event', 'page_view', {
         page_path: path,
         page_location: window.location.href,
@@ -24,7 +23,7 @@ export function GoogleAdsTag() {
         send_to: 'G-WZBEXGZEDG'
       });
       
-      // Atualiza o contexto do Google Ads também
+      // Atualiza contexto do Google Ads
       (window as any).gtag('config', 'AW-18219134289', {
         page_path: path
       });
@@ -35,15 +34,16 @@ export function GoogleAdsTag() {
   }, []);
 
   useEffect(() => {
-    // Correção: Inclusão do '?' para searchParams se existirem
+    // Montagem da URL completa com query string correta
     const query = searchParams.toString();
     const url = pathname + (query ? `?${query}` : '');
     
-    // Tenta rastrear a visualização
+    // Tenta enviar o hit inicial
     const tracked = sendPageView(url);
 
-    // Mecanismo de polling para garantir o rastreio da Landing Page 
-    // se o script do Google demorar a inicializar o objeto window.gtag
+    // Mecanismo de redundância: Caso o script gtag ainda não tenha carregado
+    // no momento do mount da primeira página (Landing Page), tenta novamente
+    // em intervalos curtos até o carregamento ou timeout.
     if (!tracked) {
       const interval = setInterval(() => {
         if (sendPageView(url)) {
@@ -72,8 +72,8 @@ export function GoogleAdsTag() {
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
 
-          // Desativa o hit automático global para evitar duplicação
-          // O rastreio é gerido manualmente pelo componente React
+          // Configuração inicial desativando hits automáticos para evitar duplicidade
+          // O rastreio é gerido manualmente pelo useEffect acima em cada mudança de rota.
           gtag('config', 'AW-18219134289', { 'send_page_view': false });
           gtag('config', 'G-WZBEXGZEDG', { 'send_page_view': false });
         `}
