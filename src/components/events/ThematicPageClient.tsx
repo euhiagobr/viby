@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -43,6 +44,7 @@ import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { ThematicConfig } from "@/lib/thematic-configs"
 import { PublicHeader } from "@/components/layout/PublicHeader"
 import Footer from "@/components/layout/Footer"
+import { PlaceHolderImages } from "@/lib/placeholder-images"
 
 const ICON_MAP = {
   beer: Beer,
@@ -92,13 +94,17 @@ export default function ThematicPageClient({
   const IconComponent = ICON_MAP[config.iconName] || Sparkles;
   const isOktoberfest = config.slug === 'oktoberfest';
 
+  // Buscar imagens reais da Oktoberfest se for o caso
+  const imgBlumenau = PlaceHolderImages.find(img => img.id === 'oktoberfest-blumenau')?.imageUrl;
+  const imgPoa = PlaceHolderImages.find(img => img.id === 'oktoberfest-poa')?.imageUrl;
+
   // Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db) return null
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
     return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr))
   }, [db])
-  const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
+  const { data: allOccurrences, loading: loadingOccs } = useCollection<any>(occurrencesQuery)
 
   const fetchEvents = React.useCallback(async (isInitial = false) => {
     if (!db || isFetching) return
@@ -373,8 +379,8 @@ export default function ThematicPageClient({
               <div className="relative group">
                  <div className="absolute -inset-4 bg-[#FFCC00]/10 rounded-[4rem] blur-2xl group-hover:bg-[#DD0000]/10 transition-colors" />
                  <div className="relative grid grid-cols-2 gap-4">
-                    <img src="https://picsum.photos/seed/pretzel/500/700" className="rounded-[3rem] shadow-2xl rotate-2" alt="Gastronomia" />
-                    <img src="https://picsum.photos/seed/beer-mug/500/700" className="rounded-[3rem] shadow-2xl -rotate-3 mt-12" alt="Canecos" />
+                    <img src={imgBlumenau || "https://picsum.photos/seed/pretzel/500/700"} className="rounded-[3rem] shadow-2xl rotate-2 aspect-[5/7] object-cover" alt="Oktoberfest Blumenau" />
+                    <img src={imgPoa || "https://picsum.photos/seed/beer-mug/500/700"} className="rounded-[3rem] shadow-2xl -rotate-3 mt-12 aspect-[5/7] object-cover" alt="Oktoberfest Porto Alegre" />
                  </div>
               </div>
            </div>

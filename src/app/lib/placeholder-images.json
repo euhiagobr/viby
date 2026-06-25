@@ -1,3 +1,4 @@
+
 {
   "placeholderImages": [
     {
@@ -11,6 +12,18 @@
       "description": "Traditional German beer festival with tents and people celebrating",
       "imageUrl": "https://picsum.photos/seed/oktoberfestfest/1920/1080",
       "imageHint": "beer festival"
+    },
+    {
+      "id": "oktoberfest-blumenau",
+      "description": "Oktoberfest Blumenau celebration",
+      "imageUrl": "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Foktoberfest-blumenau-clube-candeias.jpeg?alt=media&token=2995612c-6f08-4db1-a427-8db6dddeb0da",
+      "imageHint": "oktoberfest blumenau"
+    },
+    {
+      "id": "oktoberfest-poa",
+      "description": "Oktoberfest Porto Alegre celebration",
+      "imageUrl": "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Foktoberfest-porto-alegre.png?alt=media&token=f6c36039-f98f-412d-8c87-568b7a631fe1",
+      "imageHint": "oktoberfest porto alegre"
     },
     {
       "id": "halloween-bg",
