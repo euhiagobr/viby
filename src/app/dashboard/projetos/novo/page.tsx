@@ -32,7 +32,7 @@ import {
   CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
-import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates, safeParseDate, formatDateForInput } from "@/lib/utils"
+import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates, safeParseDate, formatDateForInput, dateToAtomsphericISO } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -70,7 +70,7 @@ export default function NovoEventoWizard() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [uploadProgress, setUploadProgress] = setUploadProgress(null)
   const [draftId, setDraftId] = useState<string | null>(null)
   
   const [formData, setFormData] = useState<any>({

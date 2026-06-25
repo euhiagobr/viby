@@ -66,6 +66,7 @@ import {
 } from "@/components/ui/accordion"
 import useSWR from 'swr'
 import { fetcher, WC_ENDPOINTS } from '@/lib/services/worldCupService'
+import { format } from "date-fns"
 
 export default function EditarEventoWizard() {
   const params = useParams()
@@ -492,7 +493,7 @@ export default function EditarEventoWizard() {
                       <div className="py-10 text-center border-2 border-dashed rounded-3xl opacity-20 italic">Nenhum jogo vinculado</div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {formData.matches?.map((m, i) => (
+                        {formData.matches?.map((m: any, i: number) => (
                           <div key={i} className="p-4 bg-muted/20 rounded-2xl border flex items-center justify-between group">
                             <div className="flex items-center gap-3">
                               <div className="flex items-center -space-x-1.5">
@@ -504,7 +505,7 @@ export default function EditarEventoWizard() {
                                 <p className="text-[8px] font-bold text-muted-foreground uppercase">{new Date(m.kickoffAt).toLocaleDateString('pt-BR')} às {new Date(m.kickoffAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
                               </div>
                             </div>
-                            <button type="button" onClick={() => setFormData(prev => ({ ...prev, matches: prev.matches.filter((_, idx) => idx !== i) }))} className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
+                            <button type="button" onClick={() => setFormData((prev: any) => ({ ...prev, matches: prev.matches.filter((_: any, idx: number) => idx !== i) }))} className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
                           </div>
                         ))}
                       </div>
