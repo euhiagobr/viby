@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utilitários para o Gerador de Imagens Viby.
  * Implementa lógica de encurtamento inteligente de títulos, resolução de recorrências e auditoria.
@@ -12,13 +13,15 @@ const NOISY_WORDS = [
 
 /**
  * Encurta títulos longos mantendo a leitura natural.
+ * Atualizado para permitir até 50 caracteres com quebra de linha.
  */
-export function shortenTitle(title: string, maxLength: number = 35): string {
+export function shortenTitle(title: string, maxLength: number = 50): string {
   if (!title || title.length <= maxLength) return title;
 
   let words = title.split(' ');
   let currentTitle = words.join(' ');
 
+  // Se for muito longo, tenta remover palavras de ruído primeiro
   if (currentTitle.length > maxLength) {
     const cleanedWords = words.filter(w => !NOISY_WORDS.includes(w.toLowerCase()));
     if (cleanedWords.length > 0) {
@@ -28,11 +31,13 @@ export function shortenTitle(title: string, maxLength: number = 35): string {
     }
   }
 
+  // Se ainda for longo, remove palavras do final até caber
   while (words.join(' ').length > maxLength && words.length > 1) {
     words.pop();
   }
 
-  return words.join(' ');
+  const final = words.join(' ');
+  return final.length > maxLength ? final.substring(0, maxLength) : final;
 }
 
 /**
