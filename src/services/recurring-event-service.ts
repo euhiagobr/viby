@@ -39,7 +39,7 @@ export interface RecurringEventInput {
 
 /**
  * Gera ocorrências físicas no Firestore com suporte a ordenação e filtros temporais.
- * Os campos start_date e end_date são salvos como Timestamps para garantir precisão nas consultas.
+ * Resolve naive strings assumindo o fuso horário de Brasília (-03:00) para evitar desvios no servidor.
  */
 export async function generateOccurrences(parentId: string, input: RecurringEventInput) {
   const db = getAdminDb();
@@ -60,6 +60,7 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
   const occurrencesRef = db.collection('recurring_occurrences');
   
   let count = 0;
+  const TZ_OFFSET = "-03:00"; // Padrão Brasil para Viby
 
   // MODO 1: RECORRÊNCIA PERSONALIZADA (DATAS MANUAIS)
   if (input.frequency === 'custom' && input.customOccurrences) {
@@ -68,9 +69,10 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
 
     for (const occ of finalOccs) {
       const occRef = occurrencesRef.doc();
-      // sDate e eDate garantem o objeto de data completo para o Timestamp
-      const sDate = new Date(`${occ.date}T${occ.startTime || '00:00'}:00`);
-      const eDate = new Date(`${occ.date}T${occ.endTime || '23:59'}:00`);
+      
+      // Forçamos o fuso horário para que o servidor (UTC) grave o timestamp correto para o horário local brasileiro
+      const sDate = new Date(`${occ.date}T${occ.startTime || '00:00'}:00${TZ_OFFSET}`);
+      const eDate = new Date(`${occ.date}T${occ.endTime || '23:59'}:00${TZ_OFFSET}`);
 
       batch.set(occRef, {
         parentId,
@@ -93,6 +95,8 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
   } 
   // MODO 2: RECORRÊNCIA AUTOMÁTICA (INTERVALOS)
   else if (input.startDate) {
+    // Se a data vier do client, ela já deve ser um ISO absoluto.
+    // parseISO trata strings sem Z como local (mas no servidor local é UTC).
     let currentDate = parseISO(input.startDate);
     const finalDate = input.endDate ? parseISO(input.endDate) : addMonths(currentDate, 6);
     const max = input.maxOccurrences || 150;
@@ -110,8 +114,9 @@ export async function generateOccurrences(parentId: string, input: RecurringEven
       const sTime = input.startTime || "19:00";
       const eTime = input.endTime || "22:00";
       
-      const sDate = new Date(`${dateStr}T${sTime}:00`);
-      const eDate = new Date(`${dateStr}T${eTime}:00`);
+      // Sincronização de fuso para cada ocorrência gerada automaticamente
+      const sDate = new Date(`${dateStr}T${sTime}:00${TZ_OFFSET}`);
+      const eDate = new Date(`${dateStr}T${eTime}:00${TZ_OFFSET}`);
 
       batch.set(occRef, {
         parentId,

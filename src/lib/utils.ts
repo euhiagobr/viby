@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns';
+import { addDays, addWeeks, addMonths, addYears, format, parseISO } from 'date-fns';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -26,18 +26,28 @@ export function safeParseDate(val: any): Date | null {
   }
   
   // 4. String ISO ou número
+  // Nota: new Date("YYYY-MM-DDTHH:mm") sem 'Z' é tratado como local pelo browser.
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
 }
 
 /**
  * Formata uma data para o padrão aceito pelo input datetime-local (YYYY-MM-DDTHH:mm)
- * SEM converter para UTC (preservando o que o usuário digitou localmente).
+ * Preservando a hora local sem conversão forçada para UTC.
  */
 export function formatDateForInput(date: Date | null | string): string {
   const d = safeParseDate(date);
   if (!d) return "";
   return format(d, "yyyy-MM-dd'T'HH:mm");
+}
+
+/**
+ * Converte uma string de data local (do input) para uma string ISO UTC segura para o servidor.
+ */
+export function dateToAtomsphericISO(localDateStr: string): string {
+  const d = new Date(localDateStr);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString();
 }
 
 export function normalizeText(text: string): string {

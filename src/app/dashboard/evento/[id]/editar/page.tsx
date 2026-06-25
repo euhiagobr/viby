@@ -33,7 +33,7 @@ import {
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import { cn, normalizeText, normalizeEventDates, safeParseDate, generateRecurrenceDates, formatDateForInput } from "@/lib/utils"
+import { cn, normalizeText, normalizeEventDates, safeParseDate, generateRecurrenceDates, formatDateForInput, dateToAtomsphericISO } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -125,7 +125,7 @@ export default function EditarEventoWizard() {
       const startInput = formatDateForInput(event.startDate || event.date);
       const endInput = formatDateForInput(event.endDate);
 
-      // Carregar as customOccurrences das ocorrências reais do banco se o modo for custom
+      // Sincronização robusta de ocorrências existentes
       const initialCustomOccurrences = (dbOccurrences && dbOccurrences.length > 0) 
         ? dbOccurrences.map(o => ({
             date: o.date,
@@ -333,8 +333,11 @@ export default function EditarEventoWizard() {
     if (!db || !currentOrg || !formData) return
     setLoading(true)
     try {
+      // Normalização final das datas para UTC absoluto antes de enviar para o servidor
       const updatePayload = {
         ...formData,
+        startDate: dateToAtomsphericISO(formData.startDate),
+        endDate: dateToAtomsphericISO(formData.endDate),
         ticketMode,
         batches: sessions[0]?.batches || [],
         capacidadeTotal: sessions.reduce((acc, s) => acc + (parseInt(s.capacity) || 0), 0),
