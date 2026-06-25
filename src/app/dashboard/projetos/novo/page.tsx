@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -70,7 +71,7 @@ export default function NovoEventoWizard() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
-  const [uploadProgress, setUploadProgress] = setUploadProgress(null)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [draftId, setDraftId] = useState<string | null>(null)
   
   const [formData, setFormData] = useState<any>({
@@ -554,7 +555,7 @@ export default function NovoEventoWizard() {
                 disabled={publishing || !formData.title} 
                 className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 transition-all active:scale-95"
               >
-                 {publishing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
+                 {publishing ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Save className="w-6 h-6" />}
                  Publicar Evento
               </Button>
            </div>
