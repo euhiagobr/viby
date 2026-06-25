@@ -1,0 +1,64 @@
+
+{
+  "status": "PASS",
+  "confidence_index": 100,
+  "reconciliation": {
+    "stripe_vs_checkout": {
+      "status": "MATCH",
+      "diff_centavos": 0,
+      "diff_percentage": 0,
+      "numerical_reconstruction": {
+        "standard_scenario": {
+          "input_face_price": 100.00,
+          "buyer_markup_15pct": 15.00,
+          "organizer_commission_10pct": 10.00,
+          "calculated_total_charged": 115.00,
+          "calculated_application_fee": 25.00,
+          "stripe_session_amount_total": 11500,
+          "stripe_application_fee_amount": 2500,
+          "connected_account_payout": 9000
+        },
+        "low_price_protection_scenario": {
+          "input_face_price": 1.00,
+          "min_fee_brl": 3.99,
+          "buyer_markup_15pct": 0.15,
+          "protection_status": "TRIGGERED",
+          "calculated_total_charged": 5.14,
+          "calculated_application_fee": 4.14,
+          "stripe_session_amount_total": 514,
+          "stripe_application_fee_amount": 414,
+          "connected_account_payout": 100
+        }
+      }
+    },
+    "stripe_vs_ledger": {
+      "status": "MATCH",
+      "diff_centavos": 0,
+      "diff_percentage": 0,
+      "numerical_reconstruction": {
+        "ledger_total_charged_brl": 115.00,
+        "stripe_total_cents": 11500,
+        "ledger_payout_brl": 90.00,
+        "stripe_transfer_cents": 9000,
+        "delta": 0
+      }
+    },
+    "ledger_vs_snapshot": {
+      "status": "MATCH",
+      "diff_centavos": 0,
+      "diff_percentage": 0
+    },
+    "checkout_vs_backend": {
+      "status": "MATCH",
+      "diff_centavos": 0,
+      "diff_percentage": 0
+    }
+  },
+  "invariants": {
+    "total_charged_match": true,
+    "fee_consistency": true,
+    "ledger_consistency": true,
+    "stripe_integrity": true
+  },
+  "failures": []
+}
