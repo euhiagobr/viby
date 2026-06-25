@@ -1,16 +1,15 @@
-
 import { getAdminDb } from '@/lib/firebase/admin';
-import { buildUrlSet } from '@/lib/sitemap-utils';
+import { buildUrlSet, normalizeRoutes, isValidUsername } from '@/lib/sitemap-utils';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * @fileOverview Sitemap Segmentado: Eventos Ativos.
- * Formato Canônico: /[username]/[slug]
+ * @fileOverview SITEMAP DE EVENTOS
+ * Formato canônico: /[username]/[slug]
  */
 export async function GET() {
-  const baseUrl = 'https://viby.club';
   const db = getAdminDb();
+  const globalSet = new Set<string>();
   
   try {
     const snap = await db.collection('events')
@@ -18,25 +17,27 @@ export async function GET() {
       .limit(3000)
       .get();
 
-    const urls = snap.docs.map(doc => {
+    const rawUrls = snap.docs.map(doc => {
       const data = doc.data();
-      const username = data.organizer?.username || 'evento';
+      const username = data.organizer?.username;
       const slug = data.slug || doc.id;
       
+      if (!isValidUsername(username)) return null;
+
       return {
-        loc: `${baseUrl}/${username}/${slug}`,
+        path: `/${username.toLowerCase()}/${slug}`,
         lastmod: data.updatedAt?.toDate?.().toISOString() || new Date().toISOString(),
         priority: '0.9',
         changefreq: 'daily'
       };
-    });
+    }).filter(Boolean) as any[];
 
-    return new Response(buildUrlSet(urls), {
+    const normalized = normalizeRoutes(rawUrls, globalSet);
+
+    return new Response(buildUrlSet(normalized), {
       headers: { 'Content-Type': 'application/xml' },
     });
   } catch (e) {
-    return new Response(buildUrlSet([]), {
-      headers: { 'Content-Type': 'application/xml' },
-    });
+    return new Response(buildUrlSet([]), { headers: { 'Content-Type': 'application/xml' } });
   }
 }

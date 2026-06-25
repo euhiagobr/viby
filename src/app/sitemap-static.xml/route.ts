@@ -1,30 +1,30 @@
-
-import { buildUrlSet } from '@/lib/sitemap-utils';
+import { buildUrlSet, normalizeRoutes } from '@/lib/sitemap-utils';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * @fileOverview Sitemap Segmentado: Rotas Estáticas Reais.
+ * @fileOverview SITEMAP ESTÁTICO
+ * Rotas institucionais fixas.
  */
 export async function GET() {
-  const baseUrl = 'https://viby.club';
+  const globalSet = new Set<string>();
   
-  // Apenas rotas estáticas que não colidem com usuários ou eventos
-  const urls = [
-    { loc: `${baseUrl}/`, priority: '1.0', changefreq: 'daily' },
-    { loc: `${baseUrl}/copa-do-mundo`, priority: '0.9', changefreq: 'daily' },
-    { loc: `${baseUrl}/copa-do-mundo/tabela`, priority: '0.8', changefreq: 'daily' },
-    { loc: `${baseUrl}/festa-junina`, priority: '0.9', changefreq: 'daily' },
-    { loc: `${baseUrl}/experiencias-lgbtqiapn`, priority: '0.8', changefreq: 'daily' },
-    { loc: `${baseUrl}/anunciar`, priority: '0.7', changefreq: 'weekly' },
-    { loc: `${baseUrl}/ganhe-dinheiro`, priority: '0.7', changefreq: 'weekly' },
-    { loc: `${baseUrl}/suporte/faq`, priority: '0.6', changefreq: 'weekly' },
-    { loc: `${baseUrl}/termos`, priority: '0.3', changefreq: 'monthly' },
-    { loc: `${baseUrl}/privacidade`, priority: '0.3', changefreq: 'monthly' },
-    { loc: `${baseUrl}/viby/marca`, priority: '0.4', changefreq: 'monthly' },
+  const staticRoutes = [
+    { path: '/', priority: '1.0', changefreq: 'daily' },
+    { path: '/copa-do-mundo', priority: '0.9', changefreq: 'daily' },
+    { path: '/festa-junina', priority: '0.9', changefreq: 'daily' },
+    { path: '/experiencias-lgbtqiapn', priority: '0.8', changefreq: 'daily' },
+    { path: '/anunciar', priority: '0.7', changefreq: 'weekly' },
+    { path: '/ganhe-dinheiro', priority: '0.7', changefreq: 'weekly' },
+    { path: '/suporte/faq', priority: '0.6', changefreq: 'weekly' },
+    { path: '/termos', priority: '0.3', changefreq: 'monthly' },
+    { path: '/privacidade', priority: '0.3', changefreq: 'monthly' },
+    { path: '/viby/marca', priority: '0.4', changefreq: 'monthly' },
   ];
 
-  return new Response(buildUrlSet(urls), {
+  const normalized = normalizeRoutes(staticRoutes, globalSet);
+
+  return new Response(buildUrlSet(normalized), {
     headers: { 'Content-Type': 'application/xml' },
   });
 }

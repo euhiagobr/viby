@@ -1,38 +1,41 @@
-
 import { getAdminDb } from '@/lib/firebase/admin';
-import { buildUrlSet, isValidUsername } from '@/lib/sitemap-utils';
+import { buildUrlSet, normalizeRoutes, resolveUserRoute } from '@/lib/sitemap-utils';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * @fileOverview Sitemap Segmentado: Perfis de Usuários (Membros e Marcas).
- * Filtra IDs numéricos e garante que apenas usernames reais sejam indexados.
+ * @fileOverview SITEMAP DE USUÁRIOS E MARCAS
+ * Mapeia user.id -> user.username. Bloqueia IDs numéricos.
  */
 export async function GET() {
-  const baseUrl = 'https://viby.club';
   const db = getAdminDb();
+  const globalSet = new Set<string>();
   
   try {
-    const snap = await db.collection('usernames')
-      .where('uid', '!=', '')
-      .limit(5000)
-      .get();
+    // Pipeline: Load -> Map -> Validate
+    const snap = await db.collection('users').limit(5000).get();
 
-    const urls = snap.docs
-      .map(doc => doc.id)
-      .filter(isValidUsername)
-      .map(username => ({
-        loc: `${baseUrl}/${username}`,
+    const rawUrls = snap.docs.map(doc => {
+      const data = doc.data();
+      const username = data.username;
+      const route = resolveUserRoute(username);
+      
+      if (!route) return null;
+
+      return {
+        path: route,
+        lastmod: data.updatedAt?.toDate?.().toISOString() || new Date().toISOString(),
         priority: '0.6',
         changefreq: 'weekly'
-      }));
+      };
+    }).filter(Boolean) as any[];
 
-    return new Response(buildUrlSet(urls), {
+    const normalized = normalizeRoutes(rawUrls, globalSet);
+
+    return new Response(buildUrlSet(normalized), {
       headers: { 'Content-Type': 'application/xml' },
     });
   } catch (e) {
-    return new Response(buildUrlSet([]), {
-      headers: { 'Content-Type': 'application/xml' },
-    });
+    return new Response(buildUrlSet([]), { headers: { 'Content-Type': 'application/xml' } });
   }
 }

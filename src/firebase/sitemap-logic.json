@@ -1,37 +1,23 @@
-
 {
-  "description": "Lógica de geração de sitemaps segmentados para otimização de SEO e indexação.",
-  "sitemaps": {
-    "index": {
-      "path": "/sitemap.xml",
-      "type": "sitemapindex",
-      "children": ["sitemap-static.xml", "sitemap-events.xml", "sitemap-users.xml", "sitemap-cities.xml"]
-    },
-    "static": {
-      "path": "/sitemap-static.xml",
-      "description": "Rotas fixas e institucionais da plataforma."
-    },
-    "events": {
-      "path": "/sitemap-events.xml",
-      "description": "Eventos ativos com formato canônico /[username]/[slug].",
-      "source_collection": "events",
-      "filters": { "status": "Ativo" }
-    },
-    "users": {
-      "path": "/sitemap-users.xml",
-      "description": "Perfis públicos baseados em usernames reais. IDs numéricos são ignorados.",
-      "source_collection": "usernames",
-      "filters": { "type": "user" }
-    },
-    "cities": {
-      "path": "/sitemap-cities.xml",
-      "description": "Guias regionais formatados como /o-que-fazer-em/[region]/[city].",
-      "source_collection": "cityPages"
-    }
+  "audit_version": "2.0.0",
+  "subject": "Refatoração de Sitemaps e Limpeza de IDs Numéricos",
+  "pipeline_flow": [
+    "Load Raw Data (Firestore)",
+    "Map Entity ID to Canonical Username (resolveUserRoute)",
+    "Validate Username (Length, Reserved, Numeric check)",
+    "Global Deduplication (Set-based across all segments)",
+    "XML Generation with absolute canonicals (https://viby.club)"
+  ],
+  "segments": {
+    "index": "sitemap.xml (sitemapindex only)",
+    "static": "sitemap-static.xml (institutional routes)",
+    "events": "sitemap-events.xml (Active events /[username]/[slug])",
+    "users": "sitemap-users.xml (Verified profiles /[username])",
+    "cities": "sitemap-cities.xml (Regional guides /o-que-fazer-em/[region]/[city])"
   },
-  "rules": {
-    "deduplication": "Set global de URLs processadas por sitemap para evitar redundância.",
-    "username_validation": "Apenas usernames que não sejam puramente numéricos e não constem em RESERVED_ROUTES.",
-    "canonical_format": "Protocolo HTTPS + viby.club sempre."
+  "constraints_applied": {
+    "no_numeric_ids": "Bloqueia usernames que sejam puramente dígitos para evitar URLs amigáveis com aparência de ID de banco.",
+    "forced_lowercase": "Garante que todas as rotas no sitemap sejam normalizadas em caixa baixa.",
+    "empty_protection": "Fallback para a homepage caso algum sitemap dinâmico falhe ou esteja vazio."
   }
 }
