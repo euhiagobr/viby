@@ -1,4 +1,3 @@
-
 'use client';
 
 import { 
@@ -9,11 +8,7 @@ import {
   getDoc,
   serverTimestamp,
   runTransaction,
-  increment,
-  query,
-  where,
-  getDocs,
-  limit
+  increment
 } from "firebase/firestore";
 import { db as staticDb } from "@/firebase/database";
 import { createCheckoutSession } from "@/app/actions/stripe";
@@ -34,6 +29,9 @@ export interface PayButtonOptions {
   rates?: Record<string, number>;
 }
 
+/**
+ * Executa o fluxo de checkout garantindo a injeção correta da hierarquia de taxas.
+ */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, useBalance, rates, globalFees, promotions, orgsData } = options;
 
@@ -42,10 +40,10 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   const currenciesInCart = new Set(items.map(i => i.currency || 'BRL'));
   if (currenciesInCart.size > 1) {
-    throw new Error("Não é possível realizar checkout com múltiplas moedas. Remova os itens divergentes.");
+    throw new Error("Não é possível realizar checkout com múltiplas moedas.");
   }
 
-  // VALIDAÇÃO DE DISPONIBILIDADE
+  // 1. Validação de Disponibilidade e Lock de Grátis
   for (const item of items) {
     const eSnap = await getDoc(doc(staticDb, "events", item.eventId));
     if (!eSnap.exists()) throw new Error(`O evento ${item.eventTitle} não está mais disponível.`);
@@ -53,14 +51,11 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     const event = eSnap.data();
     let batchSource = event.batches || [];
 
-    // Se for recorrente e tiver ocorrência, verifica se ela possui bilheteria própria
     if (item.occurrenceId) {
       const occSnap = await getDoc(doc(staticDb, "recurring_occurrences", item.occurrenceId));
       if (occSnap.exists()) {
         const occData = occSnap.data();
-        if (occData.batches && occData.batches.length > 0) {
-          batchSource = occData.batches;
-        }
+        if (occData.batches && occData.batches.length > 0) batchSource = occData.batches;
       }
     }
 
@@ -81,6 +76,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const isFreeOrder = totals.total <= 0 && totals.balanceUsed === 0;
   const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
+  // 2. Fluxo de Ingressos Gratuitos
   if (isFreeOrder) {
     const result = await generateFreeTickets({
       userId: user.uid,
@@ -92,11 +88,20 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     return { type: 'free', success: true };
   }
 
+  // 3. Preparar Ordem de Pagamento com Snapshots de Taxas
   const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
   const exchangeDate = new Date().toISOString().slice(0, 10);
 
   const orderItems = items.map(item => {
-    const breakdown = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId], eventCurrency, rates);
+    // RESOLUÇÃO DE TAXAS COM HIERARQUIA COMPLETA
+    const breakdown = calculateFinancialBreakdown(
+      item.price, 
+      globalFees, 
+      promotions, 
+      orgsData[item.organizationId], 
+      eventCurrency, 
+      rates
+    );
     return {
       ...item,
       producerNetAmount: breakdown.producerNetAmount,
@@ -126,6 +131,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     createdAt: serverTimestamp()
   };
 
+  // Reserva de saldo se houver
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
     await runTransaction(staticDb, async (transaction) => {
       const walletRef = doc(staticDb, "wallets", user.uid);
@@ -142,12 +148,21 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
+  // 4. Mapeamento para o Stripe (Direct Split via Connect)
   const stripeLineItems = items.map((item) => {
-    const split = calculateVibyOfficialSplit(item.price, eventCurrency, rates, orgsData[item.organizationId]);
+    const split = calculateVibyOfficialSplit(
+      item.price, 
+      eventCurrency, 
+      rates, 
+      orgsData[item.organizationId], 
+      globalFees, 
+      promotions
+    );
     totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     
     let unitAmountCents = toCents(split.totalCharged);
     
+    // Abatimento proporcional de saldo da carteira na linha do Stripe
     if (balanceToSubtractCents > 0 && eventCurrency === 'BRL') {
       const maxSub = unitAmountCents * item.quantity;
       const actualSub = Math.min(balanceToSubtractCents, maxSub);

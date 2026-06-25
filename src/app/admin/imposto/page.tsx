@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -39,6 +38,9 @@ import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
 import { useRouter } from "next/navigation"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
+/**
+ * @fileOverview Fiscal & ERP - Refatorado para Auditoria com Hierarquia de Taxas.
+ */
 export default function AdminImpostoPage() {
   const db = useFirestore()
   const { formatPrice, convertValue, rates } = useCurrency()
@@ -59,14 +61,21 @@ export default function AdminImpostoPage() {
     if (!db) return
     setIsSyncing(true)
     try {
-      const [regsSnap, stripeSnap] = await Promise.all([
+      const [regsSnap, stripeSnap, globalFeesSnap, promosSnap] = await Promise.all([
         getDocs(query(collection(db, "registrations"), where("paymentStatus", "in", ["Pago", "Disponível"]))),
-        getDoc(doc(db, "settings", "stripe"))
+        getDoc(doc(db, "settings", "stripe")),
+        getDoc(doc(db, "settings", "fees")),
+        getDoc(doc(db, "settings", "promotions"))
       ])
 
       const stripe = stripeSnap.data()
+      const globalFees = globalFeesSnap.data()
+      const promotions = promosSnap.data()
       const batch = writeBatch(db)
       let count = 0
+
+      // Cache de configurações de organização para evitar loops de rede
+      const orgCache: Record<string, any> = {}
 
       for (const regDoc of regsSnap.docs) {
         const reg = regDoc.data()
@@ -74,12 +83,25 @@ export default function AdminImpostoPage() {
         const taxSnap = await getDocs(taxQ)
 
         if (taxSnap.empty) {
+          const orgId = reg.organizationId;
+          if (!orgCache[orgId]) {
+            const oSnap = await getDoc(doc(db, "organizations", orgId));
+            orgCache[orgId] = oSnap.exists() ? oSnap.data() : {};
+          }
+
           const eventCurrency = (reg.currency || 'BRL') as CurrencyCode;
-          
-          // Se o registro já tem exchangeRate fixado, usamos ele. Caso contrário, usa o atual (retrocompatibilidade)
           const currentRates = reg.exchangeRate ? { [eventCurrency]: 1/reg.exchangeRate } : rates;
 
-          const breakdown = calculateDetailedVibyBreakdown(reg.ticketBasePrice || 0, 1, currentRates, stripe, eventCurrency)
+          const breakdown = calculateDetailedVibyBreakdown(
+            reg.ticketBasePrice || 0, 
+            1, 
+            currentRates, 
+            stripe, 
+            eventCurrency,
+            orgCache[orgId],
+            globalFees,
+            promotions
+          )
           
           const monthKey = reg.timestamp ? 
             (reg.timestamp.toDate ? reg.timestamp.toDate() : new Date(reg.timestamp)).toISOString().slice(0, 7) : 
@@ -102,7 +124,6 @@ export default function AdminImpostoPage() {
             vibyNetProfit: breakdown.vibyNet,
             payoutToProducer: breakdown.payoutToProducer,
             currency: eventCurrency,
-            // Persistência em BRL (Consolidação imutável)
             exchangeRate: breakdown.exchangeRate,
             vibyNetProfitBRL: breakdown.vibyNetBRL,
             totalChargedBRL: breakdown.totalChargedBRL,
@@ -118,7 +139,7 @@ export default function AdminImpostoPage() {
 
       if (count > 0) {
         await batch.commit()
-        toast({ title: "Sincronização Fiscal!" })
+        toast({ title: "Sincronização Fiscal concluída!" })
       } else {
         toast({ title: "Tudo em dia!", description: "Não há novos registros para processar." })
       }
@@ -138,14 +159,11 @@ export default function AdminImpostoPage() {
     })
   }, [rawTickets, searchName, selectedMonth])
 
-  // Consolidação Imutável: Prioriza valores registrados em BRL no ato da venda
   const totals = React.useMemo(() => {
     return filteredTickets.reduce((acc, t) => {
       if (t.status === 'cancelado') return acc;
       
       const cur = (t.currency || 'BRL') as CurrencyCode;
-      
-      // Se tiver valor BRL persistido, usa ele (Garante imutabilidade histórica)
       const chargedBRL = t.totalChargedBRL || convertValue((t.totalFacePrice || 0) + (t.buyerFeeAmount || 0), cur, 'BRL');
       const netBRL = t.vibyNetProfitBRL || convertValue(t.vibyNetProfit || 0, cur, 'BRL');
       const taxBRL = t.taxAmountBRL || convertValue(t.taxAmount || 0, cur, 'BRL');
@@ -197,7 +215,7 @@ export default function AdminImpostoPage() {
           <h1 className="text-3xl font-black uppercase italic text-primary flex items-center gap-3">
              <Scale className="w-8 h-8 text-secondary" /> Fiscal & ERP
           </h1>
-          <p className="text-muted-foreground font-medium">Controle de faturamento e impostos (Valores fixados no ato da venda).</p>
+          <p className="text-muted-foreground font-medium">Controle de faturamento e impostos com auditoria de taxas dinâmica.</p>
         </div>
         <Button variant="outline" onClick={handleSyncSales} disabled={isSyncing} className="rounded-full h-11 px-6 font-black uppercase text-[10px] gap-2 border-secondary text-secondary">
           {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -222,7 +240,7 @@ export default function AdminImpostoPage() {
               </div>
               <div className="p-4 bg-muted/20 rounded-2xl border border-dashed flex items-center gap-3">
                  <Clock className="w-4 h-4 text-secondary" />
-                 <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">As métricas utilizam a cotação congelada da venda para garantir balanços imutáveis.</p>
+                 <p className="text-[10px] font-bold text-muted-foreground uppercase leading-tight">Auditoria: Lógica de hierarquia validada conforme snapshots das vendas.</p>
               </div>
            </div>
         </CardHeader>
@@ -302,7 +320,7 @@ function StatCard({ title, value, icon: Icon, color, formatPrice }: any) {
   };
   return (
     <Card className={cn("border-none shadow-sm border-l-4 p-5", colors[color])}>
-       <p className="text-[9px] font-black uppercase opacity-60 flex justify-between">{title}<Icon className="w-3 h-3" /></p>
+       <p className="text-[9px] font-black uppercase opacity-60 flex justify-between">{title}<Icon className="w-3" /></p>
        <div className="text-lg font-black mt-1">{formatPrice(value, 'BRL')}</div>
     </Card>
   )
