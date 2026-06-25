@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -54,6 +53,7 @@ import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence, formatTemplateDate } from '@/lib/image-generator-utils';
 import { startOfToday, addDays, format } from "date-fns";
+import { Reorder } from "framer-motion";
 
 const FORMAT_DIMENSIONS = {
   stories: { width: 1080, height: 1920 },
@@ -362,19 +362,33 @@ export default function AgendaGeneratorPage() {
             )}
             <div className="space-y-3 pt-4">
               <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Fila da Agenda ({selectedEvents.length})</Label>
-              <div className="space-y-2">
+              
+              <Reorder.Group axis="y" values={selectedEvents} onReorder={setSelectedEvents} className="space-y-2">
                 {selectedEvents.map((ev) => (
-                  <div key={ev.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50 group animate-in slide-in-from-left-2">
-                    <div className="opacity-20"><GripVertical className="w-4 h-4" /></div>
-                    <img src={ev.image} className="h-8 w-8 rounded-lg object-cover" alt="" />
-                    <div className="flex-1 min-w-0">
-                       <span className="block text-xs font-bold uppercase truncate">{ev.title}</span>
-                       <span className="block text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date)}</span>
+                  <Reorder.Item key={ev.id} value={ev} className="touch-none">
+                    <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50 group cursor-grab active:cursor-grabbing transition-shadow hover:shadow-sm bg-white">
+                      <div className="opacity-20 flex-shrink-0"><GripVertical className="w-4 h-4" /></div>
+                      <img src={ev.image} className="h-8 w-8 rounded-lg object-cover flex-shrink-0" alt="" />
+                      <div className="flex-1 min-w-0">
+                        <span className="block text-xs font-bold uppercase truncate">{ev.title}</span>
+                        <span className="block text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date)}</span>
+                      </div>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); removeEvent(ev.id); }} 
+                        className="p-1.5 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10 rounded-lg transition-all"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <button onClick={() => removeEvent(ev.id)} className="p-1.5 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10 rounded-lg transition-all"><X className="w-3.5 h-3.5" /></button>
-                  </div>
+                  </Reorder.Item>
                 ))}
-              </div>
+              </Reorder.Group>
+
+              {selectedEvents.length === 0 && (
+                <div className="py-10 text-center border-2 border-dashed rounded-3xl opacity-20 italic">
+                   Nenhum evento na fila
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

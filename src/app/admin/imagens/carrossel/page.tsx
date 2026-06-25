@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useFirestore, useDoc, useAuth, useUser, useFirebaseApp, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy, limit, addDoc, serverTimestamp, getDocs, doc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,7 @@ import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence, formatTemplateDate } from '@/lib/image-generator-utils';
 import { startOfToday, addDays, format } from "date-fns";
+import { Reorder } from "framer-motion";
 
 const COPA_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibybrasil.png?alt=media&token=";
 
@@ -135,7 +137,8 @@ export default function CarouselGeneratorPage() {
     if (selectedEvents.some(e => e.id === event.id)) return;
     setIsSearching(true);
     const imgRes = await fetchImageAsBase64(event.image);
-    const newList = [...selectedEvents, { ...event, image: imgRes.success ? imgRes.data : event.image }].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const newList = [...selectedEvents, { ...event, image: imgRes.success ? imgRes.data : event.image }];
+    // Não ordenamos automaticamente ao adicionar manualmente via busca para permitir que o usuário construa sua ordem
     setSelectedEvents(newList);
     setSearchResults([]);
     setSearchTerm("");
@@ -275,19 +278,32 @@ export default function CarouselGeneratorPage() {
 
             <div className="space-y-3 pt-4">
               <Label className="text-[10px] font-black uppercase ml-1 opacity-60">Fila do Carrossel ({selectedEvents.length})</Label>
-              <div className="space-y-2">
+              <Reorder.Group axis="y" values={selectedEvents} onReorder={setSelectedEvents} className="space-y-2">
                 {selectedEvents.map((ev) => (
-                  <div key={ev.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50 group animate-in slide-in-from-left-2">
-                    <div className="opacity-20"><GripVertical className="w-4 h-4" /></div>
-                    <img src={ev.image} className="h-8 w-8 rounded-lg object-cover" alt="" />
-                    <div className="flex-1 min-w-0">
-                       <span className="block text-xs font-bold uppercase truncate">{ev.title}</span>
-                       <span className="block text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date)}</span>
+                  <Reorder.Item key={ev.id} value={ev} className="touch-none">
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-border/50 group cursor-grab active:cursor-grabbing transition-shadow hover:shadow-sm">
+                      <div className="opacity-20 flex-shrink-0"><GripVertical className="w-4 h-4" /></div>
+                      <img src={ev.image} className="h-8 w-8 rounded-lg object-cover flex-shrink-0" alt="" />
+                      <div className="flex-1 min-w-0">
+                         <span className="block text-xs font-bold uppercase truncate">{ev.title}</span>
+                         <span className="block text-[8px] font-black text-secondary uppercase">{formatTemplateDate(ev.date)}</span>
+                      </div>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); removeEvent(ev.id); }} 
+                        className="p-1.5 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10 rounded-lg transition-all"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <button onClick={() => removeEvent(ev.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"><X className="w-3.5 h-3.5" /></button>
-                  </div>
+                  </Reorder.Item>
                 ))}
-              </div>
+              </Reorder.Group>
+
+              {selectedEvents.length === 0 && (
+                <div className="py-10 text-center border-2 border-dashed rounded-3xl opacity-20 italic">
+                   Nenhum evento na fila
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
