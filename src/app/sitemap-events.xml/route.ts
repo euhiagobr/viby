@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 /**
  * @fileOverview SITEMAP DE EVENTOS
  * Formato canônico: /[username]/[slug]
+ * Apenas eventos com status 'Ativo'.
  */
 export async function GET() {
   const db = getAdminDb();
@@ -19,7 +20,7 @@ export async function GET() {
 
     const rawUrls = snap.docs.map(doc => {
       const data = doc.data();
-      const username = data.organizer?.username;
+      const username = data.organizer?.username || data.username;
       const slug = data.slug || doc.id;
       
       if (!isValidUsername(username)) return null;

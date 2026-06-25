@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * @fileOverview SITEMAP INDEX (ROOT)
- * Único ponto de entrada para o Googlebot. 
+ * Ponto de entrada para o Googlebot. 
  * Aponta exclusivamente para os sitemaps segmentados.
  */
 export async function GET() {

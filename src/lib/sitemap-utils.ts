@@ -20,25 +20,30 @@ export const RESERVED_ROUTES = [
  * Valida se um username é elegível para indexação.
  * Proíbe IDs puramente numéricos e rotas reservadas.
  */
-export function isValidUsername(username: string): boolean {
+export function isValidUsername(username: string | undefined): boolean {
   if (!username) return false;
   const lower = username.toLowerCase().trim();
+  
+  // Regras de Sanidade
   if (lower.length < 3) return false;
-  if (/^\d+$/.test(lower)) return false; // Proibição de IDs numéricos
-  if (RESERVED_ROUTES.includes(lower)) return false;
+  if (/^\d+$/.test(lower)) return false; // Proibição Crítica: Não indexar IDs numéricos
+  if (RESERVED_ROUTES.includes(lower)) return false; // Proibição Crítica: Não indexar rotas internas
+  
   return true;
 }
 
 /**
  * Resolve a rota canônica de um usuário ou organização.
+ * Retorna null se for inválido, forçando a exclusão do sitemap.
  */
 export function resolveUserRoute(username: string | undefined): string | null {
-  if (!username || !isValidUsername(username)) return null;
-  return `/${username.toLowerCase().trim()}`;
+  if (!isValidUsername(username)) return null;
+  return `/${username!.toLowerCase().trim()}`;
 }
 
 /**
  * Normaliza e deduplica rotas contra um Set global.
+ * Garante que nenhuma URL se repita entre diferentes sitemaps.
  */
 export function normalizeRoutes(
   rawUrls: { path: string; lastmod?: string; priority?: string; changefreq?: string }[],
@@ -47,7 +52,11 @@ export function normalizeRoutes(
   const uniqueUrls: any[] = [];
 
   rawUrls.forEach(url => {
-    const fullLoc = `${BASE_URL}${url.path.startsWith('/') ? url.path : `/${url.path}`}`;
+    // Normalização de Path
+    const cleanPath = url.path.startsWith('/') ? url.path : `/${url.path}`;
+    const fullLoc = `${BASE_URL}${cleanPath}`.replace(/\/$/, ""); // Remove barra final se houver
+    
+    // Deduplicação Global
     if (!globalSet.has(fullLoc)) {
       globalSet.add(fullLoc);
       uniqueUrls.push({
@@ -62,6 +71,9 @@ export function normalizeRoutes(
   return uniqueUrls;
 }
 
+/**
+ * Escapa caracteres especiais para XML.
+ */
 export function escapeXml(unsafe: string): string {
   if (!unsafe) return "";
   return unsafe.replace(/[<>&'"]/g, (c) => {
@@ -76,11 +88,16 @@ export function escapeXml(unsafe: string): string {
   });
 }
 
+/**
+ * Constrói o XML do sitemap (<urlset>).
+ * Implementa o Fallback obrigatório (homepage) se o conjunto estiver vazio.
+ */
 export function buildUrlSet(urls: { loc: string; lastmod: string; changefreq: string; priority: string }[]): string {
-  // Fallback obrigatório: se o sitemap estiver vazio, inclui a homepage para evitar erro 404/vazio no Google
-  const items = urls.length > 0 ? urls : [{ loc: `${BASE_URL}/`, lastmod: new Date().toISOString(), priority: '1.0', changefreq: 'daily' }];
+  const finalUrls = urls.length > 0 ? urls : [
+    { loc: `${BASE_URL}`, lastmod: new Date().toISOString(), priority: '1.0', changefreq: 'daily' }
+  ];
   
-  const xmlItems = items.map(url => `
+  const xmlItems = finalUrls.map(url => `
   <url>
     <loc>${escapeXml(url.loc)}</loc>
     <lastmod>${url.lastmod}</lastmod>
@@ -94,6 +111,9 @@ ${xmlItems}
 </urlset>`.trim();
 }
 
+/**
+ * Constrói o XML do índice de sitemaps (<sitemapindex>).
+ */
 export function buildSitemapIndex(sitemaps: { loc: string; lastmod: string }[]): string {
   const items = sitemaps.map(s => `
   <sitemap>

@@ -1,23 +1,23 @@
 {
-  "audit_version": "2.0.0",
-  "subject": "Refatoração de Sitemaps e Limpeza de IDs Numéricos",
+  "audit_version": "2.1.0",
+  "subject": "Arquitetura Consolidada de Sitemaps",
   "pipeline_flow": [
-    "Load Raw Data (Firestore)",
-    "Map Entity ID to Canonical Username (resolveUserRoute)",
-    "Validate Username (Length, Reserved, Numeric check)",
-    "Global Deduplication (Set-based across all segments)",
-    "XML Generation with absolute canonicals (https://viby.club)"
+    "Load Raw Data (Firestore usernames/events)",
+    "Resolve Canonical Username (isValidUsername check)",
+    "Block Numeric IDs (Regex check)",
+    "Global Deduplication (Set-based comparison)",
+    "Empty State Fallback (Homepage insertion)",
+    "XML Response Generation"
   ],
-  "segments": {
-    "index": "sitemap.xml (sitemapindex only)",
-    "static": "sitemap-static.xml (institutional routes)",
-    "events": "sitemap-events.xml (Active events /[username]/[slug])",
-    "users": "sitemap-users.xml (Verified profiles /[username])",
-    "cities": "sitemap-cities.xml (Regional guides /o-que-fazer-em/[region]/[city])"
+  "collections_involved": {
+    "usernames": "Fonte primária para sitemap-users.xml",
+    "events": "Fonte primária para sitemap-events.xml (Filtro: status=='Ativo')",
+    "cityPages": "Fonte para sitemap-cities.xml"
   },
-  "constraints_applied": {
-    "no_numeric_ids": "Bloqueia usernames que sejam puramente dígitos para evitar URLs amigáveis com aparência de ID de banco.",
-    "forced_lowercase": "Garante que todas as rotas no sitemap sejam normalizadas em caixa baixa.",
-    "empty_protection": "Fallback para a homepage caso algum sitemap dinâmico falhe ou esteja vazio."
+  "constraints": {
+    "base_url": "https://viby.club",
+    "no_numeric_ids": "Bloqueia /123456789",
+    "no_reserved_routes": "Bloqueia /admin, /dashboard, etc no lugar de usernames",
+    "index_only_entry": "/sitemap.xml"
   }
 }

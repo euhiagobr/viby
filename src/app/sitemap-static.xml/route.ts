@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * @fileOverview SITEMAP ESTÁTICO
- * Rotas institucionais fixas.
+ * Rotas institucionais e páginas fixas.
  */
 export async function GET() {
   const globalSet = new Set<string>();

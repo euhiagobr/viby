@@ -5,23 +5,23 @@ export const dynamic = 'force-dynamic';
 
 /**
  * @fileOverview SITEMAP DE USUÁRIOS E MARCAS
- * Mapeia user.id -> user.username. Bloqueia IDs numéricos.
+ * Fonte: Coleção 'usernames'. 
+ * Bloqueia IDs numéricos e garante usernames válidos.
  */
 export async function GET() {
   const db = getAdminDb();
   const globalSet = new Set<string>();
   
   try {
-    // Pipeline: Load -> Map -> Validate
-    const snap = await db.collection('users').limit(5000).get();
+    const snap = await db.collection('usernames').limit(5000).get();
 
     const rawUrls = snap.docs.map(doc => {
-      const data = doc.data();
-      const username = data.username;
+      const username = doc.id; // Document ID na coleção usernames é o próprio username
       const route = resolveUserRoute(username);
       
       if (!route) return null;
 
+      const data = doc.data();
       return {
         path: route,
         lastmod: data.updatedAt?.toDate?.().toISOString() || new Date().toISOString(),
