@@ -33,7 +33,7 @@ import {
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import { cn, normalizeText, normalizeEventDates, safeParseDate, generateRecurrenceDates } from "@/lib/utils"
+import { cn, normalizeText, normalizeEventDates, safeParseDate, generateRecurrenceDates, formatDateForInput } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -122,8 +122,18 @@ export default function EditarEventoWizard() {
 
   useEffect(() => {
     if (event && !isDataLoaded && !loadingOccs) {
-      const start = safeParseDate(event.startDate || event.date);
-      const end = safeParseDate(event.endDate);
+      const startInput = formatDateForInput(event.startDate || event.date);
+      const endInput = formatDateForInput(event.endDate);
+
+      // Carregar as customOccurrences das ocorrências reais do banco se o modo for custom
+      const initialCustomOccurrences = (dbOccurrences && dbOccurrences.length > 0) 
+        ? dbOccurrences.map(o => ({
+            date: o.date,
+            startTime: o.startTime || "19:00",
+            endTime: o.endTime || "22:00",
+            batches: o.batches || []
+          }))
+        : (event.recurrency?.customOccurrences || []);
 
       setFormData({
         title: event.title || "",
@@ -134,8 +144,8 @@ export default function EditarEventoWizard() {
         disclosurePrices: event.disclosurePrices || [],
         categoryId: event.categoryId || "",
         categoryName: event.categoryName || "",
-        startDate: start ? start.toISOString().slice(0, 16) : "",
-        endDate: end ? end.toISOString().slice(0, 16) : "",
+        startDate: startInput,
+        endDate: endInput,
         description: event.description || "",
         status: event.status || "Ativo",
         tags: event.tags || [],
@@ -144,7 +154,7 @@ export default function EditarEventoWizard() {
         isRecurring: event.isRecurring || false,
         frequency: event.recurrency?.freq || "weekly",
         recurringEndDate: event.recurrency?.until || "",
-        customOccurrences: event.recurrency?.customOccurrences || [],
+        customOccurrences: initialCustomOccurrences,
         currency: event.currency || "BRL",
         curationType: event.curationType || "realização",
         matches: event.matches || []
@@ -154,18 +164,21 @@ export default function EditarEventoWizard() {
       if (dbOccurrences && dbOccurrences.length > 0) {
         setSessions(dbOccurrences.map(occ => ({
           id: occ.id,
-          date: `${occ.date}T${occ.startTime || '19:00'}:00`,
-          endDate: `${occ.date}T${occ.endTime || '22:00'}:00`,
+          date: formatDateForInput(`${occ.date}T${occ.startTime || '19:00'}:00`),
+          endDate: formatDateForInput(`${occ.date}T${occ.endTime || '22:00'}:00`),
           batches: occ.batches || event.batches || [],
           capacity: occ.capacidadeMaxima || event.capacidadeTotal || 100
         })));
-      } else if (start) {
-        setSessions([{
-          date: start.toISOString(),
-          endDate: end ? end.toISOString() : new Date(start.getTime() + 4 * 3600000).toISOString(),
-          batches: event.batches || [],
-          capacity: event.capacidadeTotal || 100
-        }]);
+      } else {
+        const s = safeParseDate(event.startDate || event.date);
+        if (s) {
+          setSessions([{
+            date: s.toISOString(),
+            endDate: safeParseDate(event.endDate)?.toISOString() || new Date(s.getTime() + 4 * 3600000).toISOString(),
+            batches: event.batches || [],
+            capacity: event.capacidadeTotal || 100
+          }]);
+        }
       }
       setIsDataLoaded(true);
     }
@@ -271,7 +284,7 @@ export default function EditarEventoWizard() {
 
       const newSessions = allDates.map((d: any) => {
         const iso = d.startDate.toISOString();
-        const existing = sessions.find(s => s.date === iso);
+        const existing = sessions.find(s => s.date === iso || safeParseDate(s.date)?.toISOString() === iso);
         
         return {
           date: iso,
@@ -341,13 +354,17 @@ export default function EditarEventoWizard() {
 
       if (!result.success) throw new Error(result.error)
 
-      const occurrencesPayload = sessions.map(s => ({
-        date: s.date.split('T')[0],
-        startTime: s.date.split('T')[1]?.substring(0, 5) || "19:00",
-        endTime: s.endDate.split('T')[1]?.substring(0, 5) || "22:00",
-        batches: s.batches,
-        capacidadeMaxima: s.capacity
-      }));
+      const occurrencesPayload = sessions.map(s => {
+        const d = safeParseDate(s.date);
+        const de = safeParseDate(s.endDate);
+        return {
+          date: d ? format(d, "yyyy-MM-dd") : s.date.split('T')[0],
+          startTime: d ? format(d, "HH:mm") : s.date.split('T')[1]?.substring(0, 5) || "19:00",
+          endTime: de ? format(de, "HH:mm") : s.endDate.split('T')[1]?.substring(0, 5) || "22:00",
+          batches: s.batches,
+          capacidadeMaxima: s.capacity
+        };
+      });
 
       await generateOccurrences(eventId, {
         name: formData.title,
@@ -542,11 +559,21 @@ export default function EditarEventoWizard() {
                     <AccordionTrigger className="px-8 py-6 hover:no-underline">
                        <div className="flex items-center gap-4 text-left">
                           <div className="w-12 h-12 rounded-2xl bg-muted flex flex-col items-center justify-center">
-                             <span className="text-[8px] font-black uppercase opacity-40">{new Date(session.date).toLocaleDateString('pt-BR', { month: 'short' })}</span>
-                             <span className="text-lg font-black text-primary leading-none">{new Date(session.date).getDate()}</span>
+                             <span className="text-[8px] font-black uppercase opacity-40">
+                               {(() => {
+                                 const d = safeParseDate(session.date);
+                                 return d ? d.toLocaleDateString('pt-BR', { month: 'short' }) : "---";
+                               })()}
+                             </span>
+                             <span className="text-lg font-black text-primary leading-none">
+                               {(() => {
+                                 const d = safeParseDate(session.date);
+                                 return d ? d.getDate() : "00";
+                               })()}
+                             </span>
                           </div>
                           <div>
-                             <p className="text-sm font-black uppercase italic text-primary">{idx === 0 ? "Sessão Principal / " : ""}{new Date(session.date).toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
+                             <p className="text-sm font-black uppercase italic text-primary">{idx === 0 ? "Sessão Principal / " : ""}{safeParseDate(session.date)?.toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
                              <p className="text-[10px] font-bold text-muted-foreground uppercase">{session.capacity} Vagas • {session.batches?.length || 0} Lotes</p>
                           </div>
                        </div>
@@ -561,7 +588,7 @@ export default function EditarEventoWizard() {
                           totalCapacity={session.capacity}
                           onTotalCapacityChange={(cap) => handleUpdateSessionCapacity(idx, cap)}
                           eventCurrency={formData.currency as CurrencyCode}
-                          sessionLabel={`Configuração para o dia: ${new Date(session.date).toLocaleDateString('pt-BR')}`}
+                          sessionLabel={`Configuração para o dia: ${safeParseDate(session.date)?.toLocaleDateString('pt-BR')}`}
                        />
                     </AccordionContent>
                   </Card>
@@ -589,7 +616,7 @@ export default function EditarEventoWizard() {
                     <div className="p-5 bg-muted/20 rounded-2xl border border-dashed space-y-3">
                        {sessions.map((s, i) => (
                          <div key={i} className="flex justify-between items-center text-[10px] font-bold uppercase">
-                            <span>{new Date(s.date).toLocaleDateString('pt-BR')}</span>
+                            <span>{safeParseDate(s.date)?.toLocaleDateString('pt-BR')}</span>
                             <span className="text-primary italic">{s.capacity} Vagas</span>
                          </div>
                        ))}

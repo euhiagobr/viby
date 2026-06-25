@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { addDays, addWeeks, addMonths, addYears } from 'date-fns';
+import { addDays, addWeeks, addMonths, addYears, format } from 'date-fns';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -8,7 +8,6 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Utilitário robusto para converter qualquer formato de data do Firebase/NextJS em objeto Date.
- * Lida com Timestamps reais, objetos serializados {seconds, nanoseconds} e strings ISO.
  */
 export function safeParseDate(val: any): Date | null {
   if (!val) return null;
@@ -31,6 +30,16 @@ export function safeParseDate(val: any): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Formata uma data para o padrão aceito pelo input datetime-local (YYYY-MM-DDTHH:mm)
+ * SEM converter para UTC (preservando o que o usuário digitou localmente).
+ */
+export function formatDateForInput(date: Date | null | string): string {
+  const d = safeParseDate(date);
+  if (!d) return "";
+  return format(d, "yyyy-MM-dd'T'HH:mm");
+}
+
 export function normalizeText(text: string): string {
   if (!text) return "";
   return text
@@ -41,7 +50,6 @@ export function normalizeText(text: string): string {
 
 /**
  * Normaliza e valida datas de eventos.
- * Impede o uso de datas passadas e ajusta viradas de noite.
  */
 export function normalizeEventDates(startDateStr: string, endDateStr: string): { startDate: string, endDate: string, isValid: boolean, error?: string } {
   if (!startDateStr || !endDateStr) {
@@ -56,7 +64,6 @@ export function normalizeEventDates(startDateStr: string, endDateStr: string): {
   }
 
   const now = new Date();
-  // Buffer de 10 minutos para evitar falso-positivo durante o processo de envio
   const nowWithBuffer = new Date(now.getTime() - 10 * 60 * 1000);
 
   if (start < nowWithBuffer) {
@@ -109,25 +116,20 @@ export function generateRecurrenceDates(recurrency: any) {
   const max = 150;
   let count = 0;
 
-  // Calcular duração baseada no primeiro evento para replicar nas ocorrências
   const baseStart = safeParseDate(recurrency.startDate)?.getTime() || 0;
   const baseEnd = safeParseDate(recurrency.endDate)?.getTime() || (baseStart + 4 * 60 * 60 * 1000);
   const duration = baseEnd - baseStart;
 
-  // Caso especial: Personalizada
   if (recurrency.freq === 'custom' && recurrency.customOccurrences) {
     return recurrency.customOccurrences.map((occ: any) => {
-      const d = safeParseDate(occ.date);
-      if (!d) return null;
-      
       const s = safeParseDate(`${occ.date}T${occ.startTime || '00:00'}`);
       const e = safeParseDate(`${occ.date}T${occ.endTime || '23:59'}`);
       
+      if (!s || !e) return null;
       return { startDate: s, endDate: e };
-    }).filter((d: any) => d !== null && d.startDate !== null);
+    }).filter((d: any) => d !== null);
   }
 
-  // Recorrência automática
   while (count < max) {
     if (until && current > until) break;
 

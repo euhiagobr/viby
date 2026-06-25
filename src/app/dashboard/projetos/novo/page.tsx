@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -33,7 +32,7 @@ import {
   CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
-import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates, safeParseDate } from "@/lib/utils"
+import { cn, normalizeText, normalizeEventDates, generateRecurrenceDates, safeParseDate, formatDateForInput } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -54,6 +53,7 @@ import { Separator } from "@/components/ui/separator"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import useSWR from 'swr'
 import { fetcher, WC_ENDPOINTS } from '@/lib/services/worldCupService'
+import { format } from "date-fns"
 
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
@@ -133,7 +133,12 @@ export default function NovoEventoWizard() {
       if (res.success) {
         setDraftId(res.id!);
         if (res.data && Object.keys(res.data).length > 0) {
-          setFormData((prev: any) => ({ ...prev, ...res.data }));
+          const draftData = res.data;
+          // Corrigir datas para o formato de input no rascunho também
+          if (draftData.startDate) draftData.startDate = formatDateForInput(draftData.startDate);
+          if (draftData.endDate) draftData.endDate = formatDateForInput(draftData.endDate);
+          
+          setFormData((prev: any) => ({ ...prev, ...draftData }));
           setStep(res.step || 1);
         }
       }
@@ -243,14 +248,17 @@ export default function NovoEventoWizard() {
       const result = await publishEventAction(draftId, finalPayload);
       if (!result.success) throw new Error(result.error);
 
-      // Gerar ocorrências físicas
-      const occurrencesPayload = sessions.map(s => ({
-        date: s.date.split('T')[0],
-        startTime: s.date.split('T')[1]?.substring(0, 5) || "19:00",
-        endTime: s.endDate.split('T')[1]?.substring(0, 5) || "22:00",
-        batches: s.batches,
-        capacidadeMaxima: s.capacity
-      }));
+      const occurrencesPayload = sessions.map(s => {
+        const d = safeParseDate(s.date);
+        const de = safeParseDate(s.endDate);
+        return {
+          date: d ? format(d, "yyyy-MM-dd") : s.date.split('T')[0],
+          startTime: d ? format(d, "HH:mm") : s.date.split('T')[1]?.substring(0, 5) || "19:00",
+          endTime: de ? format(de, "HH:mm") : s.endDate.split('T')[1]?.substring(0, 5) || "22:00",
+          batches: s.batches,
+          capacidadeMaxima: s.capacity
+        };
+      });
 
       await generateOccurrences(draftId, {
         name: formData.title,
@@ -263,8 +271,6 @@ export default function NovoEventoWizard() {
       });
 
       toast({ title: "Evento Publicado!", description: "Seu rascunho agora está no ar." });
-      
-      // REDIRECIONAMENTO CANÔNICO: /{username}/{slug}
       router.push(`/${result.username}/${result.slug}`);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro na publicação", description: error.message });
@@ -469,8 +475,18 @@ export default function NovoEventoWizard() {
                     <AccordionTrigger className="px-8 py-6 hover:no-underline">
                        <div className="flex items-center gap-4 text-left">
                           <div className="w-12 h-12 rounded-2xl bg-muted flex flex-col items-center justify-center">
-                             <span className="text-[8px] font-black uppercase opacity-40">{new Date(session.date).toLocaleDateString('pt-BR', { month: 'short' })}</span>
-                             <span className="text-lg font-black text-primary leading-none">{new Date(session.date).getDate()}</span>
+                             <span className="text-[8px] font-black uppercase opacity-40">
+                               {(() => {
+                                 const d = safeParseDate(session.date);
+                                 return d ? d.toLocaleDateString('pt-BR', { month: 'short' }) : "---";
+                               })()}
+                             </span>
+                             <span className="text-lg font-black text-primary leading-none">
+                               {(() => {
+                                 const d = safeParseDate(session.date);
+                                 return d ? d.getDate() : "00";
+                               })()}
+                             </span>
                           </div>
                           <div>
                              <p className="text-sm font-black uppercase italic text-primary">{idx === 0 ? "Sessão Inicial" : `Sessão ${idx + 1}`}</p>
