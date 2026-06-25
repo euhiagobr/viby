@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -32,7 +33,8 @@ import {
   Monitor,
   CheckCircle2,
   AlertTriangle,
-  ChevronRight
+  ChevronRight,
+  ListOrdered
 } from 'lucide-react';
 import { 
   Select, 
@@ -52,12 +54,6 @@ import { sendAgendaRequestAction } from '@/app/actions/email';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { auditAndPrepareImages, triggerVisualProofDownload, resolveNextOccurrence, formatTemplateDate } from '@/lib/image-generator-utils';
 import { startOfToday, addDays, format } from "date-fns";
-
-const ITEMS_PER_FORMAT = {
-  stories: 7,
-  instagram: 4,
-  A4: 4
-};
 
 const FORMAT_DIMENSIONS = {
   stories: { width: 1080, height: 1920 },
@@ -81,6 +77,7 @@ export default function AgendaGeneratorPage() {
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
   
   const [imageFormat, setImageFormat] = React.useState<'A4' | 'instagram' | 'stories'>('stories');
+  const [itemsPerPage, setItemsPerPage] = React.useState<number>(4);
   const [theme, setTheme] = React.useState<'viby' | 'claro' | 'escuro' | 'copa' | 'pride'>('viby');
 
   const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db]);
@@ -98,6 +95,15 @@ export default function AgendaGeneratorPage() {
     return query(collection(db, "recurring_occurrences"), where("status", "==", "active"), where("date", ">=", yesterdayStr));
   }, [db]);
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery);
+
+  // Ajusta o padrão de itens por página conforme o formato muda
+  React.useEffect(() => {
+    if (imageFormat === 'stories') {
+      setItemsPerPage(6);
+    } else {
+      setItemsPerPage(4);
+    }
+  }, [imageFormat]);
 
   React.useEffect(() => {
     if (settings?.logoUrl) {
@@ -214,13 +220,12 @@ export default function AgendaGeneratorPage() {
   };
 
   const eventPages = React.useMemo(() => {
-    const itemsPerPage = ITEMS_PER_FORMAT[imageFormat];
     const pages = [];
     for (let i = 0; i < selectedEvents.length; i += itemsPerPage) {
       pages.push(selectedEvents.slice(i, i + itemsPerPage));
     }
     return pages;
-  }, [selectedEvents, imageFormat]);
+  }, [selectedEvents, itemsPerPage]);
 
   const processExportQueue = async (action: 'download' | 'email') => {
     if (isGenerating || isSendingEmail || selectedEvents.length === 0) return;
@@ -387,6 +392,31 @@ export default function AgendaGeneratorPage() {
                    <FormatBtn active={imageFormat === 'A4'} onClick={() => setImageFormat('A4')} icon={Maximize2} label="A4" />
                 </div>
              </div>
+
+             <div className="space-y-4">
+                <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><ListOrdered className="w-3.5 h-3.5" /> Eventos por Arte</Label>
+                <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(parseInt(v))}>
+                   <SelectTrigger className="h-11 rounded-xl">
+                      <SelectValue />
+                   </SelectTrigger>
+                   <SelectContent className="rounded-xl">
+                      <SelectItem value="1">1 Evento (Destaque)</SelectItem>
+                      <SelectItem value="2">2 Eventos</SelectItem>
+                      <SelectItem value="3">3 Eventos</SelectItem>
+                      <SelectItem value="4">4 Eventos</SelectItem>
+                      {imageFormat === 'stories' && (
+                        <>
+                          <SelectItem value="5">5 Eventos</SelectItem>
+                          <SelectItem value="6">6 Eventos</SelectItem>
+                        </>
+                      )}
+                   </SelectContent>
+                </Select>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight italic px-1">
+                   {itemsPerPage === 1 ? "O layout será otimizado para destacar apenas um evento." : `A arte será dividida para acomodar ${itemsPerPage} eventos.`}
+                </p>
+             </div>
+
              <div className="space-y-4">
                 <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Palette className="w-3.5 h-3.5" /> Tema Aplicado</Label>
                 <Select value={theme} onValueChange={(v:any) => setTheme(v)}>
