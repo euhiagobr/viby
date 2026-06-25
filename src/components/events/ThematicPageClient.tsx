@@ -94,7 +94,7 @@ export default function ThematicPageClient({
   const IconComponent = ICON_MAP[config.iconName] || Sparkles;
   const isOktoberfest = config.slug === 'oktoberfest';
 
-  // Buscar imagens reais da Oktoberfest se for o caso
+  // Buscar imagens reais da Oktoberfest no placeholder-images.json
   const imgBlumenau = PlaceHolderImages.find(img => img.id === 'oktoberfest-blumenau')?.imageUrl;
   const imgPoa = PlaceHolderImages.find(img => img.id === 'oktoberfest-poa')?.imageUrl;
 
@@ -379,8 +379,16 @@ export default function ThematicPageClient({
               <div className="relative group">
                  <div className="absolute -inset-4 bg-[#FFCC00]/10 rounded-[4rem] blur-2xl group-hover:bg-[#DD0000]/10 transition-colors" />
                  <div className="relative grid grid-cols-2 gap-4">
-                    <img src={imgBlumenau || "https://picsum.photos/seed/pretzel/500/700"} className="rounded-[3rem] shadow-2xl rotate-2 aspect-[5/7] object-cover" alt="Oktoberfest Blumenau" />
-                    <img src={imgPoa || "https://picsum.photos/seed/beer-mug/500/700"} className="rounded-[3rem] shadow-2xl -rotate-3 mt-12 aspect-[5/7] object-cover" alt="Oktoberfest Porto Alegre" />
+                    <img 
+                      src={imgBlumenau || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Foktoberfest-blumenau-clube-candeias.jpeg?alt=media&token=2995612c-6f08-4db1-a427-8db6dddeb0da"} 
+                      className="rounded-[3rem] shadow-2xl rotate-2 aspect-[5/7] object-cover" 
+                      alt="Oktoberfest Blumenau" 
+                    />
+                    <img 
+                      src={imgPoa || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Foktoberfest-porto-alegre.png?alt=media&token=f6c36039-f98f-412d-8c87-568b7a631fe1"} 
+                      className="rounded-[3rem] shadow-2xl -rotate-3 mt-12 aspect-[5/7] object-cover" 
+                      alt="Oktoberfest Porto Alegre" 
+                    />
                  </div>
               </div>
            </div>
