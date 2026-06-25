@@ -86,6 +86,15 @@
     background-size: 40px 40px;
     background-position: 0 0, 20px 20px;
   }
+
+  /* Textura de Madeira para Oktoberfest */
+  .bg-wood {
+    background-color: #1c0d02;
+    background-image: 
+      linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0,0,0,0.3) 1px, transparent 1px);
+    background-size: 80px 100%, 100% 4px;
+  }
 }
 
 .circular-timer-progress {

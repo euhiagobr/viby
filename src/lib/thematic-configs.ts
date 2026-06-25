@@ -27,10 +27,10 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     description: "Descubra festas de Oktoberfest, eventos temáticos, celebrações alemãs, festivais de cerveja, música e gastronomia em um só lugar.",
     intro: "Encontre festas, bailes, festivais cervejeiros e celebrações alemãs em todo o Brasil.",
     tags: ["oktober", "oktoberfest", "cerveja", "chopp", "chope", "alemã", "alemao", "germânica"],
-    heroBg: getImg('oktoberfest-bg')?.imageUrl || "",
-    heroHint: "beer festival crowd celebration tent",
-    themeColor: "bg-[#1c0d02]", // Marrom escuro/Noite acolhedora
-    accentColor: "text-[#facc15]", // Dourado Cerveja
+    heroBg: "", // Oktoberfest agora usa Hero Gráfico
+    heroHint: "",
+    themeColor: "bg-[#1c0d02]", 
+    accentColor: "text-[#FFCC00]", 
     iconName: 'beer',
   },
   halloween: {
@@ -52,7 +52,7 @@ export const THEMATIC_PAGES_CONFIG: Record<string, ThematicConfig> = {
     intro: "Celebre o orgulho gaúcho! Encontre a programação completa de CTGs e eventos tradicionalistas.",
     tags: ["ctg", "semanafarroupilha", "semana-farroupilha", "semana farroupilha"],
     heroBg: getImg('semana-farroupilha-bg')?.imageUrl || "",
-    heroHint: "gaucho landscape",
+    heroHint: "gaucho pampa",
     themeColor: "bg-[#166534]",
     accentColor: "text-[#991b1b]", // Vermelho Farroupilha
     iconName: 'flame',

@@ -53,6 +53,19 @@ const ICON_MAP = {
   music: Music,
 };
 
+const HopsSVG = () => (
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-40">
+    <path d="M32 8C24 8 16 14 16 22C16 28 20 32 20 40C20 48 24 56 32 56C40 56 44 48 44 40C44 32 48 28 48 22C48 14 40 8 32 8Z" stroke="#FFCC00" strokeWidth="2" />
+    <path d="M32 8V56M16 22H48M20 40H44" stroke="#FFCC00" strokeWidth="1" strokeDasharray="4 4" />
+  </svg>
+);
+
+const WheatSVG = () => (
+  <svg width="40" height="120" viewBox="0 0 40 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-30">
+    <path d="M20 120V10M20 40L10 30M20 40L30 30M20 60L10 50M20 60L30 50M20 80L10 70M20 80L30 70M20 20L10 10M20 20L30 10" stroke="#FFCC00" strokeWidth="3" strokeLinecap="round" />
+  </svg>
+);
+
 export default function ThematicPageClient({ 
   initialEvents = [], 
   config 
@@ -165,7 +178,7 @@ export default function ThematicPageClient({
           });
 
           if (nextValid) {
-            effectiveDate = `${nextValid.date}T${nextValid.startTime || '19:00'}:00`;
+            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
           }
         }
       }
@@ -239,81 +252,96 @@ export default function ThematicPageClient({
     <div className="flex flex-col min-h-screen bg-[#f8fafc]">
       <PublicHeader showBack />
 
-      {/* HERO */}
-      <section className={cn(
-        "relative min-h-[65vh] flex items-center justify-center overflow-hidden text-white transition-all duration-700",
-        isOktoberfest ? "bg-[#1c0d02]" : config.themeColor
-      )}>
-        {/* LUZES OKTOBERFEST */}
-        {isOktoberfest && (
-          <div className="absolute inset-0 z-20 pointer-events-none">
-             <div className="absolute top-10 left-1/4 w-3 h-3 bg-yellow-400 rounded-full blur-[2px] animate-twinkle" />
-             <div className="absolute top-24 left-1/2 w-4 h-4 bg-yellow-200 rounded-full blur-[3px] animate-twinkle [animation-delay:1s]" />
-             <div className="absolute top-16 right-1/3 w-3 h-3 bg-yellow-400 rounded-full blur-[2px] animate-twinkle [animation-delay:2s]" />
+      {/* HERO SECTION */}
+      {isOktoberfest ? (
+        <section className="relative min-h-[65vh] flex items-center justify-center overflow-hidden bg-wood text-white px-4">
+           {/* Bavarian Border Pattern */}
+           <div className="absolute top-0 left-0 right-0 h-4 bg-bavarian opacity-30 z-30" />
+           <div className="absolute bottom-0 left-0 right-0 h-4 bg-bavarian opacity-30 z-30" />
+           
+           {/* Decorative Elements */}
+           <div className="absolute left-10 top-1/2 -translate-y-1/2 hidden lg:block">
+              <WheatSVG />
+           </div>
+           <div className="absolute right-10 top-1/2 -translate-y-1/2 hidden lg:block">
+              <WheatSVG />
+           </div>
+
+           <div className="container mx-auto max-w-4xl relative z-10 py-24 text-center">
+              <div className="flex flex-col items-center gap-10">
+                 <div className="flex flex-col items-center gap-3">
+                    <Badge className="bg-[#FFCC00] text-black border-none px-6 py-2 rounded-full font-black uppercase text-xs tracking-widest shadow-[0_0_20px_rgba(250,204,21,0.3)]">
+                      Festival Premium
+                    </Badge>
+                    <div className="w-16 h-1 bg-[#DD0000] rounded-full" />
+                 </div>
+
+                 <div className="relative">
+                    <div className="absolute -top-12 left-1/2 -translate-x-1/2">
+                       <HopsSVG />
+                    </div>
+                    <h1 className="text-7xl md:text-[11rem] font-black uppercase italic tracking-tighter leading-[0.8] text-[#FFCC00] drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)]">
+                       OKTOBER<br/><span className="text-white">FEST</span> 2026
+                    </h1>
+                 </div>
+
+                 <div className="space-y-6 max-w-2xl">
+                    <p className="text-xl md:text-3xl font-black uppercase italic tracking-widest text-[#DD0000]">
+                       Viva a Tradição
+                    </p>
+                    <p className="text-lg md:text-xl font-medium text-white/80 leading-relaxed uppercase tracking-wide">
+                       {config.intro}
+                    </p>
+                 </div>
+
+                 <div className="flex gap-4">
+                    <div className="w-3 h-3 rounded-full bg-[#000000] ring-1 ring-white/20" />
+                    <div className="w-3 h-3 rounded-full bg-[#DD0000] ring-1 ring-white/20" />
+                    <div className="w-3 h-3 rounded-full bg-[#FFCC00] ring-1 ring-white/20" />
+                 </div>
+              </div>
+           </div>
+
+           {/* Subtle Vignette */}
+           <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black opacity-60" />
+        </section>
+      ) : (
+        <section className={cn(
+          "relative min-h-[65vh] flex items-center justify-center overflow-hidden text-white transition-all duration-700",
+          config.themeColor
+        )}>
+          <div className="absolute inset-0 opacity-50 pointer-events-none">
+             <div 
+               className="absolute inset-0 bg-cover bg-center" 
+               style={{ backgroundImage: `url(${config.heroBg})` }}
+               data-ai-hint={config.heroHint}
+             />
+             <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/90" />
           </div>
-        )}
 
-        <div className="absolute inset-0 opacity-50 pointer-events-none">
-           <div 
-             className="absolute inset-0 bg-cover bg-center" 
-             style={{ backgroundImage: `url(${config.heroBg})` }}
-             data-ai-hint={config.heroHint}
-           />
-           <div className={cn(
-             "absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/90",
-             isOktoberfest && "from-black/60 via-transparent to-[#1c0d02]"
-           )} />
-        </div>
+          <div className="container mx-auto px-4 relative z-10 py-20 text-center">
+            <div className="max-w-4xl mx-auto space-y-8 flex flex-col items-center">
+              <Badge className="bg-white/20 backdrop-blur-md border-none px-6 py-2 rounded-full font-black uppercase text-xs tracking-widest flex items-center gap-2">
+                <IconComponent className="w-4 h-4 fill-current" /> Viby Temático
+              </Badge>
 
-        <div className="container mx-auto px-4 relative z-10 py-20 text-center">
-          <div className="max-w-4xl mx-auto space-y-8 flex flex-col items-center">
-            <Badge className={cn(
-              "backdrop-blur-md border-none px-6 py-2 rounded-full font-black uppercase text-xs tracking-widest flex items-center gap-2",
-              isOktoberfest ? "bg-[#facc15] text-[#1c0d02] shadow-[#facc15]/20 shadow-xl" : "bg-white/20 text-white"
-            )}>
-              <IconComponent className="w-4 h-4 fill-current" /> Viby Temático
-            </Badge>
-
-            <div className="relative group">
-              {isOktoberfest && (
-                <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center gap-20 opacity-20 group-hover:opacity-40 transition-opacity">
-                   <Beer className="w-16 h-16 rotate-12" />
-                   <Beer className="w-16 h-16 -rotate-12" />
-                </div>
-              )}
-              <h1 className={cn(
-                "text-6xl md:text-[10rem] font-black uppercase italic tracking-tighter leading-[0.8] drop-shadow-2xl",
-                isOktoberfest ? "text-[#facc15]" : "text-white"
-              )}>
+              <h1 className="text-6xl md:text-[8rem] font-black uppercase italic tracking-tighter leading-[0.8] text-white drop-shadow-2xl">
                 {config.title}
               </h1>
+
+              <p className="text-xl md:text-2xl font-medium opacity-95 max-w-2xl mx-auto leading-relaxed uppercase tracking-wide italic">
+                {config.intro}
+              </p>
             </div>
-
-            <p className="text-xl md:text-3xl font-medium opacity-95 max-w-2xl mx-auto leading-relaxed uppercase tracking-wide italic">
-              {config.intro}
-            </p>
-
-            {isOktoberfest && (
-              <div className="flex gap-4 items-center">
-                 <div className="w-10 h-1 bg-[#000000]" />
-                 <div className="w-10 h-1 bg-[#DD0000]" />
-                 <div className="w-10 h-1 bg-[#FFCC00]" />
-              </div>
-            )}
           </div>
-        </div>
-
-        {/* BANDEIRINHAS BÁVARAS */}
-        {isOktoberfest && (
-          <div className="absolute bottom-0 left-0 w-full h-8 bg-bavarian opacity-40 z-10" />
-        )}
-      </section>
+        </section>
+      )}
 
       {/* SECTION: VIVA A TRADIÇÃO ALEMÃ (OKTOBERFEST ONLY) */}
       {isOktoberfest && (
         <section className="py-32 bg-white relative overflow-hidden">
            <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
-              <Beer className="w-64 h-64 text-[#facc15]" />
+              <Beer className="w-64 h-64 text-[#FFCC00]" />
            </div>
            <div className="container mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
               <div className="space-y-10">
@@ -328,22 +356,22 @@ export default function ThematicPageClient({
                     <p>Brinde com canecos de chope, saboreie o autêntico pretzel e dance ao som das bandas folclóricas em uma atmosfera vibrante e inesquecível.</p>
                  </div>
                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#facc15]/30 text-center shadow-sm hover:shadow-md transition-all">
-                       <Beer className="w-10 h-10 text-[#facc15] mx-auto mb-3" />
+                    <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#FFCC00]/30 text-center shadow-sm hover:shadow-md transition-all">
+                       <Beer className="w-10 h-10 text-[#FFCC00] mx-auto mb-3" />
                        <p className="text-[10px] font-black uppercase tracking-tight text-[#78350f]">Chope Gelado</p>
                     </div>
-                    <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#facc15]/30 text-center shadow-sm hover:shadow-md transition-all">
+                    <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#FFCC00]/30 text-center shadow-sm hover:shadow-md transition-all">
                        <Music className="w-10 h-10 text-[#DD0000] mx-auto mb-3" />
                        <p className="text-[10px] font-black uppercase tracking-tight text-[#DD0000]">Bandas Típicas</p>
                     </div>
-                    <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#facc15]/30 text-center shadow-sm hover:shadow-md transition-all">
+                    <div className="p-6 bg-[#fdf6e3] rounded-[2rem] border border-[#FFCC00]/30 text-center shadow-sm hover:shadow-md transition-all">
                        <Users className="w-10 h-10 text-primary mx-auto mb-3" />
                        <p className="text-[10px] font-black uppercase tracking-tight text-primary">Confraternização</p>
                     </div>
                  </div>
               </div>
               <div className="relative group">
-                 <div className="absolute -inset-4 bg-[#facc15]/10 rounded-[4rem] blur-2xl group-hover:bg-[#DD0000]/10 transition-colors" />
+                 <div className="absolute -inset-4 bg-[#FFCC00]/10 rounded-[4rem] blur-2xl group-hover:bg-[#DD0000]/10 transition-colors" />
                  <div className="relative grid grid-cols-2 gap-4">
                     <img src="https://picsum.photos/seed/pretzel/500/700" className="rounded-[3rem] shadow-2xl rotate-2" alt="Gastronomia" />
                     <img src="https://picsum.photos/seed/beer-mug/500/700" className="rounded-[3rem] shadow-2xl -rotate-3 mt-12" alt="Canecos" />
@@ -384,7 +412,7 @@ export default function ThematicPageClient({
              
              <Select value={priceFilter} onValueChange={setPriceFilter}>
                 <SelectTrigger className={cn("w-44 rounded-2xl h-14 border-none shadow-sm font-bold uppercase text-[10px]", isOktoberfest ? "bg-[#fdf6e3] text-primary" : "bg-white")}>
-                   <Coins className={cn("w-4 h-4 mr-2", isOktoberfest ? "text-[#facc15]" : "")} />
+                   <Coins className={cn("w-4 h-4 mr-2", isOktoberfest ? "text-[#FFCC00]" : "")} />
                    <SelectValue placeholder="Preço" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl">
