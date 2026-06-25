@@ -22,7 +22,9 @@ import {
   Gift,
   Sparkles,
   Music,
-  Users
+  Users,
+  Moon,
+  Wind
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -45,6 +47,7 @@ import { ThematicConfig } from "@/lib/thematic-configs"
 import { PublicHeader } from "@/components/layout/PublicHeader"
 import Footer from "@/components/layout/Footer"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
+import { motion, AnimatePresence } from "framer-motion"
 
 const ICON_MAP = {
   beer: Beer,
@@ -65,6 +68,20 @@ const HopsSVG = () => (
 const WheatSVG = () => (
   <svg width="40" height="120" viewBox="0 0 40 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-30">
     <path d="M20 120V10M20 40L10 30M20 40L30 30M20 60L10 50M20 60L30 50M20 80L10 70M20 80L30 70M20 20L10 10M20 20L30 10" stroke="#FFCC00" strokeWidth="3" strokeLinecap="round" />
+  </svg>
+);
+
+const BatSVG = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+    <path d="M12,4.33C12.83,4.33 13.5,5 13.5,5.83C13.5,6.67 12.83,7.33 12,7.33C11.17,7.33 10.5,6.67 10.5,5.83C10.5,5 11.17,4.33 12,4.33M12,2C10.17,2 8.67,3.5 8.67,5.33C8.67,7.17 10.17,8.67 12,8.67C13.83,8.67 15.33,7.17 15.33,5.33C15.33,3.5 13.83,2 12,2M22,12C22,12 19,10 16,10C15,10 14,11 14,12C14,13 15,14 16,14C19,14 22,12 22,12M2,12C2,12 5,10 8,10C9,10 10,11 10,12C10,13 9,14 8,14C5,14 2,12 2,12Z" />
+  </svg>
+);
+
+const CobwebSVG = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" className={className} fill="none" stroke="currentColor" strokeWidth="0.5" strokeOpacity="0.2">
+    <path d="M0 0 L100 100 M0 100 L100 0 M50 0 L50 100 M0 50 L100 50" />
+    <path d="M10 10 Q 50 20 90 10 M10 90 Q 50 80 90 90 M10 10 Q 20 50 10 90 M90 10 Q 80 50 90 90" />
+    <path d="M25 25 Q 50 35 75 25 M25 75 Q 50 65 75 75 M25 25 Q 35 50 25 75 M75 25 Q 65 50 75 75" />
   </svg>
 );
 
@@ -93,10 +110,7 @@ export default function ThematicPageClient({
 
   const IconComponent = ICON_MAP[config.iconName] || Sparkles;
   const isOktoberfest = config.slug === 'oktoberfest';
-
-  // Buscar imagens reais da Oktoberfest no placeholder-images.json
-  const imgBlumenau = PlaceHolderImages.find(img => img.id === 'oktoberfest-blumenau')?.imageUrl;
-  const imgPoa = PlaceHolderImages.find(img => img.id === 'oktoberfest-poa')?.imageUrl;
+  const isHalloween = config.slug === 'halloween';
 
   // Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
@@ -255,11 +269,89 @@ export default function ThematicPageClient({
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#f8fafc]">
+    <div className={cn("flex flex-col min-h-screen", isHalloween ? "bg-[#050505] text-white" : "bg-[#f8fafc]")}>
       <PublicHeader showBack />
 
       {/* HERO SECTION */}
-      {isOktoberfest ? (
+      {isHalloween ? (
+        <section className="relative min-h-[75vh] flex items-center justify-center overflow-hidden bg-[#050505] px-4">
+           {/* Particles/Cinzas */}
+           <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+              {Array.from({ length: 20 }).map((_, i) => (
+                <div 
+                  key={i} 
+                  className="absolute w-1 h-1 bg-white/10 rounded-full animate-mist"
+                  style={{
+                    left: `${Math.random() * 100}%`,
+                    top: `${Math.random() * 100}%`,
+                    animationDelay: `${Math.random() * 10}s`,
+                    animationDuration: `${15 + Math.random() * 10}s`
+                  }}
+                />
+              ))}
+           </div>
+
+           {/* Mist / Névoa rasteira */}
+           <div className="absolute bottom-0 left-0 right-0 h-[40vh] bg-gradient-to-t from-black via-purple-900/10 to-transparent z-20 pointer-events-none">
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 animate-mist" />
+           </div>
+
+           {/* Decorativos SVG */}
+           <div className="absolute top-0 left-0 p-10 z-0">
+              <CobwebSVG className="w-64 h-64 text-purple-500/20" />
+           </div>
+           <div className="absolute top-20 right-20 z-0">
+              <Moon className="w-48 h-48 text-white/5 fill-white/5 blur-sm" />
+           </div>
+
+           {/* Morcegos Animados */}
+           <div className="absolute inset-0 pointer-events-none z-30">
+              <BatSVG className="absolute w-8 h-8 text-black/40 animate-bat" style={{ animationDelay: '2s' }} />
+              <BatSVG className="absolute w-12 h-12 text-black/60 animate-bat" style={{ animationDelay: '7s' }} />
+              <BatSVG className="absolute w-6 h-6 text-black/30 animate-bat" style={{ animationDelay: '0s' }} />
+           </div>
+
+           <div className="container mx-auto max-w-4xl relative z-40 py-24 text-center">
+              <div className="flex flex-col items-center gap-12">
+                 <motion.div 
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex flex-col items-center gap-4"
+                 >
+                    <Badge className="bg-[#FF6B00] text-black border-none px-8 py-2 rounded-full font-black uppercase text-xs tracking-widest shadow-[0_0_30px_rgba(255,107,0,0.4)] animate-pulse">
+                      Edição Especial Limitada
+                    </Badge>
+                    <div className="flex gap-4">
+                       <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-glow-orange" />
+                       <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-glow-orange" style={{ animationDelay: '1s' }} />
+                       <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-glow-orange" style={{ animationDelay: '2s' }} />
+                    </div>
+                 </motion.div>
+
+                 <div className="relative">
+                    <h1 className="text-7xl md:text-[12rem] font-black uppercase italic tracking-tighter leading-[0.75] text-white drop-shadow-[0_0_50px_rgba(45,10,69,0.8)]">
+                       HALLOW<br/><span className="text-[#FF6B00] animate-glow-orange">EEN</span>
+                    </h1>
+                    <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-full text-center">
+                       <p className="text-2xl md:text-4xl font-black uppercase italic tracking-[0.3em] text-purple-500/80">
+                          2026
+                       </p>
+                    </div>
+                 </div>
+
+                 <p className="text-lg md:text-2xl font-medium text-white/70 max-w-2xl leading-relaxed uppercase tracking-wide italic mt-8">
+                    {config.intro}
+                 </p>
+
+                 {/* Spooky Eyes que piscam raramente */}
+                 <div className="absolute bottom-20 left-1/4 animate-eyes flex gap-2">
+                    <div className="w-1 h-1 bg-[#FF6B00] rounded-full shadow-[0_0_5px_#FF6B00]" />
+                    <div className="w-1 h-1 bg-[#FF6B00] rounded-full shadow-[0_0_5px_#FF6B00]" />
+                 </div>
+              </div>
+           </div>
+        </section>
+      ) : isOktoberfest ? (
         <section className="relative min-h-[65vh] flex items-center justify-center overflow-hidden bg-wood text-white px-4">
            {/* Bavarian Border Pattern */}
            <div className="absolute top-0 left-0 right-0 h-4 bg-bavarian opacity-30 z-30" />
@@ -380,12 +472,12 @@ export default function ThematicPageClient({
                  <div className="absolute -inset-4 bg-[#FFCC00]/10 rounded-[4rem] blur-2xl group-hover:bg-[#DD0000]/10 transition-colors" />
                  <div className="relative grid grid-cols-2 gap-4">
                     <img 
-                      src={imgBlumenau || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Foktoberfest-blumenau-clube-candeias.jpeg?alt=media&token=2995612c-6f08-4db1-a427-8db6dddeb0da"} 
+                      src={PlaceHolderImages.find(img => img.id === 'oktoberfest-blumenau')?.imageUrl || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Foktoberfest-blumenau-clube-candeias.jpeg?alt=media&token=2995612c-6f08-4db1-a427-8db6dddeb0da"} 
                       className="rounded-[3rem] shadow-2xl rotate-2 aspect-[5/7] object-cover" 
                       alt="Oktoberfest Blumenau" 
                     />
                     <img 
-                      src={imgPoa || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Foktoberfest-porto-alegre.png?alt=media&token=f6c36039-f98f-412d-8c87-568b7a631fe1"} 
+                      src={PlaceHolderImages.find(img => img.id === 'oktoberfest-poa')?.imageUrl || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Foktoberfest-porto-alegre.png?alt=media&token=f6c36039-f98f-412d-8c87-568b7a631fe1"} 
                       className="rounded-[3rem] shadow-2xl -rotate-3 mt-12 aspect-[5/7] object-cover" 
                       alt="Oktoberfest Porto Alegre" 
                     />
@@ -400,24 +492,24 @@ export default function ThematicPageClient({
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
           <div className="flex items-center gap-3 flex-wrap">
              <div className="relative w-full sm:w-80">
-                <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4", isOktoberfest ? "text-[#FFCC00]" : "opacity-40")} />
+                <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4", isOktoberfest ? "text-[#FFCC00]" : isHalloween ? "text-[#FF6B00]" : "opacity-40")} />
                 <Input 
                   placeholder="Qual evento você busca?" 
                   className={cn(
                     "h-14 pl-12 rounded-2xl shadow-sm border-none text-sm font-bold uppercase",
-                    isOktoberfest ? "bg-[#fdf6e3] text-primary placeholder:text-primary/40" : "bg-white"
+                    isOktoberfest ? "bg-[#fdf6e3] text-primary placeholder:text-primary/40" : isHalloween ? "bg-[#1a1a1a] border-purple-500/20 text-white placeholder:text-white/30" : "bg-white"
                   )}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
              </div>
              <div className="relative w-full sm:w-56">
-                <MapPin className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4", isOktoberfest ? "text-[#DD0000]" : "opacity-40")} />
+                <MapPin className={cn("absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4", isOktoberfest ? "text-[#DD0000]" : isHalloween ? "text-[#FF6B00]" : "opacity-40")} />
                 <Input 
                   placeholder="Cidade" 
                   className={cn(
                     "h-14 pl-12 rounded-2xl shadow-sm border-none text-sm font-bold uppercase",
-                    isOktoberfest ? "bg-[#fdf6e3] text-primary placeholder:text-primary/40" : "bg-white"
+                    isOktoberfest ? "bg-[#fdf6e3] text-primary placeholder:text-primary/40" : isHalloween ? "bg-[#1a1a1a] border-purple-500/20 text-white placeholder:text-white/30" : "bg-white"
                   )}
                   value={searchCity}
                   onChange={(e) => setSearchCity(e.target.value)}
@@ -425,8 +517,8 @@ export default function ThematicPageClient({
              </div>
              
              <Select value={priceFilter} onValueChange={setPriceFilter}>
-                <SelectTrigger className={cn("w-44 rounded-2xl h-14 border-none shadow-sm font-bold uppercase text-[10px]", isOktoberfest ? "bg-[#fdf6e3] text-primary" : "bg-white")}>
-                   <Coins className={cn("w-4 h-4 mr-2", isOktoberfest ? "text-[#FFCC00]" : "")} />
+                <SelectTrigger className={cn("w-44 rounded-2xl h-14 border-none shadow-sm font-bold uppercase text-[10px]", isOktoberfest ? "bg-[#fdf6e3] text-primary" : isHalloween ? "bg-[#1a1a1a] text-white border-purple-500/20" : "bg-white")}>
+                   <Coins className={cn("w-4 h-4 mr-2", isOktoberfest || isHalloween ? "text-[#FF6B00]" : "")} />
                    <SelectValue placeholder="Preço" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl">
@@ -440,7 +532,7 @@ export default function ThematicPageClient({
 
              <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("rounded-2xl h-14 border-none shadow-sm gap-2 font-black text-[10px] uppercase transition-all px-8", isOktoberfest ? "bg-[#fdf6e3] text-primary" : "bg-white", dateFilter !== 'all' && "bg-primary text-white")}>
+                  <Button variant="outline" className={cn("rounded-2xl h-14 border-none shadow-sm gap-2 font-black text-[10px] uppercase transition-all px-8", isOktoberfest ? "bg-[#fdf6e3] text-primary" : isHalloween ? "bg-[#1a1a1a] text-white hover:bg-purple-900/20" : "bg-white", dateFilter !== 'all' && "bg-primary text-white")}>
                     <CalendarIcon className="h-4 w-4" />
                     {dateFilter === 'today' ? 'Hoje' :
                      dateFilter === 'tomorrow' ? 'Amanhã' :
@@ -480,15 +572,22 @@ export default function ThematicPageClient({
         {processedEvents.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
             {processedEvents.map((event) => (
-              <EventCard 
-                key={event.id} 
-                event={{ ...event, userLocation }} 
-                thematicTheme={isOktoberfest ? 'oktoberfest' : 'default'}
-              />
+              <div key={event.id} className={cn(isHalloween && "group/spooky-card relative transition-all duration-500 hover:scale-[1.02]")}>
+                 {isHalloween && (
+                   <div className="absolute -inset-1 bg-gradient-to-r from-purple-900 via-[#FF6B00]/20 to-purple-900 rounded-[2.2rem] opacity-0 group-hover/spooky-card:opacity-100 blur-md transition-opacity pointer-events-none" />
+                 )}
+                 <EventCard 
+                    event={{ ...event, userLocation }} 
+                    thematicTheme={isOktoberfest ? 'oktoberfest' : 'default'}
+                 />
+              </div>
             ))}
           </div>
         ) : (
-          <div className="py-40 text-center bg-white rounded-[4rem] border-2 border-dashed border-border shadow-inner flex flex-col items-center gap-6">
+          <div className={cn(
+            "py-40 text-center rounded-[4rem] border-2 border-dashed flex flex-col items-center gap-6 shadow-inner",
+            isHalloween ? "bg-white/5 border-purple-500/20" : "bg-white border-border"
+          )}>
             <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center opacity-20">
                <Inbox className="w-12 h-12" />
             </div>
@@ -509,10 +608,10 @@ export default function ThematicPageClient({
                 disabled={isFetching}
                 className={cn(
                   "h-16 px-16 font-black uppercase italic border-2 rounded-2xl shadow-xl transition-all",
-                  isOktoberfest ? "bg-[#DD0000] text-white border-none" : "bg-white text-primary"
+                  isOktoberfest ? "bg-[#DD0000] text-white border-none" : isHalloween ? "bg-[#FF6B00] text-black border-none" : "bg-white text-primary"
                 )}
               >
-                {isFetching ? <Loader2 className="w-5 h-5 animate-spin" /> : `Ver mais ${isOktoberfest ? 'Oktoberfests' : 'eventos'}`}
+                {isFetching ? <Loader2 className="w-5 h-5 animate-spin" /> : `Ver mais ${isOktoberfest ? 'Oktoberfests' : isHalloween ? 'Halloween' : 'eventos'}`}
               </Button>
            </div>
         )}
