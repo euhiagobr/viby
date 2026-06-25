@@ -28,7 +28,6 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
 
   // REGRAS DE LAYOUT: 16:9 (Vertical) vs Square (Horizontal)
   // Feed: 1, 2, 3 -> Vertical | Stories: 1, 2, 3, 4 -> Vertical
-  // NOVO: Feed 4 eventos agora também prioriza proporção retangular para a imagem
   const isVerticalLayout = (format === 'stories' && count <= 4) || (format === 'instagram' && count <= 3) || (format === 'A4' && count <= 3);
   
   const baseConfig = {
@@ -67,20 +66,27 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
   }[theme];
 
   const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : 'viby.club';
-  const isCopa = theme === 'copa';
-  const isPride = theme === 'pride';
   
-  const badgeText = isCopa ? 'COPA 2026' : 'Agenda';
-  const mainTitleText = isCopa ? 'ONDE ASSISTIR' : 'AGENDA';
-  const subTitleText = isPride ? 'DIVERSIDADE' : isCopa ? 'O BRASIL' : 'DA SEMANA';
+  // Cálculo de altura segura para a imagem (evita estouro de container e cortes)
+  const getImageHeight = () => {
+    if (!isVerticalLayout) return '160px'; // Layout horizontal (ex: 4 itens no feed)
+    
+    // Altura total disponível para os itens
+    const availableHeight = baseConfig.height - baseConfig.headerHeight - baseConfig.footerHeight - (baseConfig.padding * 2) - (baseConfig.gap * (count - 1));
+    const itemHeight = availableHeight / count;
+    
+    // Deduzir espaço aproximado do texto (Data, Título, Cidade)
+    const textSpace = count === 1 ? 250 : count === 2 ? 180 : 120;
+    
+    return `${Math.max(120, itemHeight - textSpace)}px`;
+  };
 
-  // Dinâmica de fontes baseada na quantidade de itens
   const getTitleSize = () => {
-    if (!isVerticalLayout) return '28px'; // Reduzido ligeiramente para 4 eventos em linha
+    if (!isVerticalLayout) return '24px';
     if (count === 1) return '82px';
-    if (count === 2) return '64px';
-    if (count === 3) return '48px';
-    return '42px';
+    if (count === 2) return '58px';
+    if (count === 3) return '42px';
+    return '34px';
   };
 
   return (
@@ -112,18 +118,18 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
           alignItems: 'flex-end', 
           height: `${baseConfig.headerHeight}px`,
           width: '100%', 
-          marginBottom: '30px',
+          marginBottom: '40px',
           boxSizing: 'border-box',
           flexShrink: 0
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-           <div style={{ background: colors.accent, color: (isCopa || isPride) ? '#000000' : '#FFFFFF', padding: '6px 20px', borderRadius: '50px', width: 'fit-content', fontSize: '18px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
-              {badgeText}
+           <div style={{ background: colors.accent, color: (theme === 'copa' || theme === 'pride') ? '#000000' : '#FFFFFF', padding: '6px 20px', borderRadius: '50px', width: 'fit-content', fontSize: '18px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '4px' }}>
+              {theme === 'copa' ? 'COPA 2026' : 'AGENDA'}
            </div>
            <h1 style={{ fontSize: count === 1 ? '100px' : '80px', fontWeight: 900, textTransform: 'uppercase', fontStyle: 'italic', margin: 0, lineHeight: 0.85, letterSpacing: '-4px' }}>
-              {mainTitleText} <br />
-              <span style={{ opacity: 0.4, fontSize: '0.8em' }}>{subTitleText}</span>
+              {theme === 'copa' ? 'ONDE ASSISTIR' : 'AGENDA'} <br />
+              <span style={{ opacity: 0.4, fontSize: '0.8em' }}>{theme === 'pride' ? 'DIVERSIDADE' : theme === 'copa' ? 'O BRASIL' : 'DA SEMANA'}</span>
            </h1>
         </div>
         {logoUrl && (
@@ -137,7 +143,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
         style={{ 
           display: 'flex', 
           flexDirection: 'column', 
-          justifyContent: isVerticalLayout ? 'center' : 'flex-start',
+          justifyContent: 'center',
           gap: `${baseConfig.gap}px`, 
           width: '100%',
           flex: 1,
@@ -160,25 +166,23 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               borderRadius: isVerticalLayout ? '0' : '30px',
               width: '100%',
               flexShrink: 0,
-              boxSizing: 'border-box',
-              overflow: 'hidden'
+              boxSizing: 'border-box'
             }}
           >
-             {/* IMAGE WRAPPER - PRIORIDADE: SEM CORTE (CONTAIN) */}
+             {/* IMAGE WRAPPER - REGRA CRÍTICA: CONTAIN PARA NÃO CORTAR INFO */}
              <div 
                className="viby-card-image" 
                style={{ 
-                 width: isVerticalLayout ? '100%' : '260px', // Aumentado para suportar 16:9 lateral
-                 height: isVerticalLayout ? 'auto' : '146px', // Altura calculada para 16:9 em 260px width
-                 aspectRatio: '16/9',
+                 width: isVerticalLayout ? '100%' : '300px', 
+                 height: getImageHeight(),
                  borderRadius: isVerticalLayout ? '35px' : '20px', 
                  overflow: 'hidden', 
                  flexShrink: 0,
-                 border: isVerticalLayout ? '6px solid rgba(255,255,255,0.1)' : 'none',
-                 background: 'rgba(0,0,0,0.2)', // Fundo neutro para contain
+                 background: 'rgba(0,0,0,0.2)', // Fundo para áreas não preenchidas pelo contain
                  display: 'flex',
                  alignItems: 'center',
-                 justifyContent: 'center'
+                 justifyContent: 'center',
+                 border: isVerticalLayout ? 'none' : '2px solid rgba(255,255,255,0.1)'
                }}
              >
                 <img 
@@ -187,7 +191,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                   style={{ 
                     width: '100%', 
                     height: '100%', 
-                    objectFit: 'contain' // REGRA CRÍTICA: Nunca cortar informações
+                    objectFit: 'contain' // NUNCA CORTAR
                   }} 
                   alt="" 
                 />
@@ -200,7 +204,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                  flex: 1, 
                  display: 'flex', 
                  flexDirection: 'column', 
-                 gap: isVerticalLayout ? '12px' : '4px', 
+                 gap: isVerticalLayout ? '10px' : '4px', 
                  minWidth: 0, 
                  width: '100%',
                  boxSizing: 'border-box' 
@@ -228,7 +232,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                     letterSpacing: '-2px',
                     wordBreak: 'break-word',
                     display: '-webkit-box',
-                    WebkitLineClamp: isVerticalLayout ? 2 : 2, // Permite 2 linhas mesmo no horizontal para títulos longos
+                    WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden'
                   }}
