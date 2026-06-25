@@ -26,9 +26,12 @@ interface AgendaTemplateProps {
 export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, totalPages }: AgendaTemplateProps) {
   const count = events.length;
 
-  // REGRAS DE LAYOUT: 16:9 (Vertical) vs Square (Horizontal)
-  // Feed: 1, 2, 3 -> Vertical | Stories: 1, 2, 3, 4 -> Vertical
-  const isVerticalLayout = (format === 'stories' && count <= 4) || (format === 'instagram' && count <= 3) || (format === 'A4' && count <= 3);
+  /**
+   * REGRAS DE LAYOUT:
+   * 1. Stories: Mantém comportamento original (1-4 Vertical, 5-6 Horizontal).
+   * 2. Feed (instagram) e A4: 1 evento é destaque (Vertical), 2-4 são horizontais (Lado a Lado).
+   */
+  const isVerticalLayout = (format === 'stories' && count <= 4) || (count === 1);
   
   const baseConfig = {
     stories: { 
@@ -45,7 +48,7 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
       headerHeight: 180, 
       footerHeight: 100, 
       padding: 60, 
-      gap: isVerticalLayout ? 30 : 20 
+      gap: isVerticalLayout ? 30 : 25 
     },
     A4: { 
       width: 1240, 
@@ -53,9 +56,11 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
       headerHeight: 280, 
       footerHeight: 140, 
       padding: 100, 
-      gap: isVerticalLayout ? 40 : 25 
+      gap: isVerticalLayout ? 40 : 30 
     }
-  }[format];
+  }[format === 'A4' ? 'A4' : (format === 'stories' ? 'stories' : 'instagram')] || { 
+    width: 1080, height: 1080, headerHeight: 180, footerHeight: 100, padding: 60, gap: 30 
+  };
 
   const colors = {
     viby: { bg: 'linear-gradient(135deg, #000B26 0%, #2C52EE 100%)', text: '#FFFFFF', itemBg: 'rgba(255,255,255,0.05)', accent: '#2C52EE' },
@@ -67,23 +72,29 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
 
   const siteUrl = theme === 'copa' ? 'viby.club/copa-do-mundo' : theme === 'pride' ? 'viby.club/lgbt' : 'viby.club';
   
-  // Cálculo de altura segura para a imagem (evita estouro de container e cortes)
+  // Cálculo de altura para o container de imagem
   const getImageHeight = () => {
-    if (!isVerticalLayout) return '160px'; // Layout horizontal (ex: 4 itens no feed)
+    if (!isVerticalLayout) return '100%'; 
     
-    // Altura total disponível para os itens
     const availableHeight = baseConfig.height - baseConfig.headerHeight - baseConfig.footerHeight - (baseConfig.padding * 2) - (baseConfig.gap * (count - 1));
     const itemHeight = availableHeight / count;
     
-    // Deduzir espaço aproximado do texto (Data, Título, Cidade)
-    const textSpace = count === 1 ? 250 : count === 2 ? 180 : 120;
+    // Espaço para o texto no layout vertical (destaque)
+    const textSpace = count === 1 ? 300 : 120;
     
-    return `${Math.max(120, itemHeight - textSpace)}px`;
+    return `${Math.max(150, itemHeight - textSpace)}px`;
   };
 
   const getTitleSize = () => {
-    if (!isVerticalLayout) return '24px';
     if (count === 1) return '82px';
+    if (!isVerticalLayout) {
+       // Layout horizontal para Feed/A4 2-4
+       if (format === 'stories') return '32px';
+       if (count === 2) return '48px';
+       if (count === 3) return '38px';
+       return '32px';
+    }
+    // Layout vertical para Stories 1-4
     if (count === 2) return '58px';
     if (count === 3) return '42px';
     return '34px';
@@ -160,29 +171,31 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
               display: 'flex', 
               flexDirection: isVerticalLayout ? 'column' : 'row',
               alignItems: isVerticalLayout ? 'flex-start' : 'center', 
-              gap: isVerticalLayout ? '15px' : '25px', 
+              gap: isVerticalLayout ? '15px' : '30px', 
               background: isVerticalLayout ? 'transparent' : colors.itemBg, 
               padding: isVerticalLayout ? '0' : '20px', 
-              borderRadius: isVerticalLayout ? '0' : '30px',
+              borderRadius: isVerticalLayout ? '0' : '35px',
               width: '100%',
+              flex: 1,
               flexShrink: 0,
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              overflow: 'hidden'
             }}
           >
-             {/* IMAGE WRAPPER - REGRA CRÍTICA: CONTAIN PARA NÃO CORTAR INFO */}
+             {/* IMAGE WRAPPER (1/3 do espaço no horizontal) */}
              <div 
                className="viby-card-image" 
                style={{ 
-                 width: isVerticalLayout ? '100%' : '300px', 
+                 width: isVerticalLayout ? '100%' : '35%', 
                  height: getImageHeight(),
-                 borderRadius: isVerticalLayout ? '35px' : '20px', 
+                 aspectRatio: '16/9',
+                 borderRadius: isVerticalLayout ? '35px' : '25px', 
                  overflow: 'hidden', 
                  flexShrink: 0,
-                 background: 'rgba(0,0,0,0.2)', // Fundo para áreas não preenchidas pelo contain
+                 background: 'rgba(0,0,0,0.1)',
                  display: 'flex',
                  alignItems: 'center',
-                 justifyContent: 'center',
-                 border: isVerticalLayout ? 'none' : '2px solid rgba(255,255,255,0.1)'
+                 justifyContent: 'center'
                }}
              >
                 <img 
@@ -191,20 +204,21 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                   style={{ 
                     width: '100%', 
                     height: '100%', 
-                    objectFit: 'contain' // NUNCA CORTAR
+                    objectFit: 'contain' 
                   }} 
                   alt="" 
                 />
              </div>
              
-             {/* CONTENT WRAPPER */}
+             {/* CONTENT WRAPPER (2/3 do espaço no horizontal) */}
              <div 
                className="viby-card-content" 
                style={{ 
                  flex: 1, 
                  display: 'flex', 
                  flexDirection: 'column', 
-                 gap: isVerticalLayout ? '10px' : '4px', 
+                 justifyContent: 'center',
+                 gap: isVerticalLayout ? '10px' : '5px', 
                  minWidth: 0, 
                  width: '100%',
                  boxSizing: 'border-box' 
@@ -241,11 +255,11 @@ export function AgendaTemplate({ events, format, theme, logoUrl, pageNumber, tot
                 </h2>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.5 }}>
-                   <svg width={isVerticalLayout ? "20" : "14"} height={isVerticalLayout ? "20" : "14"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                   <svg width={isVerticalLayout ? "20" : "16"} height={isVerticalLayout ? "20" : "16"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                       <circle cx="12" cy="10" r="3" />
                    </svg>
-                   <span style={{ fontSize: isVerticalLayout ? '22px' : '14px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                   <span style={{ fontSize: isVerticalLayout ? '22px' : '16px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
                      {ev.city}
                    </span>
                 </div>
