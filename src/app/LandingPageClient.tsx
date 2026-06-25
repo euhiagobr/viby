@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils";
 import { useTranslation } from "@/i18n/i18n-context";
 import { PublicHeader } from "@/components/layout/PublicHeader";
@@ -26,6 +26,12 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
 
+  // Estados para Drag-to-Scroll
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isMouseDown, setIsMouseDown] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+
   useEffect(() => {
     getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {});
   }, []);
@@ -49,6 +55,25 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
     setSelectedCategory("all");
   };
 
+  // Handlers para simular arraste com o mouse
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!scrollRef.current) return;
+    setIsMouseDown(true);
+    setStartX(e.pageX - scrollRef.current.offsetLeft);
+    setScrollLeft(scrollRef.current.scrollLeft);
+  };
+
+  const handleMouseLeave = () => setIsMouseDown(false);
+  const handleMouseUp = () => setIsMouseDown(false);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isMouseDown || !scrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    const walk = (x - startX) * 2; // Velocidade do scroll
+    scrollRef.current.scrollLeft = scrollLeft - walk;
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
       <PublicHeader />
@@ -60,17 +85,27 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         setSearchCity={setSearchCity}
       />
 
-      {/* SEÇÃO DE CATEGORIAS DINÂMICAS - Scroll Horizontal Oculto */}
+      {/* SEÇÃO DE CATEGORIAS DINÂMICAS - Scroll Horizontal Oculto com Drag-to-Scroll */}
       {!isInitialLoad && dynamicCategories.length > 0 && (
-        <section className="bg-white border-b sticky top-16 z-30 shadow-sm overflow-hidden">
+        <section className="bg-white border-b sticky top-16 z-30 shadow-sm overflow-hidden select-none">
            <div className="container mx-auto px-4 py-4">
-              <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide py-1 flex-nowrap cursor-grab active:cursor-grabbing">
+              <div 
+                ref={scrollRef}
+                onMouseDown={handleMouseDown}
+                onMouseLeave={handleMouseLeave}
+                onMouseUp={handleMouseUp}
+                onMouseMove={handleMouseMove}
+                className={cn(
+                  "flex items-center gap-4 overflow-x-auto scrollbar-hide py-1 flex-nowrap",
+                  isMouseDown ? "cursor-grabbing" : "cursor-grab"
+                )}
+              >
                  <Button
                     variant={selectedCategory === 'all' ? 'default' : 'ghost'}
                     size="sm"
                     onClick={() => setSelectedCategory('all')}
                     className={cn(
-                      "rounded-full px-6 font-black uppercase text-[10px] tracking-widest shrink-0 transition-all",
+                      "rounded-full px-6 font-black uppercase text-[10px] tracking-widest shrink-0 transition-all pointer-events-auto",
                       selectedCategory === 'all' ? "bg-secondary text-white shadow-lg" : "text-muted-foreground hover:bg-muted"
                     )}
                  >
@@ -83,7 +118,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
                       size="sm"
                       onClick={() => setSelectedCategory(cat)}
                       className={cn(
-                        "rounded-full px-6 font-black uppercase text-[10px] tracking-widest shrink-0 transition-all",
+                        "rounded-full px-6 font-black uppercase text-[10px] tracking-widest shrink-0 transition-all pointer-events-auto",
                         selectedCategory === cat ? "bg-secondary text-white shadow-lg" : "text-muted-foreground hover:bg-muted"
                       )}
                    >
