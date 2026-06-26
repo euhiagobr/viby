@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { 
   Calculator, 
   ArrowRight, 
@@ -231,36 +232,36 @@ export default function CalculadoraClient() {
                  <h3 className="text-xl font-black italic uppercase tracking-tighter">Comparativo Detalhado</h3>
               </div>
               <CardContent className="p-0 overflow-x-auto">
-                 <Table>
-                    <TableHeader className="bg-muted/10">
-                       <TableRow>
-                          <TableHead className="font-black uppercase text-[10px] p-6">Descrição</TableHead>
-                          <TableHead className="font-black uppercase text-[10px] text-right">Outras Plataformas</TableHead>
-                          <TableHead className="font-black uppercase text-[10px] text-right p-6 text-secondary italic">Viby</TableHead>
-                       </TableRow>
-                    </TableHeader>
-                    <TableBody className="text-sm font-bold">
-                       <TableRow>
-                          <TableCell className="p-6">Taxa do Organizador</TableCell>
-                          <TableCell className="text-right text-red-500">-{formatCurrency(result.competitor.orgFee)}</TableCell>
-                          <TableCell className="text-right p-6 text-green-600">-{formatCurrency(result.viby.orgFee)}</TableCell>
-                       </TableRow>
-                       <TableRow>
-                          <TableCell className="p-6">Taxa do Comprador</TableCell>
-                          <TableCell className="text-right">{formatCurrency(result.competitor.buyerFee)}</TableCell>
-                          <TableCell className="text-right p-6">{formatCurrency(result.viby.buyerFee)}</TableCell>
-                       </TableRow>
-                       <TableRow className="bg-muted/5 font-black">
-                          <TableCell className="p-6">Total Arrecadado (Bruto)</TableCell>
-                          <TableCell className="text-right">{formatCurrency(result.grossRevenue)}</TableCell>
-                          <TableCell className="text-right p-6">{formatCurrency(result.grossRevenue)}</TableCell>
-                       </TableRow>
-                       <TableRow className="bg-secondary/5">
-                          <TableCell className="p-6 text-lg italic text-primary">O ORGANIZADOR RECEBE</TableCell>
-                          <TableCell className="text-right text-lg italic">{formatCurrency(result.competitor.netOrganizer)}</TableCell>
-                          <TableCell className="text-right p-6 text-2xl font-black italic text-primary">{formatCurrency(result.viby.netOrganizer)}</TableCell>
-                       </TableRow>
-                    </TableBody>
+                 <Table className="w-full">
+                    <thead className="bg-muted/10">
+                       <tr className="border-b">
+                          <th className="font-black uppercase text-[10px] p-6 text-left">Descrição</th>
+                          <th className="font-black uppercase text-[10px] text-right p-6">Outras Plataformas</th>
+                          <th className="font-black uppercase text-[10px] text-right p-6 text-secondary italic">Viby</th>
+                       </tr>
+                    </thead>
+                    <tbody className="text-sm font-bold divide-y">
+                       <tr>
+                          <td className="p-6">Taxa do Organizador</td>
+                          <td className="text-right p-6 text-red-500">-{formatCurrency(result.competitor.orgFee)}</td>
+                          <td className="text-right p-6 text-green-600">-{formatCurrency(result.viby.orgFee)}</td>
+                       </tr>
+                       <tr>
+                          <td className="p-6">Taxa do Comprador</td>
+                          <td className="text-right p-6">{formatCurrency(result.competitor.buyerFee)}</td>
+                          <td className="text-right p-6">{formatCurrency(result.viby.buyerFee)}</td>
+                       </tr>
+                       <tr className="bg-muted/5 font-black">
+                          <td className="p-6">Total Arrecadado (Bruto)</td>
+                          <td className="text-right p-6">{formatCurrency(result.grossRevenue)}</td>
+                          <td className="text-right p-6">{formatCurrency(result.grossRevenue)}</td>
+                       </tr>
+                       <tr className="bg-secondary/5">
+                          <td className="p-6 text-lg italic text-primary">O ORGANIZADOR RECEBE</td>
+                          <td className="text-right p-6 text-lg italic">{formatCurrency(result.competitor.netOrganizer)}</td>
+                          <td className="text-right p-6 text-2xl font-black italic text-primary">{formatCurrency(result.viby.netOrganizer)}</td>
+                       </tr>
+                    </tbody>
                  </Table>
               </CardContent>
            </Card>
@@ -301,7 +302,7 @@ export default function CalculadoraClient() {
            </div>
 
            <div className="flex justify-center pt-6">
-              <Button asChild className="h-16 px-12 bg-primary text-white font-black rounded-2xl shadow-2xl uppercase italic text-lg hover:scale-105 transition-all">
+              <Button asChild className="h-16 px-12 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-105 transition-all">
                  <Link href="/cadastro">Falar com um Consultor <ArrowRight className="ml-2 w-5 h-5" /></Link>
               </Button>
            </div>
@@ -309,4 +310,28 @@ export default function CalculadoraClient() {
       </section>
     </div>
   );
+}
+
+function Table({ children, className }: { children: React.ReactNode, className?: string }) {
+  return <table className={cn("w-full border-collapse", className)}>{children}</table>;
+}
+
+function TableHeader({ children, className }: { children: React.ReactNode, className?: string }) {
+  return <thead className={className}>{children}</thead>;
+}
+
+function TableBody({ children, className }: { children: React.ReactNode, className?: string }) {
+  return <tbody className={className}>{children}</tbody>;
+}
+
+function TableRow({ children, className }: { children: React.ReactNode, className?: string }) {
+  return <tr className={className}>{children}</tr>;
+}
+
+function TableHead({ children, className }: { children: React.ReactNode, className?: string }) {
+  return <th className={className}>{children}</th>;
+}
+
+function TableCell({ children, className }: { children: React.ReactNode, className?: string }) {
+  return <td className={className}>{children}</td>;
 }
