@@ -76,6 +76,9 @@ export async function generateMetadata(): Promise<Metadata> {
       locale: 'pt_BR',
       type: 'website',
     },
+    facebook: {
+      appId: '1537942881340602',
+    },
     twitter: {
       card: 'summary_large_image',
       title: siteName,
