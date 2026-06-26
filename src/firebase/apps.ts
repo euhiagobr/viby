@@ -2,16 +2,19 @@ import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { firebaseConfig } from "./config";
 
 /**
- * @fileOverview Inicialização isomórfica do Firebase App com logs de diagnóstico.
+ * @fileOverview Inicialização centralizada do Firebase App (Singleton).
  */
 
-function initializeFirebaseApp(): FirebaseApp {
-  if (getApps().length === 0) {
-    const app = initializeApp(firebaseConfig);
-    console.log('[Auth-Debug] Firebase App Initialized');
-    return app;
-  }
-  return getApp();
-}
+let appInstance: FirebaseApp | null = null;
 
-export const app = initializeFirebaseApp();
+export const app = (() => {
+  if (typeof window !== 'undefined') {
+    if (!appInstance) {
+      const apps = getApps();
+      appInstance = apps.length > 0 ? apps[0] : initializeApp(firebaseConfig);
+    }
+    return appInstance;
+  }
+  // No servidor, inicializa por requisição se necessário
+  return getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+})();

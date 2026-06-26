@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -19,7 +18,10 @@ interface GoogleAdProps {
  * Mantém o layout shift mínimo reservando altura e utilizando cards padrão.
  */
 export function GoogleAd({ publisherId, slotId, format = 'auto', responsive = true, className }: GoogleAdProps) {
+  const [mounted, setMounted] = React.useState(false);
+
   React.useEffect(() => {
+    setMounted(true);
     try {
       // @ts-ignore
       (window.adsbygoogle = window.adsbygoogle || []).push({});
@@ -28,8 +30,10 @@ export function GoogleAd({ publisherId, slotId, format = 'auto', responsive = tr
     }
   }, []);
 
+  if (!mounted) return <div className={cn("min-h-[280px] bg-muted/20 rounded-[2rem]", className)} />;
+
   return (
-    <Card className={`group overflow-hidden border-none shadow-lg bg-card rounded-[2rem] relative p-6 flex flex-col justify-center min-h-[280px] transition-all hover:shadow-xl ${className}`}>
+    <Card className={cn("group overflow-hidden border-none shadow-lg bg-card rounded-[2rem] relative p-6 flex flex-col justify-center min-h-[280px] transition-all hover:shadow-xl", className)}>
       {/* Selo Discreto de Publicidade conforme regra 7 */}
       <div className="absolute top-4 right-4 z-20">
         <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-none font-black text-[9px] uppercase px-3 py-1 flex items-center gap-1.5 opacity-60">

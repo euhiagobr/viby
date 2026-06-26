@@ -1,21 +1,22 @@
 'use client';
 
-import { getAuth, setPersistence, indexedDBLocalPersistence } from "firebase/auth";
+import { getAuth, Auth, setPersistence, indexedDBLocalPersistence } from "firebase/auth";
 import { app } from "./apps";
 
 /**
- * @fileOverview Inicialização do Firebase Auth com logs e persistência explícita.
+ * @fileOverview Inicialização do Firebase Auth (Singleton).
  */
 
-export const auth = getAuth(app);
-console.log('[Auth-Debug] Firebase Auth Initialized');
-console.log('[Auth-Debug] Auth Instance:', auth);
+let authInstance: Auth | null = null;
 
-// Configuração de persistência imediata
-setPersistence(auth, indexedDBLocalPersistence)
-  .then(() => {
-    console.log('[Auth-Debug] Persistence Configured');
-  })
-  .catch((err) => {
-    console.error('[Auth-Debug] Persistence Error:', err);
-  });
+export const auth = (() => {
+  if (typeof window !== 'undefined') {
+    if (!authInstance) {
+      authInstance = getAuth(app);
+      // Configura persistência apenas uma vez no cliente
+      setPersistence(authInstance, indexedDBLocalPersistence).catch(console.error);
+    }
+    return authInstance;
+  }
+  return getAuth(app);
+})();

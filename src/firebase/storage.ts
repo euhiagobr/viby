@@ -1,6 +1,20 @@
 'use client';
 
-import { getStorage } from "firebase/storage";
+import { getStorage, FirebaseStorage } from "firebase/storage";
 import { app } from "./apps";
 
-export const storage = getStorage(app);
+/**
+ * @fileOverview Inicialização do Firebase Storage (Singleton).
+ */
+
+let storageInstance: FirebaseStorage | null = null;
+
+export const storage = (() => {
+  if (typeof window !== 'undefined') {
+    if (!storageInstance) {
+      storageInstance = getStorage(app);
+    }
+    return storageInstance;
+  }
+  return getStorage(app);
+})();

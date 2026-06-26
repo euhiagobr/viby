@@ -45,7 +45,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, isInitialized } = useUser(auth);
 
   const fetchAndSyncRates = useCallback(async () => {
-    if (!db) return;
+    if (!db || typeof window === 'undefined') return;
     
     try {
       const ratesRef = doc(db, 'settings', 'currency_rates');
@@ -61,9 +61,10 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      const response = await fetch('https://open.er-api.com/v6/latest/BRL');
+      const response = await fetch('https://open.er-api.com/v6/latest/BRL', { cache: 'no-cache' });
+      if (!response.ok) throw new Error("API Indisponível");
+
       const apiData = await response.json();
-      
       if (apiData && apiData.rates) {
         const newRates = {
           BRL: 1,
@@ -73,12 +74,11 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
           provider: 'open.er-api.com',
           lastUpdated: serverTimestamp()
         };
-
         await setDoc(ratesRef, newRates, { merge: true });
         setRates({ BRL: 1, USD: apiData.rates.USD, EUR: apiData.rates.EUR });
       }
     } catch (e) {
-      console.warn("[Currency] Erro ao sincronizar cotações.");
+      console.warn("[Currency] Erro ao sincronizar cotações. Utilizando cache local.");
     } finally {
       setLoading(false);
     }
@@ -95,16 +95,9 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isInitialized, db, fetchAndSyncRates]);
 
-  useEffect(() => {
-    if (isInitialized && profile?.preferredCurrency && profile.preferredCurrency !== currency) {
-      setCurrencyState(profile.preferredCurrency as CurrencyCode);
-      localStorage.setItem('viby_currency', profile.preferredCurrency);
-    }
-  }, [profile?.preferredCurrency, isInitialized, currency]);
-
   const setCurrency = useCallback(async (code: CurrencyCode) => {
     setCurrencyState(code);
-    localStorage.setItem('viby_currency', code);
+    if (typeof window !== 'undefined') localStorage.setItem('viby_currency', code);
     
     if (db && user) {
       try {
@@ -126,67 +119,38 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   const formatPrice = useCallback((amount: number, fromCurrency: CurrencyCode = 'BRL'): string => {
     const converted = convertValue(amount, fromCurrency, currency);
-
     const formatters: Record<CurrencyCode, Intl.NumberFormat> = {
       BRL: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }),
       USD: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }),
       EUR: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EUR' }),
     };
-
     const formatter = formatters[currency] || formatters.BRL;
     let formatted = formatter.format(converted);
-    
-    if (currency === 'USD') {
-      formatted = formatted.replace('$', 'US$ ');
-    }
-    
+    if (currency === 'USD') formatted = formatted.replace('$', 'US$ ');
     return formatted;
   }, [currency, convertValue]);
 
   const formatPriceWithOriginal = useCallback((amount: number, eventCurrency: CurrencyCode) => {
     const isDifferent = currency !== eventCurrency;
-    
     const originalFormatters: Record<CurrencyCode, Intl.NumberFormat> = {
       BRL: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }),
       USD: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }),
       EUR: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EUR' }),
     };
-
     const convertedString = formatPrice(amount, eventCurrency);
     let originalString = originalFormatters[eventCurrency].format(amount);
-    
-    if (eventCurrency === 'USD') {
-      originalString = originalString.replace('$', 'US$ ');
-    }
-
-    if (!isDifferent) {
-      return <span className="font-black text-primary">{convertedString}</span>;
-    }
-
+    if (eventCurrency === 'USD') originalString = originalString.replace('$', 'US$ ');
+    if (!isDifferent) return <span className="font-black text-primary">{convertedString}</span>;
     return (
       <div className="flex flex-col items-end">
-        <span className="font-black text-primary leading-none">
-          {convertedString}
-        </span>
-        <span className="text-[9px] font-bold text-muted-foreground uppercase mt-1 opacity-60">
-          ≈ {originalString}
-        </span>
+        <span className="font-black text-primary leading-none">{convertedString}</span>
+        <span className="text-[9px] font-bold text-muted-foreground uppercase mt-1 opacity-60">≈ {originalString}</span>
       </div>
     );
   }, [currency, formatPrice]);
 
-  const value = React.useMemo(() => ({
-    currency,
-    setCurrency,
-    formatPrice,
-    formatPriceWithOriginal,
-    convertValue,
-    rates,
-    loading
-  }), [currency, setCurrency, formatPrice, formatPriceWithOriginal, convertValue, rates, loading]);
-
   return (
-    <CurrencyContext.Provider value={value}>
+    <CurrencyContext.Provider value={{ currency, setCurrency, formatPrice, formatPriceWithOriginal, convertValue, rates, loading }}>
       {children}
     </CurrencyContext.Provider>
   );
