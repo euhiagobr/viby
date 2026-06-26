@@ -23,25 +23,12 @@
     "stripeAccountId": "string (Connect ID)",
     "stripeChargesEnabled": "boolean",
     "stripePayoutsEnabled": "boolean",
-    "showName": "boolean (Exibir nome publicamente)",
-    "showBio": "boolean (Exibir bio publicamente)",
-    "showType": "boolean (Exibir categoria publicamente)",
-    "showPhone": "boolean",
-    "showEmail": "boolean",
-    "showWebsite": "boolean",
-    "showInstagram": "boolean",
-    "showAddress": "boolean",
-    "showNeighborhood": "boolean",
-    "showState": "boolean",
-    "showCpf": "boolean (Exibir CPF publicamente para individuais)",
-    "showCnpj": "boolean (Exibir CNPJ publicamente para empresas)",
-    "showLegalName": "boolean (Exibir Razão Social publicamente)",
-    "showStats": "boolean (Exibir métricas públicas)",
+    "customBuyerMarkup": "number (Percentual de markup customizado)",
+    "customOrganizerPercent": "number (Percentual de comissão customizado)",
+    "customOrganizerMinFee": "number (Taxa mínima em BRL customizada)",
+    "customFeeStartAt": "timestamp (Início da vigência das taxas customizadas)",
+    "customFeeEndAt": "timestamp (Fim da vigência das taxas customizadas)",
     "createdAt": "timestamp",
     "updatedAt": "timestamp"
-  },
-  "stripe_mapping": {
-    "individual": "Mapped to business_type: 'individual' in Stripe Connect Express",
-    "company": "Mapped to business_type: 'company' in Stripe Connect Express"
   }
 }

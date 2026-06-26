@@ -17,7 +17,8 @@ import {
   limit,
   setDoc,
   deleteDoc,
-  runTransaction
+  runTransaction,
+  Timestamp
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -62,7 +63,9 @@ import {
   Percent,
   Handshake,
   ChevronRight,
-  UserX
+  UserX,
+  Clock,
+  AlertTriangle
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -230,6 +233,15 @@ export default function AdminPaginasPage() {
         }
 
         const { id, ownerProfile, ...data } = editingOrg
+        
+        // Conversão de datas de string para Timestamp para o Firestore
+        if (data.customFeeStartAt && typeof data.customFeeStartAt === 'string') {
+          data.customFeeStartAt = Timestamp.fromDate(new Date(data.customFeeStartAt));
+        }
+        if (data.customFeeEndAt && typeof data.customFeeEndAt === 'string') {
+          data.customFeeEndAt = Timestamp.fromDate(new Date(data.customFeeEndAt));
+        }
+
         transaction.update(doc(db, "organizations", id), { ...data, updatedAt: serverTimestamp() });
       });
 
@@ -384,6 +396,12 @@ export default function AdminPaginasPage() {
       affiliateEndDate: endDate.toISOString()
     })
   }
+
+  const formatTimestampForInput = (ts: any) => {
+    if (!ts) return "";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toISOString().slice(0, 16);
+  };
 
   return (
     <div className="space-y-8 pb-20">
@@ -551,90 +569,13 @@ export default function AdminPaginasPage() {
                              </div>
                           </TabsContent>
 
-                          <TabsContent value="afiliados" className="space-y-8 mt-0">
-                             <Card className="border-none shadow-sm rounded-[2rem] bg-muted/20 border-2 border-dashed">
-                                <CardContent className="p-8 space-y-6">
-                                   <div className="flex items-center gap-4">
-                                      <div className="p-3 bg-secondary/10 rounded-2xl text-secondary"><Handshake className="w-6 h-6" /></div>
-                                      <div>
-                                         <h3 className="text-lg font-black uppercase italic text-primary tracking-tighter">Programa de Afiliados</h3>
-                                         <p className="text-[10px] font-bold uppercase text-muted-foreground">Vincular esta marca a um parceiro estratégico.</p>
-                                      </div>
-                                   </div>
-                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                      <div className="space-y-2">
-                                         <Label className="text-[10px] font-black uppercase opacity-60">Afiliado Responsável</Label>
-                                         <Select value={editingOrg?.affiliateCode || "none"} onValueChange={handleAffiliateLink}>
-                                            <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Sem Afiliado" /></SelectTrigger>
-                                            <SelectContent className="rounded-xl">
-                                               <SelectItem value="none">Nenhum / Remover</SelectItem>
-                                               {affiliates?.map(a => <SelectItem key={a.id} value={a.code}>{a.userName} ({a.code})</SelectItem>)}
-                                            </SelectContent>
-                                         </Select>
-                                      </div>
-                                      {editingOrg?.affiliateCode && (
-                                        <div className="space-y-2">
-                                           <Label className="text-[10px] font-black uppercase opacity-60">Data Final da Campanha</Label>
-                                           <Input 
-                                             type="date" 
-                                             value={editingOrg.affiliateEndDate?.split('T')[0] || ""} 
-                                             onChange={e => setEditingOrg({...editingOrg, affiliateEndDate: new Date(e.target.value).toISOString()})}
-                                             className="rounded-xl h-11"
-                                           />
-                                        </div>
-                                      )}
-                                   </div>
-                                   {editingOrg?.affiliateCode && (
-                                     <div className="p-6 bg-white rounded-3xl border shadow-sm flex items-center justify-between">
-                                        <div className="space-y-1">
-                                           <p className="text-[9px] font-black uppercase text-muted-foreground">Comissão p/ Ingresso</p>
-                                           <p className="text-xl font-black text-primary">{formatCurrency(affiliates?.find(a => a.code === editingOrg.affiliateCode)?.commissionValue || 0)}</p>
-                                        </div>
-                                        <Badge className="bg-secondary text-white uppercase text-[8px] font-black">VINCULADO</Badge>
-                                     </div>
-                                   )}
-                                </CardContent>
-                             </Card>
-                          </TabsContent>
-
-                          <TabsContent value="visual" className="space-y-8 mt-0">
-                             <div className="space-y-6">
-                                <Label className="text-[10px] font-black uppercase opacity-60">Logo da Marca</Label>
-                                <div className="flex items-center gap-6">
-                                   <div className="relative group">
-                                      <Avatar className="h-32 w-32 border-4 border-background shadow-xl rounded-[2rem] overflow-hidden">
-                                         <AvatarImage src={editingOrg?.avatar} className="object-cover" />
-                                         <AvatarFallback className="text-4xl font-black bg-muted">{editingOrg?.name?.charAt(0)}</AvatarFallback>
-                                      </Avatar>
-                                      <label htmlFor="admin-edit-logo" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><Camera className="w-8 h-8" /></label>
-                                      <input id="admin-edit-logo" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'avatar')} />
-                                   </div>
-                                   <div className="flex-1 space-y-2">
-                                      <p className="text-xs font-medium text-muted-foreground">Formatos: JPG, PNG, WEBP.</p>
-                                      <Input value={editingOrg?.avatar || ""} onChange={e => setEditingOrg({...editingOrg, avatar: e.target.value})} className="rounded-xl h-10 text-xs" placeholder="URL da Logo" />
-                                   </div>
-                                </div>
-
-                                <Label className="text-[10px] font-black uppercase opacity-60 block mt-10">Banner / Capa</Label>
-                                <div className="relative h-48 bg-muted rounded-[2rem] overflow-hidden border-2 border-dashed group">
-                                   {editingOrg?.banner ? <img src={editingOrg.banner} className="w-full h-full object-cover" /> : null}
-                                   <label htmlFor="admin-edit-banner" className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                      <Upload className="w-10 h-10 mb-2" /><span className="text-[10px] font-black uppercase tracking-widest">Trocar Capa</span>
-                                   </label>
-                                   <input id="admin-edit-banner" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'banner')} />
-                                </div>
-                                {bannerProgress !== null && <Progress value={bannerProgress} className="h-1" />}
-                                {avatarProgress !== null && <Progress value={avatarProgress} className="h-1" />}
-                             </div>
-                          </TabsContent>
-
                           <TabsContent value="taxas" className="space-y-8 mt-0">
-                             <div className="p-6 bg-secondary/5 rounded-[2rem] border border-secondary/10 flex items-start gap-4 mb-6">
+                             <div className="p-6 bg-secondary/5 rounded-[2.5rem] border border-secondary/10 flex items-start gap-4 mb-6">
                                 <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
                                 <div className="space-y-1">
-                                   <h4 className="font-black uppercase text-xs italic text-primary">Regras de Exceção</h4>
+                                   <h4 className="font-black uppercase text-xs italic text-primary">Vigência Temporal de Taxas</h4>
                                    <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">
-                                      Configure taxas exclusivas para esta organização. Se deixadas em branco, o Viby aplicará as taxas globais (15% Markup e 10% ou R$ 3,99 Comissão).
+                                      Configure taxas exclusivas e defina o período de validade. Fora deste intervalo, o sistema aplicará automaticamente as taxas padrão da Viby.
                                    </p>
                                 </div>
                              </div>
@@ -684,6 +625,99 @@ export default function AdminPaginasPage() {
                                         placeholder="Padrão: 3,99"
                                       />
                                    </div>
+                                </div>
+                             </div>
+
+                             <Separator className="border-dashed" />
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-2">
+                                   <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                                      <Clock className="w-4 h-4 text-secondary" /> Início da Vigência (UTC-3)
+                                   </Label>
+                                   <Input 
+                                      type="datetime-local" 
+                                      value={formatTimestampForInput(editingOrg?.customFeeStartAt)}
+                                      onChange={e => setEditingOrg({...editingOrg, customFeeStartAt: e.target.value})}
+                                      className="rounded-xl h-11 text-xs" 
+                                   />
+                                </div>
+                                <div className="space-y-2">
+                                   <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                                      <Clock className="w-4 h-4 text-red-500" /> Fim da Vigência (UTC-3)
+                                   </Label>
+                                   <Input 
+                                      type="datetime-local" 
+                                      value={formatTimestampForInput(editingOrg?.customFeeEndAt)}
+                                      onChange={e => setEditingOrg({...editingOrg, customFeeEndAt: e.target.value})}
+                                      className="rounded-xl h-11 text-xs" 
+                                   />
+                                </div>
+                             </div>
+                          </TabsContent>
+
+                          <TabsContent value="afiliados" className="space-y-8 mt-0">
+                             <Card className="border-none shadow-sm rounded-[2rem] bg-muted/20 border-2 border-dashed">
+                                <CardContent className="p-8 space-y-6">
+                                   <div className="flex items-center gap-4">
+                                      <div className="p-3 bg-secondary/10 rounded-2xl text-secondary"><Handshake className="w-6 h-6" /></div>
+                                      <div>
+                                         <h3 className="text-lg font-black uppercase italic text-primary tracking-tighter">Programa de Afiliados</h3>
+                                         <p className="text-[10px] font-bold uppercase text-muted-foreground">Vincular esta marca a um parceiro estratégico.</p>
+                                      </div>
+                                   </div>
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                      <div className="space-y-2">
+                                         <Label className="text-[10px] font-black uppercase opacity-60">Afiliado Responsável</Label>
+                                         <Select value={editingOrg?.affiliateCode || "none"} onValueChange={handleAffiliateLink}>
+                                            <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Sem Afiliado" /></SelectTrigger>
+                                            <SelectContent className="rounded-xl">
+                                               <SelectItem value="none">Nenhum / Remover</SelectItem>
+                                               {affiliates?.map(a => <SelectItem key={a.id} value={a.code}>{a.userName} ({a.code})</SelectItem>)}
+                                            </SelectContent>
+                                         </Select>
+                                      </div>
+                                      {editingOrg?.affiliateCode && (
+                                        <div className="space-y-2">
+                                           <Label className="text-[10px] font-black uppercase opacity-60">Data Final da Campanha</Label>
+                                           <Input 
+                                             type="date" 
+                                             value={editingOrg.affiliateEndDate?.split('T')[0] || ""} 
+                                             onChange={e => setEditingOrg({...editingOrg, affiliateEndDate: new Date(e.target.value).toISOString()})}
+                                             className="rounded-xl h-11"
+                                           />
+                                        </div>
+                                      )}
+                                   </div>
+                                </CardContent>
+                             </Card>
+                          </TabsContent>
+
+                          <TabsContent value="visual" className="space-y-8 mt-0">
+                             <div className="space-y-6">
+                                <Label className="text-[10px] font-black uppercase opacity-60">Logo da Marca</Label>
+                                <div className="flex items-center gap-6">
+                                   <div className="relative group">
+                                      <Avatar className="h-32 w-32 border-4 border-background shadow-xl rounded-[2rem] overflow-hidden">
+                                         <AvatarImage src={editingOrg?.avatar} className="object-cover" />
+                                         <AvatarFallback className="text-4xl font-black bg-muted">{editingOrg?.name?.charAt(0)}</AvatarFallback>
+                                      </Avatar>
+                                      <label htmlFor="admin-edit-logo" className="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"><Camera className="w-8 h-8" /></label>
+                                      <input id="admin-edit-logo" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'avatar')} />
+                                   </div>
+                                   <div className="flex-1 space-y-2">
+                                      <p className="text-xs font-medium text-muted-foreground">Formatos: JPG, PNG, WEBP.</p>
+                                      <Input value={editingOrg?.avatar || ""} onChange={e => setEditingOrg({...editingOrg, avatar: e.target.value})} className="rounded-xl h-10 text-xs" placeholder="URL da Logo" />
+                                   </div>
+                                </div>
+
+                                <Label className="text-[10px] font-black uppercase opacity-60 block mt-10">Banner / Capa</Label>
+                                <div className="relative h-48 bg-muted rounded-[2rem] overflow-hidden border-2 border-dashed group">
+                                   {editingOrg?.banner ? <img src={editingOrg.banner} className="w-full h-full object-cover" /> : null}
+                                   <label htmlFor="admin-edit-banner" className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                      <Upload className="w-10 h-10 mb-2" /><span className="text-[10px] font-black uppercase tracking-widest">Trocar Capa</span>
+                                   </label>
+                                   <input id="admin-edit-banner" type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'banner')} />
                                 </div>
                              </div>
                           </TabsContent>
@@ -759,29 +793,6 @@ export default function AdminPaginasPage() {
                                    <Input value={editingOrg?.street || ""} onChange={e => setEditingOrg({...editingOrg, street: e.target.value})} className="rounded-xl h-11" />
                                 </div>
                              </div>
-                             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Nº</Label><Input value={editingOrg?.number || ""} onChange={e => setEditingOrg({...editingOrg, number: e.target.value})} className="rounded-xl h-11" /></div>
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <Label className="text-[10px] font-black uppercase opacity-60">Bairro</Label>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[8px] font-bold uppercase opacity-40">{editingOrg?.showNeighborhood ?? true ? 'Público' : 'Oculto'}</span>
-                                      <Switch checked={editingOrg?.showNeighborhood ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showNeighborhood: v})} />
-                                    </div>
-                                  </div>
-                                  <Input value={editingOrg?.neighborhood || ""} onChange={e => setEditingOrg({...editingOrg, neighborhood: e.target.value})} className="rounded-xl h-11" />
-                                </div>
-                                <div className="space-y-2">
-                                   <div className="flex items-center justify-between">
-                                     <Label className="text-[10px] font-black uppercase opacity-60">Cidade / UF</Label>
-                                     <div className="flex items-center gap-2">
-                                       <span className="text-[8px] font-bold uppercase opacity-40">{editingOrg?.showState ?? true ? 'Público' : 'Oculto'}</span>
-                                       <Switch checked={editingOrg?.showState ?? true} onCheckedChange={v => setEditingOrg({...editingOrg, showState: v})} />
-                                     </div>
-                                   </div>
-                                   <div className="flex gap-2"><Input value={editingOrg?.city || ""} readOnly className="rounded-xl h-11 bg-muted/30" /><Input value={editingOrg?.state || ""} readOnly className="rounded-xl h-11 bg-muted/30 w-14" /></div>
-                                </div>
-                             </div>
                           </TabsContent>
 
                           <TabsContent value="membros" className="space-y-8 mt-0">
@@ -793,7 +804,7 @@ export default function AdminPaginasPage() {
               </Tabs>
               
               <DialogFooter className="p-8 border-t bg-muted/30">
-                 <Button type="submit" disabled={isSaving || bannerProgress !== null || avatarProgress !== null} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic text-lg">
+                 <Button type="submit" disabled={isSaving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic text-lg">
                     {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Todas as Alterações
                  </Button>
               </DialogFooter>

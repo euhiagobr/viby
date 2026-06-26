@@ -11,10 +11,10 @@ export const VIBY_ORGANIZER_FEE = 0.10; // Fallback 10%
 export const VIBY_TAX_RATE = 0.11; // 11% de imposto sobre a receita bruta da Viby
 
 /**
- * Verifica se uma campanha promocional está vigente.
+ * Verifica se um período de vigência está ativo.
+ * Considera timezone America/Sao_Paulo (UTC-3) para inputs e comparação.
  */
-function isPromoActive(active: boolean, start: any, end: any): boolean {
-  if (!active) return false;
+export function isTemporalActive(start: any, end: any): boolean {
   const now = new Date();
   const startDate = start ? (start.toDate ? start.toDate() : new Date(start)) : null;
   const endDate = end ? (end.toDate ? end.toDate() : new Date(end)) : null;
@@ -22,6 +22,14 @@ function isPromoActive(active: boolean, start: any, end: any): boolean {
   if (startDate && now < startDate) return false;
   if (endDate && now > endDate) return false;
   return true;
+}
+
+/**
+ * Verifica se uma campanha promocional está vigente.
+ */
+function isPromoActive(active: boolean, start: any, end: any): boolean {
+  if (!active) return false;
+  return isTemporalActive(start, end);
 }
 
 /**
@@ -44,7 +52,7 @@ export function formatCurrency(value: number): string {
 
 /**
  * CÁLCULO OFICIAL VIBY - Suporte Multi-Moeda e Taxas Customizadas por Organização
- * HIERARQUIA: Organização > Promoção > Config Global > Constantes
+ * HIERARQUIA: Organização (se vigente) > Promoção (se vigente) > Config Global > Constantes
  */
 export function calculateVibyOfficialSplit(
   facePrice: number, 
@@ -67,9 +75,12 @@ export function calculateVibyOfficialSplit(
     };
   }
 
+  // Verificar se as taxas da organização estão em período de vigência
+  const isOrgFeeVigente = isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt);
+
   // 1. Taxa do Comprador (Markup)
   let markup = VIBY_BUYER_MARKUP;
-  if (orgFees?.customBuyerMarkup !== undefined && orgFees.customBuyerMarkup !== null) {
+  if (isOrgFeeVigente && orgFees?.customBuyerMarkup !== undefined && orgFees.customBuyerMarkup !== null) {
     markup = orgFees.customBuyerMarkup / 100;
   } else if (isPromoActive(promotions?.buyerPromoActive, promotions?.buyerPromoStart, promotions?.buyerPromoEnd)) {
     markup = promotions.buyerPromoPercent / 100;
@@ -81,7 +92,7 @@ export function calculateVibyOfficialSplit(
   
   // 2. Taxa do Organizador (Comissão)
   let commission = VIBY_ORGANIZER_FEE;
-  if (orgFees?.customOrganizerPercent !== undefined && orgFees.customOrganizerPercent !== null) {
+  if (isOrgFeeVigente && orgFees?.customOrganizerPercent !== undefined && orgFees.customOrganizerPercent !== null) {
     commission = orgFees.customOrganizerPercent / 100;
   } else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
     commission = promotions.organizerPromoPercent / 100;
@@ -93,7 +104,7 @@ export function calculateVibyOfficialSplit(
   
   // 3. Taxa Mínima (BRL)
   let minFeeBRL = VIBY_MIN_FEE_BRL;
-  if (orgFees?.customOrganizerMinFee !== undefined && orgFees.customOrganizerMinFee !== null) {
+  if (isOrgFeeVigente && orgFees?.customOrganizerMinFee !== undefined && orgFees.customOrganizerMinFee !== null) {
     minFeeBRL = orgFees.customOrganizerMinFee;
   } else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
     minFeeBRL = promotions.organizerPromoMinFee;

@@ -1,4 +1,3 @@
-
 'use server';
 
 import { headers } from 'next/headers';
@@ -6,6 +5,7 @@ import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { logSystemError } from '@/lib/error-manager';
+import { calculateVibyOfficialSplit, toCents } from '@/lib/financial-utils';
 
 async function getStripeInstance(db: admin.firestore.Firestore) {
   const snap = await db.collection('settings').doc('stripe').get();
@@ -14,28 +14,73 @@ async function getStripeInstance(db: admin.firestore.Firestore) {
   return new Stripe(data.secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
+/**
+ * Cria uma sessão de checkout do Stripe com cálculo de split robusto no servidor.
+ * NUNCA confia em valores financeiros enviados pelo cliente.
+ */
 export async function createCheckoutSession(data: any) {
+  const db = getAdminDb();
+  
   try {
-    const db = getAdminDb();
     const head = await headers();
     const origin = head.get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance(db);
 
-    const { metadata, userEmail, lineItems, totalApplicationFeeCents, destinationStripeAccount, currency = 'brl' } = data;
+    const { metadata, userEmail, lineItems, destinationStripeAccount, currency = 'brl' } = data;
+    const orderId = metadata?.orderId;
 
-    // EVIDÊNCIA: Configuração de Split em Linha Direta (Connect Express)
+    if (!orderId) throw new Error("ID do pedido é obrigatório para o checkout.");
+
+    // 1. RECUPERAR DADOS DO SERVIDOR PARA CÁLCULO SEGURO
+    const [orderSnap, globalFeesSnap, promotionsSnap, ratesSnap] = await Promise.all([
+      db.collection("orders").doc(orderId).get(),
+      db.collection("settings").doc("fees").get(),
+      db.collection("settings").doc("promotions").get(),
+      db.collection("settings").doc("currency_rates").get()
+    ]);
+
+    if (!orderSnap.exists) throw new Error("Pedido não localizado.");
+    const orderData = orderSnap.data()!;
+    const globalFees = globalFeesSnap.data();
+    const promotions = promotionsSnap.data();
+    const rates = ratesSnap.data() || { BRL: 1, USD: 0.18, EUR: 0.16 };
+
+    // 2. RECALCULAR TODA A PARTILHA (SPLIT) NO BACKEND
+    let totalApplicationFeeCents = 0;
+    const orgCache: Record<string, any> = {};
+
+    for (const item of orderData.items || []) {
+      if (!orgCache[item.organizationId]) {
+        const orgSnap = await db.collection("organizations").doc(item.organizationId).get();
+        orgCache[item.organizationId] = orgSnap.exists ? orgSnap.data() : {};
+      }
+
+      const split = calculateVibyOfficialSplit(
+        item.price, 
+        (orderData.currency || 'BRL') as any, 
+        rates, 
+        orgCache[item.organizationId], 
+        globalFees, 
+        promotions
+      );
+
+      totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
+    }
+
+    // 3. CONFIGURAR SESSÃO COM SPLIT GARANTIDO PELO SERVIDOR
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ['card'],
-      line_items: lineItems,
+      line_items: lineItems, // Mantemos os lineItems formatados pelo cliente para manter o UX (descrições, imagens)
       mode: 'payment',
       customer_email: userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/checkout/cancelado`,
-      metadata: metadata,
+      metadata: {
+        ...metadata,
+        server_verified: 'true'
+      },
       payment_intent_data: {
-        // EVIDÊNCIA: Retenção de comissão na conta da Viby
         application_fee_amount: totalApplicationFeeCents,
-        // EVIDÊNCIA: Repasse líquido para a conta do Organizador
         transfer_data: {
           destination: destinationStripeAccount,
         },
@@ -46,15 +91,13 @@ export async function createCheckoutSession(data: any) {
     const session = await stripe.checkout.sessions.create(sessionConfig);
     return { success: true, url: session.url };
   } catch (error: any) {
+    console.error("[Stripe Session Server] Critical Error:", error.message);
+    
     await logSystemError({
       error: { message: error.message, stack: error.stack },
-      type: 'stripe_checkout_failure',
-      severity: 'error',
-      metadata: { 
-        orderId: data.metadata?.orderId,
-        destination: data.destinationStripeAccount,
-        errorCode: error.code
-      }
+      type: 'stripe_checkout_server_failure',
+      severity: 'critical',
+      metadata: { orderId: data.metadata?.orderId }
     });
 
     let userMessage = error.message;
@@ -67,8 +110,8 @@ export async function createCheckoutSession(data: any) {
 }
 
 export async function createAdBalanceTopUpSession(data: any) {
+  const db = getAdminDb();
   try {
-    const db = getAdminDb();
     const head = await headers();
     const origin = head.get('origin') || 'https://viby.club';
     const stripe = await getStripeInstance(db);
