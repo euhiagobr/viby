@@ -15,6 +15,9 @@ declare global {
 
 export const db = (() => {
   if (typeof window !== 'undefined') {
+    // Em ambientes de desenvolvimento (Studio/Workstations), o HMR pode tentar 
+    // reinicializar o Firestore múltiplas vezes, causando o erro 'ca9'.
+    // O Singleton via globalThis garante estabilidade total.
     if (!globalThis.firestoreInstance) {
       globalThis.firestoreInstance = getFirestore(app);
       console.log('[Firestore] Singleton initialized on Client');

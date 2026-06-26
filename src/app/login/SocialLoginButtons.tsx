@@ -39,16 +39,21 @@ export function SocialLoginButtons() {
           toast({ title: "Acesso autorizado!", description: "Entrando na sua conta..." });
           router.replace("/dashboard");
         }
+      } else {
+        setLoadingProvider(null);
       }
     } catch (err: any) {
       console.error("[Auth-Social] Process Error:", err);
+      setLoadingProvider(null);
+      setIsProcessing(false);
+
       if (err.code === 'auth/popup-closed-by-user') {
-         setError("O login foi cancelado. Tente novamente.");
+         setError("O login foi cancelado. Clique novamente para tentar.");
+      } else if (err.code === 'auth/popup-blocked') {
+         setError("O seu navegador bloqueou o popup de login. Por favor, habilite-o.");
       } else {
          setError("Não foi possível sincronizar sua conta social.");
       }
-      setLoadingProvider(null);
-      setIsProcessing(false);
     }
   };
 
@@ -66,7 +71,7 @@ export function SocialLoginButtons() {
   return (
     <div className="space-y-4 w-full">
       {error && (
-        <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-3 text-red-600 mb-2">
+        <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-3 text-red-600 mb-2 animate-in zoom-in-95">
            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
            <p className="text-xs font-bold uppercase leading-tight">{error}</p>
         </div>

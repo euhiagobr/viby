@@ -130,6 +130,7 @@ export async function startSocialLogin(auth: Auth, db: Firestore, providerName: 
   }
 
   try {
+    // Garante persistência antes do popup
     await setPersistence(auth, indexedDBLocalPersistence);
     const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
     if (result.user) {
@@ -138,7 +139,6 @@ export async function startSocialLogin(auth: Auth, db: Firestore, providerName: 
     }
     return null;
   } catch (error) {
-    console.error("[Auth-Social] Popup Error:", error);
-    throw error;
+    throw error; // Repassa para o componente tratar
   }
 }

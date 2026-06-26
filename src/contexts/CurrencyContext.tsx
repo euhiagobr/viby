@@ -42,10 +42,13 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   
   const auth = useAuth();
   const db = useFirestore();
-  const { user, profile, isInitialized } = useUser(auth);
+  const { user, isInitialized } = useUser(auth);
 
   const fetchAndSyncRates = useCallback(async () => {
-    if (!db || typeof window === 'undefined') return;
+    if (!db || typeof window === 'undefined' || !navigator.onLine) {
+      setLoading(false);
+      return;
+    }
     
     try {
       const ratesRef = doc(db, 'settings', 'currency_rates');
@@ -61,7 +64,16 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      const response = await fetch('https://open.er-api.com/v6/latest/BRL', { cache: 'no-cache' });
+      // Tenta buscar taxas atualizadas com timeout agressivo
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch('https://open.er-api.com/v6/latest/BRL', { 
+        cache: 'no-cache',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
       if (!response.ok) throw new Error("API Indisponível");
 
       const apiData = await response.json();
@@ -78,8 +90,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         setRates({ BRL: 1, USD: apiData.rates.USD, EUR: apiData.rates.EUR });
       }
     } catch (e) {
-      console.warn("[Currency] Erro ao sincronizar cotações. Utilizando cache local.");
-    } finally {
+      // Falha silenciosa: usa os valores do estado inicial ou do cache do Firestore
       setLoading(false);
     }
   }, [db]);
