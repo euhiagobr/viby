@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -42,7 +43,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-import { motion, AnimatePresence } from 'framer-motion';
 
 const VIBY_DEFAULT_CONFIG = {
   orgPercent: 10,
@@ -198,7 +198,7 @@ export default function CalculadoraClient() {
                       className="py-4"
                     />
                     <div className="flex justify-between text-[8px] font-black uppercase text-muted-foreground tracking-widest">
-                       <span>Padrão 15%</span>
+                       <span>Padrão 20%</span>
                        <span>Premium 40%</span>
                     </div>
                  </div>
