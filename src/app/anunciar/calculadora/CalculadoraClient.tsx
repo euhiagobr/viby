@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -129,7 +129,7 @@ export default function CalculadoraClient() {
                        <Label className="text-xs font-bold uppercase opacity-60">Código Especial (Opcional)</Label>
                        <div className="flex gap-2">
                           <div className="relative flex-1">
-                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-30" />
+                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-30" />
                              <Input 
                                 placeholder="EX: VIBYPROMO" 
                                 value={promoCode} 
@@ -305,7 +305,7 @@ export default function CalculadoraClient() {
                     <TrendingUp className="w-4 h-4" /> Economia Total dos Compradores
                  </h3>
                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {[result.qty, 500, 1000, 2000].map(q => {
+                    {[qty, 500, 1000, 2000].map(q => {
                       const totalSaving = q * result.savings.perTicket;
                       return (
                         <Card key={q} className="border-none shadow-sm rounded-3xl bg-white p-6 space-y-4 hover:shadow-md transition-all">
