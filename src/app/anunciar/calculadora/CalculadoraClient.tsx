@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useFirestore } from '@/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,7 +28,13 @@ import {
   ArrowUpRight,
   User,
   ShoppingBag,
-  Percent
+  Percent,
+  Monitor,
+  Smartphone,
+  Maximize2,
+  Globe,
+  MousePointer2,
+  UserCircle
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { calculateSimulation, SimulationResult } from '@/lib/simulation-utils';
@@ -164,7 +170,7 @@ export default function CalculadoraClient() {
                        <div className="space-y-2">
                           <Label className="text-xs font-bold uppercase opacity-60">Valor Ingresso (R$)</Label>
                           <div className="relative">
-                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">R$</span>
+                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">R$</span>
                              <Input 
                                type="number" 
                                value={value} 
@@ -206,7 +212,7 @@ export default function CalculadoraClient() {
            <div className="p-8 bg-secondary/5 rounded-[3rem] border-2 border-dashed border-secondary/20 space-y-4">
               <h3 className="text-xl font-black italic uppercase tracking-tighter text-primary">Por que a Viby é melhor?</h3>
               <ul className="space-y-3">
-                 <li className="flex items-center gap-3 text-sm font-bold text-primary/80"><CheckCircle2 className="w-5 h-5 text-green-500" /> Dinheiro na mão em D+7</li>
+                 <li className="flex items-center gap-3 text-sm font-bold text-primary/80"><CheckCircle2 className="w-5 h-5 text-green-500" /> Infraestrutura global via Stripe Connect</li>
                  <li className="flex items-center gap-3 text-sm font-bold text-primary/80"><CheckCircle2 className="w-5 h-5 text-green-500" /> Sem custos ocultos ou taxas de saque</li>
                  <li className="flex items-center gap-3 text-sm font-bold text-primary/80"><CheckCircle2 className="w-5 h-5 text-green-500" /> Tecnologia de ponta inclusa</li>
               </ul>
