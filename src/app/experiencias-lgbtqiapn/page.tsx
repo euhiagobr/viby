@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import { getAdminDb } from "@/lib/firebase/admin"
@@ -23,6 +24,9 @@ export const metadata: Metadata = {
       height: 630,
       alt: "Viby celebrando a Diversidade"
     }]
+  },
+  facebook: {
+    appId: '1537942881340602',
   },
   twitter: {
     card: 'summary_large_image',

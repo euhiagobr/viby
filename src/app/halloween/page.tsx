@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -25,6 +26,9 @@ export const metadata: Metadata = {
     }],
     type: 'website',
     locale: 'pt_BR',
+  },
+  facebook: {
+    appId: '1537942881340602',
   },
   twitter: {
     card: 'summary_large_image',

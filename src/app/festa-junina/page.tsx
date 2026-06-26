@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import FestaJuninaClient from "./FestaJuninaClient"
@@ -32,6 +33,9 @@ export const metadata: Metadata = {
         alt: "Qual a sua Viby no Arraiá?"
       }
     ]
+  },
+  facebook: {
+    appId: '1537942881340602',
   },
   twitter: {
     card: "summary_large_image",

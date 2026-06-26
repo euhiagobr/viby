@@ -39,6 +39,9 @@ export const metadata: Metadata = {
       }
     ]
   },
+  facebook: {
+    appId: '1537942881340602',
+  },
   twitter: {
     card: "summary_large_image",
     title: "Qual a sua Viby na Copa? | Viby Brasil",

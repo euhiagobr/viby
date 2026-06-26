@@ -105,6 +105,9 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       type: 'profile',
       locale: 'pt_BR',
     },
+    facebook: {
+      appId: '1537942881340602',
+    },
     twitter: {
       card: 'summary_large_image',
       title,
