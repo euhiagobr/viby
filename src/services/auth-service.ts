@@ -4,10 +4,7 @@ import {
   GoogleAuthProvider, 
   FacebookAuthProvider,
   signInWithPopup, 
-  Auth,
-  browserPopupRedirectResolver,
-  indexedDBLocalPersistence,
-  setPersistence
+  Auth
 } from "firebase/auth";
 import { 
   doc, 
@@ -113,7 +110,8 @@ export async function ensureUserProfile(user: any, db: Firestore) {
 }
 
 /**
- * Inicia o fluxo de login via Popup para maior estabilidade em ambientes de dev.
+ * Inicia o fluxo de login via Popup.
+ * CRÍTICO: Não realizar awaits antes do signInWithPopup para não perder o trusted gesture do browser.
  */
 export async function startSocialLogin(auth: Auth, db: Firestore, providerName: 'google' | 'facebook') {
   let provider;
@@ -130,15 +128,14 @@ export async function startSocialLogin(auth: Auth, db: Firestore, providerName: 
   }
 
   try {
-    // Garante persistência antes do popup
-    await setPersistence(auth, indexedDBLocalPersistence);
-    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+    // Chamada direta para o popup sem await anterior
+    const result = await signInWithPopup(auth, provider);
     if (result.user) {
       const profile = await ensureUserProfile(result.user, db);
       return { user: result.user, profile };
     }
     return null;
   } catch (error) {
-    throw error; // Repassa para o componente tratar
+    throw error;
   }
 }
