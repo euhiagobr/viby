@@ -1,7 +1,9 @@
+
 'use client';
 
 import { 
   GoogleAuthProvider, 
+  FacebookAuthProvider,
   signInWithRedirect, 
   getRedirectResult,
   Auth,
@@ -26,7 +28,8 @@ const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
  * Configuração de provedores de autenticação social ativos.
  */
 export const authConfig = {
-  google: false // Desativado conforme solicitação anterior
+  google: true,
+  facebook: true
 };
 
 /**
@@ -51,7 +54,7 @@ export async function ensureUserProfile(user: any, db: Firestore) {
         avatar: user.photoURL || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fprofile.jpeg?alt=media",
         provider: user.providerData[0]?.providerId || 'social',
         username: null, 
-        cpf: null,
+        cpfHash: null,
         profileComplete: false,
         role: "user",
         status: "Ativo",
@@ -74,7 +77,6 @@ export async function ensureUserProfile(user: any, db: Firestore) {
           timestamp: serverTimestamp()
         });
         
-        // Tentamos incrementar, se a org não existir a transação apenas ignora ou falha silenciosamente se não for tratada
         transaction.update(vibyOrgRef, { 
           followersCount: increment(1),
           updatedAt: serverTimestamp()
@@ -83,7 +85,6 @@ export async function ensureUserProfile(user: any, db: Firestore) {
 
       if (user.email) {
         sendWelcomeEmail({ to: user.email, userName: initialName }).catch(() => {});
-        // Notifica administração sobre novo usuário (sem username definido ainda, mas com e-mail)
         sendAdminNewUserAlert({
           userName: initialName,
           username: "pendente",
@@ -105,7 +106,7 @@ export async function ensureUserProfile(user: any, db: Firestore) {
     }
 
     const currentProfile = userSnap.data();
-    const isActuallyComplete = !!(currentProfile.username && currentProfile.cpf);
+    const isActuallyComplete = !!(currentProfile.username && currentProfile.cpfHash);
     
     return { ...currentProfile, profileComplete: isActuallyComplete, isNew: false };
   } catch (error) {
@@ -114,13 +115,19 @@ export async function ensureUserProfile(user: any, db: Firestore) {
   }
 }
 
-export async function startSocialLogin(auth: Auth, providerName: 'google') {
-  if (!authConfig.google) throw new Error("Login com Google está desativado.");
-
-  const provider = new GoogleAuthProvider();
-  provider.addScope('profile');
-  provider.addScope('email');
-  provider.setCustomParameters({ prompt: 'select_account' });
+export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
+  let provider;
+  
+  if (providerName === 'google') {
+    provider = new GoogleAuthProvider();
+    provider.addScope('profile');
+    provider.addScope('email');
+    provider.setCustomParameters({ prompt: 'select_account' });
+  } else {
+    provider = new FacebookAuthProvider();
+    provider.addScope('email');
+    provider.addScope('public_profile');
+  }
 
   try {
     await setPersistence(auth, indexedDBLocalPersistence);

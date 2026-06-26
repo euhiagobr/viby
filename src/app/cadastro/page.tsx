@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -11,6 +12,8 @@ import Footer from "@/components/layout/Footer";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { SocialLoginButtons } from "../login/SocialLoginButtons";
 
 export default function CadastroPage() {
   const db = useFirestore();
@@ -56,14 +59,12 @@ export default function CadastroPage() {
         const cleanRef = refCode.trim();
         let foundData = null;
 
-        // 1. Tentar localizar por ID de documento
         const codeDocRef = doc(db, "affiliateCodes", cleanRef);
         const directSnap = await getDoc(codeDocRef);
         
         if (directSnap.exists()) {
           foundData = directSnap.data();
         } else {
-          // 2. Fallback: Tentar busca por campo
           const q = query(collection(db, "affiliateCodes"), where("code", "==", cleanRef), limit(1));
           const querySnap = await getDocs(q);
           if (!querySnap.empty) {
@@ -172,7 +173,19 @@ export default function CadastroPage() {
               </div>
             )}
 
-            <SignUpForm referredBy={isValidCode ? affiliateInfo?.userId : undefined} />
+            <div className="space-y-8">
+               <div className="space-y-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-center opacity-40">Criação rápida</p>
+                  <SocialLoginButtons />
+               </div>
+
+               <div className="relative">
+                  <div className="absolute inset-0 flex items-center"><Separator className="w-full border-dashed" /></div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white/80 px-4 text-muted-foreground">Ou use seu e-mail</span></div>
+               </div>
+
+               <SignUpForm referredBy={isValidCode ? affiliateInfo?.userId : undefined} />
+            </div>
           </CardContent>
 
           <CardFooter className="p-10 pt-0 flex flex-col gap-6">

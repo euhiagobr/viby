@@ -80,7 +80,7 @@
     }
   },
   "auth": {
-    "providers": ["password", "google"]
+    "providers": ["password", "google", "facebook"]
   },
   "firestore": {
     "/crm_campaigns/{campaignId}": {
