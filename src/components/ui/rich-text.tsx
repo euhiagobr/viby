@@ -13,24 +13,32 @@ interface RichTextProps {
 
 /**
  * Viby Shortcode Engine
- * Converte silenciosamente marcações [tagx=valor] em componentes visuais.
- * Suporta: **negrito**, @menção, ++texto grande++, [instagramx=user], [imgx=url WxH]
+ * Converte marcações em componentes visuais.
+ * Suporta: 
+ * - **negrito**
+ * - @menção
+ * - ++texto grande++
+ * - [instagramx=user]
+ * - [imgx=url WxH]
+ * - Siglas de Orgulho (LGBT, LGBTQIA+, etc) -> Link para /lgbt com estilo arco-íris
  */
 export function RichText({ content, className }: RichTextProps) {
   if (!content) return null
 
-  // Regex para capturar todos os padrões suportados
-  // 1. Bold: \*\*(.*?)\*\*
-  // 2. Mentions: @([\w.]+)
-  // 3. Large: \+\+(.*?)\+\+
-  // 4. Instagram: \[instagramx=([\w.]+)\]
-  // 5. Image: \[imgx=(https?:\/\/[^\s\]]+)(?:\s+(\d+)x(\d+))?\]
-  const regex = /(\*\*.*?\*\*|@[\w.]+|\+\+.*?\+\+|\[instagramx=[\w.]+\]|\[imgx=https?:\/\/[^\s\]]+(?:\s+\d+x\d+)?\])/g
+  // Definição das siglas de orgulho para o Regex
+  const pridePattern = "\\b(LGBTQIAPN\\+?|LGBTQIA\\+?|LGBTQ\\+?|LGBTI|LGBT)\\b";
+  const prideRegex = new RegExp(`^${pridePattern}$`, 'i');
+
+  // Regex consolidado para capturar todos os padrões
+  const regex = new RegExp(`(\\*\\*.*?\\*\\*|@[\\w.]+|\\+\\+.*?\\+\\+|\\[instagramx=[\\w.]+\\]|\\[imgx=https?:\\/\\/[^\\s\\]]+(?:\\s+\\d+x\\d+)?\\]|${pridePattern})`, 'gi');
+  
   const parts = content.split(regex)
 
   return (
     <div className={cn("whitespace-pre-line leading-relaxed", className)}>
       {parts.map((part, i) => {
+        if (!part) return null;
+
         // 1. Negrito: **texto**
         if (part.startsWith('**') && part.endsWith('**')) {
           return (
@@ -58,16 +66,14 @@ export function RichText({ content, className }: RichTextProps) {
         // 3. Texto Grande: ++texto++
         if (part.startsWith('++') && part.endsWith('++') && part.length > 4) {
           const inner = part.slice(2, -2)
-          if (!/^\d+$/.test(inner)) {
-            return (
-              <span 
-                key={i} 
-                className="inline-block text-[1.3em] font-black uppercase italic tracking-tighter leading-tight align-middle my-0.5 text-primary"
-              >
-                {inner}
-              </span>
-            )
-          }
+          return (
+            <span 
+              key={i} 
+              className="inline-block text-[1.3em] font-black uppercase italic tracking-tighter leading-tight align-middle my-0.5 text-primary"
+            >
+              {inner}
+            </span>
+          )
         }
 
         // 4. Instagram: [instagramx=username]
@@ -109,6 +115,20 @@ export function RichText({ content, className }: RichTextProps) {
           }
         }
 
+        // 6. Siglas de Orgulho: LGBT, LGBTQIA+, etc.
+        if (prideRegex.test(part)) {
+          return (
+            <Link
+              key={i}
+              href="/lgbt"
+              className="bg-gradient-to-r from-red-500 via-orange-500 via-yellow-500 via-green-500 via-blue-500 to-purple-500 bg-clip-text text-transparent font-bold hover:opacity-80 transition-opacity decoration-secondary/30"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {part}
+            </Link>
+          )
+        }
+
         return <React.Fragment key={i}>{part}</React.Fragment>
       })}
     </div>
@@ -116,7 +136,7 @@ export function RichText({ content, className }: RichTextProps) {
 }
 
 /**
- * Componente interno para tratamento de imagens embutidas com segurança e resiliência
+ * Componente interno para tratamento de imagens embutidas
  */
 function VibyEmbeddedImage({ src, width, height }: { src: string, width: number, height: number }) {
   const [error, setError] = React.useState(false)
