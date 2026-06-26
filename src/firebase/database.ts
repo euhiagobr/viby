@@ -5,19 +5,21 @@ import { app } from "./apps";
 
 /**
  * @fileOverview Instância estabilizada do Firestore.
- * Implementa proteção definitiva contra o erro de asserção ca9.
- * NUNCA habilite persistência local neste ambiente de desenvolvimento.
+ * Implementa proteção definitiva contra o erro de asserção ca9 do SDK v11.
+ * Utiliza o objeto global para manter a instância viva entre re-renderizações do HMR.
  */
 
-let firestoreInstance: Firestore | null = null;
+declare global {
+  var firestoreInstance: Firestore | undefined;
+}
 
 export const db = (() => {
   if (typeof window !== 'undefined') {
-    if (!firestoreInstance) {
-      firestoreInstance = getFirestore(app);
-      console.log('[Firestore] Singleton initialized (no persistence)');
+    if (!globalThis.firestoreInstance) {
+      globalThis.firestoreInstance = getFirestore(app);
+      console.log('[Firestore] Singleton initialized on Client');
     }
-    return firestoreInstance;
+    return globalThis.firestoreInstance;
   }
   return getFirestore(app);
 })();

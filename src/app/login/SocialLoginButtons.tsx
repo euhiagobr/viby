@@ -1,10 +1,9 @@
-
 'use client';
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth, useUser, useFirestore } from "@/firebase";
-import { startSocialLogin, handleSocialLoginResult, authConfig } from "@/services/auth-service";
+import { startSocialLogin, authConfig } from "@/services/auth-service";
 import { Loader2, AlertCircle, Facebook } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -13,50 +12,43 @@ export function SocialLoginButtons() {
   const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
-  const { isInitialized } = useUser(auth);
   
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const checkStarted = React.useRef(false);
-
-  React.useEffect(() => {
-    if (!auth || !db || !isInitialized || checkStarted.current) return;
-
-    const captureResult = async () => {
-      checkStarted.current = true;
-      try {
-        const result = await handleSocialLoginResult(auth, db);
-        if (result && result.profile) {
-          setIsProcessing(true);
-          const hasMandatory = !!(result.profile?.username && result.profile?.cpfHash);
-          const isComplete = result.profile?.profileComplete && hasMandatory && !result.profile?.needsCPFUpdate;
-          
-          if (!isComplete) {
-            router.replace("/onboarding");
-          } else {
-            router.replace("/dashboard");
-          }
-        }
-      } catch (err: any) {
-        console.error("[Auth-Social] Error:", err);
-        setError("Não foi possível sincronizar sua conta social.");
-        setLoadingProvider(null);
-      }
-    };
-
-    captureResult();
-  }, [auth, db, isInitialized, router]);
 
   const handleSocialLogin = async (provider: 'google' | 'facebook') => {
-    if (!auth) return;
+    if (!auth || !db) return;
+    
     setError(null);
     setLoadingProvider(provider);
+    
     try {
-      await startSocialLogin(auth, provider);
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro", description: "Falha ao iniciar login social." });
+      const result = await startSocialLogin(auth, db, provider);
+      
+      if (result && result.profile) {
+        setIsProcessing(true);
+        // Verifica se o perfil está completo para decidir a rota
+        const hasMandatory = !!(result.profile?.username && result.profile?.cpfHash);
+        const isComplete = result.profile?.profileComplete && hasMandatory && !result.profile?.needsCPFUpdate;
+        
+        if (!isComplete) {
+          toast({ title: "Bem-vindo!", description: "Vamos concluir seu cadastro." });
+          router.replace("/onboarding");
+        } else {
+          toast({ title: "Acesso autorizado!", description: "Entrando na sua conta..." });
+          router.replace("/dashboard");
+        }
+      }
+    } catch (err: any) {
+      console.error("[Auth-Social] Process Error:", err);
+      if (err.code === 'auth/popup-closed-by-user') {
+         setError("O login foi cancelado. Tente novamente.");
+      } else {
+         setError("Não foi possível sincronizar sua conta social.");
+      }
       setLoadingProvider(null);
+      setIsProcessing(false);
     }
   };
 

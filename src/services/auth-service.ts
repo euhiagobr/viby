@@ -1,11 +1,9 @@
-
 'use client';
 
 import { 
   GoogleAuthProvider, 
   FacebookAuthProvider,
-  signInWithRedirect, 
-  getRedirectResult,
+  signInWithPopup, 
   Auth,
   browserPopupRedirectResolver,
   indexedDBLocalPersistence,
@@ -58,7 +56,7 @@ export async function ensureUserProfile(user: any, db: Firestore) {
         profileComplete: false,
         role: "user",
         status: "Ativo",
-        followingCount: 1, // Começa seguindo a Viby
+        followingCount: 1, 
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -66,7 +64,6 @@ export async function ensureUserProfile(user: any, db: Firestore) {
       await runTransaction(db, async (transaction) => {
         transaction.set(userRef, userData);
         
-        // Auto-follow Viby Oficial
         const followRef = doc(db, "follows", `${user.uid}_${VIBY_OFFICIAL_UID}`);
         const vibyOrgRef = doc(db, "organizations", VIBY_OFFICIAL_UID);
         
@@ -102,20 +99,23 @@ export async function ensureUserProfile(user: any, db: Firestore) {
         metadata: { method: 'social_auto_follow' }
       });
 
-      return { ...userData, isNew: true };
+      return { ...userData, id: user.uid, isNew: true };
     }
 
     const currentProfile = userSnap.data();
     const isActuallyComplete = !!(currentProfile.username && currentProfile.cpfHash);
     
-    return { ...currentProfile, profileComplete: isActuallyComplete, isNew: false };
+    return { ...currentProfile, id: user.uid, profileComplete: isActuallyComplete, isNew: false };
   } catch (error) {
     console.error('[Auth-Service] ensureUserProfile Error:', error);
     throw error;
   }
 }
 
-export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
+/**
+ * Inicia o fluxo de login via Popup para maior estabilidade em ambientes de dev.
+ */
+export async function startSocialLogin(auth: Auth, db: Firestore, providerName: 'google' | 'facebook') {
   let provider;
   
   if (providerName === 'google') {
@@ -131,25 +131,14 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
 
   try {
     await setPersistence(auth, indexedDBLocalPersistence);
-    return signInWithRedirect(auth, provider, browserPopupRedirectResolver);
-  } catch (error) {
-    throw error;
-  }
-}
-
-export async function handleSocialLoginResult(auth: Auth, db: Firestore) {
-  try {
-    const result = await getRedirectResult(auth, browserPopupRedirectResolver);
-    if (result?.user) {
+    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+    if (result.user) {
       const profile = await ensureUserProfile(result.user, db);
       return { user: result.user, profile };
     }
-    if (auth.currentUser) {
-      const profile = await ensureUserProfile(auth.currentUser, db);
-      return { user: auth.currentUser, profile };
-    }
     return null;
-  } catch (error: any) {
+  } catch (error) {
+    console.error("[Auth-Social] Popup Error:", error);
     throw error;
   }
 }
