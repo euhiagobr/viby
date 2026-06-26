@@ -64,7 +64,7 @@ const STEPS = [
 ];
 
 const FEATURES = [
-  "Eventos gratuitos", "Eventos pagos", "Cupons de desconto", "Ingressos limitados", 
+  "Eventos gratuitos", "Eventos pagos", "Cupons de desconto", "Ingressos ilimitados", 
   "QR Code para check-in", "Relatórios de vendas", "Controle de participantes", 
   "Página pública do evento", "Compartilhamento em redes sociais"
 ];
@@ -74,7 +74,7 @@ const FAQS = [
   { q: "Preciso ter CNPJ para vender?", a: "Não. A Viby permite que tanto pessoas físicas (CPF) quanto jurídicas (CNPJ) criem eventos e vendam ingressos." },
   { q: "Como recebo os pagamentos?", a: "Utilizamos o Stripe Connect, um dos processadores de pagamento mais seguros do mundo. O valor líquido das suas vendas é transferido para sua conta bancária conforme o ciclo financeiro escolhido." },
   { q: "Posso criar eventos gratuitos?", a: "Com certeza! A Viby é ideal para gerir listas de presença e convites em eventos sem custo de entrada." },
-  { q: "Posso vender diferentes tipos de ingressos?", a: "Sim. Você pode configurar lotes, ingressos VIP, meia-entrada, promocionais e muito mais." }
+  { q: "Preciso vender diferentes tipos de ingressos?", a: "Sim. Você pode configurar lotes, ingressos VIP, meia-entrada, promocionais e muito mais." }
 ];
 
 export default function OrganizerLandingPage() {

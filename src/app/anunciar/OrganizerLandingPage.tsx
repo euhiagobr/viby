@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -67,7 +66,7 @@ const STEPS = [
 ];
 
 const FEATURES = [
-  "Eventos gratuitos", "Eventos pagos", "Cupons de desconto", "Ingressos limitados", 
+  "Eventos gratuitos", "Eventos pagos", "Cupons de desconto", "Ingressos ilimitados", 
   "QR Code para check-in", "Relatórios de vendas", "Controle de participantes", 
   "Página pública do evento", "Compartilhamento em redes sociais"
 ];
