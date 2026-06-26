@@ -3,9 +3,9 @@
 import { 
   GoogleAuthProvider, 
   FacebookAuthProvider,
-  signInWithRedirect, 
-  getRedirectResult,
-  Auth
+  signInWithPopup,
+  Auth,
+  User
 } from "firebase/auth";
 import { 
   doc, 
@@ -20,9 +20,6 @@ import { recordAuditLog } from "@/app/actions/audit";
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
-/**
- * Configuração de provedores de autenticação social ativos.
- */
 export const authConfig = {
   google: true,
   facebook: true
@@ -30,9 +27,8 @@ export const authConfig = {
 
 /**
  * Garante que o documento do usuário exista no Firestore.
- * Implementa auto-follow do perfil @viby.
  */
-export async function ensureUserProfile(user: any, db: Firestore) {
+export async function ensureUserProfile(user: User, db: Firestore) {
   console.log('[Auth-Debug] 5. entry: ensureUserProfile for UID:', user.uid);
   if (!user || !db) return null;
   
@@ -96,7 +92,7 @@ export async function ensureUserProfile(user: any, db: Firestore) {
         action: 'signup',
         category: 'auth',
         success: true,
-        metadata: { method: 'social_redirect_auto_follow' }
+        metadata: { method: 'social_popup_auto_follow' }
       });
 
       console.log('[Auth-Debug] 7. New profile created successfully');
@@ -115,40 +111,21 @@ export async function ensureUserProfile(user: any, db: Firestore) {
 }
 
 /**
- * Inicia o fluxo de login via Redirecionamento.
- * Mais robusto para ambientes de Iframe e Mobile.
+ * Inicia o login via Popup.
+ * CRÍTICO: Deve ser chamado imediatamente no evento de clique para evitar bloqueios.
  */
-export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
-  console.log('[Auth-Debug] 2. startSocialLogin redirect for:', providerName);
+export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook', db: Firestore) {
+  console.log('[Auth-Debug] 2. startSocialLogin popup for:', providerName);
   const provider = providerName === 'google' 
     ? new GoogleAuthProvider() 
     : new FacebookAuthProvider();
 
-  if (providerName === 'google') {
-    provider.addScope('profile');
-    provider.addScope('email');
-  } else {
-    provider.addScope('email');
-    provider.addScope('public_profile');
-  }
-
-  return signInWithRedirect(auth, provider);
-}
-
-/**
- * Captura o resultado do redirecionamento social após o retorno à página.
- */
-export async function handleSocialRedirect(auth: Auth, db: any) {
-  console.log('[Auth-Debug] 3. Checking redirect result...');
   try {
-    const result = await getRedirectResult(auth);
-    if (result?.user) {
-      console.log('[Auth-Debug] 4. Redirect success for user:', result.user.uid);
-      return await ensureUserProfile(result.user, db);
-    }
-    return null;
+    const result = await signInWithPopup(auth, provider);
+    console.log('[Auth-Debug] 3. Popup success. Ensuring profile...');
+    return await ensureUserProfile(result.user, db);
   } catch (error) {
-    console.error('[Auth-Debug] Redirect Error:', error);
+    console.error('[Auth-Debug] Popup Error:', error);
     throw error;
   }
 }

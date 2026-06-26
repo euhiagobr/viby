@@ -19,7 +19,6 @@ import { useTranslation } from "@/i18n/i18n-context"
 import { PublicHeader } from "@/components/layout/PublicHeader"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { SocialLoginButtons } from "./SocialLoginButtons"
-import { handleSocialRedirect } from "@/services/auth-service"
 
 function LoginContent() {
   const { t } = useTranslation()
@@ -28,7 +27,6 @@ function LoginContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [isProcessingRedirect, setIsProcessingRedirect] = useState(false)
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -40,37 +38,10 @@ function LoginContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
-  // Ouvinte de Redirecionamento Social
   useEffect(() => {
-    if (!isInitialized || authLoading || !auth || !db) return;
+    if (!isInitialized || authLoading) return;
 
-    const checkRedirect = async () => {
-      try {
-        setIsProcessingRedirect(true);
-        const profileData = await handleSocialRedirect(auth, db);
-        if (profileData) {
-          console.log('[Auth-Debug] 8. Redirect Result processed. Completeness check...');
-          const hasMandatoryData = !!(profileData?.username && profileData?.cpfHash);
-          if (!hasMandatoryData || profileData?.needsCPFUpdate) {
-            router.replace("/onboarding");
-          } else {
-            router.replace("/dashboard");
-          }
-        }
-      } catch (e) {
-        // Silently handled or logged by handleSocialRedirect
-      } finally {
-        setIsProcessingRedirect(false);
-      }
-    };
-
-    checkRedirect();
-  }, [auth, db, isInitialized, authLoading, router]);
-
-  useEffect(() => {
-    if (!isInitialized || authLoading || isProcessingRedirect) return;
-
-    if (user && !isProcessingRedirect) {
+    if (user) {
       const hasMandatoryData = !!(profile?.username && profile?.cpfHash);
       const isComplete = profile !== null && hasMandatoryData && !profile?.needsCPFUpdate;
 
@@ -81,7 +52,7 @@ function LoginContent() {
         router.replace(redirect);
       }
     }
-  }, [user, profile, isInitialized, authLoading, router, searchParams, isProcessingRedirect]);
+  }, [user, profile, isInitialized, authLoading, router, searchParams]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -111,7 +82,16 @@ function LoginContent() {
     }
   }
 
-  const showSync = (!isInitialized || authLoading || isProcessingRedirect) && !success;
+  if (!isInitialized || authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <div className="flex flex-col items-center gap-4">
+           <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Sincronizando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
@@ -151,65 +131,56 @@ function LoginContent() {
               </Alert>
             )}
 
-            {showSync ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-4">
-                 <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">
-                   {isProcessingRedirect ? "Concluindo Autenticação Social..." : "Sincronizando..."}
-                 </p>
-              </div>
-            ) : (
-              <div className="space-y-8">
-                <form onSubmit={handleLogin} className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="identifier" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">{t('auth.email_label')}</Label>
-                    <div className="relative">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
-                      <Input 
-                        id="identifier" 
-                        placeholder={t('auth.identifier_placeholder')} 
-                        value={identifier} 
-                        onChange={(e) => setIdentifier(e.target.value)}
-                        required 
-                        disabled={loading || success}
-                        className="h-14 rounded-2xl pl-12 border-dashed border-primary/20 focus-visible:ring-secondary/30"
-                      />
-                    </div>
+            <div className="space-y-8">
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="identifier" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">{t('auth.email_label')}</Label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                    <Input 
+                      id="identifier" 
+                      placeholder={t('auth.identifier_placeholder')} 
+                      value={identifier} 
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      required 
+                      disabled={loading || success}
+                      className="h-14 rounded-2xl pl-12 border-dashed border-primary/20 focus-visible:ring-secondary/30"
+                    />
                   </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between px-1">
-                      <Label htmlFor="password" name="password" className="text-[10px] font-black uppercase tracking-widest opacity-60">{t('auth.password_label')}</Label>
-                      <Link href="/redefinir-senha" className="text-[10px] font-black uppercase text-secondary hover:underline">{t('auth.forgot_password')}</Link>
-                    </div>
-                    <div className="relative">
-                      <LockIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
-                      <Input 
-                        id="password" 
-                        type="password" 
-                        placeholder="••••••••" 
-                        value={password} 
-                        onChange={(e) => setPassword(e.target.value)}
-                        required 
-                        disabled={loading || success}
-                        className="h-14 rounded-2xl pl-12 border-dashed border-primary/20 focus-visible:ring-secondary/30"
-                      />
-                    </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <Label htmlFor="password" name="password" className="text-[10px] font-black uppercase tracking-widest opacity-60">{t('auth.password_label')}</Label>
+                    <Link href="/redefinir-senha" className="text-[10px] font-black uppercase text-secondary hover:underline">{t('auth.forgot_password')}</Link>
                   </div>
-
-                  <Button type="submit" disabled={loading || success} className="w-full bg-primary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg transition-all hover:scale-[1.02] shadow-primary/20">
-                    {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : success ? <CheckCircle2 className="mr-2 h-5 w-5" /> : t('auth.login_btn')}
-                  </Button>
-                </form>
-
-                <div className="relative">
-                   <div className="absolute inset-0 flex items-center"><Separator className="w-full border-dashed" /></div>
-                   <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-4 text-muted-foreground">Ou continue com</span></div>
+                  <div className="relative">
+                    <LockIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={password} 
+                      onChange={(e) => setPassword(e.target.value)}
+                      required 
+                      disabled={loading || success}
+                      className="h-14 rounded-2xl pl-12 border-dashed border-primary/20 focus-visible:ring-secondary/30"
+                    />
+                  </div>
                 </div>
 
-                <SocialLoginButtons />
+                <Button type="submit" disabled={loading || success} className="w-full bg-primary text-white font-black h-16 rounded-[1.5rem] shadow-xl uppercase italic text-lg transition-all hover:scale-[1.02] shadow-primary/20">
+                  {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : success ? <CheckCircle2 className="mr-2 h-5 w-5" /> : t('auth.login_btn')}
+                </Button>
+              </form>
+
+              <div className="relative">
+                 <div className="absolute inset-0 flex items-center"><Separator className="w-full border-dashed" /></div>
+                 <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-4 text-muted-foreground">Ou continue com</span></div>
               </div>
-            )}
+
+              <SocialLoginButtons />
+            </div>
           </CardContent>
 
           <CardFooter className="p-10 pt-0 flex flex-col gap-6">

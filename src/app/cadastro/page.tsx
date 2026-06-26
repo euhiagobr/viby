@@ -13,7 +13,6 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SocialLoginButtons } from "../login/SocialLoginButtons";
-import { handleSocialRedirect } from "@/services/auth-service";
 import { useTranslation } from "@/i18n/i18n-context";
 
 export default function CadastroPage() {
@@ -28,44 +27,16 @@ export default function CadastroPage() {
   const [affiliateInfo, setAffiliateInfo] = React.useState<{ name: string; code: string; userId: string } | null>(null);
   const [isValidCode, setIsValidCode] = React.useState<boolean | null>(null);
   const [validating, setValidating] = React.useState(false);
-  const [isProcessingRedirect, setIsProcessingRedirect] = React.useState(false);
 
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const siteName = settings?.siteName || "Viby";
 
-  // Ouvinte de Redirecionamento Social
-  React.useEffect(() => {
-    if (!isInitialized || authLoading || !auth || !db) return;
-
-    const checkRedirect = async () => {
-      try {
-        setIsProcessingRedirect(true);
-        const profileData = await handleSocialRedirect(auth, db);
-        if (profileData) {
-          console.log('[Auth-Debug] 8. Redirect Result (Cadastro) processed. Completeness check...');
-          const hasMandatoryData = !!(profileData?.username && profileData?.cpfHash);
-          if (!hasMandatoryData || profileData?.needsCPFUpdate) {
-            router.replace("/onboarding");
-          } else {
-            router.replace("/dashboard");
-          }
-        }
-      } catch (e) {
-        // Silently handled
-      } finally {
-        setIsProcessingRedirect(false);
-      }
-    };
-
-    checkRedirect();
-  }, [auth, db, isInitialized, authLoading, router]);
-
   // Proteção: Redireciona usuários logados
   React.useEffect(() => {
-    if (!isInitialized || authLoading || isProcessingRedirect) return;
+    if (!isInitialized || authLoading) return;
 
-    if (user && !isProcessingRedirect) {
+    if (user) {
       const hasMandatoryData = !!(profile?.username && profile?.cpfHash);
       const isComplete = profile !== null && hasMandatoryData && !profile?.needsCPFUpdate;
 
@@ -75,7 +46,7 @@ export default function CadastroPage() {
         router.replace("/dashboard");
       }
     }
-  }, [user, profile, isInitialized, authLoading, router, isProcessingRedirect]);
+  }, [user, profile, isInitialized, authLoading, router]);
 
   React.useEffect(() => {
     const checkAffiliateCode = async () => {
@@ -123,14 +94,12 @@ export default function CadastroPage() {
     checkAffiliateCode();
   }, [refCode, db]);
 
-  if (!isInitialized || authLoading || isProcessingRedirect) {
+  if (!isInitialized || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
         <div className="flex flex-col items-center gap-4">
            <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">
-             {isProcessingRedirect ? "Vinculando conta social..." : "Sincronizando..."}
-           </p>
+           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Sincronizando...</p>
         </div>
       </div>
     );

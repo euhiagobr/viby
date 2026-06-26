@@ -4,9 +4,10 @@ import { initializeFirestore, Firestore, memoryLocalCache, getFirestore } from "
 import { app } from "./apps";
 
 /**
- * @fileOverview Instância estabilizada do Firestore para ambientes de desenvolvimento.
- * Implementa proteção definitiva contra o erro de asserção ca9 do SDK v11.
- * Utiliza o objeto global e memória local para evitar conflitos de persistência no HMR.
+ * @fileOverview Instância estabilizada do Firestore (Singleton).
+ * Proteção total contra o erro ca9: 
+ * 1. Usa memoryLocalCache para evitar conflitos de IndexedDB no Workstation.
+ * 2. Mantém a instância em globalThis para sobreviver ao HMR do Next.js.
  */
 
 declare global {
@@ -15,8 +16,6 @@ declare global {
 
 export const db = (() => {
   if (typeof window !== 'undefined') {
-    // Em ambientes de desenvolvimento (Studio/Workstations), o Hot Module Replacement (HMR) 
-    // pode tentar reinicializar o Firestore múltiplas vezes, causando o erro 'ca9'.
     if (!globalThis.firestoreInstance) {
       try {
         globalThis.firestoreInstance = initializeFirestore(app, {
@@ -24,7 +23,7 @@ export const db = (() => {
         });
         console.log('[Firestore-Debug] Singleton initialized with Memory Cache');
       } catch (e) {
-        console.log('[Firestore-Debug] Falling back to getFirestore');
+        console.warn('[Firestore-Debug] Falling back to getFirestore');
         globalThis.firestoreInstance = getFirestore(app);
       }
     }

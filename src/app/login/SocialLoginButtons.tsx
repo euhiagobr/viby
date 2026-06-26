@@ -2,29 +2,49 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/firebase";
+import { useAuth, useFirestore } from "@/firebase";
 import { startSocialLogin, authConfig } from "@/services/auth-service";
 import { Loader2, AlertCircle, Facebook } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export function SocialLoginButtons() {
   const auth = useAuth();
+  const db = useFirestore();
+  const router = useRouter();
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const handleSocialLogin = async (provider: 'google' | 'facebook') => {
-    console.log(`[Auth-Debug] 1. Triggering redirect for ${provider}`);
-    if (!auth) return;
+    console.log(`[Auth-Debug] 1. Click detected for ${provider}`);
+    if (!auth || !db) return;
     
     setError(null);
     setLoadingProvider(provider);
     
     try {
-      await startSocialLogin(auth, provider);
-      // O navegador irá redirecionar, a página será desmontada aqui.
+      // Chamada direta do serviço de popup para manter o "user gesture" intacto
+      const profile = await startSocialLogin(auth, provider, db);
+      
+      if (profile) {
+        console.log('[Auth-Debug] 4. Process complete. Navigating...');
+        const isComplete = !!(profile.username && profile.cpfHash);
+        if (!isComplete || profile.needsCPFUpdate) {
+          router.push("/onboarding");
+        } else {
+          router.push("/dashboard");
+        }
+      }
     } catch (err: any) {
-      console.error("[Auth-Debug] Redirect Start Failed", err);
+      console.error("[Auth-Debug] Login Failed:", err.code);
       setLoadingProvider(null);
-      setError(`Falha ao iniciar: ${err.code || 'Erro desconhecido'}`);
+      
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError("O login foi cancelado. Clique novamente para tentar.");
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        setError("Múltiplas janelas abertas. Tente novamente.");
+      } else {
+        setError(`Falha ao entrar: ${err.message || 'Erro desconhecido'}`);
+      }
     }
   };
 
