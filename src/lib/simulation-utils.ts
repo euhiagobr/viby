@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Lógica de cálculo isolada para a Calculadora Comercial Viby.
  * NUNCA importar este arquivo no checkout real ou regras de cobrança.
@@ -6,21 +5,28 @@
 
 export interface SimulationResult {
   grossRevenue: number;
+  qty: number;
+  unitValue: number;
   viby: {
     orgFee: number;
     buyerFee: number;
     netOrganizer: number;
     totalFees: number;
+    unitBuyerFee: number;
+    unitTotalPaid: number;
   };
   competitor: {
     orgFee: number;
     buyerFee: number;
     netOrganizer: number;
     totalFees: number;
+    unitBuyerFee: number;
+    unitTotalPaid: number;
   };
   savings: {
     absolute: number;
     percent: number;
+    perTicket: number;
   };
 }
 
@@ -40,14 +46,16 @@ export function calculateSimulation(
 
   // Cálculos Competidor (Média de Mercado)
   const compOrgFee = gross * VIBY_MARKET_AVG_ORG_FEE;
-  const compBuyerFee = gross * (competitionBuyerPercent / 100);
+  const compUnitBuyerFee = value * (competitionBuyerPercent / 100);
+  const compBuyerFee = qty * compUnitBuyerFee;
   const compNet = gross - compOrgFee;
   const compTotalFees = compOrgFee + compBuyerFee;
 
   // Cálculos Viby
   const unitOrgFee = Math.max(value * (vibyConfig.orgPercent / 100), vibyConfig.orgMin);
   const vibyOrgFee = qty * unitOrgFee;
-  const vibyBuyerFee = gross * (vibyConfig.buyerPercent / 100);
+  const vibyUnitBuyerFee = value * (vibyConfig.buyerPercent / 100);
+  const vibyBuyerFee = qty * vibyUnitBuyerFee;
   const vibyNet = gross - vibyOrgFee;
   const vibyTotalFees = vibyOrgFee + vibyBuyerFee;
 
@@ -58,21 +66,28 @@ export function calculateSimulation(
 
   return {
     grossRevenue: gross,
+    qty,
+    unitValue: value,
     viby: {
       orgFee: vibyOrgFee,
       buyerFee: vibyBuyerFee,
       netOrganizer: vibyNet,
-      totalFees: vibyTotalFees
+      totalFees: vibyTotalFees,
+      unitBuyerFee: vibyUnitBuyerFee,
+      unitTotalPaid: value + vibyUnitBuyerFee
     },
     competitor: {
       orgFee: compOrgFee,
       buyerFee: compBuyerFee,
       netOrganizer: compNet,
-      totalFees: compTotalFees
+      totalFees: compTotalFees,
+      unitBuyerFee: compUnitBuyerFee,
+      unitTotalPaid: value + compUnitBuyerFee
     },
     savings: {
       absolute: absoluteSaving,
-      percent: percentLessFees
+      percent: percentLessFees,
+      perTicket: compUnitBuyerFee - vibyUnitBuyerFee
     }
   };
 }

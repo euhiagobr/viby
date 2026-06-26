@@ -23,7 +23,12 @@ import {
   ShieldCheck,
   Search,
   Loader2,
-  X
+  X,
+  Plus,
+  ArrowUpRight,
+  User,
+  ShoppingBag,
+  Percent
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
 import { calculateSimulation, SimulationResult } from '@/lib/simulation-utils';
@@ -41,26 +46,21 @@ const VIBY_DEFAULT_CONFIG = {
 
 export default function CalculadoraClient() {
   const db = useFirestore();
-  const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Estados dos inputs
   const [qty, setQty] = React.useState(Number(searchParams.get('qtd')) || 100);
   const [value, setValue] = React.useState(Number(searchParams.get('valor')) || 50);
-  const [competitionBuyer, setCompetitionBuyer] = React.useState(Number(searchParams.get('concorrencia')) || 15);
+  const [competitionBuyer, setCompetitionBuyer] = React.useState(Number(searchParams.get('concorrencia')) || 20);
   const [promoCode, setPromoCode] = React.useState(searchParams.get('codigo') || "");
   
-  // Estado da Campanha Aplicada
   const [activeConfig, setActiveConfig] = React.useState(VIBY_DEFAULT_CONFIG);
   const [appliedCode, setAppliedCode] = React.useState<string | null>(null);
   const [isValidating, setIsValidating] = React.useState(false);
 
-  // Resultado da Simulação
   const result = React.useMemo(() => {
     return calculateSimulation(qty, value, competitionBuyer, activeConfig);
   }, [qty, value, competitionBuyer, activeConfig]);
 
-  // Sincronizar URL
   React.useEffect(() => {
     const params = new URLSearchParams();
     if (appliedCode) params.set('codigo', appliedCode);
@@ -72,7 +72,6 @@ export default function CalculadoraClient() {
     window.history.replaceState(null, '', newUrl);
   }, [qty, value, competitionBuyer, appliedCode]);
 
-  // Validar código inicial da URL
   React.useEffect(() => {
     const code = searchParams.get('codigo');
     if (code && !appliedCode && db) {
@@ -207,105 +206,132 @@ export default function CalculadoraClient() {
            <div className="p-8 bg-secondary/5 rounded-[3rem] border-2 border-dashed border-secondary/20 space-y-4">
               <h3 className="text-xl font-black italic uppercase tracking-tighter text-primary">Por que a Viby é melhor?</h3>
               <ul className="space-y-3">
-                 <li className="flex items-center gap-3 text-sm font-bold text-primary/80"><CheckCircle2 className="w-5 h-5 text-green-500" /> Taxas decrescentes por volume</li>
                  <li className="flex items-center gap-3 text-sm font-bold text-primary/80"><CheckCircle2 className="w-5 h-5 text-green-500" /> Dinheiro na mão em D+7</li>
                  <li className="flex items-center gap-3 text-sm font-bold text-primary/80"><CheckCircle2 className="w-5 h-5 text-green-500" /> Sem custos ocultos ou taxas de saque</li>
+                 <li className="flex items-center gap-3 text-sm font-bold text-primary/80"><CheckCircle2 className="w-5 h-5 text-green-500" /> Tecnologia de ponta inclusa</li>
               </ul>
            </div>
         </div>
 
         {/* Lado Direito: Resultados */}
-        <div className="lg:col-span-7 space-y-10">
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-2">
-                 <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Receita Bruta Total</p>
-                 <p className="text-4xl font-black text-primary italic tracking-tighter">{formatCurrency(result.grossRevenue)}</p>
-              </Card>
-              <Card className="border-none shadow-xl rounded-[2rem] bg-secondary text-white p-8 space-y-2 relative overflow-hidden">
-                 <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Sua Economia com Viby</p>
-                 <p className="text-4xl font-black italic tracking-tighter animate-in zoom-in-95 duration-500">{formatCurrency(result.savings.absolute)}</p>
-                 <Zap className="absolute -bottom-2 -right-2 w-16 h-16 opacity-10 rotate-12" />
-              </Card>
-           </div>
-
-           <Card className="border-none shadow-sm rounded-[3rem] overflow-hidden bg-white">
-              <div className="p-8 border-b bg-muted/20">
-                 <h3 className="text-xl font-black italic uppercase tracking-tighter">Comparativo Detalhado</h3>
-              </div>
-              <CardContent className="p-0 overflow-x-auto">
-                 <Table className="w-full">
-                    <thead className="bg-muted/10">
-                       <tr className="border-b">
-                          <th className="font-black uppercase text-[10px] p-6 text-left">Descrição</th>
-                          <th className="font-black uppercase text-[10px] text-right p-6">Outras Plataformas</th>
-                          <th className="font-black uppercase text-[10px] text-right p-6 text-secondary italic">Viby</th>
-                       </tr>
-                    </thead>
-                    <tbody className="text-sm font-bold divide-y">
-                       <tr>
-                          <td className="p-6">Taxa do Organizador</td>
-                          <td className="text-right p-6 text-red-500">-{formatCurrency(result.competitor.orgFee)}</td>
-                          <td className="text-right p-6 text-green-600">-{formatCurrency(result.viby.orgFee)}</td>
-                       </tr>
-                       <tr>
-                          <td className="p-6">Taxa do Comprador</td>
-                          <td className="text-right p-6">{formatCurrency(result.competitor.buyerFee)}</td>
-                          <td className="text-right p-6">{formatCurrency(result.viby.buyerFee)}</td>
-                       </tr>
-                       <tr className="bg-muted/5 font-black">
-                          <td className="p-6">Total Arrecadado (Bruto)</td>
-                          <td className="text-right p-6">{formatCurrency(result.grossRevenue)}</td>
-                          <td className="text-right p-6">{formatCurrency(result.grossRevenue)}</td>
-                       </tr>
-                       <tr className="bg-secondary/5">
-                          <td className="p-6 text-lg italic text-primary">O ORGANIZADOR RECEBE</td>
-                          <td className="text-right p-6 text-lg italic">{formatCurrency(result.competitor.netOrganizer)}</td>
-                          <td className="text-right p-6 text-2xl font-black italic text-primary">{formatCurrency(result.viby.netOrganizer)}</td>
-                       </tr>
-                    </tbody>
-                 </Table>
-              </CardContent>
-           </Card>
-
-           {result.savings.absolute > 0 && (
-             <div className="p-10 bg-green-50 rounded-[3rem] border-2 border-dashed border-green-200 text-center space-y-4">
-                <div className="w-16 h-16 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto shadow-lg">
-                   <TrendingUp className="w-8 h-8" />
-                </div>
-                <div className="space-y-1">
-                   <h2 className="text-3xl font-black uppercase italic tracking-tighter text-green-800">
-                     Sua margem é {Math.round(result.savings.percent)}% maior na Viby
-                   </h2>
-                   <p className="text-xs font-bold text-green-700 uppercase tracking-widest">Garantimos a melhor performance financeira para o seu evento</p>
-                </div>
-             </div>
-           )}
-
+        <div className="lg:col-span-7 space-y-12">
+           
+           {/* SEÇÃO 1: ORGANIZADOR */}
            <div className="space-y-6">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-2">Projeções de Escala</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                 {[500, 1000, 2000].map(q => {
-                   const r = calculateSimulation(q, value, competitionBuyer, activeConfig);
-                   return (
-                     <Card key={q} className="border-none shadow-sm rounded-3xl bg-white p-6 space-y-4 hover:shadow-md transition-all">
-                        <div className="flex justify-between items-start">
-                           <Badge variant="outline" className="text-[8px] font-black uppercase">{q} Ingressos</Badge>
-                           <Users className="w-4 h-4 opacity-20" />
-                        </div>
-                        <div className="space-y-0.5">
-                           <p className="text-[9px] font-bold text-muted-foreground uppercase">Economia Prevista</p>
-                           <p className="text-xl font-black text-secondary">{formatCurrency(r.savings.absolute)}</p>
-                        </div>
-                     </Card>
-                   );
-                 })}
+              <div className="flex items-center gap-3 px-2">
+                 <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Coins className="w-5 h-5" /></div>
+                 <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Quanto você recebe</h2>
+              </div>
+
+              <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
+                <CardContent className="p-0 overflow-x-auto">
+                   <table className="w-full text-left">
+                      <thead className="bg-muted/10">
+                         <tr className="border-b">
+                            <th className="font-black uppercase text-[10px] p-6 text-left">Descrição</th>
+                            <th className="font-black uppercase text-[10px] text-right p-6">Concorrência</th>
+                            <th className="font-black uppercase text-[10px] text-right p-6 text-secondary italic">Viby</th>
+                         </tr>
+                      </thead>
+                      <tbody className="text-sm font-bold divide-y">
+                         <tr>
+                            <td className="p-6">Receita Bruta</td>
+                            <td className="text-right p-6">{formatCurrency(result.grossRevenue)}</td>
+                            <td className="text-right p-6">{formatCurrency(result.grossRevenue)}</td>
+                         </tr>
+                         <tr>
+                            <td className="p-6">Taxa do Organizador</td>
+                            <td className="text-right p-6 text-red-500">-{formatCurrency(result.competitor.orgFee)}</td>
+                            <td className="text-right p-6 text-green-600">-{formatCurrency(result.viby.orgFee)}</td>
+                         </tr>
+                         <tr className="bg-secondary/5">
+                            <td className="p-6 text-lg italic text-primary font-black uppercase">VOCÊ RECEBE</td>
+                            <td className="text-right p-6 text-lg italic">{formatCurrency(result.competitor.netOrganizer)}</td>
+                            <td className="text-right p-6 text-3xl font-black italic text-primary">{formatCurrency(result.viby.netOrganizer)}</td>
+                         </tr>
+                      </tbody>
+                   </table>
+                </CardContent>
+              </Card>
+
+              {result.savings.absolute > 0 && (
+                <Card className="border-none shadow-xl rounded-[2.5rem] bg-secondary text-white p-10 space-y-2 relative overflow-hidden text-center group transition-transform hover:scale-[1.01]">
+                   <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Resultado do Período</p>
+                   <h3 className="text-3xl md:text-5xl font-black italic tracking-tighter">
+                      Você recebe {formatCurrency(result.savings.absolute)} a mais utilizando a Viby.
+                   </h3>
+                   <Zap className="absolute -bottom-4 -right-4 w-32 h-32 opacity-10 rotate-12 group-hover:scale-110 transition-transform" />
+                </Card>
+              )}
+           </div>
+
+           <Separator className="border-dashed" />
+
+           {/* SEÇÃO 2: COMPRADOR */}
+           <div className="space-y-6">
+              <div className="flex items-center gap-3 px-2">
+                 <div className="p-2 bg-primary/5 rounded-lg text-primary"><ShoppingBag className="w-5 h-5" /></div>
+                 <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Seu cliente também paga menos</h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <BuyerCard 
+                    label="Concorrência" 
+                    value={value} 
+                    feePercent={competitionBuyer} 
+                    feeValue={result.competitor.unitBuyerFee}
+                    total={result.competitor.unitTotalPaid}
+                    variant="neutral"
+                 />
+                 <BuyerCard 
+                    label="Viby" 
+                    value={value} 
+                    feePercent={activeConfig.buyerPercent} 
+                    feeValue={result.viby.unitBuyerFee}
+                    total={result.viby.unitTotalPaid}
+                    variant="highlight"
+                 />
+              </div>
+
+              <Card className="border-none shadow-sm rounded-3xl bg-green-50 p-8 text-center border-2 border-dashed border-green-200">
+                 <h3 className="text-2xl font-black text-green-700 italic uppercase tracking-tighter">
+                    Cada cliente economiza {formatCurrency(result.savings.perTicket)} na compra do ingresso.
+                 </h3>
+                 <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mt-2">Menos taxa = Mais vendas convertidas</p>
+              </Card>
+
+              <div className="space-y-6">
+                 <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-2 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" /> Economia Total dos Compradores
+                 </h3>
+                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {[result.qty, 500, 1000, 2000].map(q => {
+                      const totalSaving = q * result.savings.perTicket;
+                      return (
+                        <Card key={q} className="border-none shadow-sm rounded-3xl bg-white p-6 space-y-4 hover:shadow-md transition-all">
+                           <div className="flex justify-between items-start">
+                              <Badge variant="outline" className="text-[8px] font-black uppercase">{q} Ingressos</Badge>
+                              <Users className="w-4 h-4 opacity-20" />
+                           </div>
+                           <div className="space-y-0.5">
+                              <p className="text-[9px] font-bold text-muted-foreground uppercase">Economia Clientes</p>
+                              <p className="text-xl font-black text-primary">{formatCurrency(totalSaving)}</p>
+                           </div>
+                        </Card>
+                      );
+                    })}
+                 </div>
               </div>
            </div>
 
-           <div className="flex justify-center pt-6">
-              <Button asChild className="h-16 px-12 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-105 transition-all">
-                 <Link href="/cadastro">Falar com um Consultor <ArrowRight className="ml-2 w-5 h-5" /></Link>
+           <div className="flex flex-col items-center justify-center pt-10 gap-6">
+              <Button asChild className="h-20 px-16 bg-primary text-white font-black rounded-[2rem] shadow-2xl uppercase italic text-2xl hover:scale-105 transition-all">
+                 <Link href="/cadastro">Criar meu Evento agora <ArrowRight className="ml-2 w-8 h-8" /></Link>
               </Button>
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase opacity-30">
+                 <ShieldCheck className="w-4 h-4" />
+                 Viby Ecosystem Commercial Simulator 2026
+              </div>
            </div>
         </div>
       </section>
@@ -313,26 +339,31 @@ export default function CalculadoraClient() {
   );
 }
 
-function Table({ children, className }: { children: React.ReactNode, className?: string }) {
-  return <table className={cn("w-full border-collapse", className)}>{children}</table>;
-}
-
-function TableHeader({ children, className }: { children: React.ReactNode, className?: string }) {
-  return <thead className={className}>{children}</thead>;
-}
-
-function TableBody({ children, className }: { children: React.ReactNode, className?: string }) {
-  return <tbody className={className}>{children}</tbody>;
-}
-
-function TableRow({ children, className }: { children: React.ReactNode, className?: string }) {
-  return <tr className={className}>{children}</tr>;
-}
-
-function TableHead({ children, className }: { children: React.ReactNode, className?: string }) {
-  return <th className={className}>{children}</th>;
-}
-
-function TableCell({ children, className }: { children: React.ReactNode, className?: string }) {
-  return <td className={className}>{children}</td>;
+function BuyerCard({ label, value, feePercent, feeValue, total, variant }: any) {
+   const isHighlight = variant === 'highlight';
+   return (
+      <Card className={cn(
+        "border-none shadow-sm rounded-[2rem] overflow-hidden",
+        isHighlight ? "ring-2 ring-secondary bg-white" : "bg-muted/30"
+      )}>
+         <CardHeader className={cn("p-6 border-b", isHighlight ? "bg-secondary/5" : "bg-muted/20")}>
+            <p className={cn("text-[10px] font-black uppercase tracking-widest", isHighlight ? "text-secondary" : "text-muted-foreground")}>{label}</p>
+         </CardHeader>
+         <CardContent className="p-8 space-y-4">
+            <div className="flex justify-between items-center text-sm font-bold opacity-60 uppercase">
+               <span>Ingresso</span>
+               <span>{formatCurrency(value)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm font-bold opacity-60 uppercase">
+               <span>Taxa ({feePercent}%)</span>
+               <span>{formatCurrency(feeValue)}</span>
+            </div>
+            <Separator className="border-dashed" />
+            <div className="flex justify-between items-center">
+               <span className="text-xs font-black uppercase opacity-40">Cliente Paga</span>
+               <span className={cn("text-2xl font-black italic tracking-tighter", isHighlight ? "text-primary" : "text-muted-foreground")}>{formatCurrency(total)}</span>
+            </div>
+         </CardContent>
+      </Card>
+   )
 }
