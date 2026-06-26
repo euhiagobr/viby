@@ -20,7 +20,7 @@ interface RichTextProps {
  * - ++texto grande++
  * - [instagramx=user]
  * - [imgx=url WxH]
- * - Siglas de Orgulho (LGBT, LGBTQIA+, etc) -> Link para /lgbt com estilo arco-íris
+ * - Siglas de Orgulho (LGBT, LGBTQIA+, etc) -> Link para /lgbt com estilo arco-íris de 7 cores
  */
 export function RichText({ content, className }: RichTextProps) {
   if (!content) return null
@@ -116,13 +116,13 @@ export function RichText({ content, className }: RichTextProps) {
           }
         }
 
-        // 6. Siglas de Orgulho: LGBT, LGBTQIA+, etc.
+        // 6. Siglas de Orgulho: LGBT, LGBTQIA+, etc. (Degradê de 7 cores)
         if (prideRegex.test(part)) {
           return (
             <Link
               key={i}
               href="/lgbt"
-              className="bg-gradient-to-r from-red-500 via-orange-500 via-yellow-500 via-green-500 via-blue-500 to-purple-500 bg-clip-text text-transparent font-bold hover:opacity-80 transition-opacity decoration-secondary/30 inline-block"
+              className="bg-gradient-to-r from-[#ff0000] via-[#ffa500] via-[#ffff00] via-[#008000] via-[#0000ff] via-[#4b0082] to-[#ee82ee] bg-clip-text text-transparent font-bold hover:opacity-80 transition-opacity inline-block"
               onClick={(e) => e.stopPropagation()}
             >
               {part}
