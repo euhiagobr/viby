@@ -17,7 +17,12 @@ export const metadata: Metadata = {
     description: config.description,
     url: `https://viby.club/${config.slug}`,
     siteName: 'Viby',
-    images: [{ url: 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0' }],
+    images: [{ 
+      url: 'https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0',
+      width: 1200,
+      height: 630,
+      alt: config.title
+    }],
     type: 'website',
     locale: 'pt_BR',
   },
