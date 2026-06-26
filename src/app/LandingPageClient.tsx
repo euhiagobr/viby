@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react";
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 
 export default function LandingPageClient({ initialEvents = [] }: { initialEvents?: any[] }) {
   const { t } = useTranslation();
+  const [mounted, setMounted] = useState(false);
   
   // Estado de Filtros e Localização
   const [searchName, setSearchName] = useState("");
@@ -33,6 +35,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
   const [scrollLeft, setScrollLeft] = useState(0);
 
   useEffect(() => {
+    setMounted(true);
     getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {});
   }, []);
 
@@ -85,8 +88,8 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
         setSearchCity={setSearchCity}
       />
 
-      {/* SEÇÃO DE CATEGORIAS DINÂMICAS - Scroll Horizontal Oculto com Drag-to-Scroll */}
-      {!isInitialLoad && dynamicCategories.length > 0 && (
+      {/* SEÇÃO DE CATEGORIAS DINÂMICAS - Renderizada apenas após mount para evitar erro de hidratação */}
+      {mounted && !isInitialLoad && dynamicCategories.length > 0 && (
         <section className="bg-white border-b sticky top-16 z-30 shadow-sm overflow-hidden select-none">
            <div className="container mx-auto px-4 py-4">
               <div 
@@ -136,7 +139,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
       >
         <HomeFeed 
           feed={feed}
-          isInitialLoad={isInitialLoad}
+          isInitialLoad={isInitialLoad || !mounted}
           isFetching={isFetching}
           hasMore={hasMore}
           onFetchMore={fetchMore}
