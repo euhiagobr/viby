@@ -2,67 +2,29 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth, useUser, useFirestore } from "@/firebase";
-import { startSocialLogin, authConfig, ensureUserProfile } from "@/services/auth-service";
+import { useAuth } from "@/firebase";
+import { startSocialLogin, authConfig } from "@/services/auth-service";
 import { Loader2, AlertCircle, Facebook } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
 
 export function SocialLoginButtons() {
   const auth = useAuth();
-  const db = useFirestore();
-  const router = useRouter();
-  
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const handleSocialLogin = async (provider: 'google' | 'facebook') => {
-    console.log(`[Auth-Debug] 1. Click detected for ${provider}`);
-    if (!auth || !db) {
-       console.error('[Auth-Debug] ABORT: Auth or DB instances not ready.');
-       return;
-    }
+    console.log(`[Auth-Debug] 1. Triggering redirect for ${provider}`);
+    if (!auth) return;
     
     setError(null);
     setLoadingProvider(provider);
     
     try {
-      console.log('[Auth-Debug] 2. Calling startSocialLogin...');
-      const result = await startSocialLogin(auth, provider);
-      
-      console.log('[Auth-Debug] 3. startSocialLogin Success. User UID:', result.user.uid);
-      
-      console.log('[Auth-Debug] 4. Calling ensureUserProfile...');
-      const profileData = await ensureUserProfile(result.user, db);
-      
-      if (!profileData) {
-        throw new Error("Falha ao recuperar dados do perfil após o login.");
-      }
-
-      console.log('[Auth-Debug] 5. ensureUserProfile Finished.');
-      const hasMandatory = !!(profileData?.username && profileData?.cpfHash);
-      const isComplete = profileData?.profileComplete && hasMandatory && !profileData?.needsCPFUpdate;
-      
-      if (!isComplete) {
-        console.log('[Auth-Debug] 6. REDIRECTING TO /onboarding');
-        toast({ title: "Bem-vindo!", description: "Vamos concluir seu cadastro." });
-        router.replace("/onboarding");
-      } else {
-        console.log('[Auth-Debug] 6. REDIRECTING TO /dashboard');
-        toast({ title: "Acesso autorizado!", description: "Entrando na sua conta..." });
-        router.replace("/dashboard");
-      }
+      await startSocialLogin(auth, provider);
+      // O navegador irá redirecionar, a página será desmontada aqui.
     } catch (err: any) {
-      console.error("[Auth-Debug] CATCH: Authentication Flow Failed", err.code, err.message);
+      console.error("[Auth-Debug] Redirect Start Failed", err);
       setLoadingProvider(null);
-
-      if (err.code === 'auth/popup-closed-by-user') {
-         setError("O login foi cancelado. Clique novamente para tentar.");
-      } else if (err.code === 'auth/popup-blocked') {
-         setError("O seu navegador bloqueou o popup de login. Por favor, habilite-o.");
-      } else {
-         setError(`Falha técnica: ${err.code || 'Erro desconhecido'}`);
-      }
+      setError(`Falha ao iniciar: ${err.code || 'Erro desconhecido'}`);
     }
   };
 

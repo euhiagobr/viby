@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -14,6 +13,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SocialLoginButtons } from "../login/SocialLoginButtons";
+import { handleSocialRedirect } from "@/services/auth-service";
 
 export default function CadastroPage() {
   const db = useFirestore();
@@ -26,16 +26,44 @@ export default function CadastroPage() {
   const [affiliateInfo, setAffiliateInfo] = React.useState<{ name: string; code: string; userId: string } | null>(null);
   const [isValidCode, setIsValidCode] = React.useState<boolean | null>(null);
   const [validating, setValidating] = React.useState(false);
+  const [isProcessingRedirect, setIsProcessingRedirect] = React.useState(false);
 
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const siteName = settings?.siteName || "Viby";
 
+  // Ouvinte de Redirecionamento Social
+  React.useEffect(() => {
+    if (!isInitialized || authLoading || !auth || !db) return;
+
+    const checkRedirect = async () => {
+      try {
+        setIsProcessingRedirect(true);
+        const profileData = await handleSocialRedirect(auth, db);
+        if (profileData) {
+          console.log('[Auth-Debug] 8. Redirect Result (Cadastro) processed. Completeness check...');
+          const hasMandatoryData = !!(profileData?.username && profileData?.cpfHash);
+          if (!hasMandatoryData || profileData?.needsCPFUpdate) {
+            router.replace("/onboarding");
+          } else {
+            router.replace("/dashboard");
+          }
+        }
+      } catch (e) {
+        // Silently handled
+      } finally {
+        setIsProcessingRedirect(false);
+      }
+    };
+
+    checkRedirect();
+  }, [auth, db, isInitialized, authLoading, router]);
+
   // Proteção: Redireciona usuários logados
   React.useEffect(() => {
-    if (!isInitialized || authLoading) return;
+    if (!isInitialized || authLoading || isProcessingRedirect) return;
 
-    if (user) {
+    if (user && !isProcessingRedirect) {
       const hasMandatoryData = !!(profile?.username && profile?.cpfHash);
       const isComplete = profile !== null && hasMandatoryData && !profile?.needsCPFUpdate;
 
@@ -45,7 +73,7 @@ export default function CadastroPage() {
         router.replace("/dashboard");
       }
     }
-  }, [user, profile, isInitialized, authLoading, router]);
+  }, [user, profile, isInitialized, authLoading, router, isProcessingRedirect]);
 
   React.useEffect(() => {
     const checkAffiliateCode = async () => {
@@ -93,10 +121,15 @@ export default function CadastroPage() {
     checkAffiliateCode();
   }, [refCode, db]);
 
-  if (!isInitialized || authLoading) {
+  if (!isInitialized || authLoading || isProcessingRedirect) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+        <div className="flex flex-col items-center gap-4">
+           <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">
+             {isProcessingRedirect ? "Vinculando conta social..." : "Sincronizando..."}
+           </p>
+        </div>
       </div>
     );
   }
@@ -122,7 +155,7 @@ export default function CadastroPage() {
                 <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg transition-transform group-hover:scale-105">
                   <span className="text-white font-black text-lg">V</span>
                 </div>
-                <span className="text-xl font-black tracking-tight italic uppercase text-primary ml-1">{siteName}</span>
+                <span className="text-xl font-bold tracking-tight italic uppercase text-primary ml-1">{siteName}</span>
               </>
             )}
           </Link>
@@ -145,7 +178,7 @@ export default function CadastroPage() {
              </div>
              <div>
                 <CardTitle className="text-3xl font-black italic uppercase tracking-tighter text-primary">Criar Conta</CardTitle>
-                <CardDescription className="text-sm font-medium uppercase tracking-widest text-muted-foreground mt-1">O seu passaporte para o agora.</CardDescription>
+                <CardDescription className="text-sm font-medium uppercase tracking-widest text-muted-foreground mt-1">{t('auth.signup_subtitle')}</CardDescription>
              </div>
           </CardHeader>
           

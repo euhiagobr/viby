@@ -3,7 +3,8 @@
 import { 
   GoogleAuthProvider, 
   FacebookAuthProvider,
-  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult,
   Auth
 } from "firebase/auth";
 import { 
@@ -32,17 +33,16 @@ export const authConfig = {
  * Implementa auto-follow do perfil @viby.
  */
 export async function ensureUserProfile(user: any, db: Firestore) {
-  console.log('[Auth-Debug] entry: ensureUserProfile for UID:', user.uid);
+  console.log('[Auth-Debug] 5. entry: ensureUserProfile for UID:', user.uid);
   if (!user || !db) return null;
   
   const userRef = doc(db, "users", user.uid);
   
   try {
-    console.log('[Auth-Debug] Checking if user doc exists...');
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      console.log('[Auth-Debug] New user detected. Initializing profile...');
+      console.log('[Auth-Debug] 6. New user detected. Initializing profile...');
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       
       const userData = {
@@ -96,18 +96,17 @@ export async function ensureUserProfile(user: any, db: Firestore) {
         action: 'signup',
         category: 'auth',
         success: true,
-        metadata: { method: 'social_auto_follow' }
+        metadata: { method: 'social_redirect_auto_follow' }
       });
 
-      console.log('[Auth-Debug] New profile created successfully');
+      console.log('[Auth-Debug] 7. New profile created successfully');
       return { ...userData, id: user.uid, isNew: true };
     }
 
-    console.log('[Auth-Debug] Existing user found. Loading profile data...');
+    console.log('[Auth-Debug] 6. Existing user found.');
     const currentProfile = userSnap.data();
     const isActuallyComplete = !!(currentProfile.username && currentProfile.cpfHash);
     
-    console.log('[Auth-Debug] Profile loaded. Complete?', isActuallyComplete);
     return { ...currentProfile, id: user.uid, profileComplete: isActuallyComplete, isNew: false };
   } catch (error) {
     console.error('[Auth-Debug] ERROR in ensureUserProfile:', error);
@@ -116,11 +115,11 @@ export async function ensureUserProfile(user: any, db: Firestore) {
 }
 
 /**
- * Inicia o fluxo de login via Popup.
- * CRÍTICO: Não realizar awaits pesados antes do signInWithPopup para não perder o trusted gesture.
+ * Inicia o fluxo de login via Redirecionamento.
+ * Mais robusto para ambientes de Iframe e Mobile.
  */
 export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
-  console.log('[Auth-Debug] entry: startSocialLogin for provider:', providerName);
+  console.log('[Auth-Debug] 2. startSocialLogin redirect for:', providerName);
   const provider = providerName === 'google' 
     ? new GoogleAuthProvider() 
     : new FacebookAuthProvider();
@@ -133,7 +132,23 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
     provider.addScope('public_profile');
   }
 
-  // O popup deve ser chamado o mais próximo possível do evento de clique
-  console.log('[Auth-Debug] Triggering signInWithPopup...');
-  return signInWithPopup(auth, provider);
+  return signInWithRedirect(auth, provider);
+}
+
+/**
+ * Captura o resultado do redirecionamento social após o retorno à página.
+ */
+export async function handleSocialRedirect(auth: Auth, db: any) {
+  console.log('[Auth-Debug] 3. Checking redirect result...');
+  try {
+    const result = await getRedirectResult(auth);
+    if (result?.user) {
+      console.log('[Auth-Debug] 4. Redirect success for user:', result.user.uid);
+      return await ensureUserProfile(result.user, db);
+    }
+    return null;
+  } catch (error) {
+    console.error('[Auth-Debug] Redirect Error:', error);
+    throw error;
+  }
 }

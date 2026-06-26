@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -20,6 +19,7 @@ import { useTranslation } from "@/i18n/i18n-context"
 import { PublicHeader } from "@/components/layout/PublicHeader"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { SocialLoginButtons } from "./SocialLoginButtons"
+import { handleSocialRedirect } from "@/services/auth-service"
 
 function LoginContent() {
   const { t } = useTranslation()
@@ -28,6 +28,8 @@ function LoginContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [isProcessingRedirect, setIsProcessingRedirect] = useState(false)
+  
   const router = useRouter()
   const searchParams = useSearchParams()
   const auth = useAuth()
@@ -38,10 +40,37 @@ function LoginContent() {
   const { data: settings } = useDoc<any>(settingsRef)
   const siteName = settings?.siteName || "Viby"
 
+  // Ouvinte de Redirecionamento Social
   useEffect(() => {
-    if (!isInitialized || authLoading) return;
+    if (!isInitialized || authLoading || !auth || !db) return;
 
-    if (user) {
+    const checkRedirect = async () => {
+      try {
+        setIsProcessingRedirect(true);
+        const profileData = await handleSocialRedirect(auth, db);
+        if (profileData) {
+          console.log('[Auth-Debug] 8. Redirect Result processed. Completeness check...');
+          const hasMandatoryData = !!(profileData?.username && profileData?.cpfHash);
+          if (!hasMandatoryData || profileData?.needsCPFUpdate) {
+            router.replace("/onboarding");
+          } else {
+            router.replace("/dashboard");
+          }
+        }
+      } catch (e) {
+        // Silently handled or logged by handleSocialRedirect
+      } finally {
+        setIsProcessingRedirect(false);
+      }
+    };
+
+    checkRedirect();
+  }, [auth, db, isInitialized, authLoading, router]);
+
+  useEffect(() => {
+    if (!isInitialized || authLoading || isProcessingRedirect) return;
+
+    if (user && !isProcessingRedirect) {
       const hasMandatoryData = !!(profile?.username && profile?.cpfHash);
       const isComplete = profile !== null && hasMandatoryData && !profile?.needsCPFUpdate;
 
@@ -52,7 +81,7 @@ function LoginContent() {
         router.replace(redirect);
       }
     }
-  }, [user, profile, isInitialized, authLoading, router, searchParams]);
+  }, [user, profile, isInitialized, authLoading, router, searchParams, isProcessingRedirect]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -82,7 +111,7 @@ function LoginContent() {
     }
   }
 
-  const showSync = (!isInitialized || authLoading) && !success;
+  const showSync = (!isInitialized || authLoading || isProcessingRedirect) && !success;
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
@@ -114,7 +143,7 @@ function LoginContent() {
 
             {success && (
               <Alert className="rounded-2xl border-2 border-green-200 bg-green-50 text-green-800 animate-in zoom-in-95 duration-300">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <CheckCircle2 className="h-4 w-4" />
                 <AlertTitle className="font-black uppercase italic text-[10px]">Acesso Autorizado</AlertTitle>
                 <AlertDescription className="text-xs font-bold uppercase italic">
                   Sucesso... estamos entrando na sua conta
@@ -125,7 +154,9 @@ function LoginContent() {
             {showSync ? (
               <div className="flex flex-col items-center justify-center py-12 gap-4">
                  <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Sincronizando...</p>
+                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">
+                   {isProcessingRedirect ? "Concluindo Autenticação Social..." : "Sincronizando..."}
+                 </p>
               </div>
             ) : (
               <div className="space-y-8">
