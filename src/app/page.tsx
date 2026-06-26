@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Viby | Ingressos para Shows e Eventos',
     description: 'A sua próxima experiência está na Viby. Explore a agenda cultural da sua cidade.',
-    images: [VIBY_OG_IMAGE],
+    images: [{ url: VIBY_OG_IMAGE, width: 1200, height: 630 }],
   },
   robots: {
     index: true,

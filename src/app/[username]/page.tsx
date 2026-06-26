@@ -105,7 +105,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       card: 'summary_large_image',
       title,
       description,
-      images: [image],
+      images: [{ url: image, width: 1200, height: 630 }],
     },
     robots: { index: true, follow: true }
   };
@@ -133,7 +133,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     "image": profile.avatar || VIBY_DEFAULT_IMAGE,
     "url": `https://viby.club/${username}`,
     "address": {
-      "@type": "PostalAddress",
+      "@type": "PostAddress",
       "addressLocality": profile.city,
       "addressRegion": profile.state,
       "addressCountry": "BR"

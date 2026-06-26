@@ -79,7 +79,7 @@ export async function generateMetadata(): Promise<Metadata> {
       card: 'summary_large_image',
       title: siteName,
       description,
-      images: [VIBY_OG_IMAGE],
+      images: [{ url: VIBY_OG_IMAGE, width: 1200, height: 630 }],
     },
     robots: {
       index: true,
