@@ -1,0 +1,19 @@
+
+{
+  "collection": "simulation_campaigns",
+  "description": "Campanhas exclusivas para a calculadora de economia (Marketing). Não vinculadas ao checkout real.",
+  "fields": {
+    "id": "string (auto-id)",
+    "name": "string (Nome interno)",
+    "code": "string (Código único uppercase)",
+    "description": "string",
+    "active": "boolean",
+    "orgFeePercent": "number",
+    "orgMinFee": "number",
+    "buyerFeePercent": "number",
+    "startAt": "timestamp",
+    "endAt": "timestamp",
+    "createdAt": "timestamp",
+    "updatedAt": "timestamp"
+  }
+}
