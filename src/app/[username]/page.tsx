@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -97,7 +98,10 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       description,
       url,
       siteName: 'Viby',
-      images: [{ url: image, width: 1200, height: 630, alt: name }],
+      images: [
+        { url: image, width: 1200, height: 630, alt: name },
+        { url: VIBY_DEFAULT_IMAGE, width: 1200, height: 630, alt: 'Viby' }
+      ],
       type: 'profile',
       locale: 'pt_BR',
     },
@@ -130,10 +134,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     "@type": profile.type === 'organization' ? "Organization" : "Person",
     "name": profile.name || profile.displayName || username,
     "description": profile.bio || "",
-    "image": profile.avatar || VIBY_DEFAULT_IMAGE,
+    "image": [profile.avatar || VIBY_DEFAULT_IMAGE, VIBY_DEFAULT_IMAGE],
     "url": `https://viby.club/${username}`,
     "address": {
-      "@type": "PostAddress",
+      "@type": "PostalAddress",
       "addressLocality": profile.city,
       "addressRegion": profile.state,
       "addressCountry": "BR"

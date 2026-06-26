@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -138,7 +139,10 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       description,
       url,
       siteName: 'Viby',
-      images: [{ url: image, width: 1200, height: 630, alt: event.title }],
+      images: [
+        { url: image, width: 1200, height: 630, alt: event.title },
+        { url: VIBY_DEFAULT_EVENT_IMAGE, width: 1200, height: 630, alt: 'Viby' }
+      ],
       type: 'website',
       locale: 'pt_BR',
     },
@@ -165,7 +169,7 @@ export default async function CanonicalEventPage({ params }: { params: Promise<{
     "@type": "Event",
     "name": event.title,
     "description": stripHtml(event.description || ""),
-    "image": [event.image],
+    "image": [event.image, VIBY_DEFAULT_EVENT_IMAGE],
     "startDate": event.date,
     "endDate": event.endDate || event.date,
     "eventStatus": "https://schema.org/EventScheduled",

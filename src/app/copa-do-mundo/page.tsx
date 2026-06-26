@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { Metadata } from "next"
 import CopaMundoClient from "./CopaMundoClient"
@@ -8,6 +9,7 @@ import { getAdminDb } from "@/lib/firebase/admin"
 import * as admin from 'firebase-admin';
 
 const COPA_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fcopaviby.png?alt=media&token=250b69d7-8f77-41b9-a2fc-e6a74dfeb082";
+const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
 
 export const metadata: Metadata = {
   title: "Qual a sua Viby na Copa? | Onde assistir a Copa 2026",
@@ -28,6 +30,12 @@ export const metadata: Metadata = {
         width: 1200,
         height: 630,
         alt: "Qual a sua Viby na Copa?"
+      },
+      {
+        url: VIBY_OG_IMAGE,
+        width: 1200,
+        height: 630,
+        alt: "Viby"
       }
     ]
   },
@@ -82,7 +90,8 @@ export default async function CopaMundoPage() {
     "@type": "CollectionPage",
     "name": "Guia de Eventos Copa do Mundo 2026",
     "description": "Lista de locais transmitindo jogos da Copa do Mundo.",
-    "url": "https://viby.club/copa-do-mundo"
+    "url": "https://viby.club/copa-do-mundo",
+    "image": [COPA_OG_IMAGE, VIBY_OG_IMAGE]
   };
 
   return (
