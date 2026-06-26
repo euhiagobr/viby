@@ -85,9 +85,6 @@ export async function generateMetadata(): Promise<Metadata> {
     robots: {
       index: true,
       follow: true,
-    },
-    other: {
-      'fb:app_id': '1537942881340602'
     }
   };
 }
@@ -104,6 +101,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <meta name="google-adsense-account" content="ca-pub-3790085999731396" />
+        <meta property="fb:app_id" content="1537942881340602" />
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3790085999731396" crossOrigin="anonymous"></script>
       </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
