@@ -27,21 +27,17 @@ export const authConfig = {
 };
 
 /**
- * Garante que o documento do usuário exista no Firestore.
+ * Garante que o perfil do usuário exista no banco após o login social.
  */
 export async function ensureUserProfile(user: User, db: Firestore) {
-  console.log('[Auth-Debug] 5. ensureUserProfile for UID:', user.uid);
   if (!user || !db) return null;
-  
   const userRef = doc(db, "users", user.uid);
   
   try {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      console.log('[Auth-Debug] 6. Creating NEW profile...');
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
-      
       const userData = {
         uid: user.uid,
         email: user.email?.toLowerCase().trim() || "",
@@ -60,18 +56,14 @@ export async function ensureUserProfile(user: User, db: Firestore) {
 
       await runTransaction(db, async (transaction) => {
         transaction.set(userRef, userData);
-        
         const followRef = doc(db, "follows", `${user.uid}_${VIBY_OFFICIAL_UID}`);
-        const vibyOrgRef = doc(db, "organizations", VIBY_OFFICIAL_UID);
-        
         transaction.set(followRef, {
           followerId: user.uid,
           followingId: VIBY_OFFICIAL_UID,
           targetType: 'organization',
           timestamp: serverTimestamp()
         });
-        
-        transaction.update(vibyOrgRef, { 
+        transaction.update(doc(db, "organizations", VIBY_OFFICIAL_UID), { 
           followersCount: increment(1),
           updatedAt: serverTimestamp()
         });
@@ -79,12 +71,6 @@ export async function ensureUserProfile(user: User, db: Firestore) {
 
       if (user.email) {
         sendWelcomeEmail({ to: user.email, userName: initialName }).catch(() => {});
-        sendAdminNewUserAlert({
-          userName: initialName,
-          username: "pendente",
-          email: user.email,
-          uid: user.uid
-        }).catch(() => {});
       }
 
       await recordAuditLog({
@@ -92,37 +78,33 @@ export async function ensureUserProfile(user: User, db: Firestore) {
         userEmail: user.email,
         action: 'signup',
         category: 'auth',
-        success: true,
-        metadata: { method: 'social_redirect_auto_follow' }
+        success: true
       });
 
       return { ...userData, id: user.uid, isNew: true };
     }
-
-    console.log('[Auth-Debug] 6. Existing profile detected.');
-    const currentProfile = userSnap.data();
-    return { ...currentProfile, id: user.uid, isNew: false };
+    return { ...userSnap.data(), id: user.uid, isNew: false };
   } catch (error) {
-    console.error('[Auth-Debug] Error in ensureUserProfile:', error);
+    console.error('[Auth-Service] Error:', error);
     throw error;
   }
 }
 
 /**
- * Inicia o login via Redirect (Mais estável para Iframe/Workstations).
+ * Inicia o login via Redirect (Estritamente síncrono no evento de clique).
  */
-export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
+export function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
   console.log('[Auth-Debug] 2. startSocialLogin redirect for:', providerName);
   const provider = providerName === 'google' 
     ? new GoogleAuthProvider() 
     : new FacebookAuthProvider();
 
-  // O redirecionamento recarrega a página, perdendo o estado atual do JS
+  // Chamada síncrona: o retorno desta função é o início imediato do redirect
   return signInWithRedirect(auth, provider);
 }
 
 /**
- * Verifica se a página carregou após um redirecionamento de login.
+ * Captura o resultado do redirecionamento no mount da página.
  */
 export async function handleSocialRedirectResult(auth: Auth, db: Firestore) {
   console.log('[Auth-Debug] 3. Checking redirect result...');
@@ -132,10 +114,9 @@ export async function handleSocialRedirectResult(auth: Auth, db: Firestore) {
       console.log('[Auth-Debug] 4. Redirect success! User:', result.user.email);
       return await ensureUserProfile(result.user, db);
     }
-    console.log('[Auth-Debug] 4. No redirect result found.');
     return null;
   } catch (error: any) {
-    console.error('[Auth-Debug] Redirect Error:', error.code, error.message);
+    console.error('[Auth-Debug] Redirect Result Error:', error.code);
     throw error;
   }
 }

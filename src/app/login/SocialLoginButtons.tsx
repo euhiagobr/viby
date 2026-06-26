@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth, useFirestore } from "@/firebase";
+import { useAuth } from "@/firebase";
 import { startSocialLogin, authConfig } from "@/services/auth-service";
 import { Loader2, AlertCircle, Facebook } from "lucide-react";
 
@@ -11,27 +11,25 @@ export function SocialLoginButtons() {
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
-  const handleSocialLogin = async (provider: 'google' | 'facebook') => {
+  const handleSocialLogin = (provider: 'google' | 'facebook') => {
     console.log(`[Auth-Debug] 1. Click detected for ${provider}`);
     if (!auth) return;
     
     setError(null);
     setLoadingProvider(provider);
     
-    try {
-      // Inicia o redirecionamento. A página será recarregada.
-      await startSocialLogin(auth, provider);
-    } catch (err: any) {
-      console.error("[Auth-Debug] Login Trigger Failed:", err.code);
+    // CHAMADA SÍNCRONA: Iniciamos o redirecionamento sem 'await' para preservar o gesto do usuário
+    startSocialLogin(auth, provider).catch(err => {
+      console.error("[Auth-Debug] Redirect Failed:", err.code);
       setLoadingProvider(null);
-      setError(`Falha ao iniciar: ${err.message || 'Erro desconhecido'}`);
-    }
+      setError("Falha ao iniciar login social.");
+    });
   };
 
   return (
     <div className="space-y-4 w-full">
       {error && (
-        <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-3 text-red-600 mb-2 animate-in zoom-in-95">
+        <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-3 text-red-600 mb-2">
            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
            <p className="text-xs font-bold uppercase leading-tight">{error}</p>
         </div>
@@ -41,7 +39,7 @@ export function SocialLoginButtons() {
         {authConfig.google && (
           <Button 
             variant="outline" 
-            className="w-full h-14 rounded-2xl gap-3 font-bold border-2 hover:bg-muted transition-all active:scale-[0.98]"
+            className="w-full h-14 rounded-2xl gap-3 font-bold border-2 hover:bg-muted transition-all"
             onClick={() => handleSocialLogin('google')}
             disabled={!!loadingProvider}
           >
@@ -60,7 +58,7 @@ export function SocialLoginButtons() {
         {authConfig.facebook && (
           <Button 
             variant="outline" 
-            className="w-full h-14 rounded-2xl gap-3 font-bold border-2 hover:bg-[#1877F2]/5 hover:text-[#1877F2] hover:border-[#1877F2]/20 transition-all active:scale-[0.98]"
+            className="w-full h-14 rounded-2xl gap-3 font-bold border-2 hover:bg-[#1877F2]/5 hover:text-[#1877F2]"
             onClick={() => handleSocialLogin('facebook')}
             disabled={!!loadingProvider}
           >
