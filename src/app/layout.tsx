@@ -85,6 +85,9 @@ export async function generateMetadata(): Promise<Metadata> {
     robots: {
       index: true,
       follow: true,
+    },
+    other: {
+      'fb:app_id': '1537942881340602'
     }
   };
 }
