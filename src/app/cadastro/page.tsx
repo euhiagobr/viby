@@ -14,8 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SocialLoginButtons } from "../login/SocialLoginButtons";
 import { handleSocialRedirect } from "@/services/auth-service";
+import { useTranslation } from "@/i18n/i18n-context";
 
 export default function CadastroPage() {
+  const { t } = useTranslation();
   const db = useFirestore();
   const auth = useAuth();
   const router = useRouter();
@@ -126,7 +128,7 @@ export default function CadastroPage() {
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
         <div className="flex flex-col items-center gap-4">
            <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">
+           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">
              {isProcessingRedirect ? "Vinculando conta social..." : "Sincronizando..."}
            </p>
         </div>
@@ -146,7 +148,7 @@ export default function CadastroPage() {
                 width={120} 
                 height={40} 
                 style={{ height: 'auto' }}
-                className="h-8 w-auto object-contain transition-transform group-hover:scale-105" 
+                className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" 
                 priority 
                 unoptimized 
               />
