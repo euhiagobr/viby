@@ -36,11 +36,11 @@
     },
     "startAt": {
       "type": "timestamp",
-      "description": "Data e hora de início da validade da campanha."
+      "description": "Data e hora de início da validade da campanha (UTC-3)."
     },
     "endAt": {
       "type": "timestamp",
-      "description": "Data e hora de término da validade da campanha."
+      "description": "Data e hora de término da validade da campanha (UTC-3)."
     },
     "createdAt": {
       "type": "timestamp",

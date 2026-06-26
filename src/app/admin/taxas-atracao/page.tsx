@@ -24,7 +24,10 @@ import {
   XCircle,
   MoreVertical,
   Percent,
-  Coins
+  Coins,
+  Clock,
+  Info,
+  AlertTriangle
 } from 'lucide-react';
 import {
   Dialog,
@@ -129,9 +132,10 @@ export default function AdminTaxasAtracaoPage() {
     }
   };
 
-  const duplicate = (c: any) => {
-    setEditingCampaign({ ...c, id: null, code: `${c.code}_COPY`, name: `${c.name} (Cópia)` });
-    setIsDialogOpen(true);
+  const formatTimestampForInput = (ts: any) => {
+    if (!ts) return "";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toISOString().slice(0, 16);
   };
 
   return (
@@ -161,12 +165,13 @@ export default function AdminTaxasAtracaoPage() {
               <TableHead className="font-black uppercase text-[10px]">Taxa Org.</TableHead>
               <TableHead className="font-black uppercase text-[10px]">Taxa Compr.</TableHead>
               <TableHead className="font-black uppercase text-[10px] text-center">Status</TableHead>
+              <TableHead className="font-black uppercase text-[10px]">Validade (UTC-3)</TableHead>
               <TableHead className="text-right font-black uppercase text-[10px] p-6">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={5} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
             ) : filtered.length > 0 ? (
               filtered.map(c => (
                 <TableRow key={c.id} className="hover:bg-muted/10 transition-colors">
@@ -188,6 +193,12 @@ export default function AdminTaxasAtracaoPage() {
                       {c.active ? "Ativa" : "Inativa"}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                     <div className="flex flex-col gap-1 text-[9px] font-bold uppercase">
+                        <span className="text-green-600">I: {c.startAt?.toDate ? c.startAt.toDate().toLocaleString('pt-BR') : '---'}</span>
+                        <span className="text-red-500">F: {c.endAt?.toDate ? c.endAt.toDate().toLocaleString('pt-BR') : '---'}</span>
+                     </div>
+                  </TableCell>
                   <TableCell className="p-6 text-right">
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -195,7 +206,6 @@ export default function AdminTaxasAtracaoPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl">
                            <DropdownMenuItem onClick={() => { setEditingCampaign(c); setIsDialogOpen(true); }} className="gap-2"><Edit className="w-4 h-4" /> Editar</DropdownMenuItem>
-                           <DropdownMenuItem onClick={() => duplicate(c)} className="gap-2"><Copy className="w-4 h-4" /> Duplicar</DropdownMenuItem>
                            <DropdownMenuItem onClick={() => handleToggle(c.id, c.active)} className="gap-2">
                               {c.active ? <><PowerOff className="w-4 h-4" /> Desativar</> : <><Power className="w-4 h-4" /> Ativar</>}
                            </DropdownMenuItem>
@@ -206,57 +216,70 @@ export default function AdminTaxasAtracaoPage() {
                 </TableRow>
               ))
             ) : (
-              <TableRow><TableCell colSpan={5} className="py-24 text-center opacity-30 italic">Nenhuma campanha cadastrada.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="py-24 text-center opacity-30 italic">Nenhuma campanha cadastrada.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-         <DialogContent className="max-w-md rounded-[2.5rem]">
+         <DialogContent className="max-w-md rounded-[2.5rem] max-h-[90vh] overflow-y-auto">
             <form onSubmit={handleSave} className="space-y-6">
                <DialogHeader>
                   <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter">Configurar Campanha</DialogTitle>
                   <DialogDescription>Defina os parâmetros para a calculadora de marketing.</DialogDescription>
                </DialogHeader>
+               
+               <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
+                  <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-secondary font-bold uppercase leading-tight italic">
+                    Esta taxa será aplicada somente dentro do período definido. Fora disso, será utilizada a taxa padrão da Viby.
+                  </p>
+               </div>
+
                <div className="space-y-4">
                   <div className="space-y-2">
                      <Label className="text-[10px] font-black uppercase opacity-60">Nome da Campanha</Label>
-                     <Input name="name" required defaultValue={editingCampaign?.name} className="rounded-xl" />
+                     <Input name="name" required defaultValue={editingCampaign?.name} className="rounded-xl h-11" />
                   </div>
                   <div className="space-y-2">
                      <Label className="text-[10px] font-black uppercase opacity-60">Código Único</Label>
-                     <Input name="code" required defaultValue={editingCampaign?.code} className="rounded-xl font-black" />
+                     <Input name="code" required defaultValue={editingCampaign?.code} className="rounded-xl font-black h-11" />
                   </div>
+                  
                   <Separator className="border-dashed" />
+                  
                   <div className="grid grid-cols-2 gap-4">
                      <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1"><Percent className="w-3 h-3" /> Org. %</Label>
-                        <Input name="orgFeePercent" type="number" step="0.1" required defaultValue={editingCampaign?.orgFeePercent} className="rounded-xl" />
+                        <Input name="orgFeePercent" type="number" step="0.1" required defaultValue={editingCampaign?.orgFeePercent} className="rounded-xl h-11" />
                      </div>
                      <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1"><Coins className="w-3 h-3" /> Org. Mín (R$)</Label>
-                        <Input name="orgMinFee" type="number" step="0.01" required defaultValue={editingCampaign?.orgMinFee} className="rounded-xl" />
+                        <Input name="orgMinFee" type="number" step="0.01" required defaultValue={editingCampaign?.orgMinFee} className="rounded-xl h-11" />
                      </div>
                   </div>
                   <div className="space-y-2">
                      <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1"><Percent className="w-3 h-3" /> Comprador %</Label>
-                     <Input name="buyerFeePercent" type="number" step="0.1" required defaultValue={editingCampaign?.buyerFeePercent} className="rounded-xl" />
+                     <Input name="buyerFeePercent" type="number" step="0.1" required defaultValue={editingCampaign?.buyerFeePercent} className="rounded-xl h-11" />
                   </div>
+                  
                   <Separator className="border-dashed" />
-                  <div className="grid grid-cols-2 gap-4">
+                  
+                  <div className="grid grid-cols-1 gap-4">
                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase opacity-60">Início</Label>
-                        <Input name="startAt" type="date" defaultValue={editingCampaign?.startAt} className="rounded-xl text-xs" />
+                        <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Clock className="w-3 h-3" /> Início da Vigência (UTC-3)</Label>
+                        <Input name="startAt" type="datetime-local" required defaultValue={formatTimestampForInput(editingCampaign?.startAt)} className="rounded-xl h-11 text-xs" />
                      </div>
                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase opacity-60">Fim</Label>
-                        <Input name="endAt" type="date" defaultValue={editingCampaign?.endAt} className="rounded-xl text-xs" />
+                        <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Clock className="w-3 h-3 text-red-500" /> Fim da Vigência (UTC-3)</Label>
+                        <Input name="endAt" type="datetime-local" required defaultValue={formatTimestampForInput(editingCampaign?.endAt)} className="rounded-xl h-11 text-xs" />
                      </div>
                   </div>
                </div>
+
                <DialogFooter>
-                  <Button type="submit" disabled={isSubmitting} className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic">
+                  <Button type="submit" disabled={isSubmitting} className="w-full h-14 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg">
                      {isSubmitting ? <Loader2 className="animate-spin" /> : editingCampaign?.id ? "Salvar Alterações" : "Criar Campanha"}
                   </Button>
                </DialogFooter>

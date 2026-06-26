@@ -1,8 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +30,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { validateSimulationCodeAction } from '@/app/actions/simulation';
 
 const VIBY_DEFAULT_CONFIG = {
   orgPercent: 10,
@@ -40,7 +39,6 @@ const VIBY_DEFAULT_CONFIG = {
 };
 
 export default function CalculadoraClient() {
-  const db = useFirestore();
   const searchParams = useSearchParams();
 
   const [qty, setQty] = React.useState(Number(searchParams.get('qtd')) || 100);
@@ -67,33 +65,20 @@ export default function CalculadoraClient() {
     window.history.replaceState(null, '', newUrl);
   }, [qty, value, competitionBuyer, appliedCode]);
 
-  React.useEffect(() => {
-    const code = searchParams.get('codigo');
-    if (code && !appliedCode && db) {
-       handleApplyCode(code);
-    }
-  }, [db, searchParams, appliedCode]);
-
   const handleApplyCode = async (codeToUse?: string) => {
     const code = codeToUse || promoCode;
-    if (!code || !db) return;
+    if (!code) return;
 
     setIsValidating(true);
     try {
-      const q = query(collection(db, "simulation_campaigns"), where("code", "==", code.toUpperCase()), where("active", "==", true), limit(1));
-      const snap = await getDocs(q);
+      const res = await validateSimulationCodeAction(code);
       
-      if (!snap.empty) {
-        const data = snap.docs[0].data();
-        setActiveConfig({
-          orgPercent: data.orgFeePercent,
-          orgMin: data.orgMinFee,
-          buyerPercent: data.buyerFeePercent
-        });
+      if (res.success && res.data) {
+        setActiveConfig(res.data);
         setAppliedCode(code.toUpperCase());
-        toast({ title: "Campanha aplicada!", description: "As taxas da simulação foram atualizadas." });
+        toast({ title: "Campanha aplicada!", description: "As taxas da simulação foram atualizadas via servidor." });
       } else {
-        toast({ variant: "destructive", title: "Código inválido", description: "Utilizando taxas padrão." });
+        toast({ variant: "destructive", title: "Atenção", description: res.error || "Utilizando taxas padrão." });
         setAppliedCode(null);
         setActiveConfig(VIBY_DEFAULT_CONFIG);
       }
@@ -103,6 +88,13 @@ export default function CalculadoraClient() {
       setIsValidating(false);
     }
   };
+
+  React.useEffect(() => {
+    const code = searchParams.get('codigo');
+    if (code && !appliedCode) {
+       handleApplyCode(code);
+    }
+  }, [searchParams, appliedCode]);
 
   const removeCode = () => {
     setAppliedCode(null);
@@ -330,9 +322,9 @@ function BuyerCard({ label, value, feePercent, feeValue, total, variant }: any) 
         "border-none shadow-sm rounded-[2rem] overflow-hidden",
         isHighlight ? "ring-2 ring-secondary bg-white" : "bg-muted/30"
       )}>
-         <div className={cn("p-6 border-b", isHighlight ? "bg-secondary/5" : "bg-muted/20")}>
-            <p className={cn("text-[10px] font-black uppercase tracking-widest", isHighlight ? "text-secondary" : "text-muted-foreground")}>{label}</p>
-         </div>
+         <CardHeader className={cn("p-6 border-b", isHighlight ? "bg-secondary/5" : "bg-muted/20")}>
+            <CardTitle className={cn("text-[10px] font-black uppercase tracking-widest", isHighlight ? "text-secondary" : "text-muted-foreground")}>{label}</CardTitle>
+         </CardHeader>
          <CardContent className="p-8 space-y-4">
             <div className="flex justify-between items-center text-sm font-bold opacity-60 uppercase">
                <span>Ingresso</span>
@@ -351,3 +343,9 @@ function BuyerCard({ label, value, feePercent, feeValue, total, variant }: any) 
       </Card>
    )
 }
+
+function TableHeader({ children, className }: any) { return <thead className={className}>{children}</thead> }
+function TableBody({ children, className }: any) { return <tbody className={className}>{children}</tbody> }
+function TableRow({ children, className }: any) { return <tr className={className}>{children}</tr> }
+function TableHead({ children, className }: any) { return <th className={className}>{children}</th> }
+function TableCell({ children, className }: any) { return <td className={className}>{children}</td> }
