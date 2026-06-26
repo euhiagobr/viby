@@ -11,6 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 import { 
   Loader2, 
   Save, 
@@ -22,7 +25,6 @@ import {
   Upload, 
   ImageIcon, 
   Lock,
-  Camera, 
   Target, 
   RefreshCw,
   Zap,
@@ -40,12 +42,11 @@ import {
   Twitter,
   MessageCircle,
   Handshake,
-  ShieldAlert
+  ShieldAlert,
+  Ticket,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
-import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
@@ -68,15 +69,17 @@ export default function AdminConfiguracoesPage() {
   const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
   const googleAdsRef = React.useMemo(() => (db ? doc(db, 'system_settings', 'google_ads') : null), [db]);
   const affiliateConfigRef = React.useMemo(() => (db ? doc(db, 'settings', 'affiliates') : null), [db]);
+  const eventTypesRef = React.useMemo(() => (db ? doc(db, 'settings', 'event_types') : null), [db]);
 
   const { data: siteSettings, loading: loadingSite } = useDoc<any>(siteRef);
   const { data: stripeKeys, loading: loadingStripe } = useDoc<any>(stripeRef);
-  const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailRef);
+  const { data: emailSettings, loading: loadingEmail } = useDoc<any>(emailSettingsRef);
   const { data: globalFees, loading: loadingFees } = useDoc<any>(feesRef);
   const { data: contactSettings, loading: loadingContact } = useDoc<any>(contactRef);
   const { data: adsSettings, loading: loadingAds } = useDoc<any>(adsRef);
   const { data: googleAdsSettings, loading: loadingGoogleAds } = useDoc<any>(googleAdsRef);
   const { data: affiliateConfig, loading: loadingAffiliate } = useDoc<any>(affiliateConfigRef);
+  const { data: eventTypes, loading: loadingTypes } = useDoc<any>(eventTypesRef);
 
   const [saving, setSaving] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<{ [key: string]: number | null }>({});
@@ -93,6 +96,12 @@ export default function AdminConfiguracoesPage() {
   const [adsForm, setAdsForm] = React.useState({ cpcValue: '0.50', cpmValue: '10.00', minRechargeValue: '30.00' });
   const [affiliateForm, setAffiliateForm] = React.useState({ enabled: true });
   
+  const [eventTypesForm, setEventTypesForm] = React.useState({
+    interno: { enabled: true, message: "" },
+    divulgacao: { enabled: true, message: "" },
+    externo: { enabled: true, message: "" }
+  });
+
   const [contactForm, setContactForm] = React.useState({
     whatsapp: '',
     instagram: '',
@@ -180,6 +189,16 @@ export default function AdminConfiguracoesPage() {
   React.useEffect(() => {
     if (affiliateConfig) setAffiliateForm({ enabled: affiliateConfig.enabled ?? true });
   }, [affiliateConfig]);
+
+  React.useEffect(() => {
+    if (eventTypes) {
+      setEventTypesForm({
+        interno: eventTypes.interno || { enabled: true, message: "" },
+        divulgacao: eventTypes.divulgacao || { enabled: true, message: "" },
+        externo: eventTypes.externo || { enabled: true, message: "" }
+      });
+    }
+  }, [eventTypes]);
 
   React.useEffect(() => {
     if (googleAdsSettings) setGoogleAdsForm({
@@ -316,7 +335,7 @@ export default function AdminConfiguracoesPage() {
     }
   };
 
-  const isLoading = loadingSite || loadingStripe || loadingEmail || loadingFees || loadingContact || loadingGoogleAds || loadingAds || loadingAffiliate;
+  const isLoading = loadingSite || loadingStripe || loadingEmail || loadingFees || loadingContact || loadingGoogleAds || loadingAds || loadingAffiliate || loadingTypes;
 
   if (isLoading) {
     return (
@@ -339,12 +358,13 @@ export default function AdminConfiguracoesPage() {
         <TabsList className="bg-muted/50 p-1 rounded-xl h-auto flex-wrap justify-start">
           <TabsTrigger value="geral" className="rounded-lg px-6 font-bold gap-2"><Layout className="w-4 h-4" /> Geral</TabsTrigger>
           <TabsTrigger value="contato" className="rounded-lg px-6 font-bold gap-2"><MessageCircle className="w-4 h-4" /> Contato</TabsTrigger>
+          <TabsTrigger value="vendas" className="rounded-lg px-6 font-bold gap-2"><Ticket className="w-4 h-4" /> Vendas</TabsTrigger>
           <TabsTrigger value="pagamentos" className="rounded-lg px-6 font-bold gap-2"><CreditCard className="w-4 h-4" /> Pagamentos</TabsTrigger>
           <TabsTrigger value="taxas" className="rounded-lg px-6 font-bold gap-2"><Coins className="w-4 h-4" /> Taxas</TabsTrigger>
           <TabsTrigger value="email" className="rounded-lg px-6 font-bold gap-2"><Mail className="w-4 h-4" /> E-mail</TabsTrigger>
-		      <TabsTrigger value="anuncios" className="rounded-lg px-6 font-bold gap-2"><Megaphone className="w-4 h-4" /> Anúncios</TabsTrigger>
+          <TabsTrigger value="anuncios" className="rounded-lg px-6 font-bold gap-2"><Megaphone className="w-4 h-4" /> Anúncios</TabsTrigger>
           <TabsTrigger value="afiliados" className="rounded-lg px-6 font-bold gap-2"><Handshake className="w-4 h-4" /> Afiliados</TabsTrigger>
-		      <TabsTrigger value="google-ads" className="rounded-lg px-6 font-bold gap-2"><Settings className="w-4 h-4" /> Google Ads</TabsTrigger>
+          <TabsTrigger value="google-ads" className="rounded-lg px-6 font-bold gap-2"><Settings className="w-4 h-4" /> Google Ads</TabsTrigger>
         </TabsList>
 
         <TabsContent value="geral" className="space-y-8">
@@ -443,6 +463,65 @@ export default function AdminConfiguracoesPage() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="vendas" className="space-y-8">
+           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
+              <CardHeader className="bg-muted/30 p-8 border-b">
+                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                    <Ticket className="w-5 h-5 text-secondary" /> Modos de Venda e Divulgação
+                 </CardTitle>
+                 <CardDescription>Controle o que os organizadores podem publicar na rede.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-10">
+                 <div className="space-y-6">
+                    <div className="flex items-center justify-between p-6 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/50">
+                       <div className="space-y-1">
+                          <p className="font-black uppercase italic text-primary">Venda Interna (Ingressos Pagos)</p>
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed max-w-md">Habilita o checkout da Viby via Stripe para recebimento de valores.</p>
+                       </div>
+                       <Switch 
+                         checked={eventTypesForm.interno.enabled} 
+                         onCheckedChange={v => setEventTypesForm({...eventTypesForm, interno: {...eventTypesForm.interno, enabled: v}})} 
+                       />
+                    </div>
+
+                    <div className="flex items-center justify-between p-6 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/50">
+                       <div className="space-y-1">
+                          <p className="font-black uppercase italic text-primary">Divulgação de Eventos (Gratuitos)</p>
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed max-w-md">Permite criar listas de interesse e presença sem cobrança financeira.</p>
+                       </div>
+                       <Switch 
+                         checked={eventTypesForm.divulgacao.enabled} 
+                         onCheckedChange={v => setEventTypesForm({...eventTypesForm, divulgacao: {...eventTypesForm.divulgacao, enabled: v}})} 
+                       />
+                    </div>
+
+                    <div className="flex items-center justify-between p-6 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/50">
+                       <div className="space-y-1">
+                          <p className="font-black uppercase italic text-primary">Links Externos (Sites Parceiros)</p>
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed max-w-md">Permite redirecionar usuários para sites de terceiros para compra.</p>
+                       </div>
+                       <Switch 
+                         checked={eventTypesForm.externo.enabled} 
+                         onCheckedChange={v => setEventTypesForm({...eventTypesForm, externo: {...eventTypesForm.externo, enabled: v}})} 
+                       />
+                    </div>
+                 </div>
+
+                 <div className="p-6 bg-orange-50 rounded-[2rem] border-2 border-dashed border-orange-200 flex items-start gap-4">
+                    <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                       <h4 className="font-black uppercase text-xs italic text-orange-800">Trava de Segurança</h4>
+                       <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">Ao desativar um tipo de venda, novas publicações serão bloqueadas e as existentes passarão a exibir um aviso de indisponibilidade temporária.</p>
+                    </div>
+                 </div>
+
+                 <Button onClick={() => handleSave('settings', 'event_types', eventTypesForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
+                    Salvar Permissões de Venda
+                 </Button>
+              </CardContent>
+           </Card>
         </TabsContent>
 
         <TabsContent value="contato" className="space-y-8">
