@@ -5,13 +5,13 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { signInWithEmailAndPassword } from "firebase/auth"
-import { doc, getDoc } from "firebase/firestore"
+import { doc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, User, Lock as LockIcon, ShieldCheck, KeyRound, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Loader2, User, Lock as LockIcon, KeyRound, AlertCircle, CheckCircle2, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { Separator } from "@/components/ui/separator"
@@ -19,6 +19,7 @@ import { useTranslation } from "@/i18n/i18n-context"
 import { PublicHeader } from "@/components/layout/PublicHeader"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { SocialLoginButtons } from "./SocialLoginButtons"
+import { handleSocialRedirectResult } from "@/services/auth-service"
 
 function LoginContent() {
   const { t } = useTranslation()
@@ -31,13 +32,19 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const auth = useAuth()
-  const { user, profile, loading: authLoading, isInitialized } = useUser(auth)
   const db = useFirestore()
+  const { user, profile, loading: authLoading, isInitialized } = useUser(auth)
 
-  const settingsRef = React.useMemo(() => db ? doc(db, "settings", "site") : null, [db])
-  const { data: settings } = useDoc<any>(settingsRef)
-  const siteName = settings?.siteName || "Viby"
+  // Ouvinte de retorno do redirecionamento social
+  useEffect(() => {
+    if (auth && db && !authLoading) {
+      handleSocialRedirectResult(auth, db).catch(err => {
+         console.error("[Login-Page] Redirect Result Failed:", err);
+      });
+    }
+  }, [auth, db, authLoading]);
 
+  // Redirecionamento após login bem-sucedido
   useEffect(() => {
     if (!isInitialized || authLoading) return;
 
@@ -56,27 +63,16 @@ function LoginContent() {
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!auth || !db) return
+    if (!auth) return
 
     setLoading(true)
     setError(null)
     setSuccess(false)
     try {
-      let emailToUse = identifier.trim().toLowerCase();
-
-      if (!identifier.includes("@")) {
-        const usernameClean = identifier.replace('@', '').toLowerCase().trim();
-        const usernameRef = doc(db, "usernames", usernameClean)
-        const usernameSnap = await getDoc(usernameRef)
-        
-        if (!usernameSnap.exists()) throw new Error("Usuário não encontrado.")
-        emailToUse = usernameSnap.data().email
-      }
-
-      await signInWithEmailAndPassword(auth, emailToUse, password)
+      await signInWithEmailAndPassword(auth, identifier.trim().toLowerCase(), password)
       setSuccess(true)
     } catch (err: any) {
-      setError("Credenciais inválidas. Verifique seu e-mail ou @username e tente novamente.")
+      setError("Credenciais inválidas. Verifique seu e-mail e tente novamente.")
     } finally {
       setLoading(false)
     }
@@ -139,7 +135,7 @@ function LoginContent() {
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
                     <Input 
                       id="identifier" 
-                      placeholder={t('auth.identifier_placeholder')} 
+                      placeholder="seu@email.com" 
                       value={identifier} 
                       onChange={(e) => setIdentifier(e.target.value)}
                       required 

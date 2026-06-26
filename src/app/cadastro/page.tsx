@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { useFirestore, useDoc, useAuth, useUser } from "@/firebase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Handshake, Info, ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { Handshake, Info, ArrowLeft, Loader2, Sparkles, CheckCircle2 } from "lucide-react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
 import Footer from "@/components/layout/Footer";
 import Link from "next/link";
@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SocialLoginButtons } from "../login/SocialLoginButtons";
 import { useTranslation } from "@/i18n/i18n-context";
+import { handleSocialRedirectResult } from "@/services/auth-service";
+import { cn } from "@/lib/utils";
 
 export default function CadastroPage() {
   const { t } = useTranslation();
@@ -31,6 +33,15 @@ export default function CadastroPage() {
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const siteName = settings?.siteName || "Viby";
+
+  // Ouvinte de retorno do redirecionamento social
+  React.useEffect(() => {
+    if (auth && db && !authLoading) {
+      handleSocialRedirectResult(auth, db).catch(err => {
+         console.error("[Signup-Page] Redirect Result Failed:", err);
+      });
+    }
+  }, [auth, db, authLoading]);
 
   // Proteção: Redireciona usuários logados
   React.useEffect(() => {
@@ -57,26 +68,14 @@ export default function CadastroPage() {
 
       setValidating(true);
       try {
-        const cleanRef = refCode.trim();
-        let foundData = null;
-
-        const codeDocRef = doc(db, "affiliateCodes", cleanRef);
+        const codeDocRef = doc(db, "affiliateCodes", refCode.trim());
         const directSnap = await getDoc(codeDocRef);
         
-        if (directSnap.exists()) {
-          foundData = directSnap.data();
-        } else {
-          const q = query(collection(db, "affiliateCodes"), where("code", "==", cleanRef), limit(1));
-          const querySnap = await getDocs(q);
-          if (!querySnap.empty) {
-            foundData = querySnap.docs[0].data();
-          }
-        }
-
-        if (foundData && foundData.active !== false) {
+        if (directSnap.exists() && directSnap.data().active !== false) {
+          const foundData = directSnap.data();
           setAffiliateInfo({ 
             name: foundData.userName || "Afiliado Viby", 
-            code: cleanRef,
+            code: refCode.trim(),
             userId: foundData.userId
           });
           setIsValidCode(true);
@@ -84,7 +83,6 @@ export default function CadastroPage() {
           setIsValidCode(false);
         }
       } catch (error) {
-        console.error("[Affiliate Lookup Error]", error);
         setIsValidCode(false);
       } finally {
         setValidating(false);
@@ -185,7 +183,7 @@ export default function CadastroPage() {
 
                <div className="relative">
                   <div className="absolute inset-0 flex items-center"><Separator className="w-full border-dashed" /></div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white/80 px-4 text-muted-foreground">Ou use seu e-mail</span></div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-4 text-muted-foreground">Ou use seu e-mail</span></div>
                </div>
 
                <SignUpForm referredBy={isValidCode ? affiliateInfo?.userId : undefined} />

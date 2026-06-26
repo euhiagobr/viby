@@ -5,46 +5,26 @@ import { Button } from "@/components/ui/button";
 import { useAuth, useFirestore } from "@/firebase";
 import { startSocialLogin, authConfig } from "@/services/auth-service";
 import { Loader2, AlertCircle, Facebook } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 export function SocialLoginButtons() {
   const auth = useAuth();
-  const db = useFirestore();
-  const router = useRouter();
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const handleSocialLogin = async (provider: 'google' | 'facebook') => {
     console.log(`[Auth-Debug] 1. Click detected for ${provider}`);
-    if (!auth || !db) return;
+    if (!auth) return;
     
     setError(null);
     setLoadingProvider(provider);
     
     try {
-      // Chamada direta do serviço de popup para manter o "user gesture" intacto
-      const profile = await startSocialLogin(auth, provider, db);
-      
-      if (profile) {
-        console.log('[Auth-Debug] 4. Process complete. Navigating...');
-        const isComplete = !!(profile.username && profile.cpfHash);
-        if (!isComplete || profile.needsCPFUpdate) {
-          router.push("/onboarding");
-        } else {
-          router.push("/dashboard");
-        }
-      }
+      // Inicia o redirecionamento. A página será recarregada.
+      await startSocialLogin(auth, provider);
     } catch (err: any) {
-      console.error("[Auth-Debug] Login Failed:", err.code);
+      console.error("[Auth-Debug] Login Trigger Failed:", err.code);
       setLoadingProvider(null);
-      
-      if (err.code === 'auth/popup-closed-by-user') {
-        setError("O login foi cancelado. Clique novamente para tentar.");
-      } else if (err.code === 'auth/cancelled-popup-request') {
-        setError("Múltiplas janelas abertas. Tente novamente.");
-      } else {
-        setError(`Falha ao entrar: ${err.message || 'Erro desconhecido'}`);
-      }
+      setError(`Falha ao iniciar: ${err.message || 'Erro desconhecido'}`);
     }
   };
 
