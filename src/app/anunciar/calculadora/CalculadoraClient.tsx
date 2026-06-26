@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -9,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import { Separator } from '@/components/ui/separator';
 import { 
   Calculator, 
   ArrowRight, 
@@ -28,6 +28,7 @@ import { formatCurrency } from '@/lib/financial-utils';
 import { calculateSimulation, SimulationResult } from '@/lib/simulation-utils';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const VIBY_DEFAULT_CONFIG = {
@@ -75,7 +76,7 @@ export default function CalculadoraClient() {
     if (code && !appliedCode && db) {
        handleApplyCode(code);
     }
-  }, [db]);
+  }, [db, searchParams, appliedCode]);
 
   const handleApplyCode = async (codeToUse?: string) => {
     const code = codeToUse || promoCode;
@@ -308,9 +309,4 @@ export default function CalculadoraClient() {
       </section>
     </div>
   );
-}
-
-function toast({ title, description, variant }: any) {
-   // Reutiliza o hook global de toast se disponível
-   console.log(`[Simulation Toast] ${title}: ${description}`);
 }
