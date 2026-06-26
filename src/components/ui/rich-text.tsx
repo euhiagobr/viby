@@ -14,7 +14,7 @@ interface RichTextProps {
 /**
  * Viby Shortcode Engine
  * Converte silenciosamente marcações [tagx=valor] em componentes visuais.
- * Suporta: **negrito**, @menção, +texto grande+, [instagramx=user], [imgx=url WxH]
+ * Suporta: **negrito**, @menção, ++texto grande++, [instagramx=user], [imgx=url WxH]
  */
 export function RichText({ content, className }: RichTextProps) {
   if (!content) return null
@@ -22,10 +22,10 @@ export function RichText({ content, className }: RichTextProps) {
   // Regex para capturar todos os padrões suportados
   // 1. Bold: \*\*(.*?)\*\*
   // 2. Mentions: @([\w.]+)
-  // 3. Large: \+(.*?)\+
+  // 3. Large: \+\+(.*?)\+\+
   // 4. Instagram: \[instagramx=([\w.]+)\]
   // 5. Image: \[imgx=(https?:\/\/[^\s\]]+)(?:\s+(\d+)x(\d+))?\]
-  const regex = /(\*\*.*?\*\*|@[\w.]+|\+.*?\+|\[instagramx=[\w.]+\]|\[imgx=https?:\/\/[^\s\]]+(?:\s+\d+x\d+)?\])/g
+  const regex = /(\*\*.*?\*\*|@[\w.]+|\+\+.*?\+\+|\[instagramx=[\w.]+\]|\[imgx=https?:\/\/[^\s\]]+(?:\s+\d+x\d+)?\])/g
   const parts = content.split(regex)
 
   return (
@@ -55,9 +55,9 @@ export function RichText({ content, className }: RichTextProps) {
           )
         }
 
-        // 3. Texto Grande: +texto+
-        if (part.startsWith('+') && part.endsWith('+') && part.length > 2) {
-          const inner = part.slice(1, -1)
+        // 3. Texto Grande: ++texto++
+        if (part.startsWith('++') && part.endsWith('++') && part.length > 4) {
+          const inner = part.slice(2, -2)
           if (!/^\d+$/.test(inner)) {
             return (
               <span 

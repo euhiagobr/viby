@@ -42,7 +42,7 @@ export function EventDescription({ value, onChange, isPublic, className }: Event
         onChange={e => onChange?.(e.target.value)} 
         required 
         className="min-h-[250px] rounded-[1.5rem] border-dashed border-secondary/20 p-8 text-base bg-muted/5 focus-visible:ring-secondary/30 transition-all leading-relaxed"
-        placeholder="Conte tudo sobre a experiência. Use **texto** para negrito e +texto+ para destaque."
+        placeholder="Conte tudo sobre a experiência. Use **texto** para negrito e ++texto++ para destaque."
       />
     </div>
   )
