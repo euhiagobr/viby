@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -22,7 +23,8 @@ import {
   Star,
   Users,
   ShieldCheck,
-  BadgeCheck
+  BadgeCheck,
+  Calculator
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -138,6 +140,11 @@ export default function OrganizerLandingPage() {
             )}
           </Link>
           <div className="flex items-center gap-4">
+            <Button variant="ghost" asChild className="hidden sm:flex font-bold uppercase text-[10px] tracking-widest text-secondary hover:text-secondary hover:bg-secondary/5">
+              <Link href="/anunciar/calculadora" className="flex items-center gap-2">
+                <Calculator className="w-4 h-4" /> Simular Ganhos
+              </Link>
+            </Button>
             <Button variant="ghost" asChild className="hidden sm:flex font-bold uppercase text-[10px] tracking-widest">
               <Link href="/login">Entrar</Link>
             </Button>
@@ -167,8 +174,10 @@ export default function OrganizerLandingPage() {
                 <Button asChild className="h-16 px-10 bg-primary text-white font-black rounded-2xl shadow-2xl shadow-primary/20 uppercase italic text-lg hover:scale-105 transition-transform w-full sm:w-auto">
                   <Link href="#contato">Criar meu Evento</Link>
                 </Button>
-                <Button variant="outline" asChild className="h-16 px-10 rounded-2xl font-black uppercase italic text-lg border-2 w-full sm:w-auto">
-                  <Link href="#faq">Falar com Especialista</Link>
+                <Button variant="outline" asChild className="h-16 px-10 rounded-2xl font-black uppercase italic text-lg border-2 w-full sm:w-auto text-secondary border-secondary/20 hover:bg-secondary/5">
+                  <Link href="/anunciar/calculadora" className="flex items-center gap-2">
+                    <Calculator className="w-5 h-5" /> Simular Ganhos
+                  </Link>
                 </Button>
               </div>
             </div>
@@ -270,7 +279,7 @@ export default function OrganizerLandingPage() {
                           <p className="text-sm font-medium text-white/60 leading-relaxed uppercase tracking-wide">Preencha o formulário e nossa equipe comercial entrará em contato em menos de 24 horas.</p>
                        </div>
                        <div className="relative z-10 space-y-6">
-                          <div className="flex items-center gap-3"><Users className="w-5 h-5 text-secondary" /><span className="text-xs font-bold uppercase tracking-widest">+200 mil ingressos emitidos</span></div>
+                          <div className="flex items-center gap-3"><Users className="w-5 h-5 text-secondary" /><span className="text-xs font-bold uppercase tracking-widest">Divulgação e emissão de ingressos</span></div>
                           <div className="flex items-center gap-3"><Star className="w-5 h-5 text-secondary" /><span className="text-xs font-bold uppercase tracking-widest">Plataforma líder em experiência</span></div>
                        </div>
                        <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-secondary/10 rounded-full blur-3xl" />
