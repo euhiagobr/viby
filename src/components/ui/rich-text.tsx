@@ -25,11 +25,12 @@ interface RichTextProps {
 export function RichText({ content, className }: RichTextProps) {
   if (!content) return null
 
-  // Definição das siglas de orgulho para o Regex
-  const pridePattern = "\\b(LGBTQIAPN\\+?|LGBTQIA\\+?|LGBTQ\\+?|LGBTI|LGBT)\\b";
+  // Definição das siglas de orgulho para o Regex usando grupo de não-captura (?:)
+  const pridePattern = "\\b(?:LGBTQIAPN\\+?|LGBTQIA\\+?|LGBTQ\\+?|LGBTI|LGBT)\\b";
   const prideRegex = new RegExp(`^${pridePattern}$`, 'i');
 
   // Regex consolidado para capturar todos os padrões
+  // O grupo externo é capturador () para que o split mantenha as partes no array
   const regex = new RegExp(`(\\*\\*.*?\\*\\*|@[\\w.]+|\\+\\+.*?\\+\\+|\\[instagramx=[\\w.]+\\]|\\[imgx=https?:\\/\\/[^\\s\\]]+(?:\\s+\\d+x\\d+)?\\]|${pridePattern})`, 'gi');
   
   const parts = content.split(regex)
@@ -121,7 +122,7 @@ export function RichText({ content, className }: RichTextProps) {
             <Link
               key={i}
               href="/lgbt"
-              className="bg-gradient-to-r from-red-500 via-orange-500 via-yellow-500 via-green-500 via-blue-500 to-purple-500 bg-clip-text text-transparent font-bold hover:opacity-80 transition-opacity decoration-secondary/30"
+              className="bg-gradient-to-r from-red-500 via-orange-500 via-yellow-500 via-green-500 via-blue-500 to-purple-500 bg-clip-text text-transparent font-bold hover:opacity-80 transition-opacity decoration-secondary/30 inline-block"
               onClick={(e) => e.stopPropagation()}
             >
               {part}
