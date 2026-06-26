@@ -30,15 +30,18 @@ export default function CadastroPage() {
   const [isValidCode, setIsValidCode] = React.useState<boolean | null>(null);
   const [validating, setValidating] = React.useState(false);
 
+  const checkRedirectRef = React.useRef(false);
+
   const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
   const { data: settings } = useDoc<any>(settingsRef);
   const siteName = settings?.siteName || "Viby";
 
   // Ouvinte de retorno do redirecionamento social
   React.useEffect(() => {
-    if (auth && db && !authLoading) {
+    if (auth && db && !authLoading && !checkRedirectRef.current) {
+      checkRedirectRef.current = true;
       handleSocialRedirectResult(auth, db).catch(err => {
-         console.error("[Signup-Page] Redirect Result Failed:", err);
+         console.warn("[Signup] Redirect handling failed or cancelled.");
       });
     }
   }, [auth, db, authLoading]);

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth, useUser, useFirestore } from "@/firebase"
 import { signInWithEmailAndPassword } from "firebase/auth"
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, User, Lock as LockIcon, KeyRound, AlertCircle, CheckCircle2, ShieldCheck } from "lucide-react"
+import { Loader2, User, Lock as LockIcon, KeyRound, AlertCircle, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { Separator } from "@/components/ui/separator"
@@ -33,11 +33,14 @@ function LoginContent() {
   const db = useFirestore()
   const { user, profile, loading: authLoading, isInitialized } = useUser(auth)
 
+  const checkRedirectRef = useRef(false);
+
   // 1. CAPTURA DE RESULTADO DO REDIRECIONAMENTO SOCIAL
   useEffect(() => {
-    if (auth && db && !authLoading) {
+    if (auth && db && !authLoading && !checkRedirectRef.current) {
+      checkRedirectRef.current = true;
       handleSocialRedirectResult(auth, db).catch(err => {
-         console.warn("[Login] Silently handling redirect status.");
+         console.warn("[Login] Redirect handling failed or cancelled.");
       });
     }
   }, [auth, db, authLoading]);

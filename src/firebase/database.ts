@@ -5,7 +5,7 @@ import { app } from "./apps";
 
 /**
  * @fileOverview Singleton Robusto do Firestore para evitar o erro ca9.
- * Desativamos a persistência em disco no ambiente de dev para evitar conflitos de lock.
+ * Forçamos o cache em memória para evitar conflitos de persistência no Workstation.
  */
 
 declare global {
@@ -14,10 +14,16 @@ declare global {
 
 const initializeDb = (): Firestore => {
   try {
-    return initializeFirestore(app, {
+    // Verificamos se já existe uma instância antes de tentar inicializar novamente
+    if (globalThis.firestoreInstance) return globalThis.firestoreInstance;
+
+    const firestore = initializeFirestore(app, {
       localCache: memoryLocalCache(),
     });
+    console.log('[Firestore] Singleton initialized with Memory Cache');
+    return firestore;
   } catch (e) {
+    console.warn("[Firestore] Initialization error, falling back to getFirestore:", e);
     return getFirestore(app);
   }
 };
@@ -26,7 +32,6 @@ export const db = (() => {
   if (typeof window !== 'undefined') {
     if (!globalThis.firestoreInstance) {
       globalThis.firestoreInstance = initializeDb();
-      console.log('[Firestore] Singleton initialized with Memory Cache');
     }
     return globalThis.firestoreInstance;
   }

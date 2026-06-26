@@ -1,6 +1,6 @@
 'use client';
 
-import { getAuth, Auth, setPersistence, indexedDBLocalPersistence, browserLocalPersistence } from "firebase/auth";
+import { getAuth, Auth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { app } from "./apps";
 
 /**
@@ -14,8 +14,8 @@ declare global {
 
 const initializeAuth = (): Auth => {
   const auth = getAuth(app);
-  // Usamos LocalPersistence para garantir que a sessão sobreviva ao redirect
-  setPersistence(auth, browserLocalPersistence).catch(console.error);
+  // Configuração síncrona de persistência para evitar delays no gesto do usuário
+  setPersistence(auth, browserLocalPersistence).catch(e => console.warn("[Auth] Persistence Error:", e));
   return auth;
 };
 

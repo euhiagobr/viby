@@ -16,7 +16,7 @@ import {
   runTransaction,
   increment
 } from "firebase/firestore";
-import { sendWelcomeEmail, sendAdminNewUserAlert } from "@/app/actions/email";
+import { sendWelcomeEmail } from "@/app/actions/email";
 import { recordAuditLog } from "@/app/actions/audit";
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
@@ -31,12 +31,14 @@ export const authConfig = {
  */
 export async function ensureUserProfile(user: User, db: Firestore) {
   if (!user || !db) return null;
+  console.log('[Auth-Debug] 5. Entering ensureUserProfile for:', user.email);
   const userRef = doc(db, "users", user.uid);
   
   try {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
+      console.log('[Auth-Debug] 6. Creating new user document');
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       const userData = {
         uid: user.uid,
@@ -83,9 +85,10 @@ export async function ensureUserProfile(user: User, db: Firestore) {
 
       return { ...userData, id: user.uid, isNew: true };
     }
+    console.log('[Auth-Debug] 6. User document already exists');
     return { ...userSnap.data(), id: user.uid, isNew: false };
   } catch (error) {
-    console.error('[Auth-Service] Error:', error);
+    console.error('[Auth-Service] ensureUserProfile Error:', error);
     throw error;
   }
 }
@@ -94,12 +97,16 @@ export async function ensureUserProfile(user: User, db: Firestore) {
  * Inicia o login via Redirect (Estritamente síncrono no evento de clique).
  */
 export function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
-  console.log('[Auth-Debug] 2. startSocialLogin redirect for:', providerName);
+  console.log('[Auth-Debug] 2. Calling signInWithRedirect for:', providerName);
   const provider = providerName === 'google' 
     ? new GoogleAuthProvider() 
     : new FacebookAuthProvider();
 
-  // Chamada síncrona: o retorno desta função é o início imediato do redirect
+  // Forçar prompt de seleção de conta no Google
+  if (providerName === 'google') {
+    provider.setCustomParameters({ prompt: 'select_account' });
+  }
+
   return signInWithRedirect(auth, provider);
 }
 
@@ -111,12 +118,13 @@ export async function handleSocialRedirectResult(auth: Auth, db: Firestore) {
   try {
     const result = await getRedirectResult(auth);
     if (result?.user) {
-      console.log('[Auth-Debug] 4. Redirect success! User:', result.user.email);
+      console.log('[Auth-Debug] 4. Redirect success! Found user:', result.user.email);
       return await ensureUserProfile(result.user, db);
     }
+    console.log('[Auth-Debug] 4. No redirect result found (null).');
     return null;
   } catch (error: any) {
-    console.error('[Auth-Debug] Redirect Result Error:', error.code);
+    console.error('[Auth-Debug] 4. Redirect Result Error:', error.code, error.message);
     throw error;
   }
 }
