@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -63,7 +62,7 @@ export default function AdminConfiguracoesPage() {
 
   const siteRef = React.useMemo(() => (db ? doc(db, 'settings', 'site') : null), [db]);
   const stripeRef = React.useMemo(() => (db ? doc(db, 'settings', 'stripe') : null), [db]);
-  const emailRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
+  const emailSettingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'email') : null), [db]);
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
   const contactRef = React.useMemo(() => (db ? doc(db, 'settings', 'contact') : null), [db]);
   const adsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
@@ -478,7 +477,7 @@ export default function AdminConfiguracoesPage() {
                     <div className="flex items-center justify-between p-6 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/50">
                        <div className="space-y-1">
                           <p className="font-black uppercase italic text-primary">Venda Interna (Ingressos Pagos)</p>
-                          <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed max-w-md">Habilita o checkout da Viby via Stripe para recebimento de valores.</p>
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed max-md">Habilita o checkout da Viby via Stripe para recebimento de valores.</p>
                        </div>
                        <Switch 
                          checked={eventTypesForm.interno.enabled} 
@@ -489,7 +488,7 @@ export default function AdminConfiguracoesPage() {
                     <div className="flex items-center justify-between p-6 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/50">
                        <div className="space-y-1">
                           <p className="font-black uppercase italic text-primary">Divulgação de Eventos (Gratuitos)</p>
-                          <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed max-w-md">Permite criar listas de interesse e presença sem cobrança financeira.</p>
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed max-md">Permite criar listas de interesse e presença sem cobrança financeira.</p>
                        </div>
                        <Switch 
                          checked={eventTypesForm.divulgacao.enabled} 
@@ -500,7 +499,7 @@ export default function AdminConfiguracoesPage() {
                     <div className="flex items-center justify-between p-6 bg-muted/20 rounded-[2rem] border-2 border-dashed border-border/50">
                        <div className="space-y-1">
                           <p className="font-black uppercase italic text-primary">Links Externos (Sites Parceiros)</p>
-                          <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed max-w-md">Permite redirecionar usuários para sites de terceiros para compra.</p>
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed max-md">Permite redirecionar usuários para sites de terceiros para compra.</p>
                        </div>
                        <Switch 
                          checked={eventTypesForm.externo.enabled} 
