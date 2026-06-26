@@ -28,6 +28,7 @@ import {
 import { formatCurrency } from '@/lib/financial-utils';
 import { calculateSimulation, SimulationResult } from '@/lib/simulation-utils';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
