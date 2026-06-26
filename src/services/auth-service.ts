@@ -111,31 +111,21 @@ export async function ensureUserProfile(user: any, db: Firestore) {
 
 /**
  * Inicia o fluxo de login via Popup.
- * CRÍTICO: Não realizar awaits antes do signInWithPopup para não perder o trusted gesture do browser.
+ * CRÍTICO: Não realizar awaits pesados antes do signInWithPopup para não perder o trusted gesture.
  */
-export async function startSocialLogin(auth: Auth, db: Firestore, providerName: 'google' | 'facebook') {
-  let provider;
-  
+export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
+  const provider = providerName === 'google' 
+    ? new GoogleAuthProvider() 
+    : new FacebookAuthProvider();
+
   if (providerName === 'google') {
-    provider = new GoogleAuthProvider();
     provider.addScope('profile');
     provider.addScope('email');
-    provider.setCustomParameters({ prompt: 'select_account' });
   } else {
-    provider = new FacebookAuthProvider();
     provider.addScope('email');
     provider.addScope('public_profile');
   }
 
-  try {
-    // Chamada direta para o popup sem await anterior
-    const result = await signInWithPopup(auth, provider);
-    if (result.user) {
-      const profile = await ensureUserProfile(result.user, db);
-      return { user: result.user, profile };
-    }
-    return null;
-  } catch (error) {
-    throw error;
-  }
+  // O popup deve ser chamado o mais próximo possível do evento de clique
+  return signInWithPopup(auth, provider);
 }

@@ -7,16 +7,19 @@ import { app } from "./apps";
  * @fileOverview Inicialização do Firebase Auth (Singleton).
  */
 
-let authInstance: Auth | null = null;
+declare global {
+  var authInstance: Auth | undefined;
+}
 
 export const auth = (() => {
   if (typeof window !== 'undefined') {
-    if (!authInstance) {
-      authInstance = getAuth(app);
-      // Configura persistência apenas uma vez no cliente
-      setPersistence(authInstance, indexedDBLocalPersistence).catch(console.error);
+    if (!globalThis.authInstance) {
+      globalThis.authInstance = getAuth(app);
+      // Configura persistência de forma não bloqueante
+      setPersistence(globalThis.authInstance, indexedDBLocalPersistence).catch(() => {});
+      console.log('[Auth] Singleton initialized on Client');
     }
-    return authInstance;
+    return globalThis.authInstance!;
   }
   return getAuth(app);
 })();

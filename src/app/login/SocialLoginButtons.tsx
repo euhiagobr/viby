@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth, useUser, useFirestore } from "@/firebase";
-import { startSocialLogin, authConfig } from "@/services/auth-service";
+import { useAuth, useFirestore } from "@/firebase";
+import { startSocialLogin, authConfig, ensureUserProfile } from "@/services/auth-service";
 import { Loader2, AlertCircle, Facebook } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -14,23 +14,25 @@ export function SocialLoginButtons() {
   const router = useRouter();
   
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const handleSocialLogin = async (provider: 'google' | 'facebook') => {
     if (!auth || !db) return;
     
+    // Reset imediato de estados para evitar interferência no gesto do usuário
     setError(null);
     setLoadingProvider(provider);
     
     try {
-      const result = await startSocialLogin(auth, db, provider);
+      // 1. Dispara o Popup IMEDIATAMENTE (Preserva user gesture)
+      const result = await startSocialLogin(auth, provider);
       
-      if (result && result.profile) {
-        setIsProcessing(true);
-        // Verifica se o perfil está completo para decidir a rota
-        const hasMandatory = !!(result.profile?.username && result.profile?.cpfHash);
-        const isComplete = result.profile?.profileComplete && hasMandatory && !result.profile?.needsCPFUpdate;
+      if (result.user) {
+        // 2. Após o sucesso do popup, processamos o perfil (pode ter awaits agora)
+        const profileData = await ensureUserProfile(result.user, db);
+        
+        const hasMandatory = !!(profileData?.username && profileData?.cpfHash);
+        const isComplete = profileData?.profileComplete && hasMandatory && !profileData?.needsCPFUpdate;
         
         if (!isComplete) {
           toast({ title: "Bem-vindo!", description: "Vamos concluir seu cadastro." });
@@ -39,13 +41,10 @@ export function SocialLoginButtons() {
           toast({ title: "Acesso autorizado!", description: "Entrando na sua conta..." });
           router.replace("/dashboard");
         }
-      } else {
-        setLoadingProvider(null);
       }
     } catch (err: any) {
-      console.error("[Auth-Social] Process Error:", err);
+      console.error("[Auth-Social] Error:", err.code);
       setLoadingProvider(null);
-      setIsProcessing(false);
 
       if (err.code === 'auth/popup-closed-by-user') {
          setError("O login foi cancelado. Clique novamente para tentar.");
@@ -56,17 +55,6 @@ export function SocialLoginButtons() {
       }
     }
   };
-
-  if (isProcessing) {
-    return (
-      <div className="flex flex-col items-center justify-center py-6 gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-secondary" />
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse text-center">
-          Sincronizando Perfil...
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4 w-full">
