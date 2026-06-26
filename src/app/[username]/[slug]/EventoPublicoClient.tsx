@@ -34,7 +34,8 @@ import dynamic from "next/dynamic"
 import { format, startOfToday } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { EventActionModal } from "@/components/events/EventActionModal"
-import { formatFullAddress } from "@/lib/location-utils"
+import { formatFullAddress, type Coordinates } from "@/lib/location-utils"
+import { calculateDistanceMeters } from "@/lib/event-scoring-utils"
 import {
   Select,
   SelectContent,
@@ -66,6 +67,7 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
   const [isShareModalOpen, setIsShareModalOpen] = React.useState(false)
   const [isActionModalOpen, setIsActionModalOpen] = React.useState(false)
   const [selectedOccurrenceId, setSelectedOccurrenceId] = React.useState<string | null>(null)
+  const [userLocation, setUserLocation] = React.useState<Coordinates | null>(null)
 
   const hasTrackedView = React.useRef(false);
 
@@ -87,6 +89,23 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
       }).catch(() => {});
     }
   }, [id]);
+
+  React.useEffect(() => {
+    import("@/lib/location-utils").then(mod => {
+      mod.getCurrentLocation().then(loc => { if(loc) setUserLocation(loc); }).catch(() => {});
+    });
+  }, []);
+
+  const distanceMeters = React.useMemo(() => {
+    if (userLocation && (event?.latitude !== undefined || event?.address?.latitude !== undefined)) {
+      const lat = event.address?.latitude ?? event.latitude;
+      const lng = event.address?.longitude ?? event.longitude;
+      if (lat !== undefined && lng !== undefined) {
+        return calculateDistanceMeters(userLocation, { latitude: lat, longitude: lng });
+      }
+    }
+    return null;
+  }, [userLocation, event]);
 
   const organizationRef = React.useMemo(() => 
     (db && event?.organizationId) ? doc(db, "organizations", event.organizationId) : null, 
@@ -256,7 +275,6 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
                      <Select 
                       value={selectedOccurrenceId || upcomingOccurrences[0]?.id} 
                       onValueChange={setSelectedOccurrenceId} 
-                      disabled={occurrencesLoading}
                      >
                         <SelectTrigger className="h-14 rounded-2xl border-dashed border-secondary/30 font-bold text-lg px-6 uppercase italic text-primary">
                            <SelectValue placeholder="Selecione a data e horário" />
@@ -308,10 +326,18 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
             </div>
 
             <section className="space-y-6">
-               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-2">Localização</h3>
+               <div className="flex items-center justify-between px-2">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Localização</h3>
+                  {distanceMeters !== null && (
+                    <Badge className="bg-secondary/10 text-secondary border-none px-3 py-1 text-[10px] font-black uppercase flex items-center gap-1.5">
+                       <Navigation className="w-3 h-3 fill-current" />
+                       {distanceMeters < 1000 ? `${distanceMeters} m` : `${(distanceMeters/1000).toFixed(1)} km`} de distância
+                    </Badge>
+                  )}
+               </div>
                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
                   <div className="h-64 w-full"><LocationMap latitude={lat} longitude={lng} interactive={false} onChange={() => {}} /></div>
-                  <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
+                  <CardContent className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
                      <div className="space-y-1 text-center md:text-left">
                         {addressLines.map((line, idx) => (
                           <p key={idx} className={cn("leading-tight uppercase", idx === 0 ? "font-black text-2xl italic tracking-tighter text-primary" : "text-xs font-medium text-muted-foreground")}>{line}</p>
