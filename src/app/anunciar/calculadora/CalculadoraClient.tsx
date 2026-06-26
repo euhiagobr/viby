@@ -15,30 +15,20 @@ import {
   ArrowRight, 
   CheckCircle2, 
   Zap, 
-  TrendingUp, 
   Coins, 
   Ticket,
   Building2,
-  Users,
   ShieldCheck,
   Search,
   Loader2,
   X,
-  Plus,
-  ArrowUpRight,
-  User,
   ShoppingBag,
-  Percent,
-  Monitor,
-  Smartphone,
-  Maximize2,
-  Globe,
-  MousePointer2,
-  UserCircle
+  Info,
+  MousePointer2
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/financial-utils';
-import { calculateSimulation, SimulationResult } from '@/lib/simulation-utils';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { calculateSimulation } from '@/lib/simulation-utils';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -47,15 +37,6 @@ const VIBY_DEFAULT_CONFIG = {
   orgPercent: 10,
   orgMin: 3.99,
   buyerPercent: 15
-};
-
-/**
- * Utilitário interno para rastreamento de eventos customizados.
- */
-const trackCalculatorEvent = (name: string, params?: any) => {
-  if (typeof window !== 'undefined' && (window as any).gtag) {
-    (window as any).gtag('event', name, params);
-  }
 };
 
 export default function CalculadoraClient() {
@@ -111,20 +92,10 @@ export default function CalculadoraClient() {
         });
         setAppliedCode(code.toUpperCase());
         toast({ title: "Campanha aplicada!", description: "As taxas da simulação foram atualizadas." });
-        
-        trackCalculatorEvent('apply_simulation_code', {
-          code: code.toUpperCase(),
-          status: 'success'
-        });
       } else {
         toast({ variant: "destructive", title: "Código inválido", description: "Utilizando taxas padrão." });
         setAppliedCode(null);
         setActiveConfig(VIBY_DEFAULT_CONFIG);
-        
-        trackCalculatorEvent('apply_simulation_code', {
-          code: code.toUpperCase(),
-          status: 'invalid'
-        });
       }
     } catch (e) {
       setAppliedCode(null);
@@ -142,7 +113,7 @@ export default function CalculadoraClient() {
   return (
     <div className="space-y-16 animate-in fade-in duration-700">
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-        {/* Lado Esquerdo: Inputs */}
+        {/* Lado Esquerdo: Configurações */}
         <div className="lg:col-span-5 space-y-8">
            <Card className="border-none shadow-2xl rounded-[3rem] bg-white overflow-hidden p-1">
               <div className="p-8 space-y-8">
@@ -202,27 +173,39 @@ export default function CalculadoraClient() {
 
                  <Separator className="border-dashed" />
 
-                 <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                       <Label className="text-[10px] font-black uppercase tracking-widest text-primary">Taxa Comprador Concorrência</Label>
-                       <Badge className="bg-primary text-white font-black">{competitionBuyer}%</Badge>
+                 <div className="space-y-8">
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-center">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-primary">Taxa Comprador Concorrência</Label>
+                          <Badge className="bg-primary text-white font-black">{competitionBuyer}%</Badge>
+                       </div>
+                       <Slider 
+                         value={[competitionBuyer]} 
+                         onValueChange={v => setCompetitionBuyer(v[0])} 
+                         min={15} 
+                         max={40} 
+                         step={5}
+                         className="py-4"
+                       />
+                       <div className="flex justify-between text-[8px] font-black uppercase text-muted-foreground tracking-widest">
+                          <span>Padrão 20%</span>
+                          <span>Premium 40%</span>
+                       </div>
                     </div>
-                    <Slider 
-                      value={[competitionBuyer]} 
-                      onValueChange={v => setCompetitionBuyer(v[0])} 
-                      min={15} 
-                      max={40} 
-                      step={5}
-                      className="py-4"
-                    />
-                    <div className="flex justify-between text-[8px] font-black uppercase text-muted-foreground tracking-widest">
-                       <span>Padrão 20%</span>
-                       <span>Premium 40%</span>
+
+                    <div className="space-y-2 p-4 bg-muted/20 rounded-2xl border border-dashed">
+                       <div className="flex justify-between items-center">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-secondary">Taxa Comprador Viby</Label>
+                          <Badge className="bg-secondary text-white font-black">{activeConfig.buyerPercent}%</Badge>
+                       </div>
+                       <p className="text-[9px] text-muted-foreground font-medium uppercase italic leading-tight mt-1">
+                          {appliedCode ? "Valor reduzido via código promocional" : "Taxa padrão da plataforma aplicada ao comprador."}
+                       </p>
                     </div>
                  </div>
               </div>
               <div className="p-6 bg-muted/30 border-t flex items-center justify-center gap-2">
-                 <ShieldCheck className="w-4 h-4 text-secondary" />
+                 <ShieldCheck className="w-4 h-4 text-secondary opacity-40" />
                  <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Simulação comercial baseada em médias de mercado</p>
               </div>
            </Card>
@@ -238,13 +221,13 @@ export default function CalculadoraClient() {
         </div>
 
         {/* Lado Direito: Resultados */}
-        <div className="lg:col-span-7 space-y-12">
+        <div className="lg:col-span-7 space-y-16">
            
            {/* SEÇÃO 1: ORGANIZADOR */}
            <div className="space-y-6">
               <div className="flex items-center gap-3 px-2">
                  <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Coins className="w-5 h-5" /></div>
-                 <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Quanto você recebe</h2>
+                 <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">💰 Quanto você recebe</h2>
               </div>
 
               <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white">
@@ -295,7 +278,7 @@ export default function CalculadoraClient() {
            <div className="space-y-6">
               <div className="flex items-center gap-3 px-2">
                  <div className="p-2 bg-primary/5 rounded-lg text-primary"><ShoppingBag className="w-5 h-5" /></div>
-                 <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Seu cliente também paga menos</h2>
+                 <h2 className="text-2xl font-black uppercase italic tracking-tighter text-primary">🎟️ Seu cliente também paga menos</h2>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -318,37 +301,14 @@ export default function CalculadoraClient() {
               </div>
 
               <Card className="border-none shadow-sm rounded-3xl bg-green-50 p-8 text-center border-2 border-dashed border-green-200">
-                 <h3 className="text-2xl font-black text-green-700 italic uppercase tracking-tighter">
-                    Cada cliente economiza {formatCurrency(result.savings.perTicket)} na compra do ingresso.
+                 <h3 className="text-2xl font-black text-green-700 italic uppercase tracking-tighter leading-tight">
+                    Cada cliente economiza {formatCurrency(result.savings.perTicket)} por ingresso.
                  </h3>
                  <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mt-2">Menos taxa = Mais vendas convertidas</p>
               </Card>
-
-              <div className="space-y-6">
-                 <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-2 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4" /> Economia Total dos Compradores
-                 </h3>
-                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {[qty, 500, 1000, 2000].map(q => {
-                      const totalSaving = q * result.savings.perTicket;
-                      return (
-                        <Card key={q} className="border-none shadow-sm rounded-3xl bg-white p-6 space-y-4 hover:shadow-md transition-all">
-                           <div className="flex justify-between items-start">
-                              <Badge variant="outline" className="text-[8px] font-black uppercase">{q} Ingressos</Badge>
-                              <Users className="w-4 h-4 opacity-20" />
-                           </div>
-                           <div className="space-y-0.5">
-                              <p className="text-[9px] font-bold text-muted-foreground uppercase">Economia Clientes</p>
-                              <p className="text-xl font-black text-primary">{formatCurrency(totalSaving)}</p>
-                           </div>
-                        </Card>
-                      );
-                    })}
-                 </div>
-              </div>
            </div>
 
-           <div className="flex flex-col items-center justify-center pt-10 gap-6">
+           <div className="flex flex-col items-center justify-center pt-6 gap-6">
               <Button asChild className="h-20 px-16 bg-primary text-white font-black rounded-[2rem] shadow-2xl uppercase italic text-2xl hover:scale-105 transition-all">
                  <Link href="/cadastro">Criar meu Evento agora <ArrowRight className="ml-2 w-8 h-8" /></Link>
               </Button>
@@ -370,9 +330,9 @@ function BuyerCard({ label, value, feePercent, feeValue, total, variant }: any) 
         "border-none shadow-sm rounded-[2rem] overflow-hidden",
         isHighlight ? "ring-2 ring-secondary bg-white" : "bg-muted/30"
       )}>
-         <CardHeader className={cn("p-6 border-b", isHighlight ? "bg-secondary/5" : "bg-muted/20")}>
+         <div className={cn("p-6 border-b", isHighlight ? "bg-secondary/5" : "bg-muted/20")}>
             <p className={cn("text-[10px] font-black uppercase tracking-widest", isHighlight ? "text-secondary" : "text-muted-foreground")}>{label}</p>
-         </CardHeader>
+         </div>
          <CardContent className="p-8 space-y-4">
             <div className="flex justify-between items-center text-sm font-bold opacity-60 uppercase">
                <span>Ingresso</span>
