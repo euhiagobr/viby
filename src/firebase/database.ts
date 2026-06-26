@@ -1,6 +1,6 @@
 'use client';
 
-import { initializeFirestore, Firestore, memoryLocalCache } from "firebase/firestore";
+import { initializeFirestore, Firestore, memoryLocalCache, getFirestore } from "firebase/firestore";
 import { app } from "./apps";
 
 /**
@@ -17,22 +17,19 @@ export const db = (() => {
   if (typeof window !== 'undefined') {
     // Em ambientes de desenvolvimento (Studio/Workstations), o Hot Module Replacement (HMR) 
     // pode tentar reinicializar o Firestore múltiplas vezes, causando o erro 'ca9'.
-    // Usar initializeFirestore com cache em memória é a solução oficial para este cenário.
     if (!globalThis.firestoreInstance) {
       try {
         globalThis.firestoreInstance = initializeFirestore(app, {
           localCache: memoryLocalCache(),
         });
-        console.log('[Firestore] Singleton initialized with Memory Cache');
+        console.log('[Firestore-Debug] Singleton initialized with Memory Cache');
       } catch (e) {
-        // Se já foi inicializado por outro caminho, tenta recuperar a instância padrão
-        const { getFirestore } = require("firebase/firestore");
+        console.log('[Firestore-Debug] Falling back to getFirestore');
         globalThis.firestoreInstance = getFirestore(app);
       }
     }
     return globalThis.firestoreInstance!;
   }
   
-  const { getFirestore } = require("firebase/firestore");
   return getFirestore(app);
 })();

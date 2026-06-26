@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth, useFirestore } from "@/firebase";
+import { useAuth, useUser, useFirestore } from "@/firebase";
 import { startSocialLogin, authConfig, ensureUserProfile } from "@/services/auth-service";
 import { Loader2, AlertCircle, Facebook } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -17,33 +17,43 @@ export function SocialLoginButtons() {
   const [error, setError] = React.useState<string | null>(null);
 
   const handleSocialLogin = async (provider: 'google' | 'facebook') => {
-    if (!auth || !db) return;
+    console.log(`[Auth-Debug] 1. Click detected for ${provider}`);
+    if (!auth || !db) {
+       console.error('[Auth-Debug] ABORT: Auth or DB instances not ready.');
+       return;
+    }
     
-    // Reset imediato de estados para evitar interferência no gesto do usuário
     setError(null);
     setLoadingProvider(provider);
     
     try {
-      // 1. Dispara o Popup IMEDIATAMENTE (Preserva user gesture)
+      console.log('[Auth-Debug] 2. Calling startSocialLogin...');
       const result = await startSocialLogin(auth, provider);
       
-      if (result.user) {
-        // 2. Após o sucesso do popup, processamos o perfil (pode ter awaits agora)
-        const profileData = await ensureUserProfile(result.user, db);
-        
-        const hasMandatory = !!(profileData?.username && profileData?.cpfHash);
-        const isComplete = profileData?.profileComplete && hasMandatory && !profileData?.needsCPFUpdate;
-        
-        if (!isComplete) {
-          toast({ title: "Bem-vindo!", description: "Vamos concluir seu cadastro." });
-          router.replace("/onboarding");
-        } else {
-          toast({ title: "Acesso autorizado!", description: "Entrando na sua conta..." });
-          router.replace("/dashboard");
-        }
+      console.log('[Auth-Debug] 3. startSocialLogin Success. User UID:', result.user.uid);
+      
+      console.log('[Auth-Debug] 4. Calling ensureUserProfile...');
+      const profileData = await ensureUserProfile(result.user, db);
+      
+      if (!profileData) {
+        throw new Error("Falha ao recuperar dados do perfil após o login.");
+      }
+
+      console.log('[Auth-Debug] 5. ensureUserProfile Finished.');
+      const hasMandatory = !!(profileData?.username && profileData?.cpfHash);
+      const isComplete = profileData?.profileComplete && hasMandatory && !profileData?.needsCPFUpdate;
+      
+      if (!isComplete) {
+        console.log('[Auth-Debug] 6. REDIRECTING TO /onboarding');
+        toast({ title: "Bem-vindo!", description: "Vamos concluir seu cadastro." });
+        router.replace("/onboarding");
+      } else {
+        console.log('[Auth-Debug] 6. REDIRECTING TO /dashboard');
+        toast({ title: "Acesso autorizado!", description: "Entrando na sua conta..." });
+        router.replace("/dashboard");
       }
     } catch (err: any) {
-      console.error("[Auth-Social] Error:", err.code);
+      console.error("[Auth-Debug] CATCH: Authentication Flow Failed", err.code, err.message);
       setLoadingProvider(null);
 
       if (err.code === 'auth/popup-closed-by-user') {
@@ -51,7 +61,7 @@ export function SocialLoginButtons() {
       } else if (err.code === 'auth/popup-blocked') {
          setError("O seu navegador bloqueou o popup de login. Por favor, habilite-o.");
       } else {
-         setError("Não foi possível sincronizar sua conta social.");
+         setError(`Falha técnica: ${err.code || 'Erro desconhecido'}`);
       }
     }
   };
