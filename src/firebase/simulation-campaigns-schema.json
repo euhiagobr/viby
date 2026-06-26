@@ -1,19 +1,54 @@
-
 {
   "collection": "simulation_campaigns",
-  "description": "Campanhas exclusivas para a calculadora de economia (Marketing). Não vinculadas ao checkout real.",
+  "description": "Campanhas exclusivas para a calculadora de economia comercial (Marketing). Estes dados são utilizados apenas para alterar os parâmetros da simulação pública e não afetam as transações reais da plataforma.",
   "fields": {
-    "id": "string (auto-id)",
-    "name": "string (Nome interno)",
-    "code": "string (Código único uppercase)",
-    "description": "string",
-    "active": "boolean",
-    "orgFeePercent": "number",
-    "orgMinFee": "number",
-    "buyerFeePercent": "number",
-    "startAt": "timestamp",
-    "endAt": "timestamp",
-    "createdAt": "timestamp",
-    "updatedAt": "timestamp"
+    "id": {
+      "type": "string",
+      "description": "ID único do documento gerado automaticamente."
+    },
+    "name": {
+      "type": "string",
+      "description": "Nome interno para identificação da campanha administrativa."
+    },
+    "code": {
+      "type": "string",
+      "description": "Código promocional utilizado na calculadora pública (ex: VIBY15). Deve ser único e armazenado em maiúsculas."
+    },
+    "description": {
+      "type": "string",
+      "description": "Explicação curta sobre a finalidade ou público da campanha."
+    },
+    "active": {
+      "type": "boolean",
+      "description": "Define se a campanha está disponível para uso na simulação pública."
+    },
+    "orgFeePercent": {
+      "type": "number",
+      "description": "Percentual de taxa do organizador utilizado nos cálculos da simulação."
+    },
+    "orgMinFee": {
+      "type": "number",
+      "description": "Valor mínimo de taxa do organizador em Real (R$) utilizado nos cálculos da simulação."
+    },
+    "buyerFeePercent": {
+      "type": "number",
+      "description": "Percentual de taxa do comprador utilizado nos cálculos da simulação."
+    },
+    "startAt": {
+      "type": "timestamp",
+      "description": "Data e hora de início da validade da campanha."
+    },
+    "endAt": {
+      "type": "timestamp",
+      "description": "Data e hora de término da validade da campanha."
+    },
+    "createdAt": {
+      "type": "timestamp",
+      "description": "Momento da criação do registro."
+    },
+    "updatedAt": {
+      "type": "timestamp",
+      "description": "Momento da última atualização do registro."
+    }
   }
 }

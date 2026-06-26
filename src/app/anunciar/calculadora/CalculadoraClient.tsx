@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -48,6 +47,15 @@ const VIBY_DEFAULT_CONFIG = {
   orgPercent: 10,
   orgMin: 3.99,
   buyerPercent: 15
+};
+
+/**
+ * Utilitário interno para rastreamento de eventos customizados.
+ */
+const trackCalculatorEvent = (name: string, params?: any) => {
+  if (typeof window !== 'undefined' && (window as any).gtag) {
+    (window as any).gtag('event', name, params);
+  }
 };
 
 export default function CalculadoraClient() {
@@ -103,10 +111,20 @@ export default function CalculadoraClient() {
         });
         setAppliedCode(code.toUpperCase());
         toast({ title: "Campanha aplicada!", description: "As taxas da simulação foram atualizadas." });
+        
+        trackCalculatorEvent('apply_simulation_code', {
+          code: code.toUpperCase(),
+          status: 'success'
+        });
       } else {
         toast({ variant: "destructive", title: "Código inválido", description: "Utilizando taxas padrão." });
         setAppliedCode(null);
         setActiveConfig(VIBY_DEFAULT_CONFIG);
+        
+        trackCalculatorEvent('apply_simulation_code', {
+          code: code.toUpperCase(),
+          status: 'invalid'
+        });
       }
     } catch (e) {
       setAppliedCode(null);
