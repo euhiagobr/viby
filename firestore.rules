@@ -35,6 +35,12 @@ service cloud.firestore {
 
     // --- REGRAS POR COLEÇÃO ---
 
+    // Configurações Globais (Site, Taxas, etc) - Leitura Pública Necessária
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /events/{eventId} {
       // Eventos 'draft' são privados ao dono
       allow read: if (resource.data.status != 'draft') || isOwner(resource.data.userId) || isAdmin();
