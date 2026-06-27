@@ -75,26 +75,6 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isAdmin() || isOrgMember(orgId);
     }
-
-    match /categories/{catId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /usernames/{username} {
-      allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
-    }
-
-    match /brand_assets/{assetId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /ads/{adId} {
-      allow read: if true;
-      allow write: if isAdmin() || isOrgMember(resource.data.organizationId);
-    }
     
     // Fallback genérico (mantendo compatibilidade com outras coleções)
     match /{path=**} {
