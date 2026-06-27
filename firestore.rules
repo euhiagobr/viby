@@ -33,10 +33,16 @@ service cloud.firestore {
       );
     }
 
-    // --- REGRAS PÚBLICAS (Acesso sem autenticação) ---
+    // --- REGRAS PÚBLICAS (Acesso sem autenticação para visitantes) ---
 
-    // Configurações Globais (Essencial para o carregamento do Logo e Branding)
+    // Configurações Globais (Logo, Branding, SEO)
     match /settings/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Configurações de Sistema (Integrações como Google Ads)
+    match /system_settings/{document=**} {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -51,6 +57,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Páginas de Cidades (SEO)
+    match /cityPages/{cityId} {
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
+    }
+
+    // Dados de Apoio ao Feed (Recorrências e Anúncios Ativos)
+    match /recurring_occurrences/{occId} {
+      allow read: if true;
+      allow write: if isAdmin() || isOrgMember(resource.data.organizationId);
+    }
+
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isAdmin() || isOrgMember(resource.data.organizationId);
+    }
+
     // Perfis de Organizações e Eventos Públicos
     match /organizations/{orgId} {
       allow read: if true;
@@ -59,11 +82,11 @@ service cloud.firestore {
     }
 
     match /events/{eventId} {
-      // Eventos 'draft' são privados ao dono, os demais são públicos
-      allow read: if (resource.data.status != 'draft') || isOwner(resource.data.userId) || isAdmin();
+      // Eventos 'Ativo' ou 'Oculto' são visíveis. Rascunhos (draft) são privados.
+      allow read: if (resource.data.status == 'Ativo') || (resource.data.status == 'Oculto') || isOwner(resource.data.userId) || isOwner(resource.data.organizerId) || isAdmin() || isOrgMember(resource.data.organizationId);
       allow create: if isSignedIn();
-      allow update: if isOwner(resource.data.userId) || isAdmin() || isOrgMember(resource.data.organizationId);
-      allow delete: if isAdmin() || isOwner(resource.data.userId);
+      allow update: if isOwner(resource.data.userId) || isOwner(resource.data.organizerId) || isAdmin() || isOrgMember(resource.data.organizationId);
+      allow delete: if isAdmin() || isOwner(resource.data.userId) || isOwner(resource.data.organizerId);
 
       match /interests/{userId} {
         allow read: if true;
@@ -94,8 +117,20 @@ service cloud.firestore {
       }
     }
 
-    // --- REGRAS RESTRITAS (Apenas Admin) ---
+    // --- REGRAS RESTRITAS (Apenas Admin ou Proprietário) ---
     
+    match /registrations/{regId} {
+      allow read: if isAdmin() || isOwner(resource.data.userId) || isOrgMember(resource.data.organizationId);
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || isOrgMember(resource.data.organizationId);
+    }
+
+    match /support_tickets/{ticketId} {
+      allow read: if isAdmin() || isOwner(resource.data.userId);
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || isOwner(resource.data.userId);
+    }
+
     match /system_logs/{logId} {
       allow read, write: if isAdmin();
     }
@@ -105,12 +140,7 @@ service cloud.firestore {
       allow write: if false; // Apenas via Server Actions
     }
 
-    match /payout_requests/{reqId} {
-      allow read: if isAdmin() || isOwner(resource.data.userId);
-      allow write: if isAdmin();
-    }
-
-    // Fallback de segurança
+    // Fallback de segurança para qualquer outra coleção
     match /{path=**} {
       allow read: if isAdmin();
       allow write: if isAdmin();

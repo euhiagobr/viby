@@ -14,9 +14,9 @@ service firebase.storage {
       );
     }
 
-    // --- ACESSO PÚBLICO (Leitura liberada para assets de UI) ---
+    // --- ACESSO PÚBLICO (Leitura liberada para ativos de marca e interface) ---
 
-    // Branding do Site (Logotipo, Favicon, Banners da Home)
+    // Branding do Site (Logotipos e Favicon)
     match /admin/site/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin();
@@ -31,16 +31,16 @@ service firebase.storage {
     // Capas de Cidades
     match /city-covers/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() || isAdmin();
     }
 
     match /city-covers-manual/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() || isAdmin();
     }
 
-    // Imagens de Usuários, Organizações e Eventos (Públicas para a vitrine)
-    match /users/{userId}/avatar {
+    // Mídias de Usuários, Organizações e Eventos (Públicas para a vitrine)
+    match /users/{userId}/{allPaths=**} {
       allow read: if true;
       allow write: if request.auth.uid == userId || isAdmin();
     }
@@ -50,9 +50,14 @@ service firebase.storage {
       allow write: if isSignedIn() || isAdmin();
     }
 
-    match /events/{userId}/{allPaths=**} {
+    match /events/{eventId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth.uid == userId || isAdmin();
+      allow write: if isSignedIn() || isAdmin();
+    }
+
+    match /ads/{orgId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
     }
 
     // --- ACESSO PRIVADO (Protegido por UID ou Admin) ---
