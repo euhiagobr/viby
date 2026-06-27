@@ -1,0 +1,36 @@
+
+{
+  "collections": {
+    "users": {
+      "path": "/users/{uid}",
+      "description": "Dados mestres de identidade do usuário.",
+      "fields": {
+        "uid": "string",
+        "email": "string (lowercase)",
+        "name": "string",
+        "avatar": "string (url)",
+        "provider": "string (google | facebook | password)",
+        "username": "string | null",
+        "cpfHash": "string | null",
+        "profileComplete": "boolean",
+        "role": "string (user | admin)",
+        "status": "string (Ativo | Bloqueado)",
+        "followingCount": "number",
+        "totalXp": "number",
+        "level": "number",
+        "createdAt": "serverTimestamp",
+        "updatedAt": "serverTimestamp"
+      }
+    },
+    "usernames": {
+      "path": "/usernames/{username}",
+      "description": "Índice de unicidade global para rotas de perfil.",
+      "fields": {
+        "uid": "string",
+        "type": "string (user | organization)",
+        "email": "string",
+        "username": "string"
+      }
+    }
+  }
+}

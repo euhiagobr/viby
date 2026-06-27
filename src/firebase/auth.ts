@@ -1,12 +1,8 @@
+
 'use client';
 
 import { getAuth, Auth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { app } from "./apps";
-
-/**
- * @fileOverview Inicialização do Firebase Auth como Singleton Estrito.
- * O uso de globalThis previne múltiplas instâncias durante o Fast Refresh do Next.js.
- */
 
 declare global {
   var authInstance: Auth | undefined;
@@ -14,8 +10,9 @@ declare global {
 
 const initializeAuth = (): Auth => {
   const auth = getAuth(app);
-  // Configuração síncrona de persistência para evitar delays no gesto do usuário
-  setPersistence(auth, browserLocalPersistence).catch(e => console.warn("[Auth] Persistence Error:", e));
+  setPersistence(auth, browserLocalPersistence).catch(e => {
+    console.error('[Auth-Audit] Persistence Error:', e.code);
+  });
   return auth;
 };
 
@@ -23,7 +20,7 @@ export const auth = (() => {
   if (typeof window !== 'undefined') {
     if (!globalThis.authInstance) {
       globalThis.authInstance = initializeAuth();
-      console.log('[Auth] Singleton initialized on Client');
+      console.log('[Auth-Audit] Singleton initialized on Client');
     }
     return globalThis.authInstance;
   }

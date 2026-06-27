@@ -1,9 +1,11 @@
+
 'use client';
 
 import { 
   GoogleAuthProvider, 
   FacebookAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   Auth,
   User
 } from "firebase/auth";
@@ -15,8 +17,6 @@ import {
   runTransaction,
   increment
 } from "firebase/firestore";
-import { sendWelcomeEmail } from "@/app/actions/email";
-import { recordAuditLog } from "@/app/actions/audit";
 
 const VIBY_OFFICIAL_UID = "dd9665af-ad6d-405c-a51d-08220fecf96f";
 
@@ -25,19 +25,17 @@ export const authConfig = {
   facebook: true
 };
 
-/**
- * Garante que o perfil do usuário exista no banco após o login social.
- */
 export async function ensureUserProfile(user: User, db: Firestore) {
   if (!user || !db) return null;
-  console.log('[Auth-Debug] 5. Entering ensureUserProfile for:', user.email);
+  
+  console.log('[Auth-Audit] 4. Processing ensureUserProfile:', user.email);
   const userRef = doc(db, "users", user.uid);
   
   try {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      console.log('[Auth-Debug] 6. Creating new user document');
+      console.log('[Auth-Audit] 5. Creating new user document');
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       const userData = {
         uid: user.uid,
@@ -69,34 +67,18 @@ export async function ensureUserProfile(user: User, db: Firestore) {
           updatedAt: serverTimestamp()
         });
       });
-
-      if (user.email) {
-        sendWelcomeEmail({ to: user.email, userName: initialName }).catch(() => {});
-      }
-
-      await recordAuditLog({
-        userId: user.uid,
-        userEmail: user.email,
-        action: 'signup',
-        category: 'auth',
-        success: true
-      });
-
       return { ...userData, id: user.uid, isNew: true };
     }
-    console.log('[Auth-Debug] 6. User document already exists');
+    console.log('[Auth-Audit] 5. User document already exists');
     return { ...userSnap.data(), id: user.uid, isNew: false };
   } catch (error) {
-    console.error('[Auth-Service] ensureUserProfile Error:', error);
+    console.error('[Auth-Audit] Profile Sync Failed:', error);
     throw error;
   }
 }
 
-/**
- * Inicia o login via Popup para debug.
- */
-export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
-  console.log('[Auth-Debug] 2. startSocialLogin popup for:', providerName);
+export async function startSocialRedirect(auth: Auth, providerName: 'google' | 'facebook') {
+  console.log('[Auth-Audit] 1. Triggering Redirect for:', providerName);
   const provider = providerName === 'google' 
     ? new GoogleAuthProvider() 
     : new FacebookAuthProvider();
@@ -106,11 +88,25 @@ export async function startSocialLogin(auth: Auth, providerName: 'google' | 'fac
   }
 
   try {
-    const result = await signInWithPopup(auth, provider);
-    console.log('[Auth-Debug] 3. Popup Success! User:', result.user.email);
-    return result.user;
+    await signInWithRedirect(auth, provider);
   } catch (error: any) {
-    console.error('[Auth-Debug] Popup Error:', error.code, error.message);
+    console.error('[Auth-Audit] Redirect Start Error:', error.code);
+    throw error;
+  }
+}
+
+export async function captureRedirectResult(auth: Auth) {
+  console.log('[Auth-Audit] 2. Checking Redirect Result...');
+  try {
+    const result = await getRedirectResult(auth);
+    if (result?.user) {
+      console.log('[Auth-Audit] 3. User found in redirect:', result.user.email);
+      return result.user;
+    }
+    console.log('[Auth-Audit] 3. No user in redirect result');
+    return null;
+  } catch (error: any) {
+    console.error('[Auth-Audit] 3. Redirect Capture Error:', error.code, error.message);
     throw error;
   }
 }
