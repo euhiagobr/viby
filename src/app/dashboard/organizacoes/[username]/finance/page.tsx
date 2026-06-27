@@ -41,7 +41,9 @@ import {
   Calculator,
   Calendar,
   AlertTriangle,
-  Lock as LockIcon
+  Lock as LockIcon,
+  ArrowRight,
+  User as UserIcon
 } from 'lucide-react';
 import { formatCurrency, VIBY_BUYER_MARKUP, VIBY_ORGANIZER_FEE, VIBY_MIN_FEE_BRL } from '@/lib/financial-utils';
 import { cn } from "@/lib/utils";
@@ -71,6 +73,7 @@ function OrganizationFinanceContent() {
   const { user } = useUser(auth);
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { formatPrice, currency, rates } = useCurrency();
 
   const adsSettingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
   const { data: adsSettings } = useDoc<any>(adsSettingsRef);
@@ -125,16 +128,23 @@ function OrganizationFinanceContent() {
   const { data: rawSales, loading: salesLoading } = useCollection<any>(salesQuery);
 
   const isConnectActive = currentOrg?.stripePayoutsEnabled && currentOrg?.stripeChargesEnabled;
+  const isFinanceManager = ['owner', 'admin', 'finance'].includes(userRole || '');
 
   const sales = React.useMemo(() => {
     if (!rawSales) return [];
     return rawSales
-      .filter((r: any) => ["Pago", "Disponível", "Cancelado"].includes(r.paymentStatus))
+      .filter((r: any) => ["Pago", "Disponível", "Cancelado", "Estornado"].includes(r.paymentStatus) || r.status === 'refunded' || r.status === 'cancelled')
       .filter((r: any) => {
         const s = salesSearch.toLowerCase();
-        return r.eventTitle?.toLowerCase().includes(s) || r.userName?.toLowerCase().includes(s) || r.ticketCode?.toLowerCase().includes(s);
+        return (r.eventTitle?.toLowerCase() || "").includes(s) || 
+               (r.userName?.toLowerCase() || "").includes(s) || 
+               (r.ticketCode?.toLowerCase() || "").includes(s);
       })
-      .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+      .sort((a, b) => {
+        const tA = a.timestamp?.seconds || a.createdAt?.seconds || 0;
+        const tB = b.timestamp?.seconds || b.createdAt?.seconds || 0;
+        return tB - tA;
+      });
   }, [rawSales, salesSearch]);
 
   const handleValidateCoupon = async () => {
@@ -172,20 +182,6 @@ function OrganizationFinanceContent() {
 
       if (data.maxTotalUses > 0 && data.currentUses >= data.maxTotalUses) {
          throw new Error("Este cupom atingiu o limite máximo de utilizações.");
-      }
-
-      if (data.maxUsesPerUser > 0) {
-        const usagesQuery = query(
-           collectionGroup(db, 'transactions'),
-           where('userId', '==', user.uid),
-           where('couponCode', '==', data.code),
-           where('status', '==', 'completed')
-        );
-        
-        const usagesSnap = await getDocs(usagesQuery);
-        if (usagesSnap.size >= data.maxUsesPerUser) {
-           throw new Error(`Você já atingiu o limite de ${data.maxUsesPerUser} uso(s) para este cupom.`);
-        }
       }
 
       setAppliedCoupon(data);
@@ -251,7 +247,7 @@ function OrganizationFinanceContent() {
         toast({ 
           variant: "destructive", 
           title: "Erro no Checkout", 
-          description: result.error || "Ocorreu um erro ao gerar a sessão de pagamento. Verifique as configurações do Stripe." 
+          description: result.error || "Erro ao gerar sessão de pagamento." 
         });
       }
     } catch (e: any) { 
@@ -375,10 +371,68 @@ function OrganizationFinanceContent() {
                  </div>
               </CardHeader>
               <CardContent className="p-0">
-                 {salesLoading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div> : (
-                   <div className="flex items-center gap-2 text-muted-foreground bg-muted/50 p-2 rounded-lg m-4">
-                      <LockIcon className="w-4 h-4 shrink-0" />
-                      <span className="text-[10px] font-black uppercase tracking-tight">Restrito</span>
+                 {salesLoading ? (
+                   <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
+                 ) : isFinanceManager ? (
+                   sales.length > 0 ? (
+                    <Table>
+                      <TableHeader className="bg-muted/10">
+                        <TableRow>
+                          <TableHead className="font-black uppercase text-[10px] p-6">Data / Identificação</TableHead>
+                          <TableHead className="font-black uppercase text-[10px]">Evento / Comprador</TableHead>
+                          <TableHead className="font-black uppercase text-[10px] text-center">Status</TableHead>
+                          <TableHead className="font-black uppercase text-[10px] text-right p-6">Repasse Líquido</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sales.map((sale: any) => {
+                          const isCancelled = sale.status === 'refunded' || sale.status === 'cancelled' || sale.paymentStatus === 'Estornado';
+                          const date = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp);
+                          return (
+                            <TableRow key={sale.id} className={cn("hover:bg-muted/10 transition-colors", isCancelled && "opacity-50 line-through")}>
+                              <TableCell className="p-6">
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-bold text-muted-foreground">{date.toLocaleDateString('pt-BR')}</span>
+                                  <span className="font-mono text-[9px] uppercase tracking-widest">{sale.ticketCode || sale.id.slice(-8)}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-xs uppercase text-primary truncate max-w-[200px]">{sale.eventTitle}</span>
+                                  <span className="text-[9px] text-muted-foreground uppercase flex items-center gap-1.5">
+                                    <UserIcon className="w-2.5 h-2.5" /> {sale.userName}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge className={cn(
+                                  "text-[8px] font-black uppercase h-5",
+                                  isCancelled ? "bg-red-500 text-white" : "bg-green-600 text-white"
+                                )}>
+                                  {isCancelled ? "Cancelado" : "Confirmado"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right p-6 font-black text-sm text-primary">
+                                {formatPrice(sale.producerNetAmount || 0, (sale.currency || 'BRL') as CurrencyCode)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                   ) : (
+                    <div className="py-24 text-center">
+                      <Inbox className="w-12 h-12 mx-auto opacity-10 mb-4" />
+                      <p className="text-xs font-bold text-muted-foreground uppercase">Nenhuma venda registrada para os filtros aplicados.</p>
+                    </div>
+                   )
+                 ) : (
+                   <div className="flex items-center gap-2 text-muted-foreground bg-muted/50 p-6 rounded-lg m-8 border border-dashed">
+                      <LockIcon className="w-5 h-5 shrink-0 text-orange-500" />
+                      <div>
+                        <p className="text-sm font-black uppercase italic text-primary">Acesso Restrito</p>
+                        <p className="text-[10px] font-medium uppercase leading-tight">Você não tem permissão para visualizar o extrato financeiro desta marca.</p>
+                      </div>
                    </div>
                  )}
               </CardContent>
