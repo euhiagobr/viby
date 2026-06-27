@@ -1,0 +1,32 @@
+{
+  "architecture": "Next.js App Router Unified Auth",
+  "provider": "src/firebase/auth-context.tsx",
+  "singletons": {
+    "app": "src/firebase/app.ts",
+    "auth": "src/firebase/auth.ts",
+    "db": "src/firebase/database.ts"
+  },
+  "persistence": "browserLocalPersistence",
+  "strategy": "signInWithRedirect",
+  "collections": {
+    "users": {
+      "path": "/users/{uid}",
+      "fields": {
+        "uid": "string",
+        "email": "string",
+        "name": "string",
+        "username": "string | null",
+        "role": "user | admin",
+        "status": "Ativo | Bloqueado",
+        "createdAt": "serverTimestamp"
+      }
+    },
+    "usernames": {
+      "path": "/usernames/{username}",
+      "fields": {
+        "uid": "string",
+        "type": "user | organization"
+      }
+    }
+  }
+}

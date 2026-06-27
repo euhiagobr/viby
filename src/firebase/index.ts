@@ -1,26 +1,24 @@
 'use client';
 
-/**
- * @fileOverview Ponto de entrada central para o Firebase no cliente.
- * Atua como um "barrel file" para re-exportar instâncias e hooks estabilizados.
- */
+import { app } from './app';
+import { auth } from './auth';
+import { db } from './database';
+import { storage } from './storage';
 
-export { app } from './apps';
+export { app } from './app';
 export { auth } from './auth';
 export { db } from './database';
 export { storage } from './storage';
+export { AuthProvider, useAuthContext, useUser } from './auth-context';
 
-export {
-  FirebaseProvider,
-  useFirebase,
-  useFirebaseApp,
-  useFirestore,
-  useAuth,
-  useStorage,
-} from './provider';
-
-export { FirebaseClientProvider } from './client-provider';
 export { useCollection } from './firestore/use-collection';
 export { useDoc } from './firestore/use-doc';
 export { useMemoFirebase } from './firestore/use-memo-firebase';
-export { useUser } from './auth/use-user';
+
+/**
+ * Hooks de instância para acesso direto aos serviços do Firebase no Cliente.
+ */
+export const useFirebaseApp = () => app;
+export const useAuth = () => auth;
+export const useFirestore = () => db;
+export const useStorage = () => storage;

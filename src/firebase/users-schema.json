@@ -1,0 +1,16 @@
+{
+  "collection": "users",
+  "description": "Perfil de usuário gerado automaticamente após autenticação social ou manual.",
+  "fields": {
+    "uid": "string (Firebase Auth UID)",
+    "email": "string",
+    "name": "string",
+    "avatar": "string (URL)",
+    "role": "user | admin",
+    "status": "Ativo | Bloqueado",
+    "username": "string (opcional, min 5 chars)",
+    "cpfHash": "string (opcional, para conformidade LGPD)",
+    "createdAt": "timestamp",
+    "updatedAt": "timestamp"
+  }
+}

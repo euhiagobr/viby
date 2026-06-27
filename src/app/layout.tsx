@@ -1,8 +1,7 @@
-
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
-import { FirebaseClientProvider } from '@/firebase';
+import { AuthProvider } from '@/firebase';
 import { CartProvider } from '@/contexts/CartContext';
 import { ErrorManagerProvider } from '@/components/error-manager/ErrorManagerProvider';
 import { GlobalErrorBoundary } from '@/components/error-manager/GlobalErrorBoundary';
@@ -23,74 +22,10 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
-async function getSiteSettings() {
-  try {
-    const { getAdminDb } = await import('@/lib/firebase/admin');
-    const db = getAdminDb();
-    const snap = await db.collection('settings').doc('site').get();
-    return snap.exists ? snap.data() : null;
-  } catch (e) {
-    return null;
-  }
-}
-
-export async function generateMetadata(): Promise<Metadata> {
-  const settings = await getSiteSettings();
-  const siteName = settings?.siteName || 'Viby';
-  const description = 'Descubra eventos, experiências e comunidades na Viby.';
-  
-  const rawIconUrl = settings?.siteIconUrl || settings?.iconUrl || DEFAULT_FAVICON;
-  const version = settings?.imageVersion || Date.now();
-  const separator = rawIconUrl.includes('?') ? '&' : '?';
-  const iconUrl = rawIconUrl.startsWith('http') ? `${rawIconUrl}${separator}cache_v=${version}` : rawIconUrl;
-
-  return {
-    title: {
-      default: `${siteName} | Experiências Memoráveis`,
-      template: `%s | ${siteName}`
-    },
-    description,
-    metadataBase: new URL('https://viby.club'),
-    keywords: ['eventos', 'ingressos', 'shows', 'experiências', 'viby', 'baladas', 'festivais'],
-    icons: {
-      icon: [
-        { url: iconUrl, type: 'image/png' },
-      ],
-      apple: [
-        { url: iconUrl, sizes: '180x180', type: 'image/png' },
-      ],
-    },
-    openGraph: {
-      title: siteName,
-      description,
-      url: 'https://viby.club',
-      siteName: siteName,
-      images: [
-        {
-          url: VIBY_OG_IMAGE,
-          width: 1200,
-          height: 630,
-          alt: siteName,
-        },
-      ],
-      locale: 'pt_BR',
-      type: 'website',
-    },
-    facebook: {
-      appId: '1537942881340602',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: siteName,
-      description,
-      images: [{ url: VIBY_OG_IMAGE, width: 1200, height: 630 }],
-    },
-    robots: {
-      index: true,
-      follow: true,
-    }
-  };
-}
+export const metadata: Metadata = {
+  title: 'Viby | Experiências Memoráveis',
+  description: 'Descubra eventos, experiências e comunidades na Viby.',
+};
 
 export default function RootLayout({
   children,
@@ -99,16 +34,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        <meta name="google-adsense-account" content="ca-pub-3790085999731396" />
-        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3790085999731396" crossOrigin="anonymous"></script>
-      </head>
       <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
         <GoogleAdsTag />
-        <FirebaseClientProvider>
+        <AuthProvider>
           <I18nProvider>
             <CurrencyProvider>
               <ErrorManagerProvider>
@@ -125,7 +53,7 @@ export default function RootLayout({
               </ErrorManagerProvider>
             </CurrencyProvider>
           </I18nProvider>
-        </FirebaseClientProvider>
+        </AuthProvider>
       </body>
     </html>
   );
