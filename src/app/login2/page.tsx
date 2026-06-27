@@ -26,54 +26,32 @@ export default function Login2AuditPage() {
 
   useEffect(() => {
     if (!auth || !db) return;
-    if (checkStarted.current) {
-        console.log('[AUDIT-UI] useEffect blocked by ref lock (Strict Mode Prevention)');
-        return;
-    }
+    if (checkStarted.current) return;
     checkStarted.current = true;
 
-    console.group('[AUDIT-UI] COMPONENT MOUNTED');
-    console.log('Timestamp:', new Date().toISOString());
-    console.log('Location:', window.location.href);
-    console.log('Referrer:', document.referrer);
-    // @ts-ignore
-    console.log('Navigation Type:', performance.getEntriesByType("navigation")[0]?.type || 'unknown');
-    
     const init = async () => {
       try {
-        console.log('[AUDIT-UI] 1. Calling captureRedirectResult...');
+        console.log('[AUDIT-FLOW] 3. Action: captureRedirectResult triggered on mount');
         const user = await captureRedirectResult(auth);
         
         if (user) {
-          console.log('[AUDIT-UI] 2. Redirect User Detected. Ensuring Profile...');
           const profile = await ensureUserProfile(user, db);
-          console.log('[AUDIT-UI] 3. Profile Success. UID:', user.uid);
           setCurrentUser(user);
-          
           if (profile && (!profile.username || !profile.cpfHash)) {
-             console.log('[AUDIT-UI] 3.1 Redirecting to onboarding (Missing Data)');
              router.push('/onboarding');
           }
         } else {
-          console.log('[AUDIT-UI] 2. No redirect result found. Checking current session state...');
-          console.log('[AUDIT-UI] 2.1 auth.currentUser (immediate):', auth.currentUser ? 'PRESENT' : 'NULL');
-          
           const unsubscribe = onAuthStateChanged(auth, (authUser) => {
-            console.log('[AUDIT-UI] 2.2 onAuthStateChanged Fired:', authUser ? 'USER_PRESENT' : 'USER_NULL');
-            if (authUser) {
-              setCurrentUser(authUser);
-            }
+            if (authUser) setCurrentUser(authUser);
             setLoading(false);
             unsubscribe();
           });
           return;
         }
       } catch (err: any) {
-        console.error('[AUDIT-UI] CRITICAL FAILURE:', err);
         setError(`${err.code}: ${err.message}`);
       } finally {
         setLoading(false);
-        console.groupEnd();
       }
     };
 
@@ -81,14 +59,23 @@ export default function Login2AuditPage() {
   }, [auth, db, router]);
 
   const handleLoginGoogle = async () => {
-    if (!auth) return;
-    console.log('[AUDIT-UI] User clicked Google Login');
+    console.log('[LOGIN] Button clicked');
+    if (!auth) {
+      console.error('[LOGIN] Error: Auth instance is null');
+      return;
+    }
+    
     setError(null);
     setLoading(true);
+
     try {
+      console.log('[LOGIN] handleLoginGoogle() calling startSocialRedirect...');
       await startSocialRedirect(auth, 'google');
     } catch (err: any) {
-      console.error('[AUDIT-UI] Error initiating redirect:', err);
+      console.error('[LOGIN] Catch Block triggered');
+      console.error('[LOGIN] Error Code:', err.code);
+      console.error('[LOGIN] Error Message:', err.message);
+      console.error('[LOGIN] Error Stack:', err.stack);
       setError(err.message);
       setLoading(false);
     }
@@ -111,14 +98,14 @@ export default function Login2AuditPage() {
             <Terminal className="w-8 h-8" />
           </div>
           <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">Auth Audit Console</CardTitle>
-          <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Diagnostic Mode: check browser console (F12)</CardDescription>
+          <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Inicie o login e verifique o console (F12)</CardDescription>
         </CardHeader>
 
         <CardContent className="p-10 space-y-8">
           {loading ? (
             <div className="flex flex-col items-center gap-4 py-10">
               <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-              <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Running Diagnostic...</p>
+              <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Aguardando...</p>
             </div>
           ) : currentUser ? (
             <div className="space-y-6 animate-in zoom-in-95">
@@ -126,7 +113,7 @@ export default function Login2AuditPage() {
                   <CheckCircle2 className="w-12 h-12 text-green-600" />
                   <div className="space-y-1">
                     <p className="text-[10px] font-black uppercase opacity-40">Session Verified</p>
-                    <p className="text-sm font-bold text-green-800">{currentUser.displayName || 'No Name'}</p>
+                    <p className="text-sm font-bold text-green-800">{currentUser.displayName}</p>
                     <p className="text-xs font-mono opacity-60">{currentUser.email}</p>
                   </div>
                </div>
@@ -146,16 +133,6 @@ export default function Login2AuditPage() {
                 </div>
               )}
 
-              <div className="p-6 bg-blue-50 rounded-2xl border-2 border-dashed border-blue-100 flex items-start gap-4">
-                 <ShieldCheck className="w-6 h-6 text-blue-600 shrink-0" />
-                 <div className="space-y-1">
-                    <h4 className="text-xs font-black uppercase text-blue-800 italic">Audit Status</h4>
-                    <p className="text-[10px] text-blue-700 leading-relaxed font-medium uppercase">
-                      Clique no botão abaixo e observe o fluxo no console. Não feche a janela até o redirecionamento ocorrer.
-                    </p>
-                 </div>
-              </div>
-
               <Button 
                 onClick={handleLoginGoogle}
                 className="w-full h-16 bg-white border-2 border-primary text-primary font-black uppercase italic text-lg rounded-2xl shadow-xl gap-4 hover:bg-muted"
@@ -174,7 +151,7 @@ export default function Login2AuditPage() {
 
         <CardFooter className="p-8 pt-0 border-t bg-muted/10">
            <p className="w-full text-center text-[9px] font-black uppercase text-muted-foreground opacity-40 italic">
-              Viby System Auth Audit • v2.2.0
+              Viby System Auth Audit • v2.2.1
            </p>
         </CardFooter>
       </Card>
