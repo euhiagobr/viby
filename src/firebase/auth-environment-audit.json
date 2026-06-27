@@ -1,0 +1,33 @@
+
+{
+  "environment": "Google Cloud Workstations / Firebase Studio",
+  "audit_timestamp": "2024-05-23T10:00:00Z",
+  "requirements": {
+    "firebase_console": {
+      "path": "Authentication > Settings > Authorized Domains",
+      "must_include": [
+        "localhost",
+        "vibyeventos.firebaseapp.com",
+        "vibyeventos.web.app",
+        "*.cloudworkstations.dev (URL específica da sua instância)"
+      ]
+    },
+    "google_cloud_console": {
+      "path": "APIs & Services > Credentials > OAuth 2.0 Client IDs",
+      "authorized_javascript_origins": [
+        "https://vibyeventos.firebaseapp.com",
+        "https://9002-dot-..."
+      ],
+      "authorized_redirect_uris": [
+        "https://vibyeventos.firebaseapp.com/__/auth/handler"
+      ]
+    }
+  },
+  "known_issues": {
+    "issue_1": "Popups (signInWithPopup) são bloqueados por Cross-Origin policy em proxies reversos.",
+    "solution_1": "Utilizar estritamente signInWithRedirect.",
+    "issue_2": "Cookies de sessão do Firebase (__session) podem ser descartados se o proxy não estiver configurado para mantê-los.",
+    "solution_2": "Garantir que a URL de acesso seja HTTPS e o domínio esteja na lista de confiança."
+  },
+  "status": "AWAITING_MANUAL_VERIFICATION_IN_CONSOLE"
+}
