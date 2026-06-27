@@ -3,8 +3,9 @@
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useAuth, useUser } from "@/firebase"
+import { useAuth, useUser, useFirestore } from "@/firebase"
 import { signInWithEmailAndPassword } from "firebase/auth"
+import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,6 +29,7 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const auth = useAuth()
+  const db = useFirestore()
   const { user, profile, loading: authLoading, isInitialized } = useUser(auth)
 
   // PROTEÇÃO DE ROTA E ONBOARDING
@@ -47,13 +49,46 @@ function LoginContent() {
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!auth) return
+    if (!auth || !db) return
     setLoading(true)
     setError(null)
+
+    let email = identifier.trim().toLowerCase();
+
     try {
-      await signInWithEmailAndPassword(auth, identifier.trim().toLowerCase(), password)
+      // Lógica de Resolução: Se não for e-mail (não tem @), busca o e-mail pelo username
+      if (!email.includes("@")) {
+        const usernameClean = email.replace('@', '');
+        const usernameRef = doc(db, "usernames", usernameClean);
+        const usernameSnap = await getDoc(usernameRef);
+        
+        if (usernameSnap.exists()) {
+          const uData = usernameSnap.data();
+          if (uData.type === 'user' && uData.email) {
+            email = uData.email;
+          } else {
+            throw { code: 'auth/user-not-found' };
+          }
+        } else {
+          // Fallback: busca direta na coleção de usuários se o índice falhar
+          const q = query(collection(db, "users"), where("username", "==", usernameClean), limit(1));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            email = snap.docs[0].data().email;
+          } else {
+            throw { code: 'auth/user-not-found' };
+          }
+        }
+      }
+
+      await signInWithEmailAndPassword(auth, email, password)
     } catch (err: any) {
-      setError("Credenciais inválidas. Verifique seu e-mail e tente novamente.")
+      console.error("[Login Error]", err.code);
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email') {
+        setError("Credenciais inválidas. Verifique seu usuário/e-mail e senha.");
+      } else {
+        setError("Ocorreu um problema ao tentar acessar sua conta. Tente novamente.");
+      }
     } finally {
       setLoading(false)
     }
@@ -97,10 +132,10 @@ function LoginContent() {
             <div className="space-y-8">
               <form onSubmit={handleLogin} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="identifier" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">{t('auth.email_label')}</Label>
+                  <Label htmlFor="identifier" className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Usuário ou E-mail</Label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
-                    <Input id="identifier" type="email" placeholder="seu@email.com" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required disabled={loading} className="h-14 rounded-2xl pl-12 border-dashed border-primary/20" />
+                    <Input id="identifier" placeholder="ex: joao.viby ou seu@email.com" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required disabled={loading} className="h-14 rounded-2xl pl-12 border-dashed border-primary/20" />
                   </div>
                 </div>
                 
