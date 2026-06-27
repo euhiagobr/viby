@@ -58,6 +58,7 @@ import { toast } from '@/hooks/use-toast';
 import { createAdBalanceTopUpSession, finalizeAdTopUpSession } from '@/app/actions/stripe';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext";
 import { RevenueSimulator } from '@/components/finance/RevenueSimulator';
 
