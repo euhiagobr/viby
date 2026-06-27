@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -15,10 +14,13 @@ import {
   Terminal, 
   Globe,
   AlertTriangle,
-  Info
+  Info,
+  MousePointer2
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
+
+const nowTs = () => new Date().getTime();
 
 export default function Login2DefinitivePage() {
   const { user, profile, loading, isInitialized } = useUser();
@@ -41,6 +43,18 @@ export default function Login2DefinitivePage() {
       });
     }
   }, [auth]);
+
+  const handleLoginGoogle = async () => {
+    console.log(`[${nowTs()}] [LOGIN] 1. Button clicked (Audit Google Login)`);
+    console.log(`[${nowTs()}] [LOGIN] - LocalStorage keys:`, Object.keys(localStorage));
+    console.log(`[${nowTs()}] [LOGIN] - SessionStorage keys:`, Object.keys(sessionStorage));
+    
+    try {
+      await loginWithGoogle();
+    } catch (e: any) {
+      console.error(`[${nowTs()}] [LOGIN] ERR: loginWithGoogle() failed to initiate`);
+    }
+  };
 
   if (!isInitialized || loading) {
     return (
@@ -78,7 +92,7 @@ export default function Login2DefinitivePage() {
               <div className="p-4 bg-orange-100 rounded-xl flex items-start gap-3">
                  <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0" />
                  <p className="text-[10px] text-orange-900 font-bold uppercase leading-relaxed">
-                    Mismatched Domains: Em Cloud Workstations, o redirect pode falhar se a URL de acesso não estiver explicitamente autorizada no Firebase Console.
+                    Mismatched Domains: Verifique os Authorized Domains no Firebase Console.
                  </p>
               </div>
             )}
@@ -91,8 +105,8 @@ export default function Login2DefinitivePage() {
           <div className="w-16 h-16 bg-secondary text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <ShieldCheck className="w-8 h-8" />
           </div>
-          <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">Autenticação Unificada</CardTitle>
-          <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Acesso via Redirecionamento (Redirect Flow)</CardDescription>
+          <CardTitle className="text-2xl font-black uppercase italic tracking-tighter">Auditoria de Login</CardTitle>
+          <CardDescription className="text-[10px] font-bold uppercase tracking-widest">Trace de Execução em Tempo Real</CardDescription>
         </CardHeader>
 
         <CardContent className="p-10 space-y-8">
@@ -101,7 +115,7 @@ export default function Login2DefinitivePage() {
                <div className="p-6 bg-green-50 rounded-[2rem] border-2 border-dashed border-green-200 flex flex-col items-center gap-4">
                   <CheckCircle2 className="w-12 h-12 text-green-600" />
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase opacity-40">Sessão Ativa</p>
+                    <p className="text-[10px] font-black uppercase opacity-40">Usuário Detectado</p>
                     <p className="text-sm font-bold text-green-800">{user.email}</p>
                   </div>
                </div>
@@ -109,23 +123,23 @@ export default function Login2DefinitivePage() {
                   <Button asChild className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
                     <Link href="/dashboard">Entrar no Sistema <ArrowRight className="ml-2 w-4 h-4" /></Link>
                   </Button>
-                  <Button variant="ghost" onClick={() => logout()} className="text-destructive font-black uppercase text-[10px] h-10">Sair com Segurança</Button>
+                  <Button variant="ghost" onClick={() => logout()} className="text-destructive font-black uppercase text-[10px] h-10">Sair para Novo Teste</Button>
                </div>
             </div>
           ) : (
             <div className="space-y-6">
               <Button 
-                onClick={() => loginWithGoogle()}
+                onClick={handleLoginGoogle}
                 className="w-full h-16 bg-white border-2 border-primary text-primary font-black uppercase italic text-lg rounded-2xl shadow-xl gap-4 hover:bg-muted"
               >
-                <Globe className="w-6 h-6" />
-                Entrar com Google
+                <MousePointer2 className="w-6 h-6 text-secondary" />
+                Audit Google Login
               </Button>
               
               <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
-                 <Info className="w-5 h-5 text-secondary shrink-0" />
+                 <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                  <p className="text-[9px] text-secondary font-bold uppercase leading-tight italic">
-                   Utilizando o fluxo de Redirecionamento. Se após escolher a conta você voltar a esta tela sem estar logado, verifique os domínios autorizados no Console do Firebase.
+                   Abra o console (F12) antes de clicar para visualizar o trace completo da execução.
                  </p>
               </div>
             </div>

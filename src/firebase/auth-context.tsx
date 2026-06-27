@@ -24,6 +24,8 @@ const AuthContext = createContext<AuthContextType>({
   isInitialized: false,
 });
 
+const nowTs = () => new Date().getTime();
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
@@ -32,7 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasCheckedRedirect = useRef(false);
 
   useEffect(() => {
-    const handleProfile = async (firebaseUser: User | null) => {
+    console.log(`[${nowTs()}] [AUTH-PROVIDER] 1. AuthProvider mounted`);
+    console.log(`[${nowTs()}] [AUTH-PROVIDER] - URL:`, window.location.href);
+    console.log(`[${nowTs()}] [AUTH-PROVIDER] - Referrer:`, document.referrer);
+
+    const handleProfile = async (firebaseUser: User | null, source: string) => {
+      console.log(`[${nowTs()}] [AUTH-PROVIDER] 5. handleProfile() from ${source}. User:`, firebaseUser?.email || 'null');
+      
       if (!firebaseUser) {
         setUser(null);
         setProfile(null);
@@ -44,13 +52,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
       
       try {
+        console.log(`[${nowTs()}] [AUTH-PROVIDER] 6. Fetching Firestore profile for:`, firebaseUser.uid);
         const userRef = doc(db, "users", firebaseUser.uid);
         const userSnap = await getDoc(userRef);
         
         if (userSnap.exists()) {
+          console.log(`[${nowTs()}] [AUTH-PROVIDER] 7. Profile found in Firestore`);
           setProfile({ ...userSnap.data(), id: userSnap.id });
         } else {
-          // Auto-provisão para primeiro login social
+          console.log(`[${nowTs()}] [AUTH-PROVIDER] 7. Profile NOT found. Creating initial data...`);
           const initialData = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
@@ -65,33 +75,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(initialData);
         }
       } catch (e) {
-        console.error("AuthContext Profile Sync Error:", e);
+        console.error(`[${nowTs()}] [AUTH-PROVIDER] ERR: Profile sync error:`, e);
       } finally {
         setLoading(false);
         setIsInitialized(true);
       }
     };
 
-    // 1. Processar resultado de redirecionamento (Executa apenas uma vez)
+    // 1. Capturar Resultado de Redirecionamento
     if (!hasCheckedRedirect.current) {
       hasCheckedRedirect.current = true;
+      console.log(`[${nowTs()}] [AUTH-PROVIDER] 2. Executing getRedirectResult()`);
       getRedirectResult(auth)
         .then((result) => {
-          if (result?.user) {
-            handleProfile(result.user);
+          console.log(`[${nowTs()}] [AUTH-PROVIDER] 3. getRedirectResult response:`, result ? 'RESULT_FOUND' : 'NULL');
+          if (result) {
+             console.log(`[${nowTs()}] [AUTH-PROVIDER] - OpType:`, result.operationType);
+             console.log(`[${nowTs()}] [AUTH-PROVIDER] - Provider:`, result.providerId);
+             console.log(`[${nowTs()}] [AUTH-PROVIDER] - User:`, result.user?.email);
+             handleProfile(result.user, 'REDIRECT_RESULT');
           }
         })
         .catch((error) => {
-          console.error("Redirect Auth Error:", error);
+          console.error(`[${nowTs()}] [AUTH-PROVIDER] ERR: getRedirectResult failed`);
+          console.error(`[${nowTs()}] [AUTH-PROVIDER] Code:`, error.code);
+          console.error(`[${nowTs()}] [AUTH-PROVIDER] Message:`, error.message);
         });
     }
 
-    // 2. Listener de estado de autenticação persistente
+    // 2. Listener de Mudança de Estado
+    console.log(`[${nowTs()}] [AUTH-PROVIDER] 4. Registering onAuthStateChanged listener`);
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
-      handleProfile(authUser);
+      console.log(`[${nowTs()}] [AUTH-PROVIDER] -> onAuthStateChanged triggered. AuthUser:`, authUser?.email || 'null');
+      handleProfile(authUser, 'AUTH_STATE_CHANGED');
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log(`[${nowTs()}] [AUTH-PROVIDER] Unmounting...`);
+      unsubscribe();
+    };
   }, []);
 
   return (
