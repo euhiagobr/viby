@@ -2,34 +2,57 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/firebase";
-import { startSocialLogin, authConfig } from "@/services/auth-service";
+import { useAuth, useFirestore } from "@/firebase";
+import { startSocialLogin, ensureUserProfile, authConfig } from "@/services/auth-service";
 import { Loader2, AlertCircle, Facebook } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export function SocialLoginButtons() {
   const auth = useAuth();
+  const db = useFirestore();
+  const router = useRouter();
   const [loadingProvider, setLoadingProvider] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
-  const handleSocialLogin = (provider: 'google' | 'facebook') => {
+  const handleSocialLogin = async (provider: 'google' | 'facebook') => {
     console.log(`[Auth-Debug] 1. Click detected for ${provider}`);
-    if (!auth) return;
+    if (!auth || !db) return;
     
     setError(null);
     setLoadingProvider(provider);
     
-    // CHAMADA SÍNCRONA: Iniciamos o redirecionamento sem 'await' para preservar o gesto do usuário
-    startSocialLogin(auth, provider).catch(err => {
-      console.error("[Auth-Debug] Redirect Failed:", err.code);
+    try {
+      const user = await startSocialLogin(auth, provider);
+      console.log('[Auth-Debug] 4. Processing user profile...');
+      
+      const profileData: any = await ensureUserProfile(user, db);
+      
+      if (profileData) {
+        console.log('[Auth-Debug] 7. Profile ready. Redirecting...');
+        const hasMandatoryData = !!(profileData.username && profileData.cpfHash);
+        
+        if (!hasMandatoryData || profileData.needsCPFUpdate) {
+           router.push("/onboarding");
+        } else {
+           router.push("/dashboard");
+        }
+      }
+    } catch (err: any) {
+      console.error("[Auth-Debug] Login Failed:", err.code);
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError("O login foi cancelado. Clique novamente para tentar.");
+      } else {
+        setError("Falha ao iniciar autenticação.");
+      }
+    } finally {
       setLoadingProvider(null);
-      setError("Falha ao iniciar login social.");
-    });
+    }
   };
 
   return (
     <div className="space-y-4 w-full">
       {error && (
-        <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-3 text-red-600 mb-2">
+        <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-3 text-red-600 mb-2 animate-in shake duration-300">
            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
            <p className="text-xs font-bold uppercase leading-tight">{error}</p>
         </div>

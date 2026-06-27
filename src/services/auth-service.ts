@@ -3,8 +3,7 @@
 import { 
   GoogleAuthProvider, 
   FacebookAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   Auth,
   User
 } from "firebase/auth";
@@ -94,37 +93,24 @@ export async function ensureUserProfile(user: User, db: Firestore) {
 }
 
 /**
- * Inicia o login via Redirect (Estritamente síncrono no evento de clique).
+ * Inicia o login via Popup para debug.
  */
-export function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
-  console.log('[Auth-Debug] 2. Calling signInWithRedirect for:', providerName);
+export async function startSocialLogin(auth: Auth, providerName: 'google' | 'facebook') {
+  console.log('[Auth-Debug] 2. startSocialLogin popup for:', providerName);
   const provider = providerName === 'google' 
     ? new GoogleAuthProvider() 
     : new FacebookAuthProvider();
 
-  // Forçar prompt de seleção de conta no Google
   if (providerName === 'google') {
     provider.setCustomParameters({ prompt: 'select_account' });
   }
 
-  return signInWithRedirect(auth, provider);
-}
-
-/**
- * Captura o resultado do redirecionamento no mount da página.
- */
-export async function handleSocialRedirectResult(auth: Auth, db: Firestore) {
-  console.log('[Auth-Debug] 3. Checking redirect result...');
   try {
-    const result = await getRedirectResult(auth);
-    if (result?.user) {
-      console.log('[Auth-Debug] 4. Redirect success! Found user:', result.user.email);
-      return await ensureUserProfile(result.user, db);
-    }
-    console.log('[Auth-Debug] 4. No redirect result found (null).');
-    return null;
+    const result = await signInWithPopup(auth, provider);
+    console.log('[Auth-Debug] 3. Popup Success! User:', result.user.email);
+    return result.user;
   } catch (error: any) {
-    console.error('[Auth-Debug] 4. Redirect Result Error:', error.code, error.message);
+    console.error('[Auth-Debug] Popup Error:', error.code, error.message);
     throw error;
   }
 }
