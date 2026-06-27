@@ -1,0 +1,87 @@
+{
+  "audit_version": "1.0.0",
+  "status": "PASSIVE_AUDIT_COMPLETE",
+  "structure": {
+    "pattern": "React Context API (Singleton approach)",
+    "container": "src/firebase/auth-context.tsx (AuthProvider)",
+    "entry": "src/app/layout.tsx (wraps {children})",
+    "instances": {
+      "app": "src/firebase/app.ts (Singleton check implemented)",
+      "auth": "src/firebase/auth.ts (Persistence set to local)",
+      "db": "src/firebase/database.ts (Memory cache configured)"
+    }
+  },
+  "flowchart": "Layout Mount -> AuthProvider Mount -> Instance Init -> Persistence Config -> register onAuthStateChanged -> getRedirectResult (Global) -> Page Mount -> getRedirectResult (Local Page) -> Render UI",
+  "involved_files": [
+    "src/firebase/config.ts",
+    "src/firebase/app.ts",
+    "src/firebase/auth.ts",
+    "src/firebase/database.ts",
+    "src/firebase/auth-context.tsx",
+    "src/services/auth-service.ts",
+    "src/app/login2/page.tsx",
+    "src/app/cadastro/page.tsx"
+  ],
+  "execution_order": {
+    "1": "Singleton App initialization in app.ts",
+    "2": "Auth instance creation and persistence setting in auth.ts",
+    "3": "AuthProvider mounting in layout.tsx",
+    "4": "onAuthStateChanged listener registration in auth-context.tsx",
+    "5": "Asynchronous getRedirectResult call in auth-context.tsx",
+    "6": "Page-level useEffect execution in login2/page.tsx or cadastro/page.tsx"
+  },
+  "entry_exit_points": {
+    "entry": "startSocialRedirect in src/services/auth-service.ts",
+    "exit": "logout in src/services/auth-service.ts"
+  },
+  "listeners": [
+    {
+      "name": "onAuthStateChanged",
+      "file": "src/firebase/auth-context.tsx",
+      "scope": "Global (Context)"
+    }
+  ],
+  "instances_created": {
+    "FirebaseApp": 1,
+    "FirebaseAuth": 1,
+    "Firestore": 1
+  },
+  "states": [
+    "user (Firebase User)",
+    "profile (Firestore Data)",
+    "loading (Boolean)",
+    "isInitialized (Boolean)"
+  ],
+  "dependencies": {
+    "AuthProvider": [
+      "src/firebase/auth.ts",
+      "src/firebase/database.ts"
+    ],
+    "AuthService": [
+      "src/firebase/auth.ts"
+    ],
+    "AuthInstance": [
+      "src/firebase/app.ts"
+    ]
+  },
+  "risks_detected": [
+    {
+      "id": "RACE_CONDITION_REDIRECT",
+      "severity": "CRITICAL",
+      "description": "getRedirectResult is being called simultaneously in auth-context.tsx and within individual pages (login2/page.tsx and cadastro/page.tsx). Since the redirect token is consumed upon the first call, subsequent calls return null.",
+      "evidence": "Duplicate useEffect blocks found in src/firebase/auth-context.tsx (L46) and src/app/login2/page.tsx (L38)."
+    },
+    {
+      "id": "DUPLICATE_INIT_LOGIC",
+      "severity": "LOW",
+      "description": "Redundant app initialization logic exists in src/firebase/apps.ts which is currently unused but present in the codebase.",
+      "evidence": "src/firebase/apps.ts vs src/firebase/app.ts"
+    },
+    {
+      "id": "DEAD_CODE",
+      "severity": "LOW",
+      "description": "The hook use-user.tsx in src/firebase/auth/ is not exported or used by the main index.ts.",
+      "evidence": "Unreferenced file: src/firebase/auth/use-user.tsx"
+    }
+  ]
+}
