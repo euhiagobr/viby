@@ -5,6 +5,7 @@ import { useUser } from '@/firebase';
 import { loginWithGoogle, logout } from '@/services/auth-service';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Loader2, ShieldCheck, ArrowRight, LogOut, Terminal, Globe } from 'lucide-react';
 import Link from 'next/link';
 
