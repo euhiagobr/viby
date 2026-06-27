@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useAuth, useUser, useFirestore } from "@/firebase"
+import { useAuth, useUser } from "@/firebase"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,8 +17,6 @@ import { Separator } from "@/components/ui/separator"
 import { useTranslation } from "@/i18n/i18n-context"
 import { PublicHeader } from "@/components/layout/PublicHeader"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { SocialLoginButtons } from "./SocialLoginButtons"
-import { handleSocialRedirectResult } from "@/services/auth-service"
 
 function LoginContent() {
   const { t } = useTranslation()
@@ -30,22 +28,9 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const auth = useAuth()
-  const db = useFirestore()
   const { user, profile, loading: authLoading, isInitialized } = useUser(auth)
 
-  const checkRedirectRef = useRef(false);
-
-  // 1. CAPTURA DE RESULTADO DO REDIRECIONAMENTO SOCIAL
-  useEffect(() => {
-    if (auth && db && !authLoading && !checkRedirectRef.current) {
-      checkRedirectRef.current = true;
-      handleSocialRedirectResult(auth, db).catch(err => {
-         console.warn("[Login] Redirect handling failed or cancelled.");
-      });
-    }
-  }, [auth, db, authLoading]);
-
-  // 2. PROTEÇÃO DE ROTA E ONBOARDING
+  // PROTEÇÃO DE ROTA E ONBOARDING
   useEffect(() => {
     if (!isInitialized || authLoading) return;
 
@@ -134,13 +119,6 @@ function LoginContent() {
                   {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : t('auth.login_btn')}
                 </Button>
               </form>
-
-              <div className="relative">
-                 <div className="absolute inset-0 flex items-center"><Separator className="w-full border-dashed" /></div>
-                 <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-white px-4 text-muted-foreground">Ou continue com</span></div>
-              </div>
-
-              <SocialLoginButtons />
             </div>
           </CardContent>
 
