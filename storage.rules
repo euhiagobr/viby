@@ -8,38 +8,23 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
-        firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid))
-      );
+      return isSignedIn() && firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid));
     }
 
-    // --- ACESSO PÚBLICO (Leitura liberada para ativos de marca e interface) ---
+    // --- ACESSO PÚBLICO (Leitura liberada para assets e mídias de vitrine) ---
 
-    // Branding do Site (Logotipos e Favicon)
+    // Branding, Logos e Assets de Identidade
     match /admin/site/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Material de Marca / Media Kit
     match /brand-assets/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Capas de Cidades
-    match /city-covers/{allPaths=**} {
-      allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
-    }
-
-    match /city-covers-manual/{allPaths=**} {
-      allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
-    }
-
-    // Mídias de Usuários, Organizações e Eventos (Públicas para a vitrine)
+    // Mídias de Usuários, Organizações e Eventos (Públicas)
     match /users/{userId}/{allPaths=**} {
       allow read: if true;
       allow write: if request.auth.uid == userId || isAdmin();
@@ -55,9 +40,14 @@ service firebase.storage {
       allow write: if isSignedIn() || isAdmin();
     }
 
+    match /city-covers/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /ads/{orgId}/{allPaths=**} {
       allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
+      allow write: if isAdmin();
     }
 
     // --- ACESSO PRIVADO (Protegido por UID ou Admin) ---
