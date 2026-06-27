@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -140,7 +139,7 @@ export default function AdminLayout({
                 alt={siteName} 
                 width={140} 
                 height={40} 
-                className="h-8 w-auto object-contain brightness-0 invert" 
+                className="h-8 w-auto object-contain" 
                 priority 
                 unoptimized
               />
