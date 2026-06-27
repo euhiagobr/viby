@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { 
   Wallet, 
   TrendingUp, 
@@ -225,7 +226,7 @@ function OrganizationFinanceContent() {
     if (!currentOrg || !user || !db) return;
     
     if (rechargeCalcs.base < minRechargeValue) {
-      toast({ variant: "destructive", title: "Valor mínimo", description: `O valor mínimo para recarga é ${formatCurrency(minRechargeValue)}.` });
+      toast({ variant: "destructive", title: "Valor mínimo", description: `O valor mínimo para recarga é de ${formatCurrency(minRechargeValue)}.` });
       return;
     }
 
@@ -304,7 +305,7 @@ function OrganizationFinanceContent() {
            <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Saldo Livre Ads</CardTitle></CardHeader>
            <CardContent>
               <div className="text-2xl font-black">{formatCurrency(currentOrg?.adBalance || 0)}</div>
-              <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Disponível para impulsionamento</p>
+              <p className="text-[8px] font-bold text-secondary uppercase mt-1">Disponível para impulsionamento</p>
            </CardContent>
         </Card>
       </div>
