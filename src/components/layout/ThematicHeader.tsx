@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -38,7 +39,7 @@ export function ThematicHeader({ themeColor, logoUrl, title, showBack }: Themati
       )}
     >
       <div className="container mx-auto px-4 h-full flex items-center justify-between">
-        <div className="flex items-center gap-2 sm:gap-6 overflow-hidden h-full">
+        <div className="flex items-center gap-2 sm:gap-6">
           {showBack && (
             <Button 
               variant="ghost" 
@@ -49,14 +50,14 @@ export function ThematicHeader({ themeColor, logoUrl, title, showBack }: Themati
               <ArrowLeft className="w-5 h-5" />
             </Button>
           )}
-          <Link href="/" className="flex items-center h-full group overflow-hidden py-3">
+          <Link href="/" className="flex items-center group">
             {logoUrl ? (
               <Image 
                 src={logoUrl} 
                 alt={title} 
                 width={180} 
                 height={40} 
-                className="h-9 w-auto object-contain transition-transform group-hover:scale-105" 
+                className="h-10 w-auto object-contain" 
                 priority 
                 unoptimized 
               />

@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -20,7 +21,6 @@ interface PublicHeaderProps {
 
 /**
  * @fileOverview Componente centralizado de cabeçalho para todas as páginas públicas da Viby.
- * Unifica o branding, autenticação e navegação temática da Copa 2026.
  */
 export function PublicHeader({ showBack, hideCopa = false, children }: PublicHeaderProps) {
   const { t } = useTranslation()
@@ -37,20 +37,20 @@ export function PublicHeader({ showBack, hideCopa = false, children }: PublicHea
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md h-16">
       <div className="container mx-auto px-4 h-full flex items-center justify-between">
-        <div className="flex items-center gap-2 sm:gap-4 h-full">
+        <div className="flex items-center gap-2 sm:gap-4">
           {showBack && (
             <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full shrink-0">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           )}
-          <Link href="/" className="flex items-center h-full group">
+          <Link href="/" className="flex items-center group">
             {settings?.logoUrl ? (
               <Image 
                 src={settings.logoUrl} 
                 alt={siteName} 
                 width={140} 
-                height={32} 
-                className="h-8 w-auto object-contain" 
+                height={40} 
+                className="w-auto h-10 object-contain" 
                 priority 
                 unoptimized 
               />

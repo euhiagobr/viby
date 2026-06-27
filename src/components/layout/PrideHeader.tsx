@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -14,7 +15,6 @@ const PRIDE_LOGO = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.fire
 
 /**
  * @fileOverview Cabeçalho temático para a seção LGBTQIAPN+.
- * Utiliza um gradiente estático vibrante e o logotipo da diversidade.
  */
 export function PrideHeader() {
   const auth = useAuth()
@@ -25,7 +25,7 @@ export function PrideHeader() {
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-white/20 bg-gradient-to-r from-[#FF0000] via-[#FF8B00] via-[#FFD300] via-[#008121] via-[#004CFF] to-[#760089] h-16 shadow-xl">
       <div className="container mx-auto px-4 h-full flex items-center justify-between">
-        <div className="flex items-center gap-2 sm:gap-6 overflow-hidden h-full">
+        <div className="flex items-center gap-2 sm:gap-6">
           <Button 
             variant="ghost" 
             size="icon" 
@@ -34,13 +34,13 @@ export function PrideHeader() {
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <Link href="/" className="flex items-center h-full group overflow-hidden py-3">
+          <Link href="/" className="flex items-center group">
             <Image 
               src={PRIDE_LOGO} 
               alt="Viby Diversidade" 
               width={180} 
               height={40} 
-              className="h-9 w-auto object-contain" 
+              className="h-10 w-auto object-contain" 
               priority 
               unoptimized 
             />
