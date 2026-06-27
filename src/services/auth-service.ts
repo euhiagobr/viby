@@ -91,6 +91,9 @@ export async function startSocialRedirect(auth: Auth, providerName: 'google' | '
     console.log('[LOGIN] Redirect initiated successfully. Browser should leave now.');
   } catch (error: any) {
     console.error('[LOGIN] FATAL: signInWithRedirect execution failed');
+    console.error('[LOGIN] Error Code:', error.code);
+    console.error('[LOGIN] Error Message:', error.message);
+    console.error('[LOGIN] Error Stack:', error.stack);
     throw error;
   }
 }

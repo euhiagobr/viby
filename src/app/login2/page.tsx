@@ -35,20 +35,26 @@ export default function Login2AuditPage() {
         const user = await captureRedirectResult(auth);
         
         if (user) {
+          console.log('[AUDIT-FLOW] 4. RESULT OBTAINED:', user.email);
           const profile = await ensureUserProfile(user, db);
           setCurrentUser(user);
           if (profile && (!profile.username || !profile.cpfHash)) {
              router.push('/onboarding');
           }
         } else {
+          console.log('[AUDIT-FLOW] 4. RESULT IS NULL (NORMAL)');
           const unsubscribe = onAuthStateChanged(auth, (authUser) => {
-            if (authUser) setCurrentUser(authUser);
+            if (authUser) {
+              console.log('[AUDIT-FLOW] 5. REDUNDANCY: User detected via onAuthStateChanged');
+              setCurrentUser(authUser);
+            }
             setLoading(false);
             unsubscribe();
           });
           return;
         }
       } catch (err: any) {
+        console.error('[AUDIT-FLOW] 4. ERROR DURING CAPTURE:', err.message);
         setError(`${err.code}: ${err.message}`);
       } finally {
         setLoading(false);
@@ -69,13 +75,9 @@ export default function Login2AuditPage() {
     setLoading(true);
 
     try {
-      console.log('[LOGIN] handleLoginGoogle() calling startSocialRedirect...');
+      console.log('[LOGIN] loginWithGoogle() entered');
       await startSocialRedirect(auth, 'google');
     } catch (err: any) {
-      console.error('[LOGIN] Catch Block triggered');
-      console.error('[LOGIN] Error Code:', err.code);
-      console.error('[LOGIN] Error Message:', err.message);
-      console.error('[LOGIN] Error Stack:', err.stack);
       setError(err.message);
       setLoading(false);
     }
@@ -151,7 +153,7 @@ export default function Login2AuditPage() {
 
         <CardFooter className="p-8 pt-0 border-t bg-muted/10">
            <p className="w-full text-center text-[9px] font-black uppercase text-muted-foreground opacity-40 italic">
-              Viby System Auth Audit • v2.2.1
+              Viby System Auth Audit • v2.2.2
            </p>
         </CardFooter>
       </Card>
