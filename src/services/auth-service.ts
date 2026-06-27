@@ -1,4 +1,3 @@
-
 'use client';
 
 import { 
@@ -26,16 +25,16 @@ export const authConfig = {
 };
 
 export async function ensureUserProfile(user: User, db: Firestore) {
+  console.log('[AUDIT-SERVICE] Entering ensureUserProfile for:', user.email);
   if (!user || !db) return null;
   
-  console.log('[Auth-Audit] 4. Processing ensureUserProfile:', user.email);
   const userRef = doc(db, "users", user.uid);
   
   try {
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      console.log('[Auth-Audit] 5. Creating new user document');
+      console.log('[AUDIT-SERVICE] User not found in Firestore. Creating new document...');
       const initialName = user.displayName || user.email?.split('@')[0] || "Membro Viby";
       const userData = {
         uid: user.uid,
@@ -67,18 +66,23 @@ export async function ensureUserProfile(user: User, db: Firestore) {
           updatedAt: serverTimestamp()
         });
       });
+      console.log('[AUDIT-SERVICE] New profile created successfully');
       return { ...userData, id: user.uid, isNew: true };
     }
-    console.log('[Auth-Audit] 5. User document already exists');
+    console.log('[AUDIT-SERVICE] Profile already exists in Firestore');
     return { ...userSnap.data(), id: user.uid, isNew: false };
   } catch (error) {
-    console.error('[Auth-Audit] Profile Sync Failed:', error);
+    console.error('[AUDIT-SERVICE] Profile Sync Critical Error:', error);
     throw error;
   }
 }
 
 export async function startSocialRedirect(auth: Auth, providerName: 'google' | 'facebook') {
-  console.log('[Auth-Audit] 1. Triggering Redirect for:', providerName);
+  console.log('[AUDIT-FLOW] 1. Action: startSocialRedirect');
+  console.log('[AUDIT-FLOW] 1.1 Provider Target:', providerName);
+  console.log('[AUDIT-FLOW] 1.2 Auth Domain:', auth.config.authDomain);
+  console.log('[AUDIT-FLOW] 1.3 Current URL:', window.location.href);
+
   const provider = providerName === 'google' 
     ? new GoogleAuthProvider() 
     : new FacebookAuthProvider();
@@ -87,26 +91,36 @@ export async function startSocialRedirect(auth: Auth, providerName: 'google' | '
     provider.setCustomParameters({ prompt: 'select_account' });
   }
 
+  console.log('[AUDIT-FLOW] 2. EXECUTION: Calling signInWithRedirect...');
   try {
     await signInWithRedirect(auth, provider);
+    console.log('[AUDIT-FLOW] 2.1 Call successful. Waiting for browser to redirect...');
   } catch (error: any) {
-    console.error('[Auth-Audit] Redirect Start Error:', error.code);
+    console.error('[AUDIT-FLOW] 2.2 FATAL: signInWithRedirect failed instantly:', error.code, error.message);
     throw error;
   }
 }
 
 export async function captureRedirectResult(auth: Auth) {
-  console.log('[Auth-Audit] 2. Checking Redirect Result...');
+  console.log('[AUDIT-FLOW] 3. Action: captureRedirectResult');
   try {
     const result = await getRedirectResult(auth);
-    if (result?.user) {
-      console.log('[Auth-Audit] 3. User found in redirect:', result.user.email);
+    console.log('[AUDIT-FLOW] 4. RESULT OBTAINED:', result);
+    
+    if (result) {
+      console.log('[AUDIT-FLOW] 4.1 OPERATION TYPE:', result.operationType);
+      console.log('[AUDIT-FLOW] 4.2 PROVIDER:', result.providerId);
+      console.log('[AUDIT-FLOW] 4.3 USER OBJECT:', result.user ? 'PRESENT' : 'NULL');
+      if (result.user) {
+        console.log('[AUDIT-FLOW] 4.4 USER EMAIL:', result.user.email);
+        console.log('[AUDIT-FLOW] 4.5 USER UID:', result.user.uid);
+      }
       return result.user;
     }
-    console.log('[Auth-Audit] 3. No user in redirect result');
+    console.log('[AUDIT-FLOW] 4.1 No result found. getRedirectResult returned null');
     return null;
   } catch (error: any) {
-    console.error('[Auth-Audit] 3. Redirect Capture Error:', error.code, error.message);
+    console.error('[AUDIT-FLOW] 4.2 REDIRECT CAPTURE ERROR:', error.code, error.message);
     throw error;
   }
 }

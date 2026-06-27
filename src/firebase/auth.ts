@@ -1,4 +1,3 @@
-
 'use client';
 
 import { getAuth, Auth, setPersistence, browserLocalPersistence } from "firebase/auth";
@@ -10,9 +9,12 @@ declare global {
 
 const initializeAuth = (): Auth => {
   const auth = getAuth(app);
-  setPersistence(auth, browserLocalPersistence).catch(e => {
-    console.error('[Auth-Audit] Persistence Error:', e.code);
-  });
+  console.log('[AUDIT-AUTH] Initializing Auth Instance. Configured Persistence: LOCAL');
+  
+  setPersistence(auth, browserLocalPersistence)
+    .then(() => console.log('[AUDIT-AUTH] Persistence set to LOCAL successfully'))
+    .catch(e => console.error('[AUDIT-AUTH] Persistence Error:', e.code));
+    
   return auth;
 };
 
@@ -20,7 +22,9 @@ export const auth = (() => {
   if (typeof window !== 'undefined') {
     if (!globalThis.authInstance) {
       globalThis.authInstance = initializeAuth();
-      console.log('[Auth-Audit] Singleton initialized on Client');
+      console.log('[AUDIT-AUTH] Singleton Auth created on Client Global scope');
+    } else {
+      console.log('[AUDIT-AUTH] Reusing existing Singleton Auth from Global scope');
     }
     return globalThis.authInstance;
   }
