@@ -58,7 +58,6 @@ interface EventoPublicoClientProps {
 
 /**
  * @fileOverview Componente Client adaptado para SSR.
- * Recebe initialData vindo do servidor para renderização imediata de conteúdo crítico.
  */
 export default function EventoPublicoClient({ id, username, initialData }: EventoPublicoClientProps) {
   const db = useFirestore()
@@ -71,11 +70,10 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
 
   const hasTrackedView = React.useRef(false);
 
-  // Real-time listener para manter o estado atualizado (ex: bilheteria)
+  // Real-time listener para manter o estado atualizado
   const eventRef = React.useMemo(() => (db && id) ? doc(db, "events", id) : null, [db, id])
   const { data: realTimeEvent, loading: eventLoading } = useDoc<any>(eventRef)
 
-  // PRIORIDADE: Dados em tempo real > Dados iniciais (SSR)
   const event = realTimeEvent || initialData;
 
   // Rastreamento de Visualização Interna
@@ -134,7 +132,13 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
 
   const selectedOccurrenceData = React.useMemo(() => {
     if (!upcomingOccurrences || upcomingOccurrences.length === 0) return null;
-    return upcomingOccurrences.find(o => o.id === selectedOccurrenceId) || upcomingOccurrences[0];
+    const now = new Date();
+    // Filtro estrito: some assim que termina
+    const active = upcomingOccurrences.filter(o => {
+        const d = safeParseDate(o.start_date);
+        return d && d.getTime() > now.getTime();
+    });
+    return active.find(o => o.id === selectedOccurrenceId) || active[0];
   }, [upcomingOccurrences, selectedOccurrenceId]);
 
   React.useEffect(() => {

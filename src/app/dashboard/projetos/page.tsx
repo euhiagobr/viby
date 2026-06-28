@@ -47,7 +47,7 @@ import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { format, startOfToday, addDays } from "date-fns"
-import { cn } from "@/lib/utils"
+import { cn, safeParseDate } from "@/lib/utils"
 
 export default function MeusEventosPage() {
   const db = useFirestore()
@@ -93,7 +93,7 @@ export default function MeusEventosPage() {
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
           const nextValid = sorted.find(o => {
-            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+            const endThreshold = o._dt.getTime();
             return now < endThreshold;
           });
 
@@ -117,34 +117,15 @@ export default function MeusEventosPage() {
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
   const formatDate = (dateValue: any) => {
-    if (!dateValue) return "A definir";
-    try {
-      let d: Date;
-      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
-        d = dateValue.toDate();
-      } else {
-        d = new Date(dateValue);
-      }
-      return isNaN(d.getTime()) ? "A definir" : d.toLocaleDateString('pt-BR');
-    } catch (e) {
-      return "A definir";
-    }
+    const d = safeParseDate(dateValue);
+    if (!d) return "A definir";
+    return d.toLocaleDateString('pt-BR');
   };
 
   const formatTime = (dateValue: any) => {
-    if (!dateValue) return "";
-    try {
-      let d: Date;
-      if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
-        d = dateValue.toDate();
-      } else {
-        d = new Date(dateValue);
-      }
-      if (isNaN(d.getTime())) return "";
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-      return "";
-    }
+    const d = safeParseDate(dateValue);
+    if (!d) return "";
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
 
   const confirmDelete = async () => {

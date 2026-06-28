@@ -104,7 +104,6 @@ export default function OrganizationEventsPage() {
     );
 
     filtered.forEach(e => {
-      // Regra 1: Se está excluído ou oculto, vai para a lixeira/deletados
       if (e.status === 'Excluído' || e.status === 'Oculto') {
         deleted.push({ ...e, _effectiveDate: e.date || e.startDate });
         return;
@@ -123,8 +122,7 @@ export default function OrganizationEventsPage() {
             .sort((a, b) => a._dt!.getTime() - b._dt!.getTime());
           
           const nextValid = sorted.find(o => {
-            // Tolerância de 6 horas para manter eventos ativos
-            const endThreshold = o._dt!.getTime() + (6 * 60 * 60 * 1000);
+            const endThreshold = o._dt!.getTime();
             return refTime < endThreshold;
           });
 
@@ -132,15 +130,12 @@ export default function OrganizationEventsPage() {
             effectiveDate = nextValid._dt;
             isEventPast = false;
           } else {
-            // Se todas as sessões carregadas já passaram
             isEventPast = true;
           }
         } else {
-          // Se não há ocorrências ativas ou pendentes, checamos a data base com 6h de buffer
           const baseDate = safeParseDate(effectiveDate);
           if (baseDate) {
-            const threshold = baseDate.getTime() + (6 * 60 * 60 * 1000);
-            isEventPast = refTime > threshold;
+            isEventPast = refTime > baseDate.getTime();
           } else {
             isEventPast = false;
           }
@@ -150,10 +145,8 @@ export default function OrganizationEventsPage() {
         if (!start) {
            isEventPast = false;
         } else {
-           // Prioriza endDate, senão usa startDate + 4h como estimativa de fim
-           const end = safeParseDate(e.endDate) || new Date(start.getTime() + 4 * 60 * 60 * 1000);
-           const threshold = end.getTime() + (6 * 60 * 60 * 1000);
-           isEventPast = refTime > threshold;
+           const end = safeParseDate(e.endDate) || start;
+           isEventPast = refTime > end.getTime();
         }
       }
 

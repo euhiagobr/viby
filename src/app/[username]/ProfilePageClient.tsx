@@ -180,7 +180,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
     return query(
       collection(db, "events"),
       where("organizationId", "==", profileData.id),
-      where("status", "==", "published")
+      where("status", "==", "Ativo")
     );
   }, [db, profileData?.id, profileType]);
 
@@ -219,7 +219,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
         });
 
         const results = await Promise.all(eventPromises);
-        setPartnershipEvents(results.filter(e => e !== null && e.status === 'published'));
+        setPartnershipEvents(results.filter(e => e !== null && e.status === 'Ativo'));
       } catch (e: any) {
         console.warn("Erro ao buscar parcerias:", e.message);
       } finally {
@@ -243,7 +243,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
             .sort((a, b) => a._dt.getTime() - b._dt.getTime());
           
            const nextValid = sorted.find(o => {
-             const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
+             const endThreshold = o._dt.getTime();
              return now < endThreshold;
            });
 
@@ -257,7 +257,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
     const upcoming = processed.filter((e: any) => {
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : start);
       return end >= now;
     }).sort((a, b) => {
       const tA = a.date?.seconds ? a.date.seconds * 1000 : new Date(a.date).getTime();
@@ -267,7 +267,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
     const past = processed.filter((e: any) => {
       const start = e.date?.toDate ? e.date.toDate() : new Date(e.date);
-      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(start.getTime() + 4 * 60 * 60 * 1000));
+      const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : start);
       return end < now;
     }).sort((a, b) => {
       const tA = a.date?.seconds ? a.date.seconds * 1000 : new Date(a.date).getTime();
