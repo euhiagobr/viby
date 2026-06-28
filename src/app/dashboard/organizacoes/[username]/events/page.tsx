@@ -48,7 +48,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { cn, safeParseDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
@@ -104,7 +104,7 @@ export default function OrganizationEventsPage() {
     );
 
     filtered.forEach(e => {
-      // Regra: Se está excluído ou oculto, vai para a lixeira/deletados
+      // Regra 1: Se está excluído ou oculto, vai para a lixeira/deletados
       if (e.status === 'Excluído' || e.status === 'Oculto') {
         deleted.push({ ...e, _effectiveDate: e.date || e.startDate });
         return;
@@ -112,41 +112,48 @@ export default function OrganizationEventsPage() {
 
       let isEventPast = false;
       let effectiveDate = e.date || e.startDate;
+      const refTime = now.getTime();
 
       if (e.isRecurring) {
         const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
-            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+            .map(o => ({ ...o, _dt: safeParseDate(`${o.date}T${o.startTime || '19:00'}:00`) }))
+            .filter(o => o._dt !== null)
+            .sort((a, b) => a._dt!.getTime() - b._dt!.getTime());
           
           const nextValid = sorted.find(o => {
-            const endThreshold = new Date(o._dt.getTime() + 6 * 60 * 60 * 1000);
-            return now < endThreshold;
+            // Tolerância de 6 horas para manter eventos ativos
+            const endThreshold = o._dt!.getTime() + (6 * 60 * 60 * 1000);
+            return refTime < endThreshold;
           });
 
           if (nextValid) {
-            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+            effectiveDate = nextValid._dt;
             isEventPast = false;
           } else {
+            // Se todas as sessões carregadas já passaram
             isEventPast = true;
           }
         } else {
-          const dateToTest = effectiveDate?.toDate ? effectiveDate.toDate() : new Date(effectiveDate);
-          if (!effectiveDate || isNaN(dateToTest.getTime())) {
-             isEventPast = false;
+          // Se não há ocorrências ativas ou pendentes, checamos a data base com 6h de buffer
+          const baseDate = safeParseDate(effectiveDate);
+          if (baseDate) {
+            const threshold = baseDate.getTime() + (6 * 60 * 60 * 1000);
+            isEventPast = refTime > threshold;
           } else {
-             const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(dateToTest.getTime() + 4 * 60 * 60 * 1000));
-             isEventPast = end < now;
+            isEventPast = false;
           }
         }
       } else {
-        const dateToTest = effectiveDate?.toDate ? effectiveDate.toDate() : new Date(effectiveDate);
-        if (!effectiveDate || isNaN(dateToTest.getTime())) {
+        const start = safeParseDate(effectiveDate);
+        if (!start) {
            isEventPast = false;
         } else {
-           const end = e.endDate?.toDate ? e.endDate.toDate() : (e.endDate ? new Date(e.endDate) : new Date(dateToTest.getTime() + 4 * 60 * 60 * 1000));
-           isEventPast = end < now;
+           // Prioriza endDate, senão usa startDate + 4h como estimativa de fim
+           const end = safeParseDate(e.endDate) || new Date(start.getTime() + 4 * 60 * 60 * 1000);
+           const threshold = end.getTime() + (6 * 60 * 60 * 1000);
+           isEventPast = refTime > threshold;
         }
       }
 
@@ -159,12 +166,9 @@ export default function OrganizationEventsPage() {
     });
 
     const sortByCreation = (a: any, b: any) => {
-      const getTime = (val: any) => {
-        if (!val) return Date.now();
-        if (val.seconds) return val.seconds * 1000;
-        return val.toDate ? val.toDate().getTime() : new Date(val).getTime();
-      };
-      return getTime(b.createdAt) - getTime(a.createdAt);
+      const timeA = safeParseDate(a.createdAt)?.getTime() || 0;
+      const timeB = safeParseDate(b.createdAt)?.getTime() || 0;
+      return timeB - timeA;
     };
 
     upcoming.sort(sortByCreation);
@@ -359,7 +363,7 @@ export default function OrganizationEventsPage() {
       <AlertDialog open={!!eventToDelete} onOpenChange={(open) => !open && setEventToDelete(null)}>
         <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Remover este evento?</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-black italic uppercase italic tracking-tighter">Remover este evento?</AlertDialogTitle>
             <AlertDialogDescription>
               Se existirem ingressos vendidos, o evento será apenas ocultado para preservar os vouchers. Caso contrário, será excluído permanentemente.
             </AlertDialogDescription>
