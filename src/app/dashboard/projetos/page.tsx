@@ -20,7 +20,8 @@ import {
   Trash2,
   TicketPercent,
   Megaphone,
-  RefreshCw
+  RefreshCw,
+  History
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -42,17 +43,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/hooks/use-toast"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { format, startOfToday, addDays } from "date-fns"
 import { cn, safeParseDate } from "@/lib/utils"
+import { EventCard } from "@/components/events/EventCard"
 
 export default function MeusEventosPage() {
   const db = useFirestore()
   const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization()
-  const [now, setNow] = React.useState<Date | null>(null)
+  const [search, setSearch] = React.useState("")
+  const [now, setNow] = React.useState<Date>(new Date())
 
   React.useEffect(() => {
     setNow(new Date())
@@ -67,7 +71,6 @@ export default function MeusEventosPage() {
 
   const { data: rawEvents, loading: eventsLoading } = useCollection<any>(myEventsQuery)
 
-  // Pipeline de Ocorrências para eventos recorrentes
   const occurrencesQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null
     const yesterdayStr = format(addDays(startOfToday(), -1), 'yyyy-MM-dd')
@@ -80,57 +83,96 @@ export default function MeusEventosPage() {
   }, [db, currentOrg?.id])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
 
-  const events = React.useMemo(() => {
-    if (!rawEvents) return [];
-    
-    return rawEvents.map(e => {
-      let effectiveDate = e.date;
-      if (e.isRecurring && allOccurrences && now) {
-        const myOccs = allOccurrences.filter((o: any) => o.parentId === e.id) || [];
+  const { upcomingEvents, pastEvents, deletedEvents } = React.useMemo(() => {
+    if (!rawEvents) return { upcomingEvents: [], pastEvents: [], deletedEvents: [] };
+
+    const upcoming: any[] = [];
+    const past: any[] = [];
+    const deleted: any[] = [];
+
+    const filtered = rawEvents.filter(e => 
+      (!search || e.title?.toLowerCase().includes(search.toLowerCase()))
+    );
+
+    filtered.forEach(e => {
+      if (e.status === 'Excluído' || e.status === 'Oculto') {
+        deleted.push({ ...e, _effectiveDate: e.date || e.startDate });
+        return;
+      }
+
+      let isEventPast = false;
+      let effectiveDate = e.date || e.startDate;
+      const refTime = now.getTime();
+
+      if (e.isRecurring) {
+        const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
-            .map(o => ({ ...o, _dt: new Date(o.date + 'T' + (o.startTime || '00:00') + ':00') }))
-            .sort((a, b) => a._dt.getTime() - b._dt.getTime());
+            .map(o => ({ ...o, _dt: safeParseDate(`${o.date}T${o.startTime || '19:00'}:00`) }))
+            .filter(o => o._dt !== null)
+            .sort((a, b) => a._dt!.getTime() - b._dt!.getTime());
           
           const nextValid = sorted.find(o => {
-            const endThreshold = o._dt.getTime();
-            return now < endThreshold;
+            const endThreshold = o._dt!.getTime();
+            return refTime < endThreshold;
           });
 
           if (nextValid) {
-            effectiveDate = nextValid.date + 'T' + (nextValid.startTime || '19:00') + ':00';
+            effectiveDate = nextValid._dt;
+            isEventPast = false;
+          } else {
+            isEventPast = true;
+          }
+        } else {
+          const baseDate = safeParseDate(effectiveDate);
+          if (baseDate) {
+            isEventPast = refTime >= baseDate.getTime();
+          } else {
+            isEventPast = false;
           }
         }
+      } else {
+        const start = safeParseDate(effectiveDate);
+        if (!start) {
+           isEventPast = false;
+        } else {
+           const end = safeParseDate(e.endDate) || start;
+           let endMs = end.getTime();
+           if (e.endDate && endMs < start.getTime()) {
+             endMs += 24 * 60 * 60 * 1000;
+           }
+           isEventPast = refTime >= endMs;
+        }
       }
-      return { ...e, date: effectiveDate };
-    }).filter((e: any) => e.status !== 'Excluído')
-      .sort((a, b) => {
-        const tA = a.createdAt?.seconds || Date.now() / 1000;
-        const tB = b.createdAt?.seconds || Date.now() / 1000;
-        return tB - tA;
-      });
-  }, [rawEvents, allOccurrences, now]);
+
+      const enrichedEvent = { ...e, _effectiveDate: effectiveDate };
+      if (isEventPast) {
+        past.push(enrichedEvent);
+      } else {
+        upcoming.push(enrichedEvent);
+      }
+    });
+
+    const sortByDate = (a: any, b: any) => {
+      const timeA = safeParseDate(a._effectiveDate)?.getTime() || 0;
+      const timeB = safeParseDate(b._effectiveDate)?.getTime() || 0;
+      return timeA - timeB;
+    };
+
+    upcoming.sort(sortByDate);
+    past.sort((a, b) => sortByDate(b, a));
+    deleted.sort(sortByDate);
+
+    return { upcomingEvents: upcoming, pastEvents: past, deletedEvents: deleted };
+  }, [rawEvents, allOccurrences, search, now]);
 
   const [eventToDelete, setEventToDelete] = React.useState<{id: string, title: string} | null>(null)
   const [isDeleting, setIsDeleting] = React.useState(false)
 
   const isAtLeastEditor = ['owner', 'admin', 'editor'].includes(userRole || '');
 
-  const formatDate = (dateValue: any) => {
-    const d = safeParseDate(dateValue);
-    if (!d) return "A definir";
-    return d.toLocaleDateString('pt-BR');
-  };
-
-  const formatTime = (dateValue: any) => {
-    const d = safeParseDate(dateValue);
-    if (!d) return "";
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  };
-
   const confirmDelete = async () => {
     if (!db || !eventToDelete) return
-
     setIsDeleting(true)
     try {
       const salesQuery = query(
@@ -143,22 +185,14 @@ export default function MeusEventosPage() {
       const eventRef = doc(db, "events", eventToDelete.id);
 
       if (!salesSnap.empty) {
-        await updateDoc(eventRef, { 
-          status: "Oculto", 
-          updatedAt: serverTimestamp() 
-        });
-        toast({ 
-          title: "Evento Ocultado", 
-          description: "Como já existem ingressos vendidos, o evento foi ocultado em vez de excluído para preservar os vouchers." 
-        });
+        await updateDoc(eventRef, { status: "Oculto", updatedAt: serverTimestamp() });
+        toast({ title: "Evento Ocultado", description: "Vendas detectadas. O evento foi retirado do ar mas os ingressos continuam válidos." });
       } else {
         const batch = writeBatch(db);
         batch.update(eventRef, { status: "Excluído", updatedAt: serverTimestamp() });
-        
-        const regsQuery = query(collection(db, "registrations"), where("eventId", "==", eventToDelete.id));
-        const regsSnap = await getDocs(regsQuery);
-        regsSnap.forEach((regDoc) => batch.delete(regDoc.ref));
-        
+        const occsQuery = query(collection(db, "recurring_occurrences"), where("parentId", "==", eventToDelete.id));
+        const occsSnap = await getDocs(occsQuery);
+        occsSnap.forEach((d) => batch.delete(d.ref));
         await batch.commit();
         toast({ title: "Evento removido" });
       }
@@ -227,40 +261,47 @@ export default function MeusEventosPage() {
         </Alert>
       )}
 
-      {eventsLoading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {events?.map((event: any) => {
-            const time = formatTime(event.date);
-            const slugOrId = event.slug || event.id;
-            const username = event.organizer?.username || 'evento';
-            const eventLink = `/${username}/${slugOrId}`;
-            
-            return (
-              <Card key={event.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all group rounded-[1.5rem] bg-white">
-                <div className="relative h-40 bg-muted">
-                   {event.image ? (
-                     <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                   ) : (
-                     <div className="flex items-center justify-center h-full opacity-20"><Megaphone className="w-10 h-10" /></div>
-                   )}
-                   <div className="absolute top-3 right-3">
-                      <Badge className="bg-white/90 text-primary font-black uppercase text-[8px] h-5 shadow-sm border-none">
-                        {event.status || "Ativo"}
-                      </Badge>
-                   </div>
-                </div>
-                <div className="p-5 space-y-4">
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="space-y-1">
-                       <h4 className="font-bold text-base leading-tight line-clamp-1">{event.title}</h4>
-                       {event.isRecurring && <Badge className="bg-secondary text-white text-[7px] font-black uppercase h-3.5"><RefreshCw className="w-2 h-2 mr-1 animate-spin-slow" /> Série Recorrente</Badge>}
-                    </div>
-                    {isAtLeastEditor && (
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Buscar eventos da marca..." 
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 h-12 rounded-xl"
+          />
+        </div>
+      </div>
+
+      <Tabs defaultValue="upcoming" className="w-full space-y-8">
+        <TabsList className="bg-muted/50 p-1 rounded-xl h-12 flex-wrap">
+          <TabsTrigger value="upcoming" className="rounded-lg px-6 font-bold gap-2 data-[state=active]:bg-white">
+            <CalendarIcon className="w-4 h-4" />
+            Ativos ({upcomingEvents.length})
+          </TabsTrigger>
+          <TabsTrigger value="past" className="rounded-lg px-6 font-bold gap-2 data-[state=active]:bg-white">
+            <History className="w-4 h-4" />
+            Histórico ({pastEvents.length})
+          </TabsTrigger>
+          <TabsTrigger value="deleted" className="rounded-lg px-6 font-bold gap-2 data-[state=active]:bg-white">
+            <Trash2 className="w-4 h-4" />
+            Deletados ({deletedEvents.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="upcoming" className="m-0">
+          {eventsLoading ? (
+            <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+          ) : upcomingEvents.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {upcomingEvents.map((event: any) => (
+                <div key={event.id} className="relative group/edit-card">
+                  <EventCard event={event} />
+                  {isAtLeastEditor && (
+                    <div className="absolute top-4 right-4 z-30 opacity-0 group-hover/edit-card:opacity-100 transition-opacity">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full shrink-0">
+                          <Button variant="secondary" size="icon" className="h-7 w-7 rounded-full shrink-0 shadow-lg border-2 border-white">
                             <MoreHorizontal className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -271,7 +312,7 @@ export default function MeusEventosPage() {
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <Link href={eventLink} target="_blank" className="flex items-center gap-2 py-2 cursor-pointer">
+                            <Link href={`/${event.organizer?.username}/${event.slug || event.id}`} target="_blank" className="flex items-center gap-2 py-2 cursor-pointer">
                               <Eye className="w-4 h-4" /> Ver Anúncio
                             </Link>
                           </DropdownMenuItem>
@@ -289,48 +330,58 @@ export default function MeusEventosPage() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5 pt-3 border-t border-dashed">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
-                      <CalendarIcon className="w-3.5 h-3.5 text-secondary" />
-                      <span>{formatDate(event.date)}</span>
-                      {time && (
-                        <><span className="mx-1 opacity-30">|</span><Clock className="w-3.5 h-3.5 text-secondary" /><span>{time}</span></>
-                      )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
-                      <MapPin className="w-3.5 h-3.5 text-secondary" />
-                      <span className="line-clamp-1">{event.city || "Local não definido"}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <Button variant="outline" size="sm" className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5 border-secondary text-secondary hover:bg-secondary/5" asChild>
-                      <Link href={eventLink} target="_blank">Visualizar</Link>
-                    </Button>
-                    <Button variant="secondary" size="sm" className="text-[10px] font-black uppercase h-9 rounded-xl gap-1.5" asChild>
-                      <Link href={`/dashboard/evento/${event.id}/publico`}>
-                        <Users className="w-3.5 h-3.5" /> Público
-                      </Link>
-                    </Button>
-                  </div>
+                  )}
                 </div>
-              </Card>
-            );
-          })}
-          {isAtLeastEditor && (
-            <Link 
-              href="/dashboard/projetos/novo"
-              className="border-2 border-dashed border-secondary/20 rounded-[1.5rem] p-8 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-secondary/50 hover:text-secondary hover:bg-secondary/5 transition-all min-h-[250px] group"
-            >
-              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-colors"><Plus className="w-6 h-6" /></div>
-              <span className="font-black uppercase text-xs tracking-widest italic">Publicar Novo Evento</span>
-            </Link>
+              ))}
+            </div>
+          ) : (
+            <NoEventsPlaceholder 
+              message={search ? "Nenhum evento futuro para esta busca." : "Nenhum evento agendado."} 
+              isAtLeastEditor={isAtLeastEditor}
+            />
           )}
-        </div>
-      )}
+        </TabsContent>
+
+        <TabsContent value="past" className="m-0">
+          {eventsLoading ? (
+            <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+          ) : pastEvents.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {pastEvents.map((event: any) => (
+                <div key={event.id} className="opacity-75 grayscale-[0.3]">
+                  <EventCard event={event} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <NoEventsPlaceholder 
+              message={search ? "Nenhum evento passado para esta busca." : "Nenhum evento no histórico."} 
+              isAtLeastEditor={false}
+              icon={History}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="deleted" className="m-0">
+          {eventsLoading ? (
+            <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+          ) : deletedEvents.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {deletedEvents.map((event: any) => (
+                <div key={event.id} className="opacity-50 grayscale">
+                  <EventCard event={event} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-border flex flex-col items-center justify-center gap-4 opacity-40">
+               <Inbox className="w-12 h-12" />
+               <p className="text-xs font-black uppercase tracking-widest italic">A lixeira está vazia</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <AlertDialog open={!!eventToDelete} onOpenChange={(open) => !open && setEventToDelete(null)}>
         <AlertDialogContent className="rounded-[2rem]">
@@ -353,6 +404,20 @@ export default function MeusEventosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+function NoEventsPlaceholder({ message, isAtLeastEditor, icon: Icon = Megaphone }: any) {
+  return (
+    <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-border flex flex-col items-center justify-center gap-4 shadow-inner w-full">
+       <Icon className="w-12 h-12 text-muted-foreground opacity-10" />
+       <p className="text-muted-foreground font-bold italic">{message}</p>
+       {isAtLeastEditor && (
+         <Button asChild variant="outline" className="rounded-full font-bold h-10 border-secondary text-secondary">
+           <Link href="/dashboard/projetos/novo">Criar Primeiro Evento</Link>
+         </Button>
+       )}
     </div>
   )
 }

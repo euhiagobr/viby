@@ -135,7 +135,7 @@ export default function OrganizationEventsPage() {
         } else {
           const baseDate = safeParseDate(effectiveDate);
           if (baseDate) {
-            isEventPast = refTime > baseDate.getTime();
+            isEventPast = refTime >= baseDate.getTime();
           } else {
             isEventPast = false;
           }
@@ -146,7 +146,11 @@ export default function OrganizationEventsPage() {
            isEventPast = false;
         } else {
            const end = safeParseDate(e.endDate) || start;
-           isEventPast = refTime > end.getTime();
+           let endMs = end.getTime();
+           if (e.endDate && endMs < start.getTime()) {
+             endMs += 24 * 60 * 60 * 1000;
+           }
+           isEventPast = refTime >= endMs;
         }
       }
 
@@ -158,15 +162,15 @@ export default function OrganizationEventsPage() {
       }
     });
 
-    const sortByCreation = (a: any, b: any) => {
-      const timeA = safeParseDate(a.createdAt)?.getTime() || 0;
-      const timeB = safeParseDate(b.createdAt)?.getTime() || 0;
-      return timeB - timeA;
+    const sortByDate = (a: any, b: any) => {
+      const timeA = safeParseDate(a._effectiveDate)?.getTime() || 0;
+      const timeB = safeParseDate(b._effectiveDate)?.getTime() || 0;
+      return timeA - timeB;
     };
 
-    upcoming.sort(sortByCreation);
-    past.sort(sortByCreation);
-    deleted.sort(sortByCreation);
+    upcoming.sort(sortByDate);
+    past.sort((a, b) => sortByDate(b, a)); // Histórico invertido
+    deleted.sort(sortByDate);
 
     return { upcomingEvents: upcoming, pastEvents: past, deletedEvents: deleted };
   }, [rawEvents, allOccurrences, search, now]);
