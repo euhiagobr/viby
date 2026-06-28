@@ -24,34 +24,32 @@ export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   if (!event) return false;
   
   // REGRA DE OURO: Apenas eventos Ativos entram nas vitrines.
-  // Status 'Excluído' ou 'draft' não aparecem.
+  // Status 'Excluído', 'Oculto' ou 'draft' não aparecem no feed principal.
   if (event.status !== 'Ativo') return false;
   
   const now = nowOverride ? nowOverride.getTime() : new Date().getTime();
-  
-  let endMs: number;
 
-  // CORREÇÃO: Removemos a dependência do recurringEndDate para visibilidade do card.
-  // Agora a validade é baseada exclusivamente na data da ocorrência (date/endDate).
-  // O pipeline de hooks (useRecurringEvents) já injeta a data da próxima sessão nestes campos.
-  const startDate = safeParseDate(event.date);
-  if (!startDate) return true; 
+  // Captura a data de início (suporta aliases comuns no banco)
+  const startDate = safeParseDate(event.date || event.startDate || event.eventDate);
+  if (!startDate) return false; 
 
   const startMs = startDate.getTime();
   const endDate = safeParseDate(event.endDate);
   
-  // Se não houver data de fim, usamos um padrão de 6h após o início para manter visível no dia
-  endMs = endDate ? endDate.getTime() : (startMs + 6 * 60 * 60 * 1000);
+  // RESOLUÇÃO DE FIM: Prioriza endDate para calcular o encerramento. 
+  // Se não existir, utiliza a data de início como referência base de término.
+  // IMPORTANTE: Nunca utiliza recurringEndDate para visibilidade do card individual.
+  let endMs = endDate ? endDate.getTime() : startMs;
   
-  // Tratamento de virada de noite (ex: 22h às 04h)
-  if (endDate && endMs <= startMs) {
-    if (startDate.toDateString() === endDate.toDateString()) {
-      endMs += 24 * 60 * 60 * 1000;
-    }
+  // Tratamento de virada de noite (ex: Início 22h, Fim 04h do dia seguinte)
+  // Se o fim for numericamente anterior ao início mas no mesmo dia informado, assumimos que pertence ao dia seguinte.
+  if (endDate && endMs < startMs) {
+    endMs += 24 * 60 * 60 * 1000;
   }
 
-  // Tolerância de 6 horas para eventos "Acontecendo Agora" ou recém-finalizados
-  const visibilityThreshold = new Date(endMs + 6 * 60 * 60 * 1000).getTime();
+  // Janela de visibilidade: Horário de Término + 6 horas de tolerância (buffer de pós-evento)
+  // Se o evento não tem fim definido, ele sairá do feed 6 horas após o seu horário de início.
+  const visibilityThreshold = endMs + (6 * 60 * 60 * 1000);
   
   return now < visibilityThreshold;
 }
