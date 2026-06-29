@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from 'react';
@@ -19,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { GroupStageView } from '@/components/worldcup/GroupStageView';
 import { KnockoutPhaseView } from '@/components/worldcup/KnockoutPhaseView';
 import { BrazilStatusCard } from '@/components/worldcup/BrazilStatusCard';
-import { MatchCard } from '@/components/worldcup/MatchCard'; // Assumindo que MatchCard foi movido para componente ou mantido no arquivo
+import { cn } from '@/lib/utils';
 
 const BRAZIL_ID = 764;
 
@@ -57,7 +56,6 @@ export default function TabelaClient() {
     if (!matchesData?.matches) return 'GROUP_STAGE';
     const stages = matchesData.matches.map(m => m.stage);
     
-    // Identifica se já existem jogos em fases de mata-mata
     if (stages.includes('FINAL')) return 'FINAL';
     if (stages.includes('SEMI_FINALS')) return 'SEMI_FINALS';
     if (stages.includes('QUARTER_FINALS')) return 'QUARTER_FINALS';
