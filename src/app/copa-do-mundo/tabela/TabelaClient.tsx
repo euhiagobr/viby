@@ -15,6 +15,8 @@ import {
   Info
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { GroupStageView } from '@/components/worldcup/GroupStageView';
 import { KnockoutPhaseView } from '@/components/worldcup/KnockoutPhaseView';
 import { BrazilStatusCard } from '@/components/worldcup/BrazilStatusCard';
