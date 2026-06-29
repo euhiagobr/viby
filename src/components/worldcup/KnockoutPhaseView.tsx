@@ -14,40 +14,62 @@ interface KnockoutPhaseViewProps {
 
 const STAGE_LABELS: Record<string, string> = {
   'ROUND_OF_16': 'Oitavas de Final',
+  'LAST_16': 'Oitavas de Final',
   'QUARTER_FINALS': 'Quartas de Final',
   'SEMI_FINALS': 'Semifinais',
   'THIRD_PLACE': 'Terceiro Lugar',
   'FINAL': 'Final'
 };
 
-const STAGE_ORDER = ['ROUND_OF_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'];
+// Ordem lógica de renderização
+const STAGE_PRIORITY = [
+  'ROUND_OF_16',
+  'LAST_16',
+  'QUARTER_FINALS',
+  'SEMI_FINALS',
+  'FINAL'
+];
 
 export function KnockoutPhaseView({ matches }: KnockoutPhaseViewProps) {
   if (!matches) return null;
 
+  // Filtrar apenas mata-mata e normalizar enums da API
   const knockoutMatches = matches.filter(m => m.stage !== 'GROUP_STAGE');
 
   const grouped = React.useMemo(() => {
     const stages: Record<string, Match[]> = {};
     knockoutMatches.forEach(m => {
-      if (!stages[m.stage]) stages[m.stage] = [];
-      stages[m.stage].push(m);
+      const key = m.stage.toUpperCase();
+      if (!stages[key]) stages[key] = [];
+      stages[key].push(m);
     });
     return stages;
   }, [knockoutMatches]);
 
-  // A Final e o Terceiro lugar são tratados na mesma coluna ou colunas próximas
-  const rounds = STAGE_ORDER.filter(s => grouped[s] || s === 'FINAL');
+  // Identificar quais fases estão presentes nos dados para construir as colunas
+  const activeRounds = React.useMemo(() => {
+    const found = STAGE_PRIORITY.filter(s => grouped[s] && grouped[s].length > 0);
+    
+    // Se não encontrou nenhuma das prioritárias mas tem mata-mata, mostra o que tem
+    if (found.length === 0 && Object.keys(grouped).length > 0) {
+      return Object.keys(grouped);
+    }
+    
+    // Sempre garante que a Final apareça como placeholder se já iniciou o mata-mata
+    if (!found.includes('FINAL')) found.push('FINAL');
+    
+    return found;
+  }, [grouped]);
 
   return (
     <ScrollArea className="w-full whitespace-nowrap pb-10">
       <div className="flex gap-8 p-4 min-w-max items-start">
-        {rounds.map((roundKey) => (
+        {activeRounds.map((roundKey) => (
           <div key={roundKey} className="flex flex-col gap-8 w-[280px]">
             <div className="flex items-center gap-3 px-2">
               <div className="w-1.5 h-6 bg-secondary rounded-full" />
               <h3 className="text-sm font-black uppercase italic tracking-tighter text-primary">
-                {STAGE_LABELS[roundKey]}
+                {STAGE_LABELS[roundKey] || roundKey.replace('_', ' ')}
               </h3>
             </div>
 
@@ -60,7 +82,7 @@ export function KnockoutPhaseView({ matches }: KnockoutPhaseViewProps) {
                 />
               ))}
               
-              {!grouped[roundKey] && (
+              {(!grouped[roundKey] || grouped[roundKey].length === 0) && (
                 <div className="p-8 text-center bg-white/50 border-2 border-dashed rounded-[2rem] opacity-30">
                   <p className="text-[10px] font-black uppercase tracking-widest whitespace-normal">
                     Confrontos a definir

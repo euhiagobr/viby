@@ -3,9 +3,9 @@
 
 import * as React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Standing } from '@/types/worldcup';
 import { cn } from "@/lib/utils";
+import { Inbox } from 'lucide-react';
 
 const BRAZIL_ID = 764;
 
@@ -14,15 +14,22 @@ interface GroupStageViewProps {
 }
 
 export function GroupStageView({ standings }: GroupStageViewProps) {
-  if (!standings) return null;
+  if (!standings || standings.length === 0) {
+    return (
+      <div className="py-24 text-center bg-white rounded-[3rem] border-2 border-dashed border-border flex flex-col items-center gap-4 opacity-40">
+         <Inbox className="w-12 h-12" />
+         <p className="text-sm font-black uppercase tracking-widest">Fase de Grupos encerrada ou indisponível.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-500">
       {standings.filter(s => s.type === 'TOTAL').map((group) => (
-        <Card key={group.group} className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+        <Card key={group.group || Math.random()} className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="bg-muted/30 border-b p-6">
             <CardTitle className="text-lg font-black italic uppercase tracking-tighter text-primary">
-              Grupo {group.group?.replace('GROUP_', '')}
+              Grupo {group.group?.replace('GROUP_', '') || '---'}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
@@ -44,7 +51,7 @@ export function GroupStageView({ standings }: GroupStageViewProps) {
                     <td className="px-6 py-4 flex items-center gap-3">
                       <span className="text-[10px] font-bold opacity-30 w-4">{entry.position}º</span>
                       <div className="h-5 w-7 bg-muted rounded overflow-hidden relative border shadow-sm shrink-0">
-                        <img src={entry.team.crest} alt="" className="object-cover w-full h-full" />
+                        {entry.team.crest && <img src={entry.team.crest} alt="" className="object-cover w-full h-full" />}
                       </div>
                       <span className={cn("font-bold text-xs uppercase text-primary truncate max-w-[140px]", entry.team.id === BRAZIL_ID && "text-[#009c3b] font-black")}>
                         {entry.team.name}

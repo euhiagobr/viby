@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from 'react';
@@ -12,7 +13,9 @@ import {
   Loader2,
   AlertTriangle,
   Zap,
-  Info
+  Info,
+  Clock,
+  MapPin
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,15 +30,23 @@ const BRAZIL_ID = 764;
 export default function TabelaClient() {
   const [activeTab, setActiveTab] = React.useState("groups");
 
-  // Fetch Classificação
-  const { data: standingsData, error: standingsError, mutate: mutateStandings, isLoading: loadingStandings } = useSWR<FootballDataResponse<Standing>>(
+  const { 
+    data: standingsData, 
+    error: standingsError, 
+    mutate: mutateStandings, 
+    isLoading: loadingStandings 
+  } = useSWR<FootballDataResponse<Standing>>(
     WC_ENDPOINTS.standings, 
     fetcher,
     { refreshInterval: 15 * 60 * 1000, revalidateOnFocus: false }
   );
 
-  // Fetch Jogos
-  const { data: matchesData, error: matchesError, mutate: mutateMatches, isLoading: loadingMatches } = useSWR<FootballDataResponse<Match>>(
+  const { 
+    data: matchesData, 
+    error: matchesError, 
+    mutate: mutateMatches, 
+    isLoading: loadingMatches 
+  } = useSWR<FootballDataResponse<Match>>(
     WC_ENDPOINTS.matches, 
     fetcher,
     { refreshInterval: 5 * 60 * 1000, revalidateOnFocus: false }
@@ -46,27 +57,34 @@ export default function TabelaClient() {
     mutateMatches();
   };
 
-  const brazilNextMatch = React.useMemo(() => {
-    if (!matchesData?.matches) return null;
-    return matchesData.matches.find(m => 
-      (m.homeTeam?.id === BRAZIL_ID || m.awayTeam?.id === BRAZIL_ID) && 
-      ['SCHEDULED', 'TIMED', 'IN_PLAY'].includes(m.status)
-    );
-  }, [matchesData]);
-
+  // Detecção Dinâmica da Fase Atual (Contextual)
   const currentPhase = React.useMemo(() => {
     if (!matchesData?.matches) return 'GROUP_STAGE';
-    const stages = matchesData.matches.map(m => m.stage);
     
-    if (stages.includes('FINAL')) return 'FINAL';
-    if (stages.includes('SEMI_FINALS')) return 'SEMI_FINALS';
-    if (stages.includes('QUARTER_FINALS')) return 'QUARTER_FINALS';
-    if (stages.includes('ROUND_OF_16')) return 'ROUND_OF_16';
+    const matches = matchesData.matches;
     
+    // Prioridade 1: Qualquer fase que tenha jogo rolando ou finalizado
+    const activeMatch = [...matches].reverse().find(m => m.status === 'IN_PLAY' || m.status === 'PAUSED' || m.status === 'FINISHED');
+    if (activeMatch && activeMatch.stage !== 'GROUP_STAGE') return activeMatch.stage;
+
+    // Prioridade 2: Primeira fase que tenha jogos agendados (se a anterior acabou)
+    const phases = ['ROUND_OF_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'];
+    for (const phase of phases) {
+      if (matches.some(m => m.stage === phase)) return phase;
+    }
+
     return 'GROUP_STAGE';
   }, [matchesData]);
 
   const isKnockout = currentPhase !== 'GROUP_STAGE';
+
+  const brazilNextMatch = React.useMemo(() => {
+    if (!matchesData?.matches) return null;
+    return matchesData.matches.find(m => 
+      (m.homeTeam?.id === BRAZIL_ID || m.awayTeam?.id === BRAZIL_ID) && 
+      ['SCHEDULED', 'TIMED', 'IN_PLAY', 'PAUSED'].includes(m.status)
+    );
+  }, [matchesData]);
 
   const groupedMatches = React.useMemo(() => {
     if (!matchesData?.matches) return { today: [], upcoming: [], finished: [], live: [] };
@@ -147,7 +165,9 @@ export default function TabelaClient() {
         <TabsContent value="matches" className="space-y-12">
            {loadingMatches ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {Array.from({length: 6}).map((_, i) => <Loader2 key={i} className="h-40 w-full animate-spin text-muted" />)}
+                 {Array.from({length: 6}).map((_, i) => (
+                    <Card key={i} className="h-40 bg-muted animate-pulse rounded-[2rem] border-none" />
+                 ))}
               </div>
            ) : (
              <>
@@ -188,7 +208,6 @@ export default function TabelaClient() {
 function MatchCard({ match }: { match: Match }) {
   const isFinished = match.status === 'FINISHED';
   const isLive = ['IN_PLAY', 'PAUSED'].includes(match.status);
-  const locationDisplay = match.venue || match.group?.replace('GROUP_', 'Grupo ') || match.stage?.replace('_', ' ') || "Estádio a definir";
 
   return (
     <Card className={cn(
@@ -210,9 +229,13 @@ function MatchCard({ match }: { match: Match }) {
           <div className="p-8 flex items-center justify-between gap-4">
              <div className="flex flex-col items-center gap-3 flex-1 min-w-0">
                 <div className="h-10 w-12 bg-muted rounded overflow-hidden relative border shadow-sm">
-                   {match.homeTeam && <img src={match.homeTeam.crest} alt="" className="object-cover w-full h-full" />}
+                   {match.homeTeam?.crest ? (
+                     <img src={match.homeTeam.crest} alt="" className="object-cover w-full h-full" />
+                   ) : (
+                     <div className="w-full h-full flex items-center justify-center bg-muted text-[8px] font-black uppercase opacity-20">TBD</div>
+                   )}
                 </div>
-                <span className="font-black text-sm uppercase italic text-primary text-center leading-none truncate w-full">{match.homeTeam?.shortName || match.homeTeam?.name || 'TBD'}</span>
+                <span className="font-black text-sm uppercase italic text-primary text-center leading-none truncate w-full">{match.homeTeam?.shortName || match.homeTeam?.name || 'A DEFINIR'}</span>
              </div>
              
              <div className="flex flex-col items-center gap-2 shrink-0">
@@ -229,9 +252,13 @@ function MatchCard({ match }: { match: Match }) {
 
              <div className="flex flex-col items-center gap-3 flex-1 min-w-0">
                 <div className="h-10 w-12 bg-muted rounded overflow-hidden relative border shadow-sm">
-                   {match.awayTeam && <img src={match.awayTeam.crest} alt="" className="object-cover w-full h-full" />}
+                   {match.awayTeam?.crest ? (
+                     <img src={match.awayTeam.crest} alt="" className="object-cover w-full h-full" />
+                   ) : (
+                     <div className="w-full h-full flex items-center justify-center bg-muted text-[8px] font-black uppercase opacity-20">TBD</div>
+                   )}
                 </div>
-                <span className="font-black text-sm uppercase italic text-primary text-center leading-none truncate w-full">{match.awayTeam?.shortName || match.awayTeam?.name || 'TBD'}</span>
+                <span className="font-black text-sm uppercase italic text-primary text-center leading-none truncate w-full">{match.awayTeam?.shortName || match.awayTeam?.name || 'A DEFINIR'}</span>
              </div>
           </div>
        </CardContent>
