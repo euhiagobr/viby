@@ -39,7 +39,8 @@ import {
   Globe,
   Map,
   ImageIcon,
-  Calculator
+  Calculator,
+  ScanQrCode
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -103,6 +104,8 @@ export default function AdminLayout({
     { title: 'Páginas', url: '/admin/paginas', icon: Building2, permission: 'organizations.view' as any },
     { title: 'Usuários', url: '/admin/usuarios', icon: Users, permission: 'users.view' as any },
     { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket, permission: 'tickets.view' as any },
+    { title: 'Scanner QR', url: '/admin/scanner', icon: ScanQrCode, permission: 'tickets.view' as any },
+    { title: 'Estúdio de Imagens', url: '/admin/imagens', icon: ImageIcon, permission: 'marketing.view' as any },
     { title: 'Media Kit Viby', url: '/viby/marca', icon: ImageIcon, permission: 'marketing.view' as any },
     { title: 'Divulgue e Ganhe', url: '/admin/afiliados', icon: Handshake, permission: 'marketing.view' as any },
     { title: 'Parceiros', url: '/admin/marketing/parceiros', icon: Users, permission: 'marketing.view' as any },
@@ -117,6 +120,7 @@ export default function AdminLayout({
     { title: 'Extrato Global', url: '/admin/extrato', icon: Receipt, permission: 'financial.view' as any },
     { title: 'Notificações', url: '/admin/notificacoes', icon: Bell, permission: 'marketing.notifications' as any },
     { title: 'Logs do Sistema', url: '/admin/logs', icon: Terminal, permission: 'settings.view' as any },
+    { title: 'Diagnóstico Stripe', url: '/admin/diagnostico-stripe', icon: Terminal, permission: 'financial.view' as any },
     { title: 'E-mails Enviados', url: '/admin/emails', icon: Mail, permission: 'settings.view' as any },
     { title: 'Denúncias', url: '/admin/denuncias', icon: ShieldAlert, permission: 'events.approve' as any },
     { title: 'Prp. Eventos', url: '/admin/solicitacoes-propriedade', icon: UserCheck, permission: 'events.approve' as any },
