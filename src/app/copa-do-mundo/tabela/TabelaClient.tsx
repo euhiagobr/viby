@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from 'react';
@@ -68,7 +67,7 @@ export default function TabelaClient() {
     if (activeMatch && activeMatch.stage !== 'GROUP_STAGE') return activeMatch.stage;
 
     // Prioridade 2: Primeira fase que tenha jogos agendados (se a anterior acabou)
-    const phases = ['ROUND_OF_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'];
+    const phases = ['ROUND_OF_32', 'LAST_32', 'ROUND_OF_16', 'LAST_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'];
     for (const phase of phases) {
       if (matches.some(m => m.stage === phase)) return phase;
     }
@@ -216,7 +215,7 @@ function MatchCard({ match }: { match: Match }) {
     )}>
        <CardContent className="p-0">
           <div className="bg-muted/30 p-4 border-b flex justify-between items-center">
-             <Badge variant="outline" className={cn(
+             <Badge className={cn(
                "text-[8px] font-black uppercase h-5 border-none",
                isLive ? "bg-red-500 text-white animate-pulse" : isFinished ? "bg-muted text-muted-foreground" : "bg-secondary/10 text-secondary"
              )}>

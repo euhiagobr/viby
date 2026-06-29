@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -13,6 +12,8 @@ interface KnockoutPhaseViewProps {
 }
 
 const STAGE_LABELS: Record<string, string> = {
+  'ROUND_OF_32': '16-avos de Final',
+  'LAST_32': '16-avos de Final',
   'ROUND_OF_16': 'Oitavas de Final',
   'LAST_16': 'Oitavas de Final',
   'QUARTER_FINALS': 'Quartas de Final',
@@ -21,8 +22,10 @@ const STAGE_LABELS: Record<string, string> = {
   'FINAL': 'Final'
 };
 
-// Ordem lógica de renderização
+// Ordem lógica de renderização incluindo a nova Fase 2
 const STAGE_PRIORITY = [
+  'ROUND_OF_32',
+  'LAST_32',
   'ROUND_OF_16',
   'LAST_16',
   'QUARTER_FINALS',
@@ -56,7 +59,7 @@ export function KnockoutPhaseView({ matches }: KnockoutPhaseViewProps) {
     }
     
     // Sempre garante que a Final apareça como placeholder se já iniciou o mata-mata
-    if (!found.includes('FINAL')) found.push('FINAL');
+    if (found.length > 0 && !found.includes('FINAL')) found.push('FINAL');
     
     return found;
   }, [grouped]);

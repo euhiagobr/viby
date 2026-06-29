@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -21,6 +20,8 @@ interface BrazilStatusCardProps {
 
 const STAGE_LABELS: Record<string, string> = {
   'GROUP_STAGE': 'Fase de Grupos',
+  'ROUND_OF_32': '16-avos de Final',
+  'LAST_32': '16-avos de Final',
   'ROUND_OF_16': 'Oitavas de Final',
   'LAST_16': 'Oitavas de Final',
   'QUARTER_FINALS': 'Quartas de Final',
