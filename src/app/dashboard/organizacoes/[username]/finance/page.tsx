@@ -9,7 +9,6 @@ import {
   where, 
   getDocs, 
   limit,
-  collectionGroup,
   doc
 } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -73,7 +72,7 @@ function OrganizationFinanceContent() {
   const { user } = useUser(auth);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { formatPrice, currency, rates } = useCurrency();
+  const { formatPrice, rates } = useCurrency();
 
   const adsSettingsRef = React.useMemo(() => (db ? doc(db, 'settings', 'ads') : null), [db]);
   const { data: adsSettings } = useDoc<any>(adsSettingsRef);

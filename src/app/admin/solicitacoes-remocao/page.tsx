@@ -1,18 +1,9 @@
-
 'use client';
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
 import { 
   Trash2, 
   Loader2, 
@@ -29,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from '@/hooks/use-toast';
@@ -128,7 +120,7 @@ export default function AdminSolicitacoesRemocao() {
                 <TableCell className="text-center">
                   <Badge className={cn(
                     "text-[8px] font-black uppercase h-5",
-                    req.status === 'concluido' ? "bg-green-600" : req.status === 'rejeitado' ? "bg-red-500" : "bg-orange-500"
+                    req.status === 'concluido' ? "bg-green-600" : req.status === 'rejeitado' ? "bg-red-500" : "bg-orange-50 text-orange-600 border-orange-200"
                   )}>{req.status}</Badge>
                 </TableCell>
                 <TableCell className="p-6 text-right">

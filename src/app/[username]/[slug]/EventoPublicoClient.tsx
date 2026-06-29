@@ -58,7 +58,7 @@ interface EventoPublicoClientProps {
 }
 
 /**
- * @fileOverview Componente Client adaptado para SSR com correções de imports e visibilidade.
+ * @fileOverview Componente Client adaptado para SSR com correções de imports e visibilidade imediata no encerramento.
  */
 export default function EventoPublicoClient({ id, username, initialData }: EventoPublicoClientProps) {
   const db = useFirestore()
@@ -125,7 +125,7 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
       collection(db, "recurring_occurrences"),
       where("parentId", "==", id),
       where("status", "==", "active"),
-      where("start_date", ">=", today)
+      where("date", ">=", format(today, 'yyyy-MM-dd'))
     )
   }, [db, id, event?.isRecurring]);
 
@@ -393,7 +393,6 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
                   </div>
                </Card>
                
-               {/* Eventos Relacionados / Especiais */}
                <EventRelatedEvents 
                 currentEventId={id} 
                 currentTags={event.tags || []} 
