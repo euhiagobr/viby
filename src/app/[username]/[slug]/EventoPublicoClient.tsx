@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EventRelatedEvents } from "@/components/events/EventRelatedEvents"
+import { Separator } from "@/components/ui/separator"
 
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
   ssr: false,
@@ -57,7 +58,7 @@ interface EventoPublicoClientProps {
 }
 
 /**
- * @fileOverview Componente Client adaptado para SSR.
+ * @fileOverview Componente Client adaptado para SSR com correções de imports e visibilidade.
  */
 export default function EventoPublicoClient({ id, username, initialData }: EventoPublicoClientProps) {
   const db = useFirestore()

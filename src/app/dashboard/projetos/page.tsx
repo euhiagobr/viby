@@ -21,7 +21,9 @@ import {
   TicketPercent,
   Megaphone,
   RefreshCw,
-  History
+  History,
+  Archive,
+  Inbox
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -59,7 +61,7 @@ export default function MeusEventosPage() {
   const [now, setNow] = React.useState<Date>(new Date())
 
   React.useEffect(() => {
-    setNow(new Date())
+    setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(timer)
   }, [])
@@ -160,7 +162,7 @@ export default function MeusEventosPage() {
     };
 
     upcoming.sort(sortByDate);
-    past.sort((a, b) => sortByDate(b, a));
+    past.sort((a, b) => sortByDate(b, a)); // Histórico invertido
     deleted.sort(sortByDate);
 
     return { upcomingEvents: upcoming, pastEvents: past, deletedEvents: deleted };
@@ -376,7 +378,7 @@ export default function MeusEventosPage() {
             </div>
           ) : (
             <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-border flex flex-col items-center justify-center gap-4 opacity-40">
-               <Inbox className="w-12 h-12" />
+               <Archive className="w-12 h-12" />
                <p className="text-xs font-black uppercase tracking-widest italic">A lixeira está vazia</p>
             </div>
           )}
