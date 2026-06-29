@@ -38,7 +38,8 @@ import {
   Target,
   Globe,
   Map,
-  ImageIcon
+  ImageIcon,
+  Calculator
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -106,6 +107,7 @@ export default function AdminLayout({
     { title: 'Divulgue e Ganhe', url: '/admin/afiliados', icon: Handshake, permission: 'marketing.view' as any },
     { title: 'Parceiros', url: '/admin/marketing/parceiros', icon: Users, permission: 'marketing.view' as any },
     { title: 'Anúncios', url: '/admin/anuncios', icon: Megaphone, permission: 'marketing.view' as any },
+    { title: 'Taxas Atração', url: '/admin/taxas-atracao', icon: Calculator, permission: 'marketing.view' as any },
     { title: 'Cupons Globais', url: '/admin/cupons', icon: TicketPercent, permission: 'marketing.coupons' as any },
     { title: 'Campanhas', url: '/admin/campanhas', icon: Zap, permission: 'marketing.campaigns' as any },
     { title: 'Fiscal / Impostos', url: '/admin/imposto', icon: Scale, permission: 'financial.view' as any },
