@@ -1,10 +1,10 @@
-
 'use client';
 
 import * as React from 'react';
 import { Match, Standing } from '@/types/worldcup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Trophy, TrendingUp, Clock, MapPin, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
