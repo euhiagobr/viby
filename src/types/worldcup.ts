@@ -53,11 +53,11 @@ export interface Match {
   utcDate: string;
   status: 'SCHEDULED' | 'TIMED' | 'IN_PLAY' | 'PAUSED' | 'FINISHED' | 'CANCELLED' | 'POSTPONED';
   matchday: number;
-  stage: string;
+  stage: 'GROUP_STAGE' | 'ROUND_OF_16' | 'QUARTER_FINALS' | 'SEMI_FINALS' | 'THIRD_PLACE' | 'FINAL';
   group: string | null;
   lastUpdated: string;
-  homeTeam: Team;
-  awayTeam: Team;
+  homeTeam: Team | null;
+  awayTeam: Team | null;
   score: Score;
   venue: string | null;
 }
