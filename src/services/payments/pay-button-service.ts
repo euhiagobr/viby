@@ -31,6 +31,7 @@ export interface PayButtonOptions {
 
 /**
  * Executa o fluxo de checkout garantindo a injeção correta da hierarquia de taxas.
+ * ATUALIZADO (ETAPA 4): Suporte transacional para Experience Slots.
  */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, useBalance, rates, globalFees, promotions, orgsData } = options;
@@ -43,7 +44,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     throw new Error("Não é possível realizar checkout com múltiplas moedas.");
   }
 
-  // 1. Validação de Disponibilidade e Lock de Grátis
+  // 1. VALIDAÇÃO DE DISPONIBILIDADE E LOCK DE SLOTS
   for (const item of items) {
     const isExp = item.productType === 'experience';
     const collName = isExp ? "experiences" : "events";
@@ -51,22 +52,23 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     const eSnap = await getDoc(doc(staticDb, collName, item.eventId));
     if (!eSnap.exists()) throw new Error(`O item ${item.eventTitle} não está mais disponível.`);
     
-    const event = eSnap.data();
-    let batchSource = event.batches || [];
-
-    if (item.occurrenceId) {
-      const occSnap = await getDoc(doc(staticDb, isExp ? "experiences" : "recurring_occurrences", item.occurrenceId));
-      if (occSnap.exists()) {
-        const occData = occSnap.data();
-        if (occData.batches && occData.batches.length > 0) batchSource = occData.batches;
+    // ANTI-OVERBOOKING: Validar Slot específico de Experiência
+    if (isExp && item.occurrenceId) {
+      const slotRef = doc(staticDb, "experiences", item.eventId, "slots", item.occurrenceId);
+      const slotSnap = await getDoc(slotRef);
+      
+      if (!slotSnap.exists()) {
+        throw new Error("O horário selecionado não existe mais.");
       }
-    }
-
-    const batch = batchSource.find((b: any) => b.id === item.batchId);
-    const type = batch?.ticketTypes?.find((t: any) => t.id === item.ticketTypeId);
-
-    if (!batch || !type || type.quantity < item.quantity) {
-      throw new Error(`A disponibilidade para o lote "${item.batchName}" mudou.`);
+      
+      const slotData = slotSnap.data();
+      if (slotData.status !== 'active') {
+        throw new Error("Este horário não está mais aceitando reservas.");
+      }
+      
+      if ((slotData.sold || 0) + item.quantity > slotData.capacity) {
+        throw new Error("Desculpe, este horário acabou de esgotar.");
+      }
     }
 
     if (item.price === 0) {
@@ -79,7 +81,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const isFreeOrder = totals.total <= 0 && totals.balanceUsed === 0;
   const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
-  // 2. Fluxo de Ingressos Gratuitos
+  // 2. Fluxo de Ingressos Gratuitos (Voucher Imediato)
   if (isFreeOrder) {
     const result = await generateFreeTickets({
       userId: user.uid,
@@ -91,12 +93,11 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     return { type: 'free', success: true };
   }
 
-  // 3. Preparar Ordem de Pagamento com Snapshots de Taxas
+  // 3. PREPARAR ORDEM (INTENT) COM SNAPSHOTS
   const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
   const exchangeDate = new Date().toISOString().slice(0, 10);
 
   const orderItems = items.map(item => {
-    // RESOLUÇÃO DE TAXAS COM HIERARQUIA COMPLETA E TIPAGEM DE PRODUTO
     const breakdown = calculateFinancialBreakdown(
       item.price, 
       globalFees, 
@@ -110,7 +111,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       ...item,
       producerNetAmount: breakdown.producerNetAmount,
       administrativeFeeAmount: breakdown.administrativeFeeAmount,
-      financials: breakdown
+      financials: breakdown // Snapshot imutável
     };
   });
 
@@ -135,7 +136,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     createdAt: serverTimestamp()
   };
 
-  // Reserva de saldo se houver
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
     await runTransaction(staticDb, async (transaction) => {
       const walletRef = doc(staticDb, "wallets", user.uid);
@@ -152,7 +152,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
-  // 4. Mapeamento para o Stripe (Direct Split via Connect)
+  // 4. MAPEAR PARA STRIPE CONNECT
   const stripeLineItems = items.map((item) => {
     const split = calculateVibyOfficialSplit(
       item.price, 
@@ -167,7 +167,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     
     let unitAmountCents = toCents(split.totalCharged);
     
-    // Abatimento proporcional de saldo da carteira na linha do Stripe
     if (balanceToSubtractCents > 0 && eventCurrency === 'BRL') {
       const maxSub = unitAmountCents * item.quantity;
       const actualSub = Math.min(balanceToSubtractCents, maxSub);
@@ -180,12 +179,11 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
         currency: eventCurrency.toLowerCase(),
         product_data: {
           name: `${item.eventTitle} - ${item.ticketTypeName}`,
-          description: `Lote: ${item.batchName}`,
+          description: `Voucher: ${item.batchName}`,
           images: item.eventImage ? [item.eventImage] : []
         },
         unit_amount: unitAmountCents,
       },
-      padding: item.productType === 'experience' ? 'experience_tag' : undefined,
       quantity: item.quantity,
     };
   });
@@ -193,7 +191,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const orgDoc = await getDoc(doc(staticDb, "organizations", items[0].organizationId));
   const stripeAccountId = orgDoc.data()?.stripeAccountId;
 
-  if (!stripeAccountId) throw new Error("A marca não configurou o Stripe para recebimentos.");
+  if (!stripeAccountId) throw new Error("O organizador não possui conta de recebimento configurada.");
 
   const stripeResult = await createCheckoutSession({
     userEmail: user.email!,

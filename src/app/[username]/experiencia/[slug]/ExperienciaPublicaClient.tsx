@@ -11,16 +11,12 @@ import {
   Share2, 
   ShieldCheck, 
   Clock, 
-  Building2,
   BadgeCheck,
   Info,
-  ArrowLeft,
   MapPin,
   Navigation,
   CheckCircle2,
   ShoppingBag,
-  Coins,
-  ChevronRight,
   Loader2
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -32,7 +28,7 @@ import dynamic from 'next/dynamic';
 import { useCurrency, CurrencyCode } from '@/contexts/CurrencyContext';
 import { Separator } from '@/components/ui/separator';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc } from 'firebase/firestore';
 import { ExperienceSlotsPublic } from '@/components/experiences/ExperienceSlotsPublic';
 import { useCart } from '@/contexts/CartContext';
 import { toast } from '@/hooks/use-toast';
@@ -83,7 +79,10 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
   };
 
   const handleReserve = () => {
-    if (!selectedSlot) {
+    // REGRA ETAPA 3 & 4: Se existem slots, a seleção é obrigatória
+    const hasSlots = slots && slots.length > 0;
+    
+    if (hasSlots && !selectedSlot) {
       toast({ variant: "destructive", title: "Selecione um horário", description: "Escolha uma das opções disponíveis acima." });
       return;
     }
@@ -93,31 +92,31 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       return;
     }
 
-    // Mapeamento para CartItem suportando Experience
+    // Mapeamento transacional para CartItem (Experience Slot Unit)
     addItem({
-      id: `${experience.id}_${selectedSlot.id}`,
+      id: selectedSlot ? `${experience.id}_${selectedSlot.id}` : `${experience.id}_base`,
       eventId: experience.id,
       eventTitle: experience.title,
       eventImage: experience.image || "",
-      eventDate: selectedSlot.datetime,
+      eventDate: selectedSlot ? selectedSlot.datetime : null,
       eventCity: experience.city || "",
       organizationId: experience.organizationId,
       organizerId: experience.organizer?.id || "",
       organizerUsername: experience.organizer?.username || "",
-      ticketTypeId: "exp_slot",
-      ticketTypeName: "Vaga",
+      ticketTypeId: "exp_access",
+      ticketTypeName: "Vaga na Experiência",
       batchId: "slot",
-      batchName: "Reserva",
+      batchName: selectedSlot ? "Horário Agendado" : "Acesso Base",
       currency: (experience.currency || 'BRL'),
-      price: selectedSlot.price,
-      originalPrice: selectedSlot.price,
+      price: selectedSlot ? selectedSlot.price : experience.price,
+      originalPrice: selectedSlot ? selectedSlot.price : experience.price,
       quantity: 1,
       requiresProof: false,
-      occurrenceId: selectedSlot.id,
-      productType: 'experience'
-    } as any);
+      occurrenceId: selectedSlot ? selectedSlot.id : null,
+      productType: 'experience' // CRÍTICO PARA O TAX ENGINE
+    });
 
-    toast({ title: "Vaga reservada!", description: "O item foi adicionado ao seu carrinho." });
+    toast({ title: "Vaga adicionada!", description: "Continue para o pagamento no carrinho." });
     router.push('/dashboard/carrinho');
   };
 
@@ -220,7 +219,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                       </p>
                    </div>
                    <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${locationQuery}`} target="_blank">
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${locationQuery}`} target="_blank" rel="noopener noreferrer">
                         <Navigation className="w-4 h-4" /> GPS
                       </a>
                    </Button>
@@ -283,7 +282,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
 
                    <div className="space-y-3">
                       <Button 
-                        disabled={!selectedSlot || (selectedSlot.sold >= selectedSlot.capacity)} 
+                        disabled={loadingSlots || (selectedSlot && selectedSlot.sold >= selectedSlot.capacity)} 
                         onClick={handleReserve}
                         className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2"
                       >
