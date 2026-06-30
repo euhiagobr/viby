@@ -28,14 +28,14 @@ export interface PayButtonOptions {
   orgsData: Record<string, any>;
   useBalance: boolean;
   rates: Record<string, number>;
+  coupon?: any;
 }
 
 /**
  * Executa o fluxo de checkout garantindo a injeção correta da hierarquia de taxas.
- * ATUALIZADO (ETAPA 4): Implementado Reservation Layer para Experiências.
  */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
-  const { user, profile, items, totals, useBalance, rates, globalFees, promotions, orgsData } = options;
+  const { user, profile, items, totals, useBalance, rates, globalFees, promotions, orgsData, coupon } = options;
 
   if (!user) throw new Error("Usuário não identificado.");
   if (!items || items.length === 0) throw new Error("O carrinho está vazio.");
@@ -46,6 +46,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   }
 
   const reservationIds: string[] = [];
+  const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
   // 1. RESOLUÇÃO DE TIPO E RESERVA (LOCK)
   for (const item of items) {
@@ -55,7 +56,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     const eSnap = await getDoc(doc(staticDb, collName, item.eventId));
     if (!eSnap.exists()) throw new Error(`O item ${item.eventTitle} não está mais disponível.`);
     
-    // ANTI-OVERBOOKING: Reserva atômica para Experiências
     if (isExp && item.occurrenceId) {
       const res = await createExperienceReservationAction({
         experienceId: item.eventId,
@@ -76,32 +76,33 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       if (lockSnap.exists()) throw new Error("Você já resgatou este ingresso gratuito.");
     }
   }
-  
-  const isFreeOrder = totals.total <= 0 && totals.balanceUsed === 0;
-  const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
-  // 2. Fluxo de Ingressos Gratuitos (Voucher Imediato)
-  if (isFreeOrder) {
-    const result = await generateFreeTickets({
-      userId: user.uid,
-      userName: profile?.name || user.displayName || "Comprador",
-      userEmail: user.email!,
-      items: items
-    });
-    if (!result.success) throw new Error(result.error);
-    return { type: 'free', success: true };
-  }
-
-  // 3. PREPARAR ORDEM (INTENT) COM SNAPSHOTS FINANCEIROS POR PRODUCT_TYPE
+  // 2. PREPARAR ORDEM COM SNAPSHOTS FINANCEIROS E CUPONS
   const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
   const exchangeDate = new Date().toISOString().slice(0, 10);
 
   const orderItems = items.map(item => {
-    // Auditoria: productType obrigatório
+    let itemBasePrice = item.price;
+    let discountAmount = 0;
+
+    // Aplicação da lógica de cupom idêntica ao CarrinhoPage para consistência
+    if (coupon && coupon.eventId === item.eventId) {
+      if (coupon.discountType === 'percentage') {
+        discountAmount = Number((item.price * (coupon.discountValue / 100)).toFixed(2));
+        itemBasePrice = Math.max(0, item.price - discountAmount);
+      } else if (coupon.discountType === 'fixed') {
+        discountAmount = Math.min(item.price, coupon.discountValue);
+        itemBasePrice = Math.max(0, item.price - discountAmount);
+      } else if (coupon.discountType === 'free_ticket') {
+        discountAmount = item.price;
+        itemBasePrice = 0;
+      }
+    }
+
     const resolvedProductType = (item.productType as ProductType) || 'event';
 
     const breakdown = calculateFinancialBreakdown(
-      item.price, 
+      itemBasePrice, 
       globalFees, 
       promotions, 
       orgsData[item.organizationId], 
@@ -109,8 +110,13 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       rates,
       resolvedProductType
     );
+
     return {
       ...item,
+      price: itemBasePrice, // Preço após desconto
+      originalPrice: item.price,
+      discountAmount,
+      couponCode: coupon?.code || null,
       producerNetAmount: breakdown.producerNetAmount,
       administrativeFeeAmount: breakdown.administrativeFeeAmount,
       financials: breakdown 
@@ -132,12 +138,25 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     totals: {
       subtotal: totals.subtotal,
       fees: totals.fees,
+      discount: totals.discount,
       balanceUsed: totals.balanceUsed,
       totalToPay: totals.total
     },
     status: 'pending',
     createdAt: serverTimestamp()
   };
+
+  // Fluxo de Ingressos Gratuitos (Ordem Total 0)
+  if (totals.total <= 0) {
+    const result = await generateFreeTickets({
+      userId: user.uid,
+      userName: orderData.userName,
+      userEmail: user.email!,
+      items: orderItems
+    });
+    if (!result.success) throw new Error(result.error);
+    return { type: 'free', success: true };
+  }
 
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
     await runTransaction(staticDb, async (transaction) => {
@@ -155,8 +174,8 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
-  // 4. MAPEAR PARA STRIPE CONNECT (SOMA DE FEES DERIVADAS DO PRODUCT_TYPE)
-  const stripeLineItems = items.map((item) => {
+  // 4. MAPEAR PARA STRIPE CONNECT
+  const stripeLineItems = orderItems.map((item) => {
     const resolvedProductType = (item.productType as ProductType) || 'event';
 
     const split = calculateVibyOfficialSplit(
@@ -168,6 +187,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       promotions,
       resolvedProductType
     );
+    
     totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     
     let unitAmountCents = toCents(split.totalCharged);
@@ -184,7 +204,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
         currency: eventCurrency.toLowerCase(),
         product_data: {
           name: `${item.eventTitle} - ${item.ticketTypeName}`,
-          description: `Voucher: ${item.batchName}`,
+          description: `Voucher: ${item.batchName} ${item.couponCode ? `(Cupom: ${item.couponCode})` : ""}`,
           images: item.eventImage ? [item.eventImage] : []
         },
         unit_amount: unitAmountCents,

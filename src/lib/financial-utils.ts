@@ -77,6 +77,23 @@ export function calculateVibyOfficialSplit(
   const price = Math.max(0, Number(facePrice) || 0);
   const isExp = productType === 'experience';
 
+  // REGRA: Ingressos 100% gratuitos (via cupom ou base) não possuem taxas de serviço.
+  if (price <= 0) {
+    const freeSnapshot: Omit<PricingSnapshot, 'checksum'> = {
+      facePrice: 0,
+      buyerFee: 0,
+      totalCharged: 0,
+      organizerFee: 0,
+      organizerNet: 0,
+      vibyApplicationFee: 0,
+      productType
+    };
+    return {
+      ...freeSnapshot,
+      checksum: generateSnapshotChecksum(freeSnapshot)
+    };
+  }
+
   let markup = isExp ? VIBY_EXPERIENCE_BUYER_MARKUP : VIBY_BUYER_MARKUP;
   const v2Override = orgFees?.financialOverrides?.[productType];
   const isV2Active = isTemporalActive(v2Override?.validFrom, v2Override?.validTo);

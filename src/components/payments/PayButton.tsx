@@ -20,6 +20,8 @@ interface PayButtonProps {
   onSuccess: () => void
   disabled?: boolean
   className?: string
+  rates: Record<string, number>
+  appliedCoupon?: any
 }
 
 export function PayButton({ 
@@ -32,7 +34,9 @@ export function PayButton({
   useBalance, 
   onSuccess,
   disabled,
-  className
+  className,
+  rates,
+  appliedCoupon
 }: PayButtonProps) {
   const [loading, setLoading] = React.useState(false)
   const { reportError } = useErrorManager()
@@ -51,7 +55,9 @@ export function PayButton({
         globalFees,
         promotions,
         orgsData,
-        useBalance
+        useBalance,
+        rates,
+        coupon: appliedCoupon
       })
 
       if (result.type === 'free') {

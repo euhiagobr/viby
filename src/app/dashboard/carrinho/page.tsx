@@ -28,7 +28,7 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { calculateVibyOfficialSplit } from "@/lib/financial-utils"
+import { calculateVibyOfficialSplit, toCents, calculateFinancialBreakdown, ProductType } from "@/lib/financial-utils"
 import { PayButton } from "@/components/payments/PayButton"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -193,7 +193,6 @@ export default function CarrinhoPage() {
         return;
       }
 
-      // Validar se o cupom pertence a algum item do carrinho
       const matchedItem = items.find(i => i.eventId === coupon.eventId);
       if (!matchedItem) {
         toast({ variant: "destructive", title: "Restrição de Cupom", description: "Este código não é válido para os itens no seu carrinho." });
@@ -222,10 +221,9 @@ export default function CarrinhoPage() {
     filteredItems.forEach(item => { 
       let itemBasePrice = item.price;
       
-      // Aplicar desconto se houver cupom para este evento/experiência
       if (appliedCoupon && appliedCoupon.eventId === item.eventId) {
          if (appliedCoupon.discountType === 'percentage') {
-            const discVal = (item.price * (appliedCoupon.discountValue / 100));
+            const discVal = Number((item.price * (appliedCoupon.discountValue / 100)).toFixed(2));
             discount += discVal * item.quantity;
             itemBasePrice = Math.max(0, item.price - discVal);
          } else if (appliedCoupon.discountType === 'fixed') {
@@ -242,8 +240,6 @@ export default function CarrinhoPage() {
       
       const org = orgsData?.[item.organizationId];
       if (org && globalFees) {
-        // As taxas são calculadas sobre o preço NOMINAL ou DESCONTADO? 
-        // Na Viby, calculamos sobre o preço de face resultante.
         const res = calculateVibyOfficialSplit(itemBasePrice, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, item.productType || 'event');
         fees += (res?.buyerFee || 0) * (item.quantity || 0);
       }
@@ -436,6 +432,7 @@ export default function CarrinhoPage() {
                   disabled={isRevalidating || feesLoading || hasCurrencyConflict} 
                   className={cn(hasCurrencyConflict && "grayscale opacity-50 cursor-not-allowed")}
                   rates={rates}
+                  appliedCoupon={appliedCoupon}
                 />
                 
                 <div className="p-4 bg-muted/20 rounded-2xl flex items-start gap-3">
