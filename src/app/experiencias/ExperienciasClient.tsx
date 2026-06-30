@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -11,22 +10,23 @@ import {
   MapPin, 
   Calendar as CalendarIcon, 
   ChevronRight,
-  Filter,
-  Star,
-  Zap,
-  TrendingUp,
   SlidersHorizontal,
-  X
+  X,
+  ArrowRight,
+  Inbox,
+  Loader2
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, startOfToday, addDays, isSameDay } from "date-fns";
+import { Separator } from "@/components/ui/separator";
+import { format, startOfToday, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, normalizeText } from "@/lib/utils";
 import { ExperienceCardPremium } from "@/components/experiences/ExperienceCardPremium";
 import { ExperienceCategoryCard } from "@/components/experiences/ExperienceCategoryCard";
 import { ExperienceCarousel } from "@/components/experiences/ExperienceCarousel";
 import { useAds } from "@/hooks/home/useAds";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ExperienciasClientProps {
   initialExperiences: any[];
@@ -34,7 +34,7 @@ interface ExperienciasClientProps {
 }
 
 export default function ExperienciasClient({ initialExperiences, initialCategories }: ExperienciasClientProps) {
-  const { ads } = useAds();
+  const { ads, loading: adsLoading } = useAds();
   const [mounted, setMounted] = useState(false);
   
   const [search, setSearch] = useState("");
@@ -67,12 +67,23 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
     return [...filteredExperiences].sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0)).slice(0, 10);
   }, [filteredExperiences]);
 
-  if (!mounted) return null;
+  const clearFilters = () => {
+    setSearch("");
+    setSearchCity("");
+    setSelectedCategory("all");
+    setSelectedDate(undefined);
+  };
+
+  if (!mounted) return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+    </div>
+  );
 
   return (
-    <div className="flex flex-col min-h-screen bg-white font-sans">
+    <div className="flex flex-col min-h-screen bg-white font-sans selection:bg-secondary/10 selection:text-secondary">
       
-      {/* HERO SECTION - APPLE STYLE */}
+      {/* HERO SECTION - APPLE/AIRBNB STYLE */}
       <section className="relative h-[85vh] w-full flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
@@ -80,7 +91,7 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
             alt="Experience" 
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-black/30 bg-gradient-to-t from-white via-transparent to-black/20" />
+          <div className="absolute inset-0 bg-black/40 bg-gradient-to-t from-white via-transparent to-black/20" />
         </div>
 
         <div className="container mx-auto px-6 relative z-10 flex flex-col items-center text-center space-y-12">
@@ -88,7 +99,7 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
              <motion.h1 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-6xl md:text-8xl font-black tracking-tighter text-white drop-shadow-2xl"
+                className="text-6xl md:text-8xl font-black tracking-tighter text-white drop-shadow-2xl italic uppercase"
              >
                 Experiências, passeios e atrações
              </motion.h1>
@@ -102,7 +113,7 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
              </motion.p>
           </div>
 
-          {/* SEARCH BAR - STRIPE STYLE */}
+          {/* SEARCH BAR */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -142,9 +153,8 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
                   <PopoverContent className="w-auto p-4 rounded-3xl border-none shadow-2xl" align="center">
                     <div className="space-y-4">
                        <div className="flex flex-wrap gap-2">
-                          {['Hoje', 'Amanhã', 'Final de Semana'].map(label => (
-                            <Button key={label} variant="outline" size="sm" className="rounded-full text-[10px] font-black uppercase h-8">{label}</Button>
-                          ))}
+                          <Button variant="outline" size="sm" className="rounded-full text-[10px] font-black uppercase h-8" onClick={() => setSelectedDate(startOfToday())}>Hoje</Button>
+                          <Button variant="outline" size="sm" className="rounded-full text-[10px] font-black uppercase h-8" onClick={() => setSelectedDate(format(addDays(startOfToday(), 1), 'yyyy-MM-dd') as any)}>Amanhã</Button>
                        </div>
                        <Calendar
                          mode="single"
@@ -185,19 +195,22 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
         </div>
       </section>
 
-      {/* FILTER BAR - LINEAR STYLE */}
+      {/* FILTER BAR */}
       <section className="sticky top-16 z-40 bg-white/80 backdrop-blur-md border-y border-muted/50 py-4">
         <div className="container mx-auto px-6 flex items-center gap-3 overflow-x-auto scrollbar-hide no-wrap">
            <Button variant="outline" className="rounded-full h-10 gap-2 border-muted font-bold text-xs uppercase text-muted-foreground hover:bg-muted">
               <SlidersHorizontal className="w-4 h-4" /> Filtros
            </Button>
            <Separator orientation="vertical" className="h-6 mx-2" />
-           {['Categoria', 'Preço', 'Data', 'Avaliação', 'Duração', 'Cidade'].map(filter => (
+           {['Preço', 'Data', 'Avaliação', 'Duração', 'Cidade'].map(filter => (
              <Button key={filter} variant="outline" className="rounded-full h-10 px-6 border-muted font-bold text-xs uppercase text-muted-foreground hover:bg-muted shrink-0 transition-all">
                 {filter}
              </Button>
            ))}
-           <div className="ml-auto">
+           <div className="ml-auto flex items-center gap-2">
+              {(search || searchCity || selectedCategory !== 'all' || selectedDate) && (
+                <Button variant="ghost" onClick={clearFilters} className="text-[10px] font-black uppercase text-destructive">Limpar</Button>
+              )}
               <Button variant="ghost" className="rounded-full h-10 gap-2 font-bold text-xs uppercase text-muted-foreground">
                  Ordenar por <ChevronRight className="w-4 h-4" />
               </Button>
@@ -205,14 +218,14 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
         </div>
       </section>
 
-      {/* VITRINES - AIRBNB STYLE */}
+      {/* VITRINES */}
       <main className="flex-1 space-y-32 py-24 bg-white overflow-hidden">
         
         {/* VITRINE 1: PADRÃO */}
         <section className="space-y-12">
           <div className="container mx-auto px-6 flex items-end justify-between">
             <div className="space-y-2">
-              <h2 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter text-primary">Experiências Selecionadas</h2>
+              <h2 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter text-primary">Próximas Experiências</h2>
               <p className="text-muted-foreground font-medium text-lg">Curadoria exclusiva Viby para você viver o agora.</p>
             </div>
             <Button variant="ghost" className="font-black uppercase italic text-sm text-secondary hover:bg-secondary/5 gap-2">
@@ -242,7 +255,7 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
       </main>
 
       {/* EMPTY STATE */}
-      {filteredExperiences.length === 0 && (
+      {filteredExperiences.length === 0 && !isFetching && (
         <div className="py-40 text-center container mx-auto px-6">
            <div className="max-w-md mx-auto space-y-6">
               <Inbox className="w-20 h-20 mx-auto opacity-10" />
@@ -256,5 +269,4 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
   );
 }
 
-import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+const isFetching = false; // Placeholder for internal state if needed

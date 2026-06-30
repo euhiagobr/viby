@@ -1,15 +1,16 @@
-
 'use client';
 
 import * as React from "react";
-import { MapPin, Star, BadgeCheck, Zap, Heart, Info, Clock, CheckCircle2 } from "lucide-react";
+import { MapPin, Star, BadgeCheck, Zap, Heart, Info, Clock, CheckCircle2, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext";
 import { useFirestore } from "@/firebase";
 import { collection, query, where, orderBy, getDocs, limit } from "firebase/firestore";
 import Link from "next/link";
+import { RichText } from "@/components/ui/rich-text";
 
 interface ExperienceCardPremiumProps {
   experience: any;
@@ -31,6 +32,7 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
         const now = new Date();
         const todayStr = now.toISOString().split('T')[0];
         
+        // Consulta direta de subcoleção (Não exige index collectionGroup)
         const q = query(
           collection(db, "experiences", experience.id, "slots"),
           where("status", "==", "active"),
@@ -121,6 +123,10 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
             {experience.title}
           </h3>
 
+          <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed italic">
+             <RichText content={experience.shortDescription || ""} />
+          </div>
+
           <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
              <MapPin className="w-3 h-3 text-secondary" /> {experience.city}
           </div>
@@ -145,4 +151,3 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
     </Link>
   );
 }
-

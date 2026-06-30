@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -18,13 +17,16 @@ interface ExperienceCarouselProps {
   variant?: 'default' | 'sophisticated';
 }
 
+/**
+ * Carrossel premium para experiências.
+ * Intercala anúncios entre os cards seguindo o padrão de 3 a 7 itens.
+ */
 export function ExperienceCarousel({ experiences, ads = [], variant = 'default' }: ExperienceCarouselProps) {
-  // Lógica de intercalação dinâmica (3 a 7)
   const items = React.useMemo(() => {
     const result: any[] = [];
     let adIdx = 0;
     
-    // Inicia com um Ad
+    // Inicia com um Ad obrigatoriamente
     if (ads.length > 0 && variant === 'default') {
       result.push({ type: 'ad', adIndex: adIdx % ads.length });
       adIdx++;
@@ -55,7 +57,7 @@ export function ExperienceCarousel({ experiences, ads = [], variant = 'default' 
   if (experiences.length === 0) return null;
 
   return (
-    <div className="relative container mx-auto px-6">
+    <div className="relative w-full">
       <Carousel
         opts={{
           align: "start",
@@ -63,22 +65,25 @@ export function ExperienceCarousel({ experiences, ads = [], variant = 'default' 
         }}
         className="w-full overflow-visible"
       >
-        <CarouselContent className="-ml-6 py-10">
-          {items.map((item, idx) => (
-            <CarouselItem key={idx} className="pl-6 basis-[85%] sm:basis-[45%] md:basis-[33%] lg:basis-[28%]">
-              {item.type === 'ad' ? (
-                <div className="h-full">
-                  <AdsRenderer location="carousel" index={item.adIndex} googleSlotId="marketplace-carousel" />
-                </div>
-              ) : (
-                <ExperienceCardPremium experience={item.data} />
-              )}
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-        <div className="hidden md:flex absolute -top-20 right-0 gap-2">
-           <CarouselPrevious className="static translate-y-0 rounded-full h-12 w-12 border-muted bg-white hover:bg-secondary hover:text-white" />
-           <CarouselNext className="static translate-y-0 rounded-full h-12 w-12 border-muted bg-white hover:bg-secondary hover:text-white" />
+        <div className="container mx-auto px-6 relative">
+          <CarouselContent className="-ml-8 py-10">
+            {items.map((item, idx) => (
+              <CarouselItem key={idx} className="pl-8 basis-[85%] sm:basis-[45%] md:basis-[33%] lg:basis-[23.5%]">
+                {item.type === 'ad' ? (
+                  <div className="h-full min-h-[400px]">
+                    <AdsRenderer location="carousel" index={item.adIndex} googleSlotId="marketplace-carousel" />
+                  </div>
+                ) : (
+                  <ExperienceCardPremium experience={item.data} />
+                )}
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          
+          <div className="hidden md:flex absolute -top-20 right-6 gap-2">
+             <CarouselPrevious className="static translate-y-0 rounded-full h-12 w-12 border-muted bg-white hover:bg-secondary hover:text-white transition-all shadow-sm" />
+             <CarouselNext className="static translate-y-0 rounded-full h-12 w-12 border-muted bg-white hover:bg-secondary hover:text-white transition-all shadow-sm" />
+          </div>
         </div>
       </Carousel>
     </div>
