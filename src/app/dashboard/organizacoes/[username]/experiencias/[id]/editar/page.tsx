@@ -16,16 +16,10 @@ import {
   Sparkles, 
   Save, 
   Loader2, 
-  Check,
   Zap,
   MapPin,
-  Camera,
   Plus,
   X,
-  Coins,
-  Users,
-  Info,
-  ShieldCheck,
   Calendar,
   Layout,
   Clock
@@ -100,8 +94,7 @@ export default function EditarExperienciaPage() {
           startDate: "",
           endDate: "",
           allowedDays: [0, 1, 2, 3, 4, 5, 6],
-          allowHolidays: true,
-          baseWindows: []
+          allowHolidays: true
         },
         address: exp.address || {
           venueName: "",
@@ -326,41 +319,12 @@ export default function EditarExperienciaPage() {
               </div>
            </Card>
 
-           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
-              <div className="flex items-center justify-between">
-                 <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">Janelas de Horário Padrão</h3>
-                 <Button type="button" variant="outline" size="sm" onClick={() => setFormData({...formData, availability: {...formData.availability, baseWindows: [...(formData.availability.baseWindows || []), { start: "19:00", end: "22:00", label: "Aberto" }]}})} className="rounded-xl font-bold uppercase text-[10px] border-secondary text-secondary">
-                    <Plus className="w-4 h-4 mr-2" /> Adicionar Horário
-                 </Button>
-              </div>
-              
-              <div className="space-y-3">
-                 {formData.availability.baseWindows?.map((win, idx) => (
-                   <div key={idx} className="flex items-center gap-3 p-4 bg-muted/20 rounded-2xl border border-dashed animate-in slide-in-from-left-2">
-                      <Clock className="w-5 h-5 text-muted-foreground opacity-30" />
-                      <Input type="time" value={win.start} onChange={e => {
-                        const n = [...formData.availability.baseWindows];
-                        n[idx].start = e.target.value;
-                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
-                      }} className="h-10 rounded-lg w-32 font-bold" />
-                      <Input type="time" value={win.end} onChange={e => {
-                        const n = [...formData.availability.baseWindows];
-                        n[idx].end = e.target.value;
-                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
-                      }} className="h-10 rounded-lg w-32 font-bold" />
-                      <Input value={win.label} onChange={e => {
-                        const n = [...formData.availability.baseWindows];
-                        n[idx].label = e.target.value;
-                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
-                      }} className="h-10 rounded-lg flex-1 text-xs" placeholder="Ex: Aberto" />
-                      <button type="button" onClick={() => {
-                        const n = formData.availability.baseWindows.filter((_, i) => i !== idx);
-                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
-                      }} className="text-destructive"><X className="w-4 h-4" /></button>
-                   </div>
-                 ))}
-              </div>
-           </Card>
+           <div className="p-4 bg-muted/30 rounded-xl flex gap-3">
+            <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+            <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
+              Configure os dias de operação nesta aba. Os horários e preços específicos são definidos na aba <strong>Horários</strong>.
+            </p>
+          </div>
         </TabsContent>
 
         <TabsContent value="horarios" className="mt-0">

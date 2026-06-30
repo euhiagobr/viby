@@ -19,8 +19,8 @@ import {
   CheckCircle2,
   XCircle,
   Zap,
-  ArrowUpRight,
-  TrendingDown
+  Edit,
+  X
 } from 'lucide-react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -43,6 +43,7 @@ interface ExperienceSlotsAdminProps {
 export function ExperienceSlotsAdmin({ experienceId }: ExperienceSlotsAdminProps) {
   const db = useFirestore();
   const [isAdding, setIsAdding] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
 
   const slotsQuery = useMemoFirebase(() => {
@@ -55,7 +56,7 @@ export function ExperienceSlotsAdmin({ experienceId }: ExperienceSlotsAdminProps
 
   const { data: slots, loading: loadingSlots } = useCollection<any>(slotsQuery);
 
-  const [newSlot, setNewSlot] = React.useState({
+  const [slotForm, setSlotForm] = React.useState({
     datetime: "",
     price: 0,
     capacity: 100,
@@ -67,20 +68,65 @@ export function ExperienceSlotsAdmin({ experienceId }: ExperienceSlotsAdminProps
   });
 
   const handleAddSlot = async () => {
-    if (!newSlot.datetime || loading) return;
+    if (!slotForm.datetime || loading) return;
     setLoading(true);
     try {
-      const res = await createExperienceSlotAction(experienceId, newSlot);
+      const res = await createExperienceSlotAction(experienceId, slotForm);
       if (res.success) {
         toast({ title: "Horário adicionado!" });
         setIsAdding(false);
-        setNewSlot({ datetime: "", price: 0, capacity: 100, hasPromo: false, promoPrice: 0, promoStart: "", promoEnd: "", status: 'active' });
+        resetForm();
       } else throw new Error(res.error);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao criar", description: e.message });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUpdateSlot = async (slotId: string) => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const res = await updateExperienceSlotAction(experienceId, slotId, slotForm);
+      if (res.success) {
+        toast({ title: "Horário atualizado!" });
+        setEditingId(null);
+        resetForm();
+      } else throw new Error(res.error);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao atualizar", description: e.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setSlotForm({
+      datetime: "",
+      price: 0,
+      capacity: 100,
+      hasPromo: false,
+      promoPrice: 0,
+      promoStart: "",
+      promoEnd: "",
+      status: 'active'
+    });
+  };
+
+  const startEdit = (slot: any) => {
+    setSlotForm({
+      datetime: slot.datetime,
+      price: slot.price,
+      capacity: slot.capacity,
+      hasPromo: slot.hasPromo || false,
+      promoPrice: slot.promoPrice || 0,
+      promoStart: slot.promoStart || "",
+      promoEnd: slot.promoEnd || "",
+      status: slot.status
+    });
+    setEditingId(slot.id);
+    setIsAdding(false);
   };
 
   const handleToggleStatus = async (slotId: string, currentStatus: string) => {
@@ -107,30 +153,36 @@ export function ExperienceSlotsAdmin({ experienceId }: ExperienceSlotsAdminProps
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">Sessões & Precificação</h3>
-          <p className="text-xs font-bold text-muted-foreground uppercase">Configure cada horário e suas regras promocionais.</p>
+          <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">Sessões & Horários</h3>
+          <p className="text-xs font-bold text-muted-foreground uppercase">Gerencie cada dia e hora de operação.</p>
         </div>
-        <Button 
-          onClick={() => setIsAdding(true)} 
-          disabled={isAdding}
-          className="bg-secondary text-white font-black rounded-xl h-10 px-6 uppercase italic shadow-lg gap-2"
-        >
-          <Plus className="w-4 h-4" /> Novo Horário
-        </Button>
+        {!isAdding && !editingId && (
+          <Button 
+            onClick={() => setIsAdding(true)} 
+            className="bg-secondary text-white font-black rounded-xl h-10 px-6 uppercase italic shadow-lg gap-2"
+          >
+            <Plus className="w-4 h-4" /> Novo Horário
+          </Button>
+        )}
       </div>
 
-      {isAdding && (
+      {(isAdding || editingId) && (
         <Card className="border-2 border-dashed border-secondary/20 bg-secondary/5 rounded-[2rem] overflow-hidden animate-in slide-in-from-top-4">
           <CardContent className="p-8 space-y-8">
+            <div className="flex justify-between items-center">
+              <h4 className="font-black uppercase italic text-primary">{editingId ? "Editar Sessão" : "Nova Sessão"}</h4>
+              <button onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} className="text-muted-foreground hover:text-destructive"><X className="w-5 h-5" /></button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5 text-secondary" /> Data e Horário de Início
+                  <Calendar className="w-3.5 h-3.5 text-secondary" /> Data e Horário
                 </Label>
                 <Input 
                   type="datetime-local" 
-                  value={newSlot.datetime}
-                  onChange={e => setNewSlot({...newSlot, datetime: e.target.value})}
+                  value={slotForm.datetime}
+                  onChange={e => setSlotForm({...slotForm, datetime: e.target.value})}
                   className="rounded-xl h-11"
                 />
               </div>
@@ -142,8 +194,8 @@ export function ExperienceSlotsAdmin({ experienceId }: ExperienceSlotsAdminProps
                     <Input 
                       type="number" 
                       step="0.01"
-                      value={newSlot.price}
-                      onChange={e => setNewSlot({...newSlot, price: parseFloat(e.target.value) || 0})}
+                      value={slotForm.price}
+                      onChange={e => setSlotForm({...slotForm, price: parseFloat(e.target.value) || 0})}
                       className="rounded-xl h-11 font-black"
                     />
                  </div>
@@ -153,8 +205,8 @@ export function ExperienceSlotsAdmin({ experienceId }: ExperienceSlotsAdminProps
                     </Label>
                     <Input 
                       type="number"
-                      value={newSlot.capacity}
-                      onChange={e => setNewSlot({...newSlot, capacity: parseInt(e.target.value) || 0})}
+                      value={slotForm.capacity}
+                      onChange={e => setSlotForm({...slotForm, capacity: parseInt(e.target.value) || 0})}
                       className="rounded-xl h-11 font-bold"
                     />
                  </div>
@@ -166,41 +218,41 @@ export function ExperienceSlotsAdmin({ experienceId }: ExperienceSlotsAdminProps
             <div className="space-y-6">
                <div className="flex items-center justify-between p-4 bg-white rounded-2xl border shadow-sm">
                   <div className="flex items-center gap-3">
-                     <Zap className={cn("w-5 h-5", newSlot.hasPromo ? "text-orange-500 fill-orange-500" : "text-muted-foreground")} />
+                     <Zap className={cn("w-5 h-5", slotForm.hasPromo ? "text-orange-500 fill-orange-500" : "text-muted-foreground")} />
                      <div>
-                        <p className="text-xs font-black uppercase italic">Habilitar Valor Promocional?</p>
+                        <p className="text-xs font-black uppercase italic">Valor Promocional?</p>
                         <p className="text-[9px] font-bold text-muted-foreground uppercase leading-none">O preço mudará automaticamente no período definido.</p>
                      </div>
                   </div>
-                  <Switch checked={newSlot.hasPromo} onCheckedChange={v => setNewSlot({...newSlot, hasPromo: v})} />
+                  <Switch checked={slotForm.hasPromo} onCheckedChange={v => setSlotForm({...slotForm, hasPromo: v})} />
                </div>
 
-               {newSlot.hasPromo && (
+               {slotForm.hasPromo && (
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-top-2">
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase text-orange-600">Preço Promocional (R$)</Label>
+                       <Label className="text-[10px] font-black uppercase text-orange-600">Preço Promo (R$)</Label>
                        <Input 
                          type="number" step="0.01" 
-                         value={newSlot.promoPrice} 
-                         onChange={e => setNewSlot({...newSlot, promoPrice: parseFloat(e.target.value) || 0})}
+                         value={slotForm.promoPrice} 
+                         onChange={e => setSlotForm({...slotForm, promoPrice: parseFloat(e.target.value) || 0})}
                          className="h-11 rounded-xl font-black border-orange-200"
                        />
                     </div>
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Início das Vendas Promo</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60">Início Vendas Promo</Label>
                        <Input 
                          type="datetime-local" 
-                         value={newSlot.promoStart} 
-                         onChange={e => setNewSlot({...newSlot, promoStart: e.target.value})}
+                         value={slotForm.promoStart} 
+                         onChange={e => setSlotForm({...slotForm, promoStart: e.target.value})}
                          className="h-11 rounded-xl text-xs"
                        />
                     </div>
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 text-red-500">Fim das Vendas Promo</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60 text-red-500">Fim Vendas Promo</Label>
                        <Input 
                          type="datetime-local" 
-                         value={newSlot.promoEnd} 
-                         onChange={e => setNewSlot({...newSlot, promoEnd: e.target.value})}
+                         value={slotForm.promoEnd} 
+                         onChange={e => setSlotForm({...slotForm, promoEnd: e.target.value})}
                          className="h-11 rounded-xl text-xs"
                        />
                     </div>
@@ -209,14 +261,14 @@ export function ExperienceSlotsAdmin({ experienceId }: ExperienceSlotsAdminProps
             </div>
 
             <div className="flex gap-2 justify-end pt-4">
-               <Button variant="ghost" className="rounded-xl font-bold uppercase text-[10px]" onClick={() => setIsAdding(false)}>Cancelar</Button>
+               <Button variant="ghost" className="rounded-xl font-bold uppercase text-[10px]" onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }}>Cancelar</Button>
                <Button 
-                 onClick={handleAddSlot} 
-                 disabled={loading || !newSlot.datetime}
+                 onClick={() => editingId ? handleUpdateSlot(editingId) : handleAddSlot()} 
+                 disabled={loading || !slotForm.datetime}
                  className="bg-secondary text-white font-black h-11 px-8 rounded-xl shadow-xl uppercase italic"
                >
                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                 Confirmar Horário
+                 {editingId ? "Salvar Alterações" : "Confirmar Horário"}
                </Button>
             </div>
           </CardContent>
@@ -230,7 +282,8 @@ export function ExperienceSlotsAdmin({ experienceId }: ExperienceSlotsAdminProps
           slots.map((slot: any) => (
             <Card key={slot.id} className={cn(
               "border-none shadow-sm rounded-2xl bg-white overflow-hidden transition-all group",
-              slot.status === 'paused' && "opacity-60 grayscale-[0.5]"
+              slot.status === 'paused' && "opacity-60 grayscale-[0.5]",
+              editingId === slot.id && "ring-2 ring-secondary"
             )}>
               <CardContent className="p-6 flex items-center justify-between gap-6">
                 <div className="flex items-center gap-6">
@@ -271,6 +324,9 @@ export function ExperienceSlotsAdmin({ experienceId }: ExperienceSlotsAdminProps
                      {slot.status === 'active' ? 'ATIVO' : 'PAUSADO'}
                    </Badge>
                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => startEdit(slot)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleToggleStatus(slot.id, slot.status)}>
                         {slot.status === 'active' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                       </Button>

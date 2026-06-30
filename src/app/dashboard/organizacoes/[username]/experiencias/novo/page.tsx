@@ -1,21 +1,19 @@
+'use client';
 
-"use client"
-
-import * as React from "react"
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
-import { collection, query, where, orderBy, doc, serverTimestamp } from "firebase/firestore"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { toast } from "@/hooks/use-toast"
+import * as React from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase } from '@/firebase';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { collection, query, where, orderBy, doc, serverTimestamp } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { toast } from '@/hooks/use-toast';
 import { 
   Loader2, 
   ArrowLeft, 
@@ -23,28 +21,22 @@ import {
   X,
   Calendar,
   Clock,
-  Trash2,
   Sparkles,
   ShieldCheck,
-  Building2,
   Info,
-  CheckCircle2,
-  Layout,
-  Coins,
-  ChevronLeft,
   ChevronRight,
   Save
-} from "lucide-react"
-import Link from "next/link"
-import { cn, dateToAtomsphericISO } from "@/lib/utils"
-import { slugify } from "@/lib/slug-utils"
-import { useCurrentOrganization } from "@/contexts/OrganizationContext"
-import { EventLocation, EventHeader, EventDescription } from "@/components/events"
-import { IMAGE_CACHE_METADATA } from "@/lib/image-utils"
-import { getOrCreateExperienceDraftAction, publishExperienceAction, saveExperienceAction } from "@/app/actions/experiences"
-import { ExperienceSlotsAdmin } from "@/components/experiences/ExperienceSlotsAdmin"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Switch } from "@/components/ui/switch"
+} from 'lucide-react';
+import Link from 'next/link';
+import { cn, dateToAtomsphericISO } from '@/lib/utils';
+import { slugify } from '@/lib/slug-utils';
+import { useCurrentOrganization } from '@/contexts/OrganizationContext';
+import { EventLocation, EventHeader, EventDescription } from '@/components/events';
+import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
+import { getOrCreateExperienceDraftAction, publishExperienceAction, saveExperienceAction } from '@/app/actions/experiences';
+import { ExperienceSlotsAdmin } from '@/components/experiences/ExperienceSlotsAdmin';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 
 const WEEK_DAYS = [
   { id: 0, label: "Dom" },
@@ -98,8 +90,7 @@ export default function NovaExperienciaPage() {
       startDate: "",
       endDate: "",
       allowedDays: [0, 1, 2, 3, 4, 5, 6] as number[],
-      allowHolidays: true,
-      baseWindows: [] as any[]
+      allowHolidays: true
     },
     address: {
       venueName: "", street: "", number: "", complement: "", neighborhood: "", 
@@ -325,11 +316,11 @@ export default function NovaExperienciaPage() {
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-10">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Início da Experiência</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Início da Experiência (Dia)</Label>
                     <Input type="date" value={formData.availability.startDate} onChange={e => setFormData({...formData, availability: {...formData.availability, startDate: e.target.value}})} className="rounded-xl h-11" />
                  </div>
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Término (Opcional)</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Término Final (Dia)</Label>
                     <Input type="date" value={formData.availability.endDate} onChange={e => setFormData({...formData, availability: {...formData.availability, endDate: e.target.value}})} className="rounded-xl h-11" />
                  </div>
               </div>
@@ -364,49 +355,9 @@ export default function NovaExperienciaPage() {
               </div>
            </Card>
 
-           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
-              <div className="flex items-center justify-between">
-                 <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">Horários da Agenda</h3>
-                 <Button type="button" variant="outline" size="sm" onClick={() => setFormData({...formData, availability: {...formData.availability, baseWindows: [...(formData.availability.baseWindows || []), { start: "19:00", end: "22:00", label: "Aberto" }]}})} className="rounded-xl font-bold uppercase text-[10px] border-secondary text-secondary">
-                    <Plus className="w-4 h-4 mr-2" /> Adicionar Janela
-                 </Button>
-              </div>
-              
-              <div className="space-y-3">
-                 {formData.availability.baseWindows?.map((win, idx) => (
-                   <div key={idx} className="flex items-center gap-3 p-4 bg-muted/20 rounded-2xl border border-dashed animate-in slide-in-from-left-2">
-                      <Clock className="w-5 h-5 text-muted-foreground opacity-30" />
-                      <Input type="time" value={win.start} onChange={e => {
-                        const n = [...formData.availability.baseWindows];
-                        n[idx].start = e.target.value;
-                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
-                      }} className="h-10 rounded-lg w-32 font-bold" />
-                      <ArrowRight className="w-4 h-4 opacity-20" />
-                      <Input type="time" value={win.end} onChange={e => {
-                        const n = [...formData.availability.baseWindows];
-                        n[idx].end = e.target.value;
-                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
-                      }} className="h-10 rounded-lg w-32 font-bold" />
-                      <Input value={win.label} onChange={e => {
-                        const n = [...formData.availability.baseWindows];
-                        n[idx].label = e.target.value;
-                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
-                      }} className="h-10 rounded-lg flex-1 text-xs" placeholder="Ex: Matinê" />
-                      <button type="button" onClick={() => {
-                        const n = formData.availability.baseWindows.filter((_, i) => i !== idx);
-                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
-                      }} className="text-destructive"><X className="w-4 h-4" /></button>
-                   </div>
-                 ))}
-                 {(!formData.availability.baseWindows || formData.availability.baseWindows.length === 0) && (
-                   <div className="py-10 text-center opacity-30 italic text-[10px] uppercase font-bold">Nenhum horário padrão definido</div>
-                 )}
-              </div>
-           </Card>
-
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(2)} className="h-16 px-8 rounded-2xl font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={nextStep} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2 shadow-xl shadow-primary/10">Sessões e Preços <ChevronRight className="w-5 h-5" /></Button>
+              <Button onClick={nextStep} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2 shadow-xl shadow-primary/10">Configurar Horários <ChevronRight className="w-5 h-5" /></Button>
            </div>
         </div>
       )}
