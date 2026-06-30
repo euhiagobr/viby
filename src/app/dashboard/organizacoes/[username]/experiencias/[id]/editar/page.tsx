@@ -66,17 +66,12 @@ export default function EditarExperienciaPage() {
   const { currentOrg } = useCurrentOrganization();
   const storage = React.useMemo(() => (app ? getStorage(app) : null), [app]);
 
-  // Busca categorias dinâmicas do tipo 'experience' sem orderBy para evitar erro de índice
   const categoriesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(
-      collection(db, "categories"),
-      where("type", "==", "experience")
-    );
+    return query(collection(db, "categories"), where("type", "==", "experience"));
   }, [db]);
   const { data: rawCategories, loading: categoriesLoading } = useCollection<any>(categoriesQuery);
 
-  // Ordenação em memória para garantir usabilidade sem depender de índices complexos
   const categories = React.useMemo(() => {
     if (!rawCategories) return [];
     return [...rawCategories].sort((a, b) => a.name.localeCompare(b.name));
@@ -100,14 +95,13 @@ export default function EditarExperienciaPage() {
         description: exp.description || "",
         image: exp.image || "",
         gallery: exp.gallery || [],
-        price: exp.price || 0,
-        capacity: exp.capacity || 100,
         status: exp.status || "draft",
         availability: exp.availability || {
           startDate: "",
           endDate: "",
           allowedDays: [0, 1, 2, 3, 4, 5, 6],
-          allowHolidays: true
+          allowHolidays: true,
+          baseWindows: []
         },
         address: exp.address || {
           venueName: "",
@@ -153,9 +147,8 @@ export default function EditarExperienciaPage() {
     const files = e.target.files;
     if (!files || !storage || !user || !id) return;
     
-    const currentCount = formData.gallery.length;
-    if (currentCount + files.length > 5) {
-      toast({ variant: "destructive", title: "Limite atingido", description: "Máximo de 5 fotos na galeria." });
+    if (formData.gallery.length + files.length > 5) {
+      toast({ variant: "destructive", title: "Limite atingido", description: "Máximo de 5 fotos." });
       return;
     }
 
@@ -210,7 +203,7 @@ export default function EditarExperienciaPage() {
           <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias`}><ArrowLeft className="w-5 h-5" /></Link></Button>
           <div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Experiência</h1>
-            <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Gestão Avançada de Marketplace</p>
+            <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Gestão de Agenda e Marketplace</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -242,31 +235,18 @@ export default function EditarExperienciaPage() {
            />
 
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
-                    <Select value={formData.category} onValueChange={v => setFormData({...formData, category: v})}>
-                       <SelectTrigger className="rounded-xl h-11">
-                          <SelectValue placeholder={categoriesLoading ? "Carregando..." : "Selecione"} />
-                       </SelectTrigger>
-                       <SelectContent className="rounded-xl">
-                          {categories.map((c: any) => (
-                             <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
-                          ))}
-                       </SelectContent>
-                    </Select>
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
-                       <Coins className="w-3.5 h-3.5 text-secondary" /> Preço Base Fallback (R$)
-                    </Label>
-                    <Input 
-                       type="number" step="0.01"
-                       value={formData.price} 
-                       onChange={e => setFormData({...formData, price: parseFloat(e.target.value) || 0})}
-                       className="h-11 rounded-xl font-bold"
-                    />
-                 </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                <Select value={formData.category} onValueChange={v => setFormData({...formData, category: v})}>
+                  <SelectTrigger className="rounded-xl h-11">
+                    <SelectValue placeholder={categoriesLoading ? "Carregando..." : "Selecione"} />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {categories.map((c: any) => (
+                      <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -304,14 +284,14 @@ export default function EditarExperienciaPage() {
         </TabsContent>
 
         <TabsContent value="agenda" className="mt-0 space-y-8">
-           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-10">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Data de Início</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Data de Início da Série</Label>
                     <Input type="date" value={formData.availability.startDate} onChange={e => setFormData({...formData, availability: {...formData.availability, startDate: e.target.value}})} className="rounded-xl h-11" />
                  </div>
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Data de Término (Opcional)</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Data de Término Final</Label>
                     <Input type="date" value={formData.availability.endDate} onChange={e => setFormData({...formData, availability: {...formData.availability, endDate: e.target.value}})} className="rounded-xl h-11" />
                  </div>
               </div>
@@ -343,6 +323,42 @@ export default function EditarExperienciaPage() {
                     <div><p className="text-sm font-bold uppercase italic text-primary">Permitir Feriados?</p></div>
                  </div>
                  <Switch checked={formData.availability.allowHolidays} onCheckedChange={v => setFormData({...formData, availability: {...formData.availability, allowHolidays: v}})} />
+              </div>
+           </Card>
+
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                 <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">Janelas de Horário Padrão</h3>
+                 <Button type="button" variant="outline" size="sm" onClick={() => setFormData({...formData, availability: {...formData.availability, baseWindows: [...(formData.availability.baseWindows || []), { start: "19:00", end: "22:00", label: "Aberto" }]}})} className="rounded-xl font-bold uppercase text-[10px] border-secondary text-secondary">
+                    <Plus className="w-4 h-4 mr-2" /> Adicionar Horário
+                 </Button>
+              </div>
+              
+              <div className="space-y-3">
+                 {formData.availability.baseWindows?.map((win, idx) => (
+                   <div key={idx} className="flex items-center gap-3 p-4 bg-muted/20 rounded-2xl border border-dashed animate-in slide-in-from-left-2">
+                      <Clock className="w-5 h-5 text-muted-foreground opacity-30" />
+                      <Input type="time" value={win.start} onChange={e => {
+                        const n = [...formData.availability.baseWindows];
+                        n[idx].start = e.target.value;
+                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
+                      }} className="h-10 rounded-lg w-32 font-bold" />
+                      <Input type="time" value={win.end} onChange={e => {
+                        const n = [...formData.availability.baseWindows];
+                        n[idx].end = e.target.value;
+                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
+                      }} className="h-10 rounded-lg w-32 font-bold" />
+                      <Input value={win.label} onChange={e => {
+                        const n = [...formData.availability.baseWindows];
+                        n[idx].label = e.target.value;
+                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
+                      }} className="h-10 rounded-lg flex-1 text-xs" placeholder="Ex: Aberto" />
+                      <button type="button" onClick={() => {
+                        const n = formData.availability.baseWindows.filter((_, i) => i !== idx);
+                        setFormData({...formData, availability: {...formData.availability, baseWindows: n}});
+                      }} className="text-destructive"><X className="w-4 h-4" /></button>
+                   </div>
+                 ))}
               </div>
            </Card>
         </TabsContent>

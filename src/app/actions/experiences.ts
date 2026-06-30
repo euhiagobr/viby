@@ -49,7 +49,7 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
       slug: "",
       shortDescription: "",
       description: "",
-      category: "", // Obrigatório v2
+      category: "",
       image: "",
       gallery: [],
       price: 0,
@@ -63,7 +63,8 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
         startDate: "",
         endDate: "",
         allowedDays: [0, 1, 2, 3, 4, 5, 6],
-        allowHolidays: true
+        allowHolidays: true,
+        baseWindows: []
       },
       address: {
         country: "Brasil",
@@ -111,17 +112,16 @@ export async function publishExperienceAction(id: string, finalData: any) {
   try {
     const expRef = db.collection('experiences').doc(id);
     
-    // Validação de Negócio v2
     if (!finalData.category) throw new Error("A categoria é obrigatória.");
     if (!finalData.address?.latitude || !finalData.address?.longitude) {
       throw new Error("A localização geográfica é obrigatória para publicar.");
     }
     if (!finalData.availability?.startDate) throw new Error("A data de início é obrigatória.");
 
-    // Verificar se existe pelo menos 1 slot ativo ou preço base
+    // Agora validamos se existem slots ativos, já que removemos o preço base
     const slotsSnap = await expRef.collection('slots').where('status', '==', 'active').limit(1).get();
-    if (slotsSnap.empty && (!finalData.price || finalData.price <= 0)) {
-      throw new Error("Adicione pelo menos um horário disponível ou defina um preço base.");
+    if (slotsSnap.empty) {
+      throw new Error("Adicione pelo menos um horário disponível na aba 'Horários' para publicar.");
     }
 
     const orgSnap = await db.collection('organizations').doc(finalData.organizationId).get();
@@ -157,7 +157,6 @@ export async function publishExperienceAction(id: string, finalData: any) {
 export async function deleteExperienceAction(id: string) {
   const db = getAdminDb();
   try {
-    // Delete slots too
     const slotsSnap = await db.collection('experiences').doc(id).collection('slots').get();
     const batch = db.batch();
     slotsSnap.forEach(doc => batch.delete(doc.ref));
