@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Pipeline de processamento de sitemaps.
  * 1. Load: Coleta de dados brutos.
@@ -17,7 +18,7 @@ export const RESERVED_ROUTES = [
   'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
   'projeto', 'auth', 'para-organizadores', 'search', 'settings', 'viby', 'marca',
-  'o-que-fazer-em', 'eventos', 'evento', 'perfil'
+  'o-que-fazer-em', 'eventos', 'evento', 'perfil', 'experiencias'
 ];
 
 export function isValidUsername(username: string | undefined): boolean {

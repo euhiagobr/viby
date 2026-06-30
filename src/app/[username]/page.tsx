@@ -3,7 +3,7 @@ import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 import ProfilePageClient from './ProfilePageClient';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 const RESERVED_ROUTES = [
   'dashboard', 'admin', 'login', 'cadastro', 'redefinir-senha', 
@@ -14,7 +14,7 @@ const RESERVED_ROUTES = [
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
   'projeto', 'auth', 'para-organizadores', 'search', 'settings',
   'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.webmanifest', 'og',
-  'experiencias-lgbtqiapn', 'copa-do-mundo', 'o-que-fazer-em', 'evento', 'eventos'
+  'experiencias-lgbtqiapn', 'copa-do-mundo', 'o-que-fazer-em', 'evento', 'eventos', 'experiencias'
 ];
 
 const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
