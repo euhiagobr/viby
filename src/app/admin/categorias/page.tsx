@@ -3,10 +3,10 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase, useFirebaseApp, useUser, useAuth } from "@/firebase"
-import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from "firebase/firestore"
+import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy, updateDoc } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Tag, Loader2, Plus, Trash2, Hash, Sparkles, Ticket, ImageIcon, Upload, Camera } from "lucide-react"
+import { Tag, Loader2, Plus, Trash2, Hash, Sparkles, Ticket, ImageIcon, Upload, Camera, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,6 +32,7 @@ export default function AdminCategoriasPage() {
   const [newCatType, setNewCatType] = React.useState<string>("event")
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   const [imageUrl, setImageUrl] = React.useState<string>("")
+  const [editingCategory, setEditingCategory] = React.useState<any>(null)
 
   const categoriesQuery = useMemoFirebase(() => 
     db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, 
@@ -70,7 +71,7 @@ export default function AdminCategoriasPage() {
     } catch (err) { setUploadProgress(null) }
   }
 
-  const handleCreateCategory = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveCategory = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!db) return
 
@@ -79,30 +80,50 @@ export default function AdminCategoriasPage() {
     const name = formData.get("name") as string
     const slug = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ç/g, "c").replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")
 
-    const catData = {
+    const catData: any = {
       name,
       slug,
       type: newCatType,
       imageUrl: imageUrl || "",
-      icon: "Tag",
-      createdAt: serverTimestamp()
     }
 
-    addDoc(collection(db, "categories"), catData)
-      .then(() => {
-        toast({ title: "Categoria criada!", description: `A categoria "${name}" foi adicionada aos ${newCatType === 'event' ? 'Eventos' : 'Experiências'}.` })
-        setIsCatDialogOpen(false)
-        setImageUrl("")
-      })
-      .catch(async (error) => {
-        const permissionError = new FirestorePermissionError({
-          path: "categories",
-          operation: "create",
-          requestResourceData: catData
+    if (editingCategory) {
+      catData.updatedAt = serverTimestamp()
+      updateDoc(doc(db, "categories", editingCategory.id), catData)
+        .then(() => {
+          toast({ title: "Categoria atualizada!" })
+          setIsCatDialogOpen(false)
+          setEditingCategory(null)
+          setImageUrl("")
         })
-        errorEmitter.emit("permission-error", permissionError)
-      })
-      .finally(() => setIsSubmittingCat(false))
+        .catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+            path: `categories/${editingCategory.id}`,
+            operation: "update",
+            requestResourceData: catData
+          })
+          errorEmitter.emit("permission-error", permissionError)
+        })
+        .finally(() => setIsSubmittingCat(false))
+    } else {
+      catData.icon = "Tag"
+      catData.createdAt = serverTimestamp()
+      addDoc(collection(db, "categories"), catData)
+        .then(() => {
+          toast({ title: "Categoria criada!", description: `A categoria "${name}" foi adicionada.` })
+          setIsCatDialogOpen(false)
+          setImageUrl("")
+        })
+        .catch(async (error) => {
+          const permissionError = new FirestorePermissionError({
+            path: "categories",
+            operation: "create",
+            requestResourceData: catData
+          })
+          errorEmitter.emit("permission-error", permissionError)
+        })
+        .finally(() => setIsSubmittingCat(false))
+    }
   }
 
   const handleDeleteCategory = (id: string) => {
@@ -120,6 +141,13 @@ export default function AdminCategoriasPage() {
       })
   }
 
+  const handleOpenEdit = (cat: any) => {
+    setEditingCategory(cat)
+    setNewCatType(cat.type || 'event')
+    setImageUrl(cat.imageUrl || "")
+    setIsCatDialogOpen(true)
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -131,7 +159,14 @@ export default function AdminCategoriasPage() {
           <p className="text-muted-foreground font-medium">Gerencie as categorias de Eventos e Experiências da Viby.</p>
         </div>
         
-        <Dialog open={isCatDialogOpen} onOpenChange={(v) => { setIsCatDialogOpen(v); if(!v) setImageUrl(""); }}>
+        <Dialog open={isCatDialogOpen} onOpenChange={(v) => { 
+          if(!v) {
+            setEditingCategory(null);
+            setImageUrl("");
+            setNewCatType(activeTab);
+          }
+          setIsCatDialogOpen(v); 
+        }}>
           <DialogTrigger asChild>
             <Button className="gap-2 bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg uppercase italic">
               <Plus className="w-5 h-5" />
@@ -139,9 +174,11 @@ export default function AdminCategoriasPage() {
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md rounded-[2.5rem]">
-            <form onSubmit={handleCreateCategory}>
+            <form onSubmit={handleSaveCategory}>
               <DialogHeader>
-                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Criar Categoria</DialogTitle>
+                <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">
+                  {editingCategory ? "Editar Categoria" : "Criar Categoria"}
+                </DialogTitle>
                 <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Defina o nome e o tipo de produto.</DialogDescription>
               </DialogHeader>
               <div className="py-6 space-y-6">
@@ -185,12 +222,12 @@ export default function AdminCategoriasPage() {
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Nome de Exibição</Label>
-                  <Input name="name" placeholder="Ex: Música ao Vivo" required className="rounded-xl h-11" />
+                  <Input name="name" defaultValue={editingCategory?.name} placeholder="Ex: Música ao Vivo" required className="rounded-xl h-11" />
                 </div>
               </div>
               <DialogFooter>
                 <Button type="submit" className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic text-lg" disabled={isSubmittingCat || uploadProgress !== null}>
-                  {isSubmittingCat ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Publicar Categoria"}
+                  {isSubmittingCat ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : (editingCategory ? "Salvar Alterações" : "Publicar Categoria")}
                 </Button>
               </DialogFooter>
             </form>
@@ -242,9 +279,14 @@ export default function AdminCategoriasPage() {
                           <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest truncate">slug: {cat.slug}</p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 rounded-xl h-8 w-8" onClick={() => handleDeleteCategory(cat.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="text-secondary hover:bg-secondary/10 rounded-xl h-8 w-8" onClick={() => handleOpenEdit(cat)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 rounded-xl h-8 w-8" onClick={() => handleDeleteCategory(cat.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
