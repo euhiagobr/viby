@@ -22,7 +22,8 @@ import {
   X,
   Calendar,
   Layout,
-  Clock
+  Clock,
+  Info
 } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc, query, collection, where } from 'firebase/firestore';
 import Link from 'next/link';
