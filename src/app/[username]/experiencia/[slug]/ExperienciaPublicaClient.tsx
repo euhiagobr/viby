@@ -17,7 +17,9 @@ import {
   Navigation,
   CheckCircle2,
   ShoppingBag,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  FileText
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RichText } from '@/components/ui/rich-text';
@@ -45,7 +47,7 @@ interface ExperienciaPublicaClientProps {
 }
 
 export default function ExperienciaPublicaClient({ experience }: ExperienciaPublicaClientProps) {
-  const { formatPriceWithOriginal } = useCurrency();
+  const { formatPrice, formatPriceWithOriginal } = useCurrency();
   const { addItem } = useCart();
   const db = useFirestore();
   const auth = useAuth();
@@ -66,6 +68,15 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
 
   const { data: slots, loading: loadingSlots } = useCollection<any>(slotsQuery);
 
+  // Cálculo do menor preço disponível nos slots
+  const minPrice = React.useMemo(() => {
+    if (!slots || slots.length === 0) return experience.price || 0;
+    const now = new Date();
+    const futureSlots = slots.filter(s => new Date(s.datetime) > now);
+    if (futureSlots.length === 0) return experience.price || 0;
+    return Math.min(...futureSlots.map(s => s.price || 0));
+  }, [slots, experience.price]);
+
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
@@ -78,12 +89,13 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
     }
   };
 
-  const handleReserve = () => {
-    // REGRA ETAPA 3 & 4: Se existem slots, a seleção é obrigatória
+  const handleAddToCart = () => {
     const hasSlots = slots && slots.length > 0;
     
     if (hasSlots && !selectedSlot) {
-      toast({ variant: "destructive", title: "Selecione um horário", description: "Escolha uma das opções disponíveis acima." });
+      const el = document.getElementById("horarios-section");
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      toast({ variant: "destructive", title: "Selecione um horário", description: "Escolha uma das opções disponíveis na agenda." });
       return;
     }
 
@@ -92,7 +104,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       return;
     }
 
-    // Mapeamento transacional para CartItem (Experience Slot Unit)
     addItem({
       id: selectedSlot ? `${experience.id}_${selectedSlot.id}` : `${experience.id}_base`,
       eventId: experience.id,
@@ -113,10 +124,10 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       quantity: 1,
       requiresProof: false,
       occurrenceId: selectedSlot ? selectedSlot.id : null,
-      productType: 'experience' // CRÍTICO PARA O TAX ENGINE
+      productType: 'experience'
     });
 
-    toast({ title: "Vaga adicionada!", description: "Continue para o pagamento no carrinho." });
+    toast({ title: "Adicionado!", description: "Continue para o pagamento no carrinho." });
     router.push('/dashboard/carrinho');
   };
 
@@ -125,7 +136,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
   const lng = address.longitude || experience.longitude || -46.633308;
   const locationQuery = encodeURIComponent(`${address.addressLine1} ${address.city}`);
 
-  const displayPrice = selectedSlot ? selectedSlot.price : experience.price;
+  const displayPrice = selectedSlot ? selectedSlot.price : minPrice;
   const displayCurrency = (selectedSlot?.currency || experience.currency || 'BRL') as CurrencyCode;
 
   return (
@@ -149,7 +160,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
             <div className="container mx-auto max-w-6xl space-y-6">
               <div className="flex flex-wrap gap-2">
                 <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg">
-                  Vivência Cultural
+                  {experience.category || "Vivência Cultural"}
                 </Badge>
               </div>
               <h1 className="text-4xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-[0.85]">{experience.title}</h1>
@@ -163,6 +174,17 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
         <div className="container mx-auto px-4 py-12 max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
           <div className="lg:col-span-8 space-y-12">
             
+            <section className="space-y-6">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
+                <Info className="w-4 h-4 text-secondary" /> Detalhes da Experiência
+              </h2>
+              <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+                <CardContent className="p-8 md:p-12">
+                  <RichText content={experience.description} className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed" />
+                </CardContent>
+              </Card>
+            </section>
+
             {experience.gallery?.length > 0 && (
               <section className="space-y-6">
                 <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2">Galeria</h2>
@@ -176,7 +198,10 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               </section>
             )}
 
-            <section className="space-y-6">
+            <section id="horarios-section" className="space-y-6">
+               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
+                 <Calendar className="w-4 h-4 text-secondary" /> Escolha seu Horário
+               </h2>
                {loadingSlots ? (
                  <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
                ) : (
@@ -186,17 +211,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                    selectedSlotId={selectedSlot?.id} 
                  />
                )}
-            </section>
-
-            <section className="space-y-6">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
-                <Info className="w-4 h-4 text-secondary" /> Detalhes da Experiência
-              </h2>
-              <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-                <CardContent className="p-8 md:p-12">
-                  <RichText content={experience.description} className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed" />
-                </CardContent>
-              </Card>
             </section>
 
             <section className="space-y-6">
@@ -231,14 +245,18 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {experience.additionalInfo && (
                   <Card className="border-none shadow-sm rounded-3xl bg-white p-8 space-y-4">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary">Informações Úteis</h4>
-                    <p className="text-sm font-medium text-muted-foreground leading-relaxed">{experience.additionalInfo}</p>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
+                      <Info className="w-4 h-4" /> Informações Úteis
+                    </h4>
+                    <p className="text-sm font-medium text-muted-foreground leading-relaxed whitespace-pre-line">{experience.additionalInfo}</p>
                   </Card>
                 )}
                 {experience.usagePolicy && (
                   <Card className="border-none shadow-sm rounded-3xl bg-white p-8 space-y-4">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary">Políticas e Regras</h4>
-                    <p className="text-sm font-medium text-muted-foreground leading-relaxed">{experience.usagePolicy}</p>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4" /> Políticas e Regras
+                    </h4>
+                    <p className="text-sm font-medium text-muted-foreground leading-relaxed whitespace-pre-line">{experience.usagePolicy}</p>
                   </Card>
                 )}
               </div>
@@ -268,14 +286,17 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                    <div className="flex justify-between items-end">
                       <div className="space-y-1">
                          <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">
-                           {selectedSlot ? "Valor do Horário" : "Valor da Experiência"}
+                           {selectedSlot ? "Valor do Horário" : "Valor Inicial"}
                          </p>
-                         {formatPriceWithOriginal(displayPrice, displayCurrency)}
+                         <div className="flex flex-col">
+                            {!selectedSlot && <span className="text-[8px] font-black uppercase text-secondary">A partir de</span>}
+                            {formatPriceWithOriginal(displayPrice, displayCurrency)}
+                         </div>
                       </div>
                       <div className="text-right">
                          <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Vagas</p>
                          <p className="text-sm font-bold">
-                           {selectedSlot ? (selectedSlot.capacity - (selectedSlot.sold || 0)) : (experience.capacity || "Ilimitado")}
+                           {selectedSlot ? (selectedSlot.capacity - (selectedSlot.sold || 0)) : (experience.capacity || "Disponível")}
                          </p>
                       </div>
                    </div>
@@ -283,11 +304,11 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                    <div className="space-y-3">
                       <Button 
                         disabled={loadingSlots || (selectedSlot && selectedSlot.sold >= selectedSlot.capacity)} 
-                        onClick={handleReserve}
-                        className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2"
+                        onClick={handleAddToCart}
+                        className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2 active:scale-95 transition-transform"
                       >
                         <ShoppingBag className="w-5 h-5" /> 
-                        {selectedSlot ? "Reservar Vaga" : "Selecione um Horário"}
+                        {selectedSlot ? "Adicionar ao Carrinho" : "Selecione um Horário"}
                       </Button>
                       
                       {selectedSlot && (
