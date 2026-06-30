@@ -7,7 +7,6 @@ import {
   updateDoc, 
   getDoc,
   serverTimestamp,
-  runTransaction,
   increment
 } from "firebase/firestore";
 import { db as staticDb } from "@/firebase/database";
@@ -15,7 +14,7 @@ import { createCheckoutSession } from "@/app/actions/stripe";
 import { generateFreeTickets } from "@/app/actions/tickets";
 import { calculateVibyOfficialSplit, toCents, calculateFinancialBreakdown, ProductType } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
-import { CurrencyCode } from "@/contexts/CurrencyCode";
+import { CurrencyCode } from "@/contexts/CurrencyContext";
 import { createExperienceReservationAction } from "@/app/actions/experiences";
 
 export interface PayButtonOptions {
@@ -33,7 +32,8 @@ export interface PayButtonOptions {
 
 /**
  * Executa o fluxo de checkout garantindo a injeção correta da hierarquia de taxas.
- * Corrigido para garantir que todas as leituras (getDoc) ocorram antes das escritas (reservas/ordens).
+ * Corrigido para garantir que todas as leituras (getDoc) ocorram antes das escritas.
+ * Se o total "virar" zero (via cupom), ignora o Stripe e processa internamente.
  */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, useBalance, rates, globalFees, promotions, orgsData, coupon } = options;
@@ -46,7 +46,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     throw new Error("Não é possível realizar checkout com múltiplas moedas.");
   }
 
-  const reservationIds: string[] = [];
   const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
   // 1. BLOCO DE LEITURA (VALIDAÇÕES INICIAIS)
@@ -55,11 +54,9 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     const isExp = item.productType === 'experience';
     const collName = isExp ? "experiences" : "events";
     
-    // Verifica disponibilidade do item
     const eSnap = await getDoc(doc(staticDb, collName, item.eventId));
     if (!eSnap.exists()) throw new Error(`O item ${item.eventTitle} não está mais disponível.`);
     
-    // Verifica trava de ingresso gratuito (se for o caso)
     if (item.price === 0 && !isExp) {
       const lockId = `free_lock_${user.uid}_${item.eventId}_${item.ticketTypeId}`;
       const lockSnap = await getDoc(doc(staticDb, "registrations_locks", lockId));
@@ -67,11 +64,50 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     }
   }
 
-  // 2. BLOCO DE ESCRITA (RESERVAS)
-  // Agora que todas as leituras iniciais foram feitas, podemos prosseguir com as escritas
+  if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
+    const walletRef = doc(staticDb, "wallets", user.uid);
+    const wSnap = await getDoc(walletRef);
+    if (!wSnap.exists() || (wSnap.data().balance || 0) < totals.balanceUsed) {
+      throw new Error("Saldo insuficiente na carteira.");
+    }
+  }
+
+  // 2. VERIFICAÇÃO DE TOTAL ZERO (PULO DO STRIPE)
+  // Se o total é zero (seja por preço base ou cupom de 100%), processamos via fluxo interno
+  if (Number(totals.total) <= 0) {
+    // Se houver experiências, precisamos reservar o slot antes de gerar o ticket
+    for (const item of items) {
+      if (item.productType === 'experience' && item.occurrenceId) {
+        const res = await createExperienceReservationAction({
+          experienceId: item.eventId,
+          slotId: item.occurrenceId,
+          userId: user.uid,
+          quantity: item.quantity
+        });
+        if (!res.success) throw new Error(res.error || "Falha ao reservar vaga.");
+      }
+    }
+
+    const result = await generateFreeTickets({
+      userId: user.uid,
+      userName: profile?.name || user.displayName || "Comprador",
+      userEmail: user.email!,
+      items: items.map(item => ({
+        ...item,
+        price: 0, // Força preço 0 para o gerador interno
+        discountAmount: item.price,
+        couponCode: coupon?.code
+      }))
+    });
+
+    if (!result.success) throw new Error(result.error);
+    return { type: 'free', success: true };
+  }
+
+  // 3. FLUXO PAGO (STRIPE)
+  const reservationIds: string[] = [];
   for (const item of items) {
-    const isExp = item.productType === 'experience';
-    if (isExp && item.occurrenceId) {
+    if (item.productType === 'experience' && item.occurrenceId) {
       const res = await createExperienceReservationAction({
         experienceId: item.eventId,
         slotId: item.occurrenceId,
@@ -86,12 +122,11 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     }
   }
 
-  // 3. PREPARAR ORDEM COM SNAPSHOTS FINANCEIROS E CUPONS (Mapeamento Flat)
-  const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
-  const exchangeDate = new Date().toISOString().slice(0, 10);
-
+  // Preparar itens da ordem com snapshots financeiros
   const orderItems = items.flatMap(item => {
-    // Se houver cupom para este item, aplicamos apenas em 1 unidade
+    const productType = (item.productType as ProductType) || 'event';
+    const org = orgsData[item.organizationId];
+
     if (coupon && coupon.eventId === item.eventId) {
       let discVal = 0;
       if (coupon.discountType === 'percentage') {
@@ -103,15 +138,10 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       }
 
       const discountedPrice = Math.max(0, item.price - discVal);
-      const productType = (item.productType as ProductType) || 'event';
-      const org = orgsData[item.organizationId];
-
       const breakdownDiscounted = calculateFinancialBreakdown(discountedPrice, globalFees, promotions, org, eventCurrency, rates, productType);
       const breakdownFull = calculateFinancialBreakdown(item.price, globalFees, promotions, org, eventCurrency, rates, productType);
 
       const splitItems = [];
-      
-      // 1 unidade com desconto
       splitItems.push({
         ...item,
         id: `${item.id}_disc`,
@@ -125,7 +155,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
         financials: breakdownDiscounted
       });
 
-      // Se houver mais unidades, entram com preço cheio
       if (item.quantity > 1) {
         splitItems.push({
           ...item,
@@ -134,19 +163,15 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
           price: item.price,
           originalPrice: item.price,
           discountAmount: 0,
-          couponCode: null,
           producerNetAmount: breakdownFull.producerNetAmount,
           administrativeFeeAmount: breakdownFull.administrativeFeeAmount,
           financials: breakdownFull
         });
       }
-
       return splitItems;
     }
 
-    // Item normal sem cupom
-    const productType = (item.productType as ProductType) || 'event';
-    const breakdown = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId], eventCurrency, rates, productType);
+    const breakdown = calculateFinancialBreakdown(item.price, globalFees, promotions, org, eventCurrency, rates, productType);
     return [{
       ...item,
       producerNetAmount: breakdown.producerNetAmount,
@@ -162,11 +187,6 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     items: orderItems,
     currency: eventCurrency,
     experienceReservations: reservationIds,
-    exchangeData: {
-      rate: exchangeRateToBRL,
-      date: exchangeDate,
-      originalRates: rates || {}
-    },
     totals: {
       subtotal: totals.subtotal,
       fees: totals.fees,
@@ -178,53 +198,27 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     createdAt: serverTimestamp()
   };
 
-  // Fluxo de Ingressos Gratuitos (Ordem Total 0)
-  if (totals.total <= 0) {
-    const result = await generateFreeTickets({
-      userId: user.uid,
-      userName: orderData.userName,
-      userEmail: user.email!,
-      items: orderItems
-    });
-    if (!result.success) throw new Error(result.error);
-    return { type: 'free', success: true };
-  }
-
-  // 4. PROCESSAR SALDO DA CARTEIRA
+  // Deduzir saldo da carteira se estiver em BRL
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
-    await runTransaction(staticDb, async (transaction) => {
-      const walletRef = doc(staticDb, "wallets", user.uid);
-      const wSnap = await transaction.get(walletRef);
-      if (!wSnap.exists() || (wSnap.data().balance || 0) < totals.balanceUsed) {
-        throw new Error("Saldo insuficiente na carteira.");
-      }
-      transaction.update(walletRef, { balance: increment(-totals.balanceUsed), updatedAt: serverTimestamp() });
+    await updateDoc(doc(staticDb, "wallets", user.uid), {
+      balance: increment(-totals.balanceUsed),
+      updatedAt: serverTimestamp()
     });
   }
 
   const orderRef = await addDoc(collection(staticDb, "orders"), orderData);
 
+  // Mapear para Stripe Connect
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
-  // 5. MAPEAR PARA STRIPE CONNECT
   const stripeLineItems = orderItems.map((item) => {
     const resolvedProductType = (item.productType as ProductType) || 'event';
-
-    const split = calculateVibyOfficialSplit(
-      item.price, 
-      eventCurrency, 
-      rates, 
-      orgsData[item.organizationId], 
-      globalFees, 
-      promotions,
-      resolvedProductType
-    );
+    const split = calculateVibyOfficialSplit(item.price, eventCurrency, rates, orgsData[item.organizationId], globalFees, promotions, resolvedProductType);
     
     totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     
     let unitAmountCents = toCents(split.totalCharged);
-    
     if (balanceToSubtractCents > 0 && eventCurrency === 'BRL') {
       const maxSub = unitAmountCents * item.quantity;
       const actualSub = Math.min(balanceToSubtractCents, maxSub);
