@@ -66,7 +66,6 @@ import {
   UserX,
   Clock,
   AlertTriangle,
-  Calculator,
   Ticket,
   Sparkles,
   ArrowUpRight,
@@ -98,7 +97,7 @@ import { cn, validateCPF, validateCNPJ, safeParseDate } from "@/lib/utils"
 import Link from "next/link"
 import { sendVerificationStatusEmail } from "@/app/actions/email"
 import { AffiliateCode } from "@/types/affiliate"
-import { formatCurrency, calculateVibyOfficialSplit, isTemporalActive } from "@/lib/financial-utils"
+import { calculateVibyOfficialSplit, isTemporalActive } from "@/lib/financial-utils"
 import { useAdminPermissions } from "@/hooks/use-admin-permissions"
 
 const ORG_ROLES = [
@@ -132,10 +131,6 @@ export default function AdminPaginasPage() {
   const [avatarProgress, setAvatarProgress] = React.useState<number | null>(null)
   const [bannerProgress, setBannerProgress] = React.useState<number | null>(null)
   const [ownerProfilesCache, setOwnerProfilesCache] = React.useState<Record<string, any>>({})
-
-  // Estado para Simulação de Taxas
-  const [testPrice, setTestPrice] = React.useState("100.00")
-  const [testProductType, setTestProductType] = React.useState<'event' | 'experience'>('event')
 
   const adminUid = adminProfile?.uid;
 
@@ -433,9 +428,6 @@ export default function AdminPaginasPage() {
      }));
   };
 
-  const testPriceNum = parseFloat(testPrice) || 0;
-  const simulation = calculateVibyOfficialSplit(testPriceNum, 'BRL', {}, editingOrg, globalFees, promotions, testProductType);
-
   return (
     <div className="space-y-8 pb-20">
       <div className="flex flex-col gap-2">
@@ -570,7 +562,7 @@ export default function AdminPaginasPage() {
                                   <Input value={editingOrg?.name || ""} onChange={e => setEditingOrg({...editingOrg, name: e.target.value})} className="rounded-xl h-11" required />
                                 </div>
                                 <div className="space-y-2">
-                                   <Label className="text-[10px] font-black uppercase opacity-60 flex items-center justify-between">Username exclusivo (@) <span className="text-[8px] text-secondary font-black italic">ALTERAÇÃO ADMIN</span></Label>
+                                   <Label className="text-[10px] font-black uppercase opacity-60 flex items-center justify-between">Username exclusiva (@) <span className="text-[8px] text-secondary font-black italic">ALTERAÇÃO ADMIN</span></Label>
                                    <Input value={editingOrg?.username || ""} onChange={e => setEditingOrg({...editingOrg, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "")})} className="rounded-xl h-11 border-dashed border-secondary/40 font-bold" />
                                 </div>
                                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase opacity-60">Slug (URL)</Label><Input value={editingOrg?.slug || ""} onChange={e => setEditingOrg({...editingOrg, slug: e.target.value.toLowerCase().replace(/\s+/g, "-")})} className="rounded-xl h-11" /></div>
@@ -603,179 +595,100 @@ export default function AdminPaginasPage() {
                           </TabsContent>
 
                           <TabsContent value="taxas" className="space-y-12 mt-0">
-                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                                <div className="lg:col-span-7 space-y-10">
-                                   <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-start gap-4">
-                                      <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
-                                      <div className="space-y-1">
-                                         <h4 className="font-black uppercase text-xs italic text-primary">Controle Financeiro v2</h4>
-                                         <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
-                                            Overrides financeiros agora são segmentados por tipo de produto e possuem janela de vigência automática.
-                                         </p>
-                                      </div>
+                             <div className="max-w-4xl space-y-10">
+                                <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-start gap-4">
+                                   <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
+                                   <div className="space-y-1">
+                                      <h4 className="font-black uppercase text-xs italic text-primary">Controle Financeiro v2</h4>
+                                      <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
+                                         Overrides financeiros agora são segmentados por tipo de produto e possuem janela de vigência automática.
+                                      </p>
                                    </div>
-
-                                   <section className="space-y-6">
-                                      <div className="flex items-center gap-3 px-1">
-                                         <Ticket className="w-5 h-5 text-primary" />
-                                         <h3 className="text-sm font-black uppercase tracking-[0.2em] text-primary">Regras para Eventos</h3>
-                                      </div>
-                                      <div className="grid grid-cols-1 gap-6 p-8 bg-white rounded-[2rem] border shadow-sm">
-                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            <div className="space-y-2">
-                                               <Label className="text-[9px] font-black uppercase opacity-40">Markup Comprador (%)</Label>
-                                               <div className="relative">
-                                                  <Input type="number" step="0.1" value={editingOrg?.financialOverrides?.event?.markupBuyerPercent ?? ""} onChange={e => updateOverrideField('event', 'markupBuyerPercent', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pr-10 font-bold" placeholder="15.0" />
-                                                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
-                                               </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                               <Label className="text-[9px] font-black uppercase opacity-40">Comissão Produtor (%)</Label>
-                                               <div className="relative">
-                                                  <Input type="number" step="0.1" value={editingOrg?.financialOverrides?.event?.commissionPercent ?? ""} onChange={e => updateOverrideField('event', 'commissionPercent', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pr-10 font-bold" placeholder="10.0" />
-                                                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
-                                               </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                               <Label className="text-[9px] font-black uppercase opacity-40">Valor Mínimo (R$)</Label>
-                                               <div className="relative">
-                                                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">R$</span>
-                                                  <Input type="number" step="0.01" value={editingOrg?.financialOverrides?.event?.minValue ?? ""} onChange={e => updateOverrideField('event', 'minValue', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pl-10 font-bold" placeholder="3.99" />
-                                               </div>
-                                            </div>
-                                         </div>
-                                         <div className="grid grid-cols-2 gap-6 border-t border-dashed pt-6">
-                                            <div className="space-y-2">
-                                               <Label className="text-[9px] font-black uppercase opacity-40 flex items-center gap-2"><Clock className="w-3 h-3" /> Início Vigência</Label>
-                                               <Input type="datetime-local" value={formatTimestampForInput(editingOrg?.financialOverrides?.event?.validFrom)} onChange={e => updateOverrideField('event', 'validFrom', e.target.value)} className="rounded-xl h-11 text-xs" />
-                                            </div>
-                                            <div className="space-y-2">
-                                               <Label className="text-[9px] font-black uppercase opacity-40 flex items-center gap-2"><Clock className="w-3 h-3 text-red-500" /> Fim Vigência</Label>
-                                               <Input type="datetime-local" value={formatTimestampForInput(editingOrg?.financialOverrides?.event?.validTo)} onChange={e => updateOverrideField('event', 'validTo', e.target.value)} className="rounded-xl h-11 text-xs" />
-                                            </div>
-                                         </div>
-                                      </div>
-                                   </section>
-
-                                   <section className="space-y-6">
-                                      <div className="flex items-center gap-3 px-1">
-                                         <Sparkles className="w-5 h-5 text-secondary" />
-                                         <h3 className="text-sm font-black uppercase tracking-[0.2em] text-secondary">Regras para Experiências</h3>
-                                      </div>
-                                      <div className="grid grid-cols-1 gap-6 p-8 bg-white rounded-[2rem] border shadow-sm ring-1 ring-secondary/10">
-                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            <div className="space-y-2">
-                                               <Label className="text-[9px] font-black uppercase opacity-40">Markup Comprador (%)</Label>
-                                               <div className="relative">
-                                                  <Input type="number" step="0.1" value={editingOrg?.financialOverrides?.experience?.markupBuyerPercent ?? ""} onChange={e => updateOverrideField('experience', 'markupBuyerPercent', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pr-10 font-bold border-secondary/20" placeholder="10.0" />
-                                                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
-                                               </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                               <Label className="text-[9px] font-black uppercase opacity-40">Comissão Produtor (%)</Label>
-                                               <div className="relative">
-                                                  <Input type="number" step="0.1" value={editingOrg?.financialOverrides?.experience?.commissionPercent ?? ""} onChange={e => updateOverrideField('experience', 'commissionPercent', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pr-10 font-bold border-secondary/20" placeholder="15.0" />
-                                                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
-                                               </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                               <Label className="text-[9px] font-black uppercase opacity-40">Valor Mínimo (R$)</Label>
-                                               <div className="relative">
-                                                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">R$</span>
-                                                  <Input type="number" step="0.01" value={editingOrg?.financialOverrides?.experience?.minValue ?? ""} onChange={e => updateOverrideField('experience', 'minValue', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pl-10 font-bold border-secondary/20" placeholder="4.99" />
-                                               </div>
-                                            </div>
-                                         </div>
-                                         <div className="grid grid-cols-2 gap-6 border-t border-dashed pt-6">
-                                            <div className="space-y-2">
-                                               <Label className="text-[9px] font-black uppercase opacity-40 flex items-center gap-2"><Clock className="w-3 h-3" /> Início Vigência</Label>
-                                               <Input type="datetime-local" value={formatTimestampForInput(editingOrg?.financialOverrides?.experience?.validFrom)} onChange={e => updateOverrideField('experience', 'validFrom', e.target.value)} className="rounded-xl h-11 text-xs border-secondary/20" />
-                                            </div>
-                                            <div className="space-y-2">
-                                               <Label className="text-[9px] font-black uppercase opacity-40 flex items-center gap-2"><Clock className="w-3 h-3 text-red-500" /> Fim Vigência</Label>
-                                               <Input type="datetime-local" value={formatTimestampForInput(editingOrg?.financialOverrides?.experience?.validTo)} onChange={e => updateOverrideField('experience', 'validTo', e.target.value)} className="rounded-xl h-11 text-xs border-secondary/20" />
-                                            </div>
-                                         </div>
-                                      </div>
-                                   </section>
                                 </div>
 
-                                <div className="lg:col-span-5 space-y-8">
-                                   <div className="flex items-center justify-between px-1">
-                                      <div className="flex items-center gap-2">
-                                         <Calculator className="w-5 h-5 text-secondary" />
-                                         <h3 className="text-sm font-black uppercase tracking-widest text-primary">Simulador v2</h3>
-                                      </div>
+                                <section className="space-y-6">
+                                   <div className="flex items-center gap-3 px-1">
+                                      <Ticket className="w-5 h-5 text-primary" />
+                                      <h3 className="text-sm font-black uppercase tracking-[0.2em] text-primary">Regras para Eventos</h3>
                                    </div>
-
-                                   <Card className="border-none shadow-xl rounded-[2.5rem] bg-white overflow-hidden ring-1 ring-border">
-                                      <CardHeader className="bg-muted/30 p-8 border-b space-y-4">
+                                   <div className="grid grid-cols-1 gap-6 p-8 bg-white rounded-[2rem] border shadow-sm">
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                          <div className="space-y-2">
-                                            <Label className="text-[9px] font-black uppercase opacity-40">Valor para Teste</Label>
+                                            <Label className="text-[9px] font-black uppercase opacity-40">Markup Comprador (%)</Label>
                                             <div className="relative">
-                                               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black opacity-30">R$</span>
-                                               <Input value={testPrice} onChange={e => setTestPrice(e.target.value)} className="h-12 pl-10 rounded-xl text-lg font-black text-secondary border-secondary/20" />
+                                               <Input type="number" step="0.1" value={editingOrg?.financialOverrides?.event?.markupBuyerPercent ?? ""} onChange={e => updateOverrideField('event', 'markupBuyerPercent', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pr-10 font-bold" placeholder="15.0" />
+                                               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
                                             </div>
                                          </div>
                                          <div className="space-y-2">
-                                            <Label className="text-[9px] font-black uppercase opacity-40">Tipo de Produto</Label>
-                                            <div className="grid grid-cols-2 gap-2">
-                                               <Button type="button" variant={testProductType === 'event' ? 'secondary' : 'outline'} className="h-10 text-[9px] font-black uppercase rounded-lg" onClick={() => setTestProductType('event')}>Evento</Button>
-                                               <Button type="button" variant={testProductType === 'experience' ? 'secondary' : 'outline'} className="h-10 text-[9px] font-black uppercase rounded-lg" onClick={() => setTestProductType('experience')}>Experiência</Button>
+                                            <Label className="text-[9px] font-black uppercase opacity-40">Comissão Produtor (%)</Label>
+                                            <div className="relative">
+                                               <Input type="number" step="0.1" value={editingOrg?.financialOverrides?.event?.commissionPercent ?? ""} onChange={e => updateOverrideField('event', 'commissionPercent', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pr-10 font-bold" placeholder="10.0" />
+                                               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
                                             </div>
                                          </div>
-                                      </CardHeader>
-                                      <CardContent className="p-8 space-y-6">
-                                         <div className="space-y-4">
-                                            <div className="flex justify-between items-center text-sm font-bold">
-                                               <span className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] tracking-tight">
-                                                  <User className="w-3.5 h-3.5" /> Cliente Paga
-                                               </span>
-                                               <span className="text-primary">{formatCurrency(simulation.totalCharged)}</span>
+                                         <div className="space-y-2">
+                                            <Label className="text-[9px] font-black uppercase opacity-40">Valor Mínimo (R$)</Label>
+                                            <div className="relative">
+                                               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">R$</span>
+                                               <Input type="number" step="0.01" value={editingOrg?.financialOverrides?.event?.minValue ?? ""} onChange={e => updateOverrideField('event', 'minValue', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pl-10 font-bold" placeholder="3.99" />
                                             </div>
-                                            <div className="flex justify-between items-center text-sm font-bold">
-                                               <span className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] tracking-tight">
-                                                  <Percent className="w-3.5 h-3.5" /> Comissão Viby
-                                               </span>
-                                               <div className="flex flex-col items-end">
-                                                  <span className={cn(simulation.organizerFee > 0 ? "text-red-500" : "text-green-600")}>
-                                                    {simulation.organizerFee > 0 ? `-${formatCurrency(simulation.organizerFee)}` : "ISENTO"}
-                                                  </span>
-                                               </div>
-                                            </div>
-                                            <Separator className="border-dashed" />
-                                            <div className="flex justify-between items-center bg-green-50 p-6 rounded-2xl border-2 border-dashed border-green-200">
-                                               <div className="space-y-0.5">
-                                                  <span className="text-[10px] font-black uppercase italic text-green-800">Repasse Produtor</span>
-                                                  <p className="text-[8px] font-bold uppercase text-green-600 opacity-60">Valor líquido estimado</p>
-                                               </div>
-                                               <span className="text-2xl font-black text-green-600">{formatCurrency(simulation.organizerNet)}</span>
-                                            </div>
-                                         </div>
-
-                                         <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
-                                            <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-                                            <p className="text-[9px] text-secondary font-bold leading-relaxed uppercase">
-                                               O simulador detecta automaticamente se os overrides acima estão vigentes para a data de hoje.
-                                            </p>
-                                         </div>
-                                      </CardContent>
-                                   </Card>
-
-                                   <div className="p-6 bg-primary text-white rounded-[2rem] shadow-2xl relative overflow-hidden">
-                                      <div className="relative z-10 space-y-2">
-                                         <p className="text-[10px] font-black uppercase opacity-40">Status do Override</p>
-                                         <div className="flex items-center gap-2">
-                                            {isTemporalActive(editingOrg?.financialOverrides?.[testProductType]?.validFrom, editingOrg?.financialOverrides?.[testProductType]?.validTo) ? (
-                                              <Badge className="bg-green-500 text-white font-black uppercase text-[8px] h-5">VIGENTE AGORA</Badge>
-                                            ) : (
-                                              <Badge variant="outline" className="text-white/40 border-white/20 font-black uppercase text-[8px] h-5">INATIVO / EXPIRADO</Badge>
-                                            )}
                                          </div>
                                       </div>
-                                      <ArrowUpRight className="absolute -bottom-2 -right-2 w-20 h-20 opacity-10 rotate-12" />
+                                      <div className="grid grid-cols-2 gap-6 border-t border-dashed pt-6">
+                                         <div className="space-y-2">
+                                            <Label className="text-[9px] font-black uppercase opacity-40 flex items-center gap-2"><Clock className="w-3 h-3" /> Início Vigência</Label>
+                                            <Input type="datetime-local" value={formatTimestampForInput(editingOrg?.financialOverrides?.event?.validFrom)} onChange={e => updateOverrideField('event', 'validFrom', e.target.value)} className="rounded-xl h-11 text-xs" />
+                                         </div>
+                                         <div className="space-y-2">
+                                            <Label className="text-[9px] font-black uppercase opacity-40 flex items-center gap-2"><Clock className="w-3 h-3 text-red-500" /> Fim Vigência</Label>
+                                            <Input type="datetime-local" value={formatTimestampForInput(editingOrg?.financialOverrides?.event?.validTo)} onChange={e => updateOverrideField('event', 'validTo', e.target.value)} className="rounded-xl h-11 text-xs" />
+                                         </div>
+                                      </div>
                                    </div>
-                                </div>
+                                </section>
+
+                                <section className="space-y-6">
+                                   <div className="flex items-center gap-3 px-1">
+                                      <Sparkles className="w-5 h-5 text-secondary" />
+                                      <h3 className="text-sm font-black uppercase tracking-[0.2em] text-secondary">Regras para Experiências</h3>
+                                   </div>
+                                   <div className="grid grid-cols-1 gap-6 p-8 bg-white rounded-[2rem] border shadow-sm ring-1 ring-secondary/10">
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                         <div className="space-y-2">
+                                            <Label className="text-[9px] font-black uppercase opacity-40">Markup Comprador (%)</Label>
+                                            <div className="relative">
+                                               <Input type="number" step="0.1" value={editingOrg?.financialOverrides?.experience?.markupBuyerPercent ?? ""} onChange={e => updateOverrideField('experience', 'markupBuyerPercent', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pr-10 font-bold border-secondary/20" placeholder="10.0" />
+                                               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
+                                            </div>
+                                         </div>
+                                         <div className="space-y-2">
+                                            <Label className="text-[9px] font-black uppercase opacity-40">Comissão Produtor (%)</Label>
+                                            <div className="relative">
+                                               <Input type="number" step="0.1" value={editingOrg?.financialOverrides?.experience?.commissionPercent ?? ""} onChange={e => updateOverrideField('experience', 'commissionPercent', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pr-10 font-bold border-secondary/20" placeholder="15.0" />
+                                               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">%</span>
+                                            </div>
+                                         </div>
+                                         <div className="space-y-2">
+                                            <Label className="text-[9px] font-black uppercase opacity-40">Valor Mínimo (R$)</Label>
+                                            <div className="relative">
+                                               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">R$</span>
+                                               <Input type="number" step="0.01" value={editingOrg?.financialOverrides?.experience?.minValue ?? ""} onChange={e => updateOverrideField('experience', 'minValue', e.target.value ? parseFloat(e.target.value) : null)} className="rounded-xl h-11 pl-10 font-bold border-secondary/20" placeholder="4.99" />
+                                            </div>
+                                         </div>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-6 border-t border-dashed pt-6">
+                                         <div className="space-y-2">
+                                            <Label className="text-[9px] font-black uppercase opacity-40 flex items-center gap-2"><Clock className="w-3 h-3" /> Início Vigência</Label>
+                                            <Input type="datetime-local" value={formatTimestampForInput(editingOrg?.financialOverrides?.experience?.validFrom)} onChange={e => updateOverrideField('experience', 'validFrom', e.target.value)} className="rounded-xl h-11 text-xs border-secondary/20" />
+                                         </div>
+                                         <div className="space-y-2">
+                                            <Label className="text-[9px] font-black uppercase opacity-40 flex items-center gap-2"><Clock className="w-3 h-3 text-red-500" /> Fim Vigência</Label>
+                                            <Input type="datetime-local" value={formatTimestampForInput(editingOrg?.financialOverrides?.experience?.validTo)} onChange={e => updateOverrideField('experience', 'validTo', e.target.value)} className="rounded-xl h-11 text-xs border-secondary/20" />
+                                         </div>
+                                      </div>
+                                   </div>
+                                </section>
                              </div>
                           </TabsContent>
 
