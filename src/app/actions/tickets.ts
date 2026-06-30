@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -34,19 +35,50 @@ export async function generateFreeTickets(data: {
     return await db.runTransaction(async (transaction) => {
       const results = [];
 
+      // ESTRATÉGIA: Primeiro fazemos TODAS as leituras necessárias para todos os itens
+      const snapshots: any[] = [];
       for (const item of items) {
+        const lockId = `free_lock_${userId}_${item.eventId}_${item.ticketTypeId}`;
+        const lockRef = db.collection("registrations_locks").doc(lockId);
+        const eventRef = db.collection("events").doc(item.eventId);
+        const orgRef = db.collection("organizations").doc(item.organizationId);
+        
+        let occRef = null;
+        if (item.occurrenceId) {
+          occRef = db.collection("recurring_occurrences").doc(item.occurrenceId);
+        }
+
+        // Executa leituras
+        const [lockSnap, eventSnap, orgSnap, occSnap] = await Promise.all([
+          transaction.get(lockRef),
+          transaction.get(eventRef),
+          transaction.get(orgRef),
+          occRef ? transaction.get(occRef) : Promise.resolve(null)
+        ]);
+
+        snapshots.push({
+          item,
+          lockRef,
+          lockSnap,
+          eventRef,
+          eventSnap,
+          orgRef,
+          orgSnap,
+          occRef,
+          occSnap
+        });
+      }
+
+      // Agora que TODAS as leituras foram concluídas, processamos as escritas
+      for (const snap of snapshots) {
+        const { item, lockRef, lockSnap, eventRef, eventSnap, orgRef, occRef, occSnap } = snap;
         const isFree = item.price === 0;
 
-        // 2. VALIDAÇÃO ATÔMICA: Proteção contra cliques simultâneos via Lock Document
+        if (isFree && lockSnap.exists) {
+          throw new Error("Você já resgatou este ingresso gratuito.");
+        }
+
         if (isFree) {
-          const lockId = `free_lock_${userId}_${item.eventId}_${item.ticketTypeId}`;
-          const lockRef = db.collection("registrations_locks").doc(lockId);
-          const lockSnap = await transaction.get(lockRef);
-
-          if (lockSnap.exists) {
-            throw new Error("Você já resgatou este ingresso gratuito.");
-          }
-
           transaction.set(lockRef, { 
             userId, 
             eventId: item.eventId, 
@@ -55,14 +87,8 @@ export async function generateFreeTickets(data: {
           });
         }
 
-        // Incrementa contadores
-        const eventRef = db.collection("events").doc(item.eventId);
-        const orgRef = db.collection("organizations").doc(item.organizationId);
-        
-        const eventSnap = await transaction.get(eventRef);
-        const eventData = eventSnap.data();
-
         const finalQty = isFree ? 1 : item.quantity;
+        const eventData = eventSnap.data();
 
         transaction.update(eventRef, {
           ingressosVendidos: admin.firestore.FieldValue.increment(finalQty),
@@ -74,8 +100,7 @@ export async function generateFreeTickets(data: {
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        if (item.occurrenceId) {
-          const occRef = db.collection("recurring_occurrences").doc(item.occurrenceId);
+        if (occRef && occSnap && occSnap.exists) {
           transaction.update(occRef, {
             ingressosVendidos: admin.firestore.FieldValue.increment(finalQty),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -115,7 +140,7 @@ export async function generateFreeTickets(data: {
           transaction.set(regRef, ticketData);
           results.push(regRef.id);
 
-          // Envio de E-mail com regras e info (Sempre fora do loop se for único, mas aqui é para cada ticket)
+          // Envio de e-mail (asíncrono, fora do loop principal de transação para performance se necessário, mas mantido aqui)
           await sendTicketEmail({
             to: userEmail,
             userName,

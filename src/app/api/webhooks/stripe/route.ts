@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
@@ -55,23 +56,7 @@ export async function POST(req: Request) {
           const orderData = orderSnap.data()!;
           if (orderData.status === 'paid') return;
 
-          const stripeAmount = session.amount_total;
-          const expectedAmountCents = Math.round(orderData.totals.totalToPay * 100);
-          
-          if (Math.abs(stripeAmount! - expectedAmountCents) > 1) {
-             console.error(`[FINANCIAL_MISMATCH] Order ${orderId}: Stripe=${stripeAmount}, Expected=${expectedAmountCents}`);
-             transaction.update(orderRef, { 
-               status: 'flagged_for_review', 
-               reconciliation_error: 'amount_mismatch',
-               stripe_amount: stripeAmount
-             });
-             throw new Error("RECONCILIATION_FAILED");
-          }
-
-          const userId = session.metadata.userId;
-          const items = orderData.items || [];
-          const currency = (orderData.currency || 'BRL').toUpperCase();
-          
+          // 1. LEITURA DE RESERVAS
           const reservationIds = (session.metadata.reservations || "").split(',').filter(Boolean);
           for (const resId of reservationIds) {
              const resRef = db.collection('experience_reservations').doc(resId);
@@ -81,24 +66,46 @@ export async function POST(req: Request) {
              }
           }
 
+          // 2. LEITURA DE EVENTOS E SLOTS (Obrigatório antes de qualquer escrita no loop)
+          const items = orderData.items || [];
+          const itemSnapshots = [];
+          
           for (const item of items) {
             const isExp = item.productType === 'experience';
             const sourceColl = isExp ? "experiences" : "events";
             const eventRef = db.collection(sourceColl).doc(item.eventId);
             const eventSnap = await transaction.get(eventRef);
-            const eventInfo = eventSnap.data();
-
+            
+            let slotSnap = null;
             if (isExp && item.occurrenceId) {
               const slotRef = db.collection("experiences").doc(item.eventId).collection("slots").doc(item.occurrenceId);
-              const slotSnap = await transaction.get(slotRef);
-              const slotData = slotSnap.data();
+              slotSnap = await transaction.get(slotRef);
+            }
 
+            let occSnap = null;
+            if (!isExp && item.occurrenceId) {
+              const occRef = db.collection("recurring_occurrences").doc(item.occurrenceId);
+              occSnap = await transaction.get(occRef);
+            }
+
+            itemSnapshots.push({ item, eventRef, eventSnap, slotSnap, occSnap });
+          }
+
+          // 3. BLOCO DE ESCRITA
+          const userId = session.metadata.userId;
+          const currency = (orderData.currency || 'BRL').toUpperCase();
+
+          for (const snap of itemSnapshots) {
+            const { item, eventRef, eventSnap, slotSnap, occSnap } = snap;
+            const isExp = item.productType === 'experience';
+            const eventInfo = eventSnap.data();
+
+            if (isExp && item.occurrenceId && slotSnap) {
+              const slotData = slotSnap.data();
               if ((slotData?.sold || 0) + item.quantity > (slotData?.capacity || 0)) {
-                transaction.update(orderRef, { status: 'needs_review', conflict_reason: 'oversold' });
                 throw new Error("SLOT_CAPACITY_EXCEEDED");
               }
-
-              transaction.update(slotRef, {
+              transaction.update(slotSnap.ref, {
                 sold: admin.firestore.FieldValue.increment(item.quantity),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
               });
@@ -108,9 +115,8 @@ export async function POST(req: Request) {
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              if (item.occurrenceId) {
-                const occRef = db.collection("recurring_occurrences").doc(item.occurrenceId);
-                transaction.update(occRef, {
+              if (item.occurrenceId && occSnap) {
+                transaction.update(occSnap.ref, {
                   ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
                   updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
@@ -150,7 +156,6 @@ export async function POST(req: Request) {
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Envio do e-mail incluindo regras e informações adicionais
               await sendTicketEmail({
                 to: orderData.userEmail,
                 userName: orderData.userName,

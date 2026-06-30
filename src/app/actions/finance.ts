@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -10,42 +11,47 @@ export async function processTicketRefund(registrationId: string, executorUid: s
     const db = getAdminDb();
     
     const result = await db.runTransaction(async (transaction) => {
+      // 1. DEFINIÇÃO DAS REFERÊNCIAS
       const regRef = db.collection("registrations").doc(registrationId);
-      const regSnap = await transaction.get(regRef);
+      const userRef = db.collection("users").doc(executorUid);
 
+      // 2. BLOCO DE LEITURA (Obrigatório antes de qualquer escrita)
+      const regSnap = await transaction.get(regRef);
       if (!regSnap.exists) throw new Error("Registro não encontrado.");
       const regData = regSnap.data()!;
 
-      const userSnap = await transaction.get(db.collection("users").doc(executorUid));
+      const userSnap = await transaction.get(userRef);
       const isAdmin = userSnap.exists && userSnap.data()?.role === 'admin';
       
-      const memberSnap = await transaction.get(
-        db.collection("organizations").doc(regData.organizationId).collection("members").doc(executorUid)
-      );
+      const orgRef = db.collection("organizations").doc(regData.organizationId);
+      const memberRef = orgRef.collection("members").doc(executorUid);
+      const memberSnap = await transaction.get(memberRef);
       const isOrgManager = memberSnap.exists && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
 
       if (!isAdmin && !isOrgManager) throw new Error("Acesso negado.");
       if (regData.status === 'cancelled') throw new Error("Já estornado.");
       if (regData.checkedIn) throw new Error("Ingresso já utilizado.");
 
+      const occurrenceId = regData.occurrenceId;
+      let occSnap = null;
+      if (occurrenceId) {
+        occSnap = await transaction.get(db.collection("recurring_occurrences").doc(occurrenceId));
+      }
+
+      const eventRef = db.collection("events").doc(regData.eventId);
+      const eventSnap = await transaction.get(eventRef);
+
+      // 3. BLOCO DE ESCRITA
       const userId = regData.userId;
       const totalPaid = regData.price || 0;
-      const eventId = regData.eventId;
-      const occurrenceId = regData.occurrenceId;
 
-      if (occurrenceId) {
-        const occRef = db.collection("recurring_occurrences").doc(occurrenceId);
-        const occSnap = await transaction.get(occRef);
-        if (occSnap.exists && (occSnap.data()?.ingressosVendidos || 0) > 0) {
-          transaction.update(occRef, { 
-            ingressosVendidos: admin.firestore.FieldValue.increment(-1),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-          });
-        }
+      if (occurrenceId && occSnap?.exists && (occSnap.data()?.ingressosVendidos || 0) > 0) {
+        transaction.update(db.collection("recurring_occurrences").doc(occurrenceId), { 
+          ingressosVendidos: admin.firestore.FieldValue.increment(-1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+        });
       }
       
-      const eventRef = db.collection("events").doc(eventId);
-      const eventSnap = await transaction.get(eventRef);
       if (eventSnap.exists && (eventSnap.data()?.ingressosVendidos || 0) > 0) {
         transaction.update(eventRef, { 
           ingressosVendidos: admin.firestore.FieldValue.increment(-1),
@@ -83,8 +89,8 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
-      const userRef = db.collection("users").doc(userId);
-      transaction.update(userRef, {
+      const targetUserRef = db.collection("users").doc(userId);
+      transaction.update(targetUserRef, {
         walletBalance: admin.firestore.FieldValue.increment(refundAmount),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
