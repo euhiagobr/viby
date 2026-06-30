@@ -47,7 +47,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [now, setNow] = useState<Date>(new Date());
 
-  // Carregar slots para filtro de data global
+  // Carregar slots para filtro de data global e controle de expiração
   const slotsQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(collectionGroup(db, "slots"), where("status", "==", "active"));
@@ -75,9 +75,10 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
     return initialData.filter(exp => {
       if (exp.status !== 'active') return false;
 
-      // Filtro 1: Expiração automática (30 min após o último slot)
+      // Filtro 1: Expiração automática (30 min após o ÚLTIMO slot)
       const mySlots = allSlots?.filter(s => s.experienceId === exp.id) || [];
       if (mySlots.length > 0) {
+        // Ordenamos por data DESC para pegar o horário mais tardio
         const lastSlot = [...mySlots].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())[0];
         const expirationTime = new Date(new Date(lastSlot.datetime).getTime() + 30 * 60000);
         if (now > expirationTime) return false;
@@ -116,7 +117,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
     let adIdx = 0;
     let expIdx = 0;
 
-    // Regra: Sempre começa com um anúncio
+    // Regra: Sempre começa com um anúncio se houver
     if (ads.length > 0) {
       feed.push({ type: 'ad', adIndex: adIdx % ads.length });
       adIdx++;

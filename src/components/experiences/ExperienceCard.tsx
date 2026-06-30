@@ -13,6 +13,7 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { collection, query, where, orderBy } from "firebase/firestore";
 import { RichText } from "@/components/ui/rich-text";
 import Link from "next/link";
+import { format } from "date-fns";
 
 interface ExperienceCardProps {
   experience: any;
@@ -30,11 +31,14 @@ export function ExperienceCard({ experience, userLocation, className }: Experien
   // Busca slots ativos para determinar o preço da próxima data
   const slotsQuery = useMemoFirebase(() => {
     if (!db || !experience.id) return null;
-    const now = new Date().toISOString();
+    
+    // Normalizamos o 'now' para o formato YYYY-MM-DDTHH:mm para bater com a string do banco
+    const nowNormalized = format(new Date(), "yyyy-MM-dd'T'HH:mm");
+    
     return query(
       collection(db, "experiences", experience.id, "slots"),
       where("status", "==", "active"),
-      where("datetime", ">=", now),
+      where("datetime", ">=", nowNormalized),
       orderBy("datetime", "asc")
     );
   }, [db, experience.id]);
