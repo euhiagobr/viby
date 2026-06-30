@@ -4,52 +4,39 @@
  */
 
 import { CurrencyCode } from "@/contexts/CurrencyContext";
+import CryptoJS from 'crypto-js';
 
 export type ProductType = 'event' | 'experience';
 
-export const VIBY_MIN_FEE_BRL = 3.99; // Fallback absoluto Eventos
-export const VIBY_BUYER_MARKUP = 0.15; // Fallback 15% Eventos
-export const VIBY_ORGANIZER_FEE = 0.10; // Fallback 10% Eventos
+export const VIBY_MIN_FEE_BRL = 3.99;
+export const VIBY_BUYER_MARKUP = 0.15;
+export const VIBY_ORGANIZER_FEE = 0.10;
 
-export const VIBY_EXPERIENCE_MIN_FEE_BRL = 4.99; // Fallback absoluto Experiências
-export const VIBY_EXPERIENCE_BUYER_MARKUP = 0.10; // Fallback 10% Experiências
-export const VIBY_EXPERIENCE_ORGANIZER_FEE = 0.15; // Fallback 15% Experiências
+export const VIBY_EXPERIENCE_MIN_FEE_BRL = 4.99;
+export const VIBY_EXPERIENCE_BUYER_MARKUP = 0.10;
+export const VIBY_EXPERIENCE_ORGANIZER_FEE = 0.15;
 
-export const VIBY_TAX_RATE = 0.11; // 11% de imposto sobre a receita bruta da Viby
+export const VIBY_TAX_RATE = 0.11;
 
-/**
- * Verifica se um período de vigência está ativo.
- */
 export function isTemporalActive(start: any, end: any): boolean {
   if (!start && !end) return true;
-  
   const now = new Date();
   const startDate = start ? (start.toDate ? start.toDate() : new Date(start)) : null;
   const endDate = end ? (end.toDate ? end.toDate() : new Date(end)) : null;
-  
   if (startDate && now < startDate) return false;
   if (endDate && now > endDate) return false;
   return true;
 }
 
-/**
- * Verifica se uma campanha promocional está vigente.
- */
 function isPromoActive(active: boolean, start: any, end: any): boolean {
   if (!active) return false;
   return isTemporalActive(start, end);
 }
 
-/**
- * Converte valor para centavos (inteiro para Stripe)
- */
 export function toCents(amount: number): number {
   return Math.round(Number((amount || 0).toFixed(2)) * 100);
 }
 
-/**
- * Formata moeda para exibição
- */
 export function formatCurrency(value: number): string {
   if (isNaN(value) || value === null || value === undefined) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', {
@@ -58,15 +45,22 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
-/**
- * CÁLCULO OFICIAL VIBY - MODELO "DOUBLE FEE ON BASE PRICE"
- * P = Preço de Face
- * CP = P + (P * taxa_cliente)
- * RP = P - (P * taxa_organizador)
- * V = (P * taxa_cliente) + (P * taxa_organizador)
- * 
- * RESOLUÇÃO OBRIGATÓRIA: O productType deve ser resolvido antes da execução.
- */
+export interface PricingSnapshot {
+  facePrice: number;
+  buyerFee: number;
+  totalCharged: number;
+  organizerFee: number;
+  organizerNet: number;
+  vibyApplicationFee: number;
+  productType: ProductType;
+  checksum: string;
+}
+
+export function generateSnapshotChecksum(data: any): string {
+  const payload = `${data.facePrice}-${data.totalCharged}-${data.organizerNet}-${data.vibyApplicationFee}-${data.productType}`;
+  return CryptoJS.SHA256(payload).toString();
+}
+
 export function calculateVibyOfficialSplit(
   facePrice: number, 
   eventCurrency: CurrencyCode, 
@@ -75,78 +69,53 @@ export function calculateVibyOfficialSplit(
   globalFees: any,
   promotions: any,
   productType: ProductType
-) {
-  // Auditoria de Integridade: Resolução de Tipo
-  if (!productType) {
-    throw new Error("CRITICAL_FINANCIAL_ERROR: product_type must be resolved before calculation.");
+): PricingSnapshot {
+  if (!productType || !['event', 'experience'].includes(productType)) {
+    throw new Error("FATAL_ERROR: Invalid or unresolved product_type.");
   }
 
   const price = Math.max(0, Number(facePrice) || 0);
-  
-  if (price === 0) {
-    return {
-      facePrice: 0,
-      buyerFee: 0,
-      totalCharged: 0,
-      organizerFee: 0,
-      organizerNet: 0,
-      vibyApplicationFee: 0
-    };
-  }
-
   const isExp = productType === 'experience';
 
-  // 1. RESOLUÇÃO DE MARGENS BASEADA EM PRODUCT_TYPE
   let markup = isExp ? VIBY_EXPERIENCE_BUYER_MARKUP : VIBY_BUYER_MARKUP;
   const v2Override = orgFees?.financialOverrides?.[productType];
   const isV2Active = isTemporalActive(v2Override?.validFrom, v2Override?.validTo);
 
   if (isV2Active && v2Override?.markupBuyerPercent != null) {
     markup = v2Override.markupBuyerPercent / 100;
-  } 
-  else if (isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt) && orgFees?.customBuyerMarkup != null) {
+  } else if (isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt) && orgFees?.customBuyerMarkup != null) {
     markup = orgFees.customBuyerMarkup / 100;
-  }
-  else if (isPromoActive(promotions?.buyerPromoActive, promotions?.buyerPromoStart, promotions?.buyerPromoEnd)) {
+  } else if (isPromoActive(promotions?.buyerPromoActive, promotions?.buyerPromoStart, promotions?.buyerPromoEnd)) {
     markup = promotions.buyerPromoPercent / 100;
-  } 
-  else if (globalFees) {
+  } else if (globalFees) {
     const globalMarkup = isExp ? globalFees.experienceBuyerMarkupPercent : globalFees.buyerMarkupPercent;
     if (globalMarkup != null) markup = globalMarkup / 100;
   }
   
   const buyerMarkupFee = Number((price * markup).toFixed(2));
-  
   let commission = isExp ? VIBY_EXPERIENCE_ORGANIZER_FEE : VIBY_ORGANIZER_FEE;
   
   if (isV2Active && v2Override?.commissionPercent != null) {
     commission = v2Override.commissionPercent / 100;
-  }
-  else if (isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt) && orgFees?.customOrganizerPercent != null) {
+  } else if (isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt) && orgFees?.customOrganizerPercent != null) {
     commission = orgFees.customOrganizerPercent / 100;
-  }
-  else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
+  } else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
     commission = promotions.organizerPromoPercent / 100;
-  } 
-  else if (globalFees) {
+  } else if (globalFees) {
     const globalCommission = isExp ? globalFees.experienceOrganizerBasePercent : globalFees.organizerBasePercent;
     if (globalCommission != null) commission = globalCommission / 100;
   }
     
   const organizerPercentFee = Number((price * commission).toFixed(2));
-  
   let minFeeBRL = isExp ? VIBY_EXPERIENCE_MIN_FEE_BRL : VIBY_MIN_FEE_BRL;
   
   if (isV2Active && v2Override?.minValue != null) {
     minFeeBRL = v2Override.minValue;
-  }
-  else if (isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt) && orgFees?.customOrganizerMinFee != null) {
+  } else if (isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt) && orgFees?.customOrganizerMinFee != null) {
     minFeeBRL = orgFees.customOrganizerMinFee;
-  }
-  else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
+  } else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
     minFeeBRL = promotions.organizerPromoMinFee;
-  } 
-  else if (globalFees) {
+  } else if (globalFees) {
     const globalMin = isExp ? globalFees.experienceOrganizerMinFee : globalFees.organizerMinFee;
     if (globalMin != null) minFeeBRL = globalMin;
   }
@@ -158,10 +127,8 @@ export function calculateVibyOfficialSplit(
   }
   
   const appliedVibyCommission = Math.max(organizerPercentFee, minFeeInEventCurrency);
-
   let organizerNet, organizerFeeDeduction, buyerFeeTotal;
 
-  // Proteção de Repasse Negativo
   if (price >= appliedVibyCommission) {
     organizerFeeDeduction = appliedVibyCommission;
     organizerNet = Number((price - appliedVibyCommission).toFixed(2));
@@ -175,13 +142,19 @@ export function calculateVibyOfficialSplit(
   const totalCharged = Number((price + buyerFeeTotal).toFixed(2));
   const vibyApplicationFee = Number((buyerFeeTotal + organizerFeeDeduction).toFixed(2));
 
-  return {
+  const snapshot: Omit<PricingSnapshot, 'checksum'> = {
     facePrice: price,
     buyerFee: buyerFeeTotal,
     totalCharged,
     organizerFee: organizerFeeDeduction,
     organizerNet,
-    vibyApplicationFee
+    vibyApplicationFee,
+    productType
+  };
+
+  return {
+    ...snapshot,
+    checksum: generateSnapshotChecksum(snapshot)
   };
 }
 
@@ -202,7 +175,8 @@ export function calculateFinancialBreakdown(
     producerFeeAmount: split.organizerFee,
     producerNetAmount: split.organizerNet,
     totalVibyRevenue: split.vibyApplicationFee,
-    productType
+    productType,
+    checksum: split.checksum
   };
 }
 
@@ -219,12 +193,10 @@ export function calculateDetailedVibyBreakdown(
 ) {
   const split = calculateVibyOfficialSplit(facePrice, eventCurrency, rates, orgSettings, globalFees, promotions, productType);
   const rateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
-
   const imposto = Number((split.vibyApplicationFee * VIBY_TAX_RATE).toFixed(2));
   const stripeFeePercent = stripeConfig?.feePercent || 3.99;
   const stripeFeeFixed = stripeConfig?.feeFixed || 0.39;
   const stripeFeeTotal = Number(((split.totalCharged * (stripeFeePercent / 100)) + stripeFeeFixed).toFixed(2));
-
   const vibyNet = Number((split.vibyApplicationFee - imposto - stripeFeeTotal).toFixed(2));
 
   return {
@@ -242,7 +214,8 @@ export function calculateDetailedVibyBreakdown(
     vibyNetBRL: Number((vibyNet * quantity * rateToBRL).toFixed(2)),
     taxAmountBRL: Number((imposto * quantity * rateToBRL).toFixed(2)),
     payoutToProducerBRL: Number((split.organizerNet * quantity * rateToBRL).toFixed(2)),
-    productType
+    productType,
+    checksum: split.checksum
   };
 }
 

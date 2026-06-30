@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
@@ -15,6 +14,7 @@ export const dynamic = 'force-dynamic';
  * - VIBY-EXP-003: Idempotência garantida por 'stripe_processed_events'.
  * - VIBY-EXP-004: Única fonte de verdade para confirmação de pagamento.
  * - VIBY-EXP-007: Re-validação de capacidade (Double Guarantee) em transação.
+ * - AUDIT-V2: Reconciliação financeira contra snapshot original.
  */
 
 async function getStripeInstance(db: admin.firestore.Firestore) {
@@ -45,7 +45,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
-  // 1. IDEMPOTENCY CHECK (VIBY-EXP-003)
   const eventLogRef = db.collection('stripe_processed_events').doc(event.id);
 
   try {
@@ -67,23 +66,33 @@ export async function POST(req: Request) {
           const orderData = orderSnap.data()!;
           if (orderData.status === 'paid') return;
 
+          // RECONCILIAÇÃO FINANCEIRA (VIBY-AUDIT-V2)
+          const stripeAmount = session.amount_total; // centavos
+          const expectedAmountCents = Math.round(orderData.totals.totalToPay * 100);
+          
+          if (Math.abs(stripeAmount! - expectedAmountCents) > 1) {
+             console.error(`[FINANCIAL_MISMATCH] Order ${orderId}: Stripe=${stripeAmount}, Expected=${expectedAmountCents}`);
+             transaction.update(orderRef, { 
+               status: 'flagged_for_review', 
+               reconciliation_error: 'amount_mismatch',
+               stripe_amount: stripeAmount
+             });
+             throw new Error("RECONCILIATION_FAILED");
+          }
+
           const userId = session.metadata.userId;
           const items = orderData.items || [];
           const currency = (orderData.currency || 'BRL').toUpperCase();
           
-          // 2. VALIDAR RESERVAS (VIBY-EXP-001 & VIBY-EXP-005)
           const reservationIds = (session.metadata.reservations || "").split(',').filter(Boolean);
           for (const resId of reservationIds) {
              const resRef = db.collection('experience_reservations').doc(resId);
              const resSnap = await transaction.get(resRef);
-             const resData = resSnap.data();
-
-             if (!resSnap.exists || resData?.status === 'cancelled') {
+             if (!resSnap.exists || resSnap.data()?.status === 'cancelled') {
                 throw new Error("RESERVATION_INVALID");
              }
           }
 
-          // 3. ATOMIC FULFILLMENT & INVENTORY CHECK (VIBY-EXP-002 & VIBY-EXP-007)
           for (const item of items) {
             const isExp = item.productType === 'experience';
             
@@ -93,7 +102,6 @@ export async function POST(req: Request) {
               const slotData = slotSnap.data();
 
               if ((slotData?.sold || 0) + item.quantity > (slotData?.capacity || 0)) {
-                console.error(`[CAPACITY_CONFLICT] Slot ${item.occurrenceId} is full.`);
                 transaction.update(orderRef, { status: 'needs_review', conflict_reason: 'oversold' });
                 throw new Error("SLOT_CAPACITY_EXCEEDED");
               }
@@ -118,7 +126,6 @@ export async function POST(req: Request) {
               }
             }
 
-            // 4. GERAÇÃO DE VOUCHERS (VIBY-EXP-006)
             for (let j = 0; j < item.quantity; j++) {
               const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
               const regRef = db.collection("registrations").doc();
@@ -149,7 +156,8 @@ export async function POST(req: Request) {
                 productType: item.productType || 'event',
                 confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                timestamp: admin.firestore.FieldValue.serverTimestamp()
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                audit_checksum: item.financials?.checksum || null
               });
 
               sendTicketEmail({
@@ -164,7 +172,6 @@ export async function POST(req: Request) {
             }
           }
           
-          // 5. FINALIZAR RESERVAS E ORDEM
           for (const resId of reservationIds) {
             transaction.update(db.collection('experience_reservations').doc(resId), { 
               status: 'confirmed', 
@@ -176,6 +183,7 @@ export async function POST(req: Request) {
           transaction.update(orderRef, { 
             status: 'paid', 
             stripePaymentIntentId: session.payment_intent,
+            reconciled: true,
             updatedAt: admin.firestore.FieldValue.serverTimestamp() 
           });
         }

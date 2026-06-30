@@ -5,7 +5,7 @@ import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { logSystemError } from '@/lib/error-manager';
-import { calculateVibyOfficialSplit, toCents, ProductType } from '@/lib/financial-utils';
+import { calculateVibyOfficialSplit, toCents, ProductType, generateSnapshotChecksum } from '@/lib/financial-utils';
 
 async function getStripeInstance(db: admin.firestore.Firestore) {
   const snap = await db.collection('settings').doc('stripe').get();
@@ -49,8 +49,8 @@ export async function createCheckoutSession(data: any) {
         orgCache[item.organizationId] = orgSnap.exists ? orgSnap.data() : {};
       }
 
-      // Auditoria: Garantir resolução de productType antes do split
-      const resolvedProductType = (item.productType as ProductType) || 'event';
+      const resolvedProductType = (item.productType as ProductType);
+      if (!resolvedProductType) throw new Error(`FATAL_ERROR: productType missing for item in order ${orderId}`);
 
       const split = calculateVibyOfficialSplit(
         item.price, 
@@ -61,6 +61,11 @@ export async function createCheckoutSession(data: any) {
         promotions,
         resolvedProductType
       );
+
+      // Verificação de Integridade de Snapshot (Checksum Validation)
+      if (item.financials?.checksum && split.checksum !== item.financials.checksum) {
+        throw new Error(`SECURITY_ALERT: Financial snapshot tampered for order ${orderId}`);
+      }
 
       totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     }
@@ -74,7 +79,8 @@ export async function createCheckoutSession(data: any) {
       cancel_url: `${origin}/checkout/cancelado`,
       metadata: {
         ...metadata,
-        server_verified: 'true'
+        server_verified: 'true',
+        product_type_lock: orderData.items[0]?.productType || 'unknown'
       },
       payment_intent_data: {
         application_fee_amount: totalApplicationFeeCents,
