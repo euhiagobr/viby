@@ -301,6 +301,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                            </div>
                         </div>
                       )}
+                   </div>
                 </div>
 
                 <Separator className="border-dashed" />
