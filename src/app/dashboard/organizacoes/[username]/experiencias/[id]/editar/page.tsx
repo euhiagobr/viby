@@ -27,7 +27,8 @@ import {
   Info,
   ShieldCheck,
   Calendar,
-  Layout
+  Layout,
+  Clock
 } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc, query, collection, where } from 'firebase/firestore';
 import Link from 'next/link';
@@ -120,7 +121,9 @@ export default function EditarExperienciaPage() {
           countryCode: "BR",
           postalCode: "", 
           latitude: null, 
-          longitude: null
+          longitude: null,
+          formattedAddress: "",
+          isCustomized: false
         },
         additionalInfo: exp.additionalInfo || "",
         usagePolicy: exp.usagePolicy || ""
