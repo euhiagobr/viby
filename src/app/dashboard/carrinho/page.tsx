@@ -1,4 +1,4 @@
-"use client"
+'use client';
 
 import * as React from "react"
 import { useCart, CartItem } from "@/contexts/CartContext"
@@ -219,29 +219,35 @@ export default function CarrinhoPage() {
     let discount = 0;
     
     filteredItems.forEach(item => { 
-      let itemBasePrice = item.price;
-      
-      if (appliedCoupon && appliedCoupon.eventId === item.eventId) {
-         if (appliedCoupon.discountType === 'percentage') {
-            const discVal = Number((item.price * (appliedCoupon.discountValue / 100)).toFixed(2));
-            discount += discVal * item.quantity;
-            itemBasePrice = Math.max(0, item.price - discVal);
-         } else if (appliedCoupon.discountType === 'fixed') {
-            const discVal = Math.min(item.price, appliedCoupon.discountValue);
-            discount += discVal * item.quantity;
-            itemBasePrice = Math.max(0, item.price - discVal);
-         } else if (appliedCoupon.discountType === 'free_ticket') {
-            discount += item.price * item.quantity;
-            itemBasePrice = 0;
-         }
-      }
-
       subtotal += item.price * item.quantity;
       
       const org = orgsData?.[item.organizationId];
       if (org && globalFees) {
-        const res = calculateVibyOfficialSplit(itemBasePrice, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, item.productType || 'event');
-        fees += (res?.buyerFee || 0) * (item.quantity || 0);
+        // Lógica de Cupom: Aplica em apenas 1 unidade do item correspondente
+        if (appliedCoupon && appliedCoupon.eventId === item.eventId) {
+          let discVal = 0;
+          if (appliedCoupon.discountType === 'percentage') {
+            discVal = Number((item.price * (appliedCoupon.discountValue / 100)).toFixed(2));
+          } else if (appliedCoupon.discountType === 'fixed') {
+            discVal = Math.min(item.price, appliedCoupon.discountValue);
+          } else if (appliedCoupon.discountType === 'free_ticket') {
+            discVal = item.price;
+          }
+          
+          discount += discVal; // Desconto de apenas 1 unidade
+          const discountedUnitPrice = Math.max(0, item.price - discVal);
+
+          // Calcula taxas separadamente: 1 unidade com desconto + (N-1) unidades normais
+          const resDiscounted = calculateVibyOfficialSplit(discountedUnitPrice, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, (item.productType as ProductType) || 'event');
+          const resFull = calculateVibyOfficialSplit(item.price, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, (item.productType as ProductType) || 'event');
+          
+          fees += (resDiscounted?.buyerFee || 0);
+          fees += (resFull?.buyerFee || 0) * (item.quantity - 1);
+        } else {
+          // Itens sem cupom: Taxas normais para todas as unidades
+          const res = calculateVibyOfficialSplit(item.price, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, (item.productType as ProductType) || 'event');
+          fees += (res?.buyerFee || 0) * (item.quantity || 0);
+        }
       }
     });
 
@@ -262,7 +268,7 @@ export default function CarrinhoPage() {
   }, [items, globalFees, promotions, orgsData, useBalance, wallet?.balance, rates, appliedCoupon]);
 
   return (
-    <div className="max-w-6xl auto space-y-10 pb-20 animate-in fade-in duration-500">
+    <div className="max-w-4xl mx-auto space-y-10 pb-20 animate-in fade-in duration-500">
       <div className="flex flex-col gap-6 md:flex-row md:items-end justify-between">
         <h1 className="text-4xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <ShoppingCart className="w-10 h-10 text-secondary" /> Carrinho
@@ -291,7 +297,7 @@ export default function CarrinhoPage() {
            ) : (
              <div className="space-y-6">
                 {items.map((item) => {
-                  const hasDiscount = appliedCoupon && appliedCoupon.eventId === item.eventId;
+                  const isCouponTarget = appliedCoupon && appliedCoupon.eventId === item.eventId;
                   return (
                     <Card key={item.id} className={cn(
                       "border-none shadow-sm rounded-[2rem] overflow-hidden bg-white transition-opacity",
@@ -321,10 +327,13 @@ export default function CarrinhoPage() {
                                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}>+</Button>
                                 </div>
                                 <div className="text-right">
-                                   {hasDiscount ? (
+                                   {isCouponTarget ? (
                                      <div className="flex flex-col">
-                                        <span className="text-[10px] line-through opacity-30 font-black">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</span>
-                                        <span className="text-lg font-black text-green-600 italic">Viby Promo Aplicada</span>
+                                        <div className="flex items-center gap-2 justify-end">
+                                           <span className="text-[10px] line-through opacity-30 font-black">{formatPrice(item.price, (item.currency || 'BRL') as CurrencyCode)}</span>
+                                           <span className="text-sm font-black text-green-600 italic">Cupom Ativo (1 un.)</span>
+                                        </div>
+                                        <p className="font-black text-lg">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</p>
                                      </div>
                                    ) : (
                                      <p className="font-black text-lg">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</p>
@@ -391,7 +400,7 @@ export default function CarrinhoPage() {
                 </div>
                 {appliedCoupon && (
                    <p className="text-[9px] font-black uppercase text-green-600 flex items-center gap-1.5 animate-in zoom-in-95">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Cupom {appliedCoupon.code} aplicado com sucesso!
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Desconto aplicado em 1 unidade.
                    </p>
                 )}
              </Card>
@@ -405,7 +414,7 @@ export default function CarrinhoPage() {
                    </div>
                    {cartTotals.discount > 0 && (
                      <div className="flex justify-between text-xs font-black text-green-600 uppercase">
-                        <span>Desconto</span>
+                        <span>Desconto (1 un.)</span>
                         <span>-{formatPrice(cartTotals.discount, cartTotals.currency as CurrencyCode)}</span>
                      </div>
                    )}

@@ -15,7 +15,7 @@ import { createCheckoutSession } from "@/app/actions/stripe";
 import { generateFreeTickets } from "@/app/actions/tickets";
 import { calculateVibyOfficialSplit, toCents, calculateFinancialBreakdown, ProductType } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
-import { CurrencyCode } from "@/contexts/CurrencyContext";
+import { CurrencyCode } from "@/contexts/CurrencyCode";
 import { createExperienceReservationAction } from "@/app/actions/experiences";
 
 export interface PayButtonOptions {
@@ -77,50 +77,73 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     }
   }
 
-  // 2. PREPARAR ORDEM COM SNAPSHOTS FINANCEIROS E CUPONS
+  // 2. PREPARAR ORDEM COM SNAPSHOTS FINANCEIROS E CUPONS (Mapeamento Flat)
   const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
   const exchangeDate = new Date().toISOString().slice(0, 10);
 
-  const orderItems = items.map(item => {
-    let itemBasePrice = item.price;
-    let discountAmount = 0;
-
-    // Aplicação da lógica de cupom idêntica ao CarrinhoPage para consistência
+  const orderItems = items.flatMap(item => {
+    // Se houver cupom para este item, aplicamos apenas em 1 unidade
     if (coupon && coupon.eventId === item.eventId) {
+      let discVal = 0;
       if (coupon.discountType === 'percentage') {
-        discountAmount = Number((item.price * (coupon.discountValue / 100)).toFixed(2));
-        itemBasePrice = Math.max(0, item.price - discountAmount);
+        discVal = Number((item.price * (coupon.discountValue / 100)).toFixed(2));
       } else if (coupon.discountType === 'fixed') {
-        discountAmount = Math.min(item.price, coupon.discountValue);
-        itemBasePrice = Math.max(0, item.price - discountAmount);
+        discVal = Math.min(item.price, coupon.discountValue);
       } else if (coupon.discountType === 'free_ticket') {
-        discountAmount = item.price;
-        itemBasePrice = 0;
+        discVal = item.price;
       }
+
+      const discountedPrice = Math.max(0, item.price - discVal);
+      const productType = (item.productType as ProductType) || 'event';
+      const org = orgsData[item.organizationId];
+
+      const breakdownDiscounted = calculateFinancialBreakdown(discountedPrice, globalFees, promotions, org, eventCurrency, rates, productType);
+      const breakdownFull = calculateFinancialBreakdown(item.price, globalFees, promotions, org, eventCurrency, rates, productType);
+
+      const splitItems = [];
+      
+      // 1 unidade com desconto
+      splitItems.push({
+        ...item,
+        id: `${item.id}_disc`,
+        quantity: 1,
+        price: discountedPrice,
+        originalPrice: item.price,
+        discountAmount: discVal,
+        couponCode: coupon.code,
+        producerNetAmount: breakdownDiscounted.producerNetAmount,
+        administrativeFeeAmount: breakdownDiscounted.administrativeFeeAmount,
+        financials: breakdownDiscounted
+      });
+
+      // Se houver mais unidades, entram com preço cheio
+      if (item.quantity > 1) {
+        splitItems.push({
+          ...item,
+          id: `${item.id}_full`,
+          quantity: item.quantity - 1,
+          price: item.price,
+          originalPrice: item.price,
+          discountAmount: 0,
+          couponCode: null,
+          producerNetAmount: breakdownFull.producerNetAmount,
+          administrativeFeeAmount: breakdownFull.administrativeFeeAmount,
+          financials: breakdownFull
+        });
+      }
+
+      return splitItems;
     }
 
-    const resolvedProductType = (item.productType as ProductType) || 'event';
-
-    const breakdown = calculateFinancialBreakdown(
-      itemBasePrice, 
-      globalFees, 
-      promotions, 
-      orgsData[item.organizationId], 
-      eventCurrency, 
-      rates,
-      resolvedProductType
-    );
-
-    return {
+    // Item normal sem cupom
+    const productType = (item.productType as ProductType) || 'event';
+    const breakdown = calculateFinancialBreakdown(item.price, globalFees, promotions, orgsData[item.organizationId], eventCurrency, rates, productType);
+    return [{
       ...item,
-      price: itemBasePrice, // Preço após desconto
-      originalPrice: item.price,
-      discountAmount,
-      couponCode: coupon?.code || null,
       producerNetAmount: breakdown.producerNetAmount,
       administrativeFeeAmount: breakdown.administrativeFeeAmount,
       financials: breakdown 
-    };
+    }];
   });
 
   const orderData = {
