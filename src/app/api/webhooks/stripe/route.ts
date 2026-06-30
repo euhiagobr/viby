@@ -35,6 +35,7 @@ export async function POST(req: Request) {
   }
 
   const eventLogRef = db.collection('stripe_processed_events').doc(event.id);
+  const emailsToSend: any[] = [];
 
   try {
     await db.runTransaction(async (transaction) => {
@@ -67,12 +68,11 @@ export async function POST(req: Request) {
              reservationSnaps.push({ ref: resRef, snap: resSnap });
           }
 
-          // 2. LEITURA DE EVENTOS E SLOTS (Obrigatório antes de qualquer escrita no loop)
+          // 2. LEITURA DE EVENTOS E SLOTS
           const items = orderData.items || [];
           const itemSnapshots = [];
           
           for (const item of items) {
-            // RESOLUÇÃO DINÂMICA DE COLEÇÃO
             const sourceColl = item.productType === 'experience' ? "experiences" : "events";
             const eventRef = db.collection(sourceColl).doc(item.eventId);
             const eventSnap = await transaction.get(eventRef);
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
             itemSnapshots.push({ item, eventRef, eventSnap, slotSnap, occSnap });
           }
 
-          // 3. BLOCO DE ESCRITA (Somente após todas as leituras)
+          // 3. BLOCO DE ESCRITA
           const userId = session.metadata.userId;
           const currency = (orderData.currency || 'BRL').toUpperCase();
 
@@ -159,7 +159,8 @@ export async function POST(req: Request) {
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              await sendTicketEmail({
+              // Coletar dados para envio de e-mail após a transação
+              emailsToSend.push({
                 to: orderData.userEmail,
                 userName: orderData.userName,
                 eventTitle: item.eventTitle,
@@ -195,6 +196,14 @@ export async function POST(req: Request) {
         type: event.type
       });
     });
+
+    // Enviar e-mails APÓS o commit da transação (Seguro)
+    if (emailsToSend.length > 0) {
+      console.log(`[Stripe Webhook] Sending ${emailsToSend.length} confirmation emails...`);
+      for (const emailData of emailsToSend) {
+        sendTicketEmail(emailData).catch(e => console.error("[Email Webhook Error]", e));
+      }
+    }
 
     return NextResponse.json({ received: true });
   } catch (error: any) {

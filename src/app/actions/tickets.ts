@@ -13,6 +13,7 @@ export async function generateFreeTickets(data: {
   try {
     const { userId, userName, userEmail, items } = data;
     const db = getAdminDb();
+    const emailsToSend: any[] = [];
 
     // 1. PRÉ-VALIDAÇÃO: Verificar se já existe registro na coleção principal (Legado/Inconsistência)
     for (const item of items) {
@@ -31,19 +32,17 @@ export async function generateFreeTickets(data: {
       }
     }
 
-    return await db.runTransaction(async (transaction) => {
-      const results = [];
-
-      // ESTRATÉGIA: Primeiro fazemos TODAS as leituras necessárias para todos os itens
+    const results = await db.runTransaction(async (transaction) => {
+      const registrationIds = [];
       const snapshots: any[] = [];
+      
+      // BLOCO DE LEITURA
       for (const item of items) {
         const lockId = `free_lock_${userId}_${item.eventId}_${item.ticketTypeId}`;
         const lockRef = db.collection("registrations_locks").doc(lockId);
         
-        // RESOLUÇÃO DINÂMICA DE COLEÇÃO
         const sourceColl = item.productType === 'experience' ? "experiences" : "events";
         const eventRef = db.collection(sourceColl).doc(item.eventId);
-        
         const orgRef = db.collection("organizations").doc(item.organizationId);
         
         let occRef = null;
@@ -53,7 +52,6 @@ export async function generateFreeTickets(data: {
           occRef = db.collection("recurring_occurrences").doc(item.occurrenceId);
         }
 
-        // Executa leituras
         const [lockSnap, eventSnap, orgSnap, occSnap] = await Promise.all([
           transaction.get(lockRef),
           transaction.get(eventRef),
@@ -70,13 +68,12 @@ export async function generateFreeTickets(data: {
           eventRef,
           eventSnap,
           orgRef,
-          orgSnap,
           occRef,
           occSnap
         });
       }
 
-      // Agora que TODAS as leituras foram concluídas, processamos as escritas
+      // BLOCO DE ESCRITA
       for (const snap of snapshots) {
         const { item, lockRef, lockSnap, eventRef, eventSnap, orgRef, occRef, occSnap } = snap;
         const isFree = item.price === 0;
@@ -98,7 +95,6 @@ export async function generateFreeTickets(data: {
         const eventData = eventSnap.data();
 
         if (item.productType === 'experience' && occRef && occSnap && occSnap.exists) {
-           // Se for experiência, incrementamos o 'sold' no slot
            transaction.update(occRef, {
              sold: admin.firestore.FieldValue.increment(finalQty),
              updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -154,9 +150,10 @@ export async function generateFreeTickets(data: {
           };
 
           transaction.set(regRef, ticketData);
-          results.push(regRef.id);
+          registrationIds.push(regRef.id);
 
-          await sendTicketEmail({
+          // Coleta dados para e-mail
+          emailsToSend.push({
             to: userEmail,
             userName,
             eventTitle: item.eventTitle,
@@ -170,8 +167,15 @@ export async function generateFreeTickets(data: {
         }
       }
 
-      return { success: true, registrationIds: results };
+      return { success: true, registrationIds };
     });
+
+    // Disparar e-mails fora da transação
+    for (const email of emailsToSend) {
+      sendTicketEmail(email).catch(err => console.error("[Action Email Error]", err));
+    }
+
+    return results;
   } catch (error: any) {
     console.error("[Ticket Action Error]", error);
     return { success: false, error: error.message };
