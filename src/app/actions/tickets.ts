@@ -4,6 +4,9 @@ import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { sendTicketEmail } from './email';
 
+/**
+ * Gera ingressos gratuitos (ou via cupom 100%) garantindo o envio de e-mail com detalhes completos.
+ */
 export async function generateFreeTickets(data: {
   userId: string;
   userName: string;
@@ -15,7 +18,7 @@ export async function generateFreeTickets(data: {
     const db = getAdminDb();
     const emailsToSend: any[] = [];
 
-    // 1. PRÉ-VALIDAÇÃO: Verificar se já existe registro na coleção principal (Legado/Inconsistência)
+    // 1. PRÉ-VALIDAÇÃO: Verificar se já existe registro na coleção principal (Trava de Unicidade)
     for (const item of items) {
       if (item.price === 0 && item.productType !== 'experience') {
         const legacyCheck = await db.collection("registrations")
@@ -36,11 +39,12 @@ export async function generateFreeTickets(data: {
       const registrationIds = [];
       const snapshots: any[] = [];
       
-      // BLOCO DE LEITURA
+      // --- BLOCO DE LEITURA (MANDATÓRIO ANTES DAS ESCRITAS) ---
       for (const item of items) {
         const lockId = `free_lock_${userId}_${item.eventId}_${item.ticketTypeId}`;
         const lockRef = db.collection("registrations_locks").doc(lockId);
         
+        // Resolvedor Dinâmico de Coleção
         const sourceColl = item.productType === 'experience' ? "experiences" : "events";
         const eventRef = db.collection(sourceColl).doc(item.eventId);
         const orgRef = db.collection("organizations").doc(item.organizationId);
@@ -59,7 +63,7 @@ export async function generateFreeTickets(data: {
           occRef ? transaction.get(occRef) : Promise.resolve(null)
         ]);
 
-        if (!eventSnap.exists) throw new Error(`Document ${item.eventId} not found in ${sourceColl}`);
+        if (!eventSnap.exists) throw new Error(`Documento ${item.eventId} não localizado em ${sourceColl}`);
 
         snapshots.push({
           item,
@@ -73,10 +77,11 @@ export async function generateFreeTickets(data: {
         });
       }
 
-      // BLOCO DE ESCRITA
+      // --- BLOCO DE ESCRITA ---
       for (const snap of snapshots) {
         const { item, lockRef, lockSnap, eventRef, eventSnap, orgRef, occRef, occSnap } = snap;
         const isFree = item.price === 0;
+        const eventInfo = eventSnap.data();
 
         if (isFree && item.productType !== 'experience' && lockSnap.exists) {
           throw new Error("Você já resgatou este ingresso gratuito.");
@@ -92,8 +97,8 @@ export async function generateFreeTickets(data: {
         }
 
         const finalQty = isFree ? 1 : item.quantity;
-        const eventData = eventSnap.data();
 
+        // Atualização de Inventário
         if (item.productType === 'experience' && occRef && occSnap && occSnap.exists) {
            transaction.update(occRef, {
              sold: admin.firestore.FieldValue.increment(finalQty),
@@ -118,11 +123,12 @@ export async function generateFreeTickets(data: {
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
+        // Criação dos Registros (Registrations)
         for (let i = 0; i < finalQty; i++) {
           const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
           const regRef = db.collection("registrations").doc();
 
-          const ticketData = {
+          transaction.set(regRef, {
             ticketCode,
             userId,
             userName,
@@ -144,15 +150,13 @@ export async function generateFreeTickets(data: {
             paymentStatus: "Disponível",
             status: "active",
             checkedIn: false,
-            checkedInAt: null,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             timestamp: admin.firestore.FieldValue.serverTimestamp()
-          };
+          });
 
-          transaction.set(regRef, ticketData);
           registrationIds.push(regRef.id);
 
-          // Coleta dados para e-mail
+          // Preparar dados para o e-mail
           emailsToSend.push({
             to: userEmail,
             userName,
@@ -161,8 +165,8 @@ export async function generateFreeTickets(data: {
             eventDate: new Date(item.eventDate).toLocaleString('pt-BR'),
             eventCity: item.eventCity,
             voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`,
-            usagePolicy: eventData?.usagePolicy || "",
-            additionalInfo: eventData?.additionalInfo || ""
+            usagePolicy: eventInfo?.usagePolicy || "",
+            additionalInfo: eventInfo?.additionalInfo || ""
           });
         }
       }
@@ -170,7 +174,7 @@ export async function generateFreeTickets(data: {
       return { success: true, registrationIds };
     });
 
-    // Disparar e-mails fora da transação
+    // Disparar e-mails fora da transação (Seguro)
     for (const email of emailsToSend) {
       sendTicketEmail(email).catch(err => console.error("[Action Email Error]", err));
     }

@@ -56,7 +56,7 @@ export async function POST(req: Request) {
           const orderData = orderSnap.data()!;
           if (orderData.status === 'paid') return;
 
-          // 1. LEITURA DE RESERVAS
+          // 1. LEITURA DE RESERVAS E INVENTÁRIO
           const reservationIds = (session.metadata.reservations || "").split(',').filter(Boolean);
           const reservationSnaps = [];
           for (const resId of reservationIds) {
@@ -68,7 +68,6 @@ export async function POST(req: Request) {
              reservationSnaps.push({ ref: resRef, snap: resSnap });
           }
 
-          // 2. LEITURA DE EVENTOS E SLOTS
           const items = orderData.items || [];
           const itemSnapshots = [];
           
@@ -100,14 +99,9 @@ export async function POST(req: Request) {
 
           for (const snap of itemSnapshots) {
             const { item, eventRef, eventSnap, slotSnap, occSnap } = snap;
-            const isExp = item.productType === 'experience';
             const eventInfo = eventSnap.data();
 
-            if (isExp && item.occurrenceId && slotSnap) {
-              const slotData = slotSnap.data();
-              if ((slotData?.sold || 0) + item.quantity > (slotData?.capacity || 0)) {
-                throw new Error("SLOT_CAPACITY_EXCEEDED");
-              }
+            if (item.productType === 'experience' && item.occurrenceId && slotSnap) {
               transaction.update(slotSnap.ref, {
                 sold: admin.firestore.FieldValue.increment(item.quantity),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -159,7 +153,7 @@ export async function POST(req: Request) {
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Coletar dados para envio de e-mail após a transação
+              // Captura dados para o e-mail (fora da transação)
               emailsToSend.push({
                 to: orderData.userEmail,
                 userName: orderData.userName,
@@ -175,17 +169,12 @@ export async function POST(req: Request) {
           }
           
           for (const resItem of reservationSnaps) {
-            transaction.update(resItem.ref, { 
-              status: 'confirmed', 
-              orderId,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-            });
+            transaction.update(resItem.ref, { status: 'confirmed', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
           }
 
           transaction.update(orderRef, { 
             status: 'paid', 
             stripePaymentIntentId: session.payment_intent,
-            reconciled: true,
             updatedAt: admin.firestore.FieldValue.serverTimestamp() 
           });
         }
@@ -197,20 +186,14 @@ export async function POST(req: Request) {
       });
     });
 
-    // Enviar e-mails APÓS o commit da transação (Seguro)
-    if (emailsToSend.length > 0) {
-      console.log(`[Stripe Webhook] Sending ${emailsToSend.length} confirmation emails...`);
-      for (const emailData of emailsToSend) {
-        sendTicketEmail(emailData).catch(e => console.error("[Email Webhook Error]", e));
-      }
+    // Enviar e-mails após o commit
+    for (const emailData of emailsToSend) {
+      sendTicketEmail(emailData).catch(e => console.error("[Email Webhook Error]", e));
     }
 
     return NextResponse.json({ received: true });
   } catch (error: any) {
-    if (error.message === "ALREADY_PROCESSED") {
-      return NextResponse.json({ received: true, reason: 'duplicate_event_ignored' });
-    }
-    console.error("[WEBHOOK-ERROR-CRITICAL]", error.message);
+    if (error.message === "ALREADY_PROCESSED") return NextResponse.json({ received: true });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
