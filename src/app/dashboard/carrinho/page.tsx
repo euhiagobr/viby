@@ -18,7 +18,8 @@ import {
   Inbox,
   AlertTriangle,
   Info,
-  Clock
+  Clock,
+  ShieldCheck
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -187,7 +188,7 @@ export default function CarrinhoPage() {
   }, [items, globalFees, promotions, orgsData, useBalance, wallet?.balance, rates]);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 pb-20 animate-in fade-in duration-500">
+    <div className="max-w-6xl auto space-y-10 pb-20 animate-in fade-in duration-500">
       <div className="flex flex-col gap-6 md:flex-row md:items-end justify-between">
         <h1 className="text-4xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <ShoppingCart className="w-10 h-10 text-secondary" /> Carrinho
