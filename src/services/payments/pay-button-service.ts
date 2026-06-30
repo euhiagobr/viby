@@ -1,15 +1,7 @@
 'use server';
 
-import { 
-  doc, 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  getDoc,
-  serverTimestamp,
-  increment
-} from "firebase/firestore";
-import { db as staticDb } from "@/firebase/database";
+import * as admin from 'firebase-admin';
+import { getAdminDb } from "@/lib/firebase/admin";
 import { createCheckoutSession } from "@/app/actions/stripe";
 import { generateFreeTickets } from "@/app/actions/tickets";
 import { calculateVibyOfficialSplit, toCents, calculateFinancialBreakdown, ProductType } from "@/lib/financial-utils";
@@ -31,12 +23,11 @@ export interface PayButtonOptions {
 }
 
 /**
- * Executa o fluxo de checkout garantindo a injeção correta da hierarquia de taxas.
- * Corrigido para garantir que todas as leituras (getDoc) ocorram antes das escritas.
- * Se o total "virar" zero (via cupom), ignora o Stripe e processa internamente.
+ * Executa o fluxo de checkout utilizando o Admin SDK para máxima estabilidade e segurança.
  */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, useBalance, rates, globalFees, promotions, orgsData, coupon } = options;
+  const db = getAdminDb();
 
   if (!user) throw new Error("Usuário não identificado.");
   if (!items || items.length === 0) throw new Error("O carrinho está vazio.");
@@ -49,39 +40,35 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
   // 1. BLOCO DE LEITURA (VALIDAÇÕES INICIAIS)
-  // Realizamos todas as leituras antes de qualquer escrita para evitar erro do Firestore
   for (const item of items) {
     const isExp = item.productType === 'experience';
     const collName = isExp ? "experiences" : "events";
     
-    const eSnap = await getDoc(doc(staticDb, collName, item.eventId));
-    if (!eSnap.exists()) throw new Error(`O item ${item.eventTitle} não está mais disponível.`);
+    const eSnap = await db.collection(collName).doc(item.eventId).get();
+    if (!eSnap.exists) throw new Error(`O item ${item.eventTitle} não está mais disponível.`);
     
     if (item.price === 0 && !isExp) {
-      const lockId = `free_lock_${user.uid}_${item.eventId}_${item.ticketTypeId}`;
-      const lockSnap = await getDoc(doc(staticDb, "registrations_locks", lockId));
-      if (lockSnap.exists()) throw new Error("Você já resgatou este ingresso gratuito.");
+      const lockId = `free_lock_${user.id || user.uid}_${item.eventId}_${item.ticketTypeId}`;
+      const lockSnap = await db.collection("registrations_locks").doc(lockId).get();
+      if (lockSnap.exists) throw new Error("Você já resgatou este ingresso gratuito.");
     }
   }
 
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
-    const walletRef = doc(staticDb, "wallets", user.uid);
-    const wSnap = await getDoc(walletRef);
-    if (!wSnap.exists() || (wSnap.data().balance || 0) < totals.balanceUsed) {
+    const walletSnap = await db.collection("wallets").doc(user.id || user.uid).get();
+    if (!walletSnap.exists || (walletSnap.data()?.balance || 0) < totals.balanceUsed) {
       throw new Error("Saldo insuficiente na carteira.");
     }
   }
 
   // 2. VERIFICAÇÃO DE TOTAL ZERO (PULO DO STRIPE)
-  // Se o total é zero (seja por preço base ou cupom de 100%), processamos via fluxo interno
   if (Number(totals.total) <= 0) {
-    // Se houver experiências, precisamos reservar o slot antes de gerar o ticket
     for (const item of items) {
       if (item.productType === 'experience' && item.occurrenceId) {
         const res = await createExperienceReservationAction({
           experienceId: item.eventId,
           slotId: item.occurrenceId,
-          userId: user.uid,
+          userId: user.id || user.uid,
           quantity: item.quantity
         });
         if (!res.success) throw new Error(res.error || "Falha ao reservar vaga.");
@@ -89,12 +76,12 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     }
 
     const result = await generateFreeTickets({
-      userId: user.uid,
+      userId: user.id || user.uid,
       userName: profile?.name || user.displayName || "Comprador",
       userEmail: user.email!,
       items: items.map(item => ({
         ...item,
-        price: 0, // Força preço 0 para o gerador interno
+        price: 0,
         discountAmount: item.price,
         couponCode: coupon?.code
       }))
@@ -111,18 +98,15 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       const res = await createExperienceReservationAction({
         experienceId: item.eventId,
         slotId: item.occurrenceId,
-        userId: user.uid,
+        userId: user.id || user.uid,
         quantity: item.quantity
       });
 
-      if (!res.success) {
-        throw new Error(res.error || "Não foi possível reservar este horário.");
-      }
+      if (!res.success) throw new Error(res.error || "Não foi possível reservar este horário.");
       reservationIds.push(res.reservationId);
     }
   }
 
-  // Preparar itens da ordem com snapshots financeiros
   const orderItems = items.flatMap(item => {
     const productType = (item.productType as ProductType) || 'event';
     const org = orgsData[item.organizationId];
@@ -181,7 +165,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   });
 
   const orderData = {
-    userId: user.uid,
+    userId: user.id || user.uid,
     userEmail: user.email,
     userName: profile?.name || user.displayName || "Comprador",
     items: orderItems,
@@ -195,20 +179,18 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       totalToPay: totals.total
     },
     status: 'pending',
-    createdAt: serverTimestamp()
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
   };
 
-  // Deduzir saldo da carteira se estiver em BRL
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
-    await updateDoc(doc(staticDb, "wallets", user.uid), {
-      balance: increment(-totals.balanceUsed),
-      updatedAt: serverTimestamp()
+    await db.collection("wallets").doc(user.id || user.uid).update({
+      balance: admin.firestore.FieldValue.increment(-totals.balanceUsed),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
   }
 
-  const orderRef = await addDoc(collection(staticDb, "orders"), orderData);
+  const orderRef = await db.collection("orders").add(orderData);
 
-  // Mapear para Stripe Connect
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
@@ -240,8 +222,8 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     };
   });
 
-  const orgDoc = await getDoc(doc(staticDb, "organizations", items[0].organizationId));
-  const stripeAccountId = orgDoc.data()?.stripeAccountId;
+  const orgSnap = await db.collection("organizations").doc(items[0].organizationId).get();
+  const stripeAccountId = orgSnap.data()?.stripeAccountId;
 
   if (!stripeAccountId) throw new Error("O organizador não possui conta de recebimento configurada.");
 
@@ -254,14 +236,14 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     metadata: {
       type: "order_checkout",
       orderId: orderRef.id,
-      userId: user.uid,
+      userId: user.id || user.uid,
       balanceUsed: totals.balanceUsed.toString(),
       reservations: reservationIds.join(',')
     }
   });
 
   if (!stripeResult.success) {
-    await updateDoc(orderRef, { status: 'failed', error: stripeResult.error });
+    await orderRef.update({ status: 'failed', error: stripeResult.error });
     throw new Error(stripeResult.error);
   }
 

@@ -7,7 +7,7 @@ import { executeCheckoutFlow } from "@/services/payments/pay-button-service"
 import { useErrorManager } from "@/components/error-manager/ErrorManagerProvider"
 import { useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
+import { cn, serializeForServer } from "@/lib/utils"
 
 interface PayButtonProps {
   items: any[]
@@ -47,7 +47,8 @@ export function PayButton({
     
     setLoading(true)
     try {
-      const result = await executeCheckoutFlow({
+      // Sanitização rigorosa antes do envio para Server Action
+      const sanitizedOptions = serializeForServer({
         user: profile,
         profile,
         items,
@@ -58,7 +59,9 @@ export function PayButton({
         useBalance,
         rates,
         coupon: appliedCoupon
-      })
+      });
+
+      const result = await executeCheckoutFlow(sanitizedOptions);
 
       if (result.type === 'free') {
         onSuccess()

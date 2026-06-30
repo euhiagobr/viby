@@ -32,6 +32,37 @@ export function safeParseDate(val: any): Date | null {
 }
 
 /**
+ * Converte objetos complexos (como Timestamps) em valores primitivos para envio ao servidor.
+ */
+export function serializeForServer(data: any): any {
+  if (data === null || data === undefined) return data;
+  
+  if (typeof data === 'object' && typeof data.seconds === 'number' && typeof data.nanoseconds === 'number') {
+    return new Date(data.seconds * 1000).toISOString();
+  }
+
+  if (typeof data.toDate === 'function') return data.toDate().toISOString();
+  if (data instanceof Date) return data.toISOString();
+  if (Array.isArray(data)) return data.map(serializeForServer);
+  
+  if (typeof data === 'object') {
+    const proto = Object.getPrototypeOf(data);
+    if (proto !== null && proto !== Object.prototype) {
+      return data.toString();
+    }
+
+    const result: any = {};
+    for (const key in data) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        result[key] = serializeForServer(data[key]);
+      }
+    }
+    return result;
+  }
+  return data;
+}
+
+/**
  * Formata uma data para o padrão aceito pelo input datetime-local (YYYY-MM-DDTHH:mm)
  * Preservando a hora local sem conversão forçada para UTC.
  */
