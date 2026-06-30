@@ -1,9 +1,8 @@
-
 'use client';
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useUser, useFirestore } from '@/firebase';
+import { useAuth, useUser, useFirestore, useFirebaseApp } from '@/firebase';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { 
   ArrowLeft, 
   Sparkles, 
@@ -18,12 +18,24 @@ import {
   Loader2, 
   Info,
   ShieldCheck,
-  Check
+  Check,
+  ChevronRight,
+  MapPin,
+  Camera,
+  Upload,
+  Plus,
+  Trash2,
+  Coins,
+  Users
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from '@/hooks/use-toast';
 import { getOrCreateExperienceDraftAction, publishExperienceAction, saveExperienceAction } from '@/app/actions/experiences';
 import { slugify } from '@/lib/slug-utils';
+import { EventLocation, EventHeader, EventDescription } from '@/components/events';
+import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
+import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 
 export default function NovaExperienciaPage() {
   const router = useRouter();
@@ -31,16 +43,38 @@ export default function NovaExperienciaPage() {
   const { user } = useUser(auth);
   const { currentOrg } = useCurrentOrganization();
   const db = useFirestore();
+  const app = useFirebaseApp();
+  const storage = React.useMemo(() => (app ? getStorage(app) : null), [app]);
 
   const [loading, setLoading] = React.useState(true);
   const [publishing, setPublishing] = React.useState(false);
   const [draftId, setDraftId] = React.useState<string | null>(null);
+  const [step, setStep] = React.useState(1);
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
+  const [galleryProgress, setGalleryProgress] = React.useState<{ [key: number]: number }>({});
+
   const [formData, setFormData] = React.useState({
     title: "",
     slug: "",
     shortDescription: "",
     description: "",
-    status: "draft"
+    image: "",
+    gallery: [] as string[],
+    price: 0,
+    capacity: 100,
+    additionalInfo: "",
+    usagePolicy: "",
+    status: "draft",
+    address: {
+      venueName: "",
+      addressLine1: "",
+      city: "",
+      stateRegion: "",
+      country: "Brasil",
+      countryCode: "BR",
+      latitude: null,
+      longitude: null
+    }
   });
 
   React.useEffect(() => {
@@ -50,13 +84,12 @@ export default function NovaExperienciaPage() {
       const res = await getOrCreateExperienceDraftAction(user.uid, currentOrg.id);
       if (res.success) {
         setDraftId(res.id);
-        setFormData({
-          title: res.title || "",
-          slug: res.slug || "",
-          shortDescription: res.shortDescription || "",
-          description: res.description || "",
-          status: res.status || "draft"
-        });
+        setFormData(prev => ({
+          ...prev,
+          ...res,
+          gallery: res.gallery || [],
+          address: res.address || prev.address
+        }));
       }
       setLoading(false);
     };
@@ -64,18 +97,68 @@ export default function NovaExperienciaPage() {
     init();
   }, [user, currentOrg]);
 
-  // Auto-save
-  React.useEffect(() => {
-    if (!draftId || loading || publishing) return;
-    const timer = setTimeout(() => {
-      saveExperienceAction(draftId, formData);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [formData, draftId, loading, publishing]);
+  const handleImageUpload = async (file: File) => {
+    if (!storage || !user || !draftId) return;
+    setUploadProgress(0);
+    const storageRef = ref(storage, `experiences/${draftId}/cover_${Date.now()}`);
+    const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
+    
+    uploadTask.on('state_changed', 
+      (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+      () => setUploadProgress(null),
+      async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        setFormData(prev => ({ ...prev, image: url }));
+        setUploadProgress(null);
+      }
+    );
+  };
+
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !storage || !user || !draftId) return;
+    if (formData.gallery.length + files.length > 5) {
+      toast({ variant: "destructive", title: "Limite atingido", description: "Máximo de 5 fotos na galeria." });
+      return;
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const storageRef = ref(storage, `experiences/${draftId}/gallery_${Date.now()}_${i}`);
+      const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
+
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setGalleryProgress(prev => ({ ...prev, [i]: progress }));
+        },
+        null,
+        async () => {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          setFormData(prev => ({ ...prev, gallery: [...prev.gallery, url] }));
+          setGalleryProgress(prev => {
+            const next = { ...prev };
+            delete next[i];
+            return next;
+          });
+        }
+      );
+    }
+  };
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!draftId || !currentOrg || publishing) return;
+
+    if (!formData.image) {
+      toast({ variant: "destructive", title: "Capa obrigatória", description: "Carregue uma imagem de capa para publicar." });
+      return;
+    }
+
+    if (!formData.address.latitude || !formData.address.longitude) {
+      toast({ variant: "destructive", title: "Localização obrigatória", description: "Selecione o endereço completo no mapa." });
+      return;
+    }
 
     setPublishing(true);
     try {
@@ -97,98 +180,156 @@ export default function NovaExperienciaPage() {
   if (loading) return <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias`}><ArrowLeft className="w-5 h-5" /></Link></Button>
-        <div>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Nova Experiência</h1>
-          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Defina a base da sua vivência cultural</p>
+    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias`}><ArrowLeft className="w-5 h-5" /></Link></Button>
+          <div>
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Nova Experiência</h1>
+            <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Etapa 2: Conteúdo e Localização</p>
+          </div>
         </div>
       </div>
 
-      <form onSubmit={handlePublish} className="space-y-8">
-        <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
-          <CardHeader className="bg-muted/30 p-8 border-b">
-             <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-secondary" /> Informações Básicas
-             </CardTitle>
-          </CardHeader>
-          <CardContent className="p-8 space-y-6">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Título da Experiência</Label>
-              <Input 
-                value={formData.title}
-                onChange={e => setFormData({...formData, title: e.target.value, slug: slugify(e.target.value)})}
-                placeholder="Ex: Workshop de Fotografia Urbana"
-                required
-                className="h-14 text-lg font-bold rounded-xl border-dashed border-secondary/30"
+      <div className="flex gap-2 mb-8">
+        <div className={cn("h-1.5 flex-1 rounded-full transition-all", step >= 1 ? "bg-secondary" : "bg-muted")} />
+        <div className={cn("h-1.5 flex-1 rounded-full transition-all", step >= 2 ? "bg-secondary" : "bg-muted")} />
+      </div>
+
+      {step === 1 ? (
+        <div className="space-y-8 animate-in slide-in-from-right-4">
+           <EventHeader 
+              title={formData.title} 
+              onTitleChange={v => setFormData({...formData, title: v, slug: slugify(v)})} 
+              image={formData.image} 
+              onImageUpload={handleImageUpload} 
+              uploadProgress={uploadProgress} 
+           />
+
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                       <Coins className="w-3.5 h-3.5" /> Valor Base (BRL)
+                    </Label>
+                    <Input 
+                       type="number" 
+                       step="0.01"
+                       value={formData.price} 
+                       onChange={e => setFormData({...formData, price: parseFloat(e.target.value) || 0})}
+                       className="h-12 rounded-xl font-black text-primary text-lg"
+                    />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
+                       <Users className="w-3.5 h-3.5" /> Capacidade / Estoque
+                    </Label>
+                    <Input 
+                       type="number" 
+                       value={formData.capacity} 
+                       onChange={e => setFormData({...formData, capacity: parseInt(e.target.value) || 0})}
+                       className="h-12 rounded-xl font-bold"
+                    />
+                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">Descrição Curta (Vitrine)</Label>
+                <Input 
+                  value={formData.shortDescription}
+                  onChange={e => setFormData({...formData, shortDescription: e.target.value})}
+                  maxLength={120}
+                  className="rounded-xl h-11"
+                />
+              </div>
+
+              <EventDescription 
+                value={formData.description} 
+                onChange={v => setFormData({...formData, description: v})} 
               />
-            </div>
+           </Card>
 
-            <div className="space-y-2">
-               <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Slug da URL</Label>
-               <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground opacity-30">/experiencia/</div>
-                  <Input 
-                    value={formData.slug}
-                    onChange={e => setFormData({...formData, slug: slugify(e.target.value)})}
-                    className="pl-24 h-11 rounded-xl bg-muted/30 font-mono text-xs"
-                    required
-                  />
-               </div>
-            </div>
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                 <Label className="text-[10px] font-black uppercase opacity-60">Galeria de Fotos (Opcional - Máx 5)</Label>
+                 <Badge variant="outline" className="text-[8px] font-black uppercase">{formData.gallery.length}/5</Badge>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                 {formData.gallery.map((url, i) => (
+                   <div key={i} className="relative aspect-square rounded-2xl overflow-hidden group">
+                      <img src={url} className="w-full h-full object-cover" />
+                      <button 
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, gallery: prev.gallery.filter((_, idx) => idx !== i) }))}
+                        className="absolute top-2 right-2 p-1.5 bg-destructive text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                         <X className="w-3.5 h-3.5" />
+                      </button>
+                   </div>
+                 ))}
+                 
+                 {formData.gallery.length < 5 && (
+                   <label className="aspect-square rounded-2xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-all">
+                      <Plus className="w-6 h-6 text-muted-foreground opacity-40" />
+                      <span className="text-[8px] font-black uppercase mt-1">Adicionar</span>
+                      <input type="file" multiple accept="image/*" className="hidden" onChange={handleGalleryUpload} />
+                   </label>
+                 )}
+              </div>
+           </Card>
 
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Descrição Curta (Vitrine)</Label>
-              <Input 
-                value={formData.shortDescription}
-                onChange={e => setFormData({...formData, shortDescription: e.target.value})}
-                placeholder="Um resumo de 1 frase para atrair o público."
-                maxLength={120}
-                className="rounded-xl h-11"
+           <Button onClick={() => setStep(2)} className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic text-lg gap-2 shadow-xl shadow-primary/20">
+              Configurar Localização <ChevronRight className="w-5 h-5" />
+           </Button>
+        </div>
+      ) : (
+        <div className="space-y-8 animate-in slide-in-from-right-4">
+           <div className="space-y-6">
+              <div className="flex items-center gap-3 px-2">
+                 <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><MapPin className="w-5 h-5" /></div>
+                 <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary">Onde acontece?</h2>
+              </div>
+              <EventLocation 
+                address={formData.address} 
+                onChange={v => setFormData({...formData, address: v})} 
               />
-            </div>
+           </div>
 
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Descrição Completa</Label>
-              <Textarea 
-                value={formData.description}
-                onChange={e => setFormData({...formData, description: e.target.value})}
-                placeholder="Detalhe tudo o que o participante irá vivenciar..."
-                className="min-h-[200px] rounded-xl resize-none leading-relaxed"
-              />
-            </div>
-            
-            <div className="space-y-2">
-               <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Status Inicial</Label>
-               <Select value={formData.status} onValueChange={v => setFormData({...formData, status: v})}>
-                  <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                     <SelectItem value="draft">Rascunho (Privado)</SelectItem>
-                     <SelectItem value="active">Ativa (Público)</SelectItem>
-                  </SelectContent>
-               </Select>
-            </div>
-          </CardContent>
-        </Card>
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Informações Adicionais / Regras</Label>
+                 <Textarea 
+                   value={formData.additionalInfo}
+                   onChange={e => setFormData({...formData, additionalInfo: e.target.value})}
+                   placeholder="Instruções para o dia, itens obrigatórios..."
+                   className="min-h-[120px] rounded-xl resize-none"
+                 />
+              </div>
+              <div className="space-y-2">
+                 <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Política de Uso / Cancelamento</Label>
+                 <Textarea 
+                   value={formData.usagePolicy}
+                   onChange={e => setFormData({...formData, usagePolicy: e.target.value})}
+                   placeholder="Regras de reembolso, comportamento..."
+                   className="min-h-[120px] rounded-xl resize-none"
+                 />
+              </div>
+           </Card>
 
-        <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-start gap-4">
-           <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
-           <div className="space-y-1">
-              <h4 className="font-black uppercase text-xs italic text-primary">Próximos Passos</h4>
-              <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">Nesta etapa você define apenas o conteúdo. Nas próximas etapas você poderá configurar a agenda, preços e disponibilidade física.</p>
+           <div className="flex gap-4">
+              <Button variant="ghost" onClick={() => setStep(1)} className="h-16 px-8 rounded-2xl font-bold uppercase text-xs">Voltar</Button>
+              <Button 
+                 onClick={handlePublish} 
+                 disabled={publishing} 
+                 className="flex-1 h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2"
+              >
+                 {publishing ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <ShieldCheck className="w-6 h-6" />}
+                 Publicar Experiência
+              </Button>
            </div>
         </div>
-
-        <Button 
-          type="submit" 
-          disabled={publishing || !formData.title} 
-          className="w-full h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg"
-        >
-          {publishing ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Check className="w-6 h-6 mr-2" />}
-          Finalizar Etapa 1
-        </Button>
-      </form>
+      )}
     </div>
   );
 }

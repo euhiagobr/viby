@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -50,9 +49,19 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
       slug: "",
       shortDescription: "",
       description: "",
+      image: "",
+      gallery: [],
+      price: 0,
+      capacity: 100,
+      additionalInfo: "",
+      usagePolicy: "",
       status: 'draft',
       organizationId: orgId,
       createdBy: userId,
+      address: {
+        country: "Brasil",
+        countryCode: "BR"
+      },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
@@ -71,9 +80,19 @@ export async function saveExperienceAction(id: string, data: any) {
       ...data,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
+    
     if (data.title && !data.slug) {
       updateData.slug = slugify(data.title);
     }
+
+    // Aliases para busca e mapa (mesmo padrão de Eventos)
+    if (data.address) {
+      updateData.city = data.address.city || "";
+      updateData.state = data.address.stateRegion || "";
+      updateData.latitude = data.address.latitude || null;
+      updateData.longitude = data.address.longitude || null;
+    }
+
     await db.collection('experiences').doc(id).update(updateData);
     return { success: true };
   } catch (e: any) {
@@ -90,6 +109,11 @@ export async function publishExperienceAction(id: string, finalData: any) {
 
     const slug = finalData.slug || slugify(finalData.title);
 
+    // Validação de Localização Obrigatória na Publicação
+    if (!finalData.address?.latitude || !finalData.address?.longitude) {
+      throw new Error("A localização geográfica é obrigatória para publicar uma experiência.");
+    }
+
     const updatePayload = {
       ...finalData,
       slug,
@@ -100,6 +124,10 @@ export async function publishExperienceAction(id: string, finalData: any) {
         username: org?.username || "marca",
         avatar: org?.avatar || ""
       },
+      city: finalData.address.city || "",
+      state: finalData.address.stateRegion || "",
+      latitude: finalData.address.latitude,
+      longitude: finalData.address.longitude,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 

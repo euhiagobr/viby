@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -40,6 +39,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   const title = `${exp.title} | ${exp.organizer?.name} | Viby`;
   const description = exp.shortDescription || exp.description?.substring(0, 160);
   const url = `https://viby.club/${username}/experiencia/${slug}`;
+  const image = exp.image || "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
 
   return {
     title,
@@ -50,6 +50,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       description,
       url,
       siteName: 'Viby',
+      images: [{ url: image, width: 1200, height: 630 }],
       type: 'website',
       locale: 'pt_BR',
     },
@@ -57,6 +58,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       card: 'summary_large_image',
       title,
       description,
+      images: [image]
     },
     robots: { index: true, follow: true }
   };
