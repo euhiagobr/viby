@@ -39,13 +39,12 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
   const [selectedCategory, setSelectedCategory] = useState("all");
   
   const [rawExp, setRawExp] = useState(initialData);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(initialData.length >= 20);
 
   useEffect(() => {
     setMounted(true);
+    console.log("[DEBUG CLIENT] Montagem concluída. Itens recebidos:", initialData.length);
     getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {});
-  }, []);
+  }, [initialData]);
 
   const categoriesQuery = useMemoFirebase(() => 
     db ? query(collection(db, "categories"), where("type", "==", "experience"), orderBy("name", "asc")) : null, 
@@ -53,30 +52,40 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
   );
   const { data: categories } = useCollection<any>(categoriesQuery);
 
-  /**
-   * Filtro de Experiências:
-   * Removemos a dependência de isEventVisible que buscava por datas fixas.
-   * Agora, as experiências são filtradas exclusivamente por status, busca e cidade.
-   */
   const processedExp = React.useMemo(() => {
     const searchNorm = normalizeText(search);
     const cityNorm = normalizeText(searchCity);
 
-    return rawExp.filter(exp => {
-      // Regra de Ouro: Experiências ativas no marketplace
-      if (exp.status !== 'active') return false;
+    console.log(`[DEBUG CLIENT] Filtrando ${rawExp.length} itens. Busca: "${search}", Cidade: "${searchCity}"`);
 
+    const filtered = rawExp.filter(exp => {
+      // 1. Status Check
+      if (exp.status !== 'active') {
+        console.log(`[DEBUG CLIENT] Item ${exp.id} ignorado: status é ${exp.status}`);
+        return false;
+      }
+
+      // 2. Search Check
       const matchesSearch = !search || 
         normalizeText(exp.title || "").includes(searchNorm) ||
         normalizeText(exp.shortDescription || "").includes(searchNorm);
       
+      if (!matchesSearch) return false;
+
+      // 3. City Check
       const eventLoc = normalizeText(`${exp.city || ""} ${exp.state || ""} ${exp.address?.city || ""} ${exp.address?.stateRegion || ""}`);
       const matchesCity = !searchCity || eventLoc.includes(cityNorm);
+      
+      if (!matchesCity) return false;
 
+      // 4. Category Check
       const matchesCategory = selectedCategory === 'all' || exp.category === selectedCategory;
 
-      return matchesSearch && matchesCity && matchesCategory;
+      return matchesCategory;
     });
+
+    console.log(`[DEBUG CLIENT] Resultado final do filtro: ${filtered.length} itens.`);
+    return filtered;
   }, [rawExp, search, searchCity, selectedCategory]);
 
   const clearFilters = () => {
@@ -200,14 +209,6 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
              </div>
              <Button variant="outline" onClick={clearFilters} className="rounded-2xl h-14 px-10 border-2 uppercase font-black italic">
                 Ver Todas as Vivências
-             </Button>
-          </div>
-        )}
-
-        {hasMore && (
-          <div className="flex justify-center pt-10">
-             <Button variant="outline" className="rounded-full px-12 h-14 font-black uppercase italic border-2 border-secondary text-secondary">
-                Ver Mais Experiências
              </Button>
           </div>
         )}
