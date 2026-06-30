@@ -2,6 +2,14 @@
 {
   "indexes": [
     {
+      "collectionId": "experiences",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "node_path": "createdAt", "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionId": "recurring_occurrences",
       "queryScope": "COLLECTION",
       "fields": [

@@ -1,3 +1,4 @@
+
 import * as React from "react";
 import { Metadata } from "next";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -48,8 +49,10 @@ async function getInitialExperiences() {
   try {
     const db = getAdminDb();
     console.log("[DEBUG SERVER] Buscando experiências no Firestore...");
+    
+    // Consulta otimizada para o novo índice composto
     const snap = await db.collection('experiences')
-      .where('status', '==', 'active')
+      .where('status', 'in', ['active'])
       .orderBy('createdAt', 'desc')
       .limit(60)
       .get();
