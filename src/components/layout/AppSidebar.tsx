@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,7 +20,8 @@ import {
   Coins,
   Bell,
   RefreshCw,
-  ImageIcon
+  ImageIcon,
+  Sparkles
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -94,6 +96,7 @@ export function AppSidebar() {
   const orgItems = currentOrg ? [
     { title: "Dashboard da Marca", url: `/dashboard/organizacoes/${currentOrg.username}`, icon: LayoutGrid, exact: true },
     { title: "Eventos da Marca", url: `/dashboard/organizacoes/${currentOrg.username}/events`, icon: Megaphone },
+    { title: "Experiências", url: `/dashboard/organizacoes/${currentOrg.username}/experiencias`, icon: Sparkles },
     { title: "Financeiro", url: `/dashboard/organizacoes/${currentOrg.username}/finance`, icon: Wallet, roles: ['owner', 'admin', 'finance'] },
     { title: "Anúncios", url: `/dashboard/organizacoes/${currentOrg.username}/anuncios`, icon: Coins, roles: ['owner', 'admin', 'editor', 'marketing'] },
     { title: "Equipe", url: `/dashboard/organizacoes/${currentOrg.username}/equipe`, icon: Users, roles: ['owner', 'admin'] },
