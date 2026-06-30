@@ -48,26 +48,20 @@ function serializeData(data: any): any {
 async function getInitialExperiences() {
   try {
     const db = getAdminDb();
-    console.log("[DEBUG SERVER] Buscando experiências no Firestore...");
     
-    // Consulta otimizada para o novo índice composto
+    // Busca inicial aumentada para 80 para suportar grid 4x4 e intercalação de ads
     const snap = await db.collection('experiences')
       .where('status', 'in', ['active'])
       .orderBy('createdAt', 'desc')
-      .limit(60)
+      .limit(80)
       .get();
       
-    console.log(`[DEBUG SERVER] Firestore retornou ${snap.size} documentos.`);
-    
-    if (snap.empty) {
-      console.warn("[DEBUG SERVER] Atenção: Coleção 'experiences' com status 'active' retornou zero resultados.");
-      return [];
-    }
+    if (snap.empty) return [];
     
     const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     return serializeData(docs);
   } catch (e: any) {
-    console.error("[DEBUG SERVER] Erro fatal no fetch SSR:", e.message);
+    console.error("[SSR Experiences Fetch Error]:", e.message);
     return [];
   }
 }

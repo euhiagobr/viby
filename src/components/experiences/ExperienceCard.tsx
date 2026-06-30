@@ -1,13 +1,17 @@
+
 'use client';
 
 import * as React from "react";
-import { MapPin, Navigation, Sparkles, ArrowRight, Tag, Coins } from "lucide-react";
+import { MapPin, Navigation, Sparkles, ArrowRight, Tag, BadgeCheck, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { calculateDistanceMeters } from "@/lib/event-scoring-utils";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, query, where, orderBy } from "firebase/firestore";
+import { RichText } from "@/components/ui/rich-text";
 import Link from "next/link";
 
 interface ExperienceCardProps {
@@ -17,11 +21,30 @@ interface ExperienceCardProps {
 }
 
 /**
- * @fileOverview Card especializado para Experiências.
- * Focado em disponibilidade e valor agregado, sem travas de data fixa.
+ * @fileOverview Card de Experiência: agora com busca de preço na próxima sessão ativa.
  */
 export function ExperienceCard({ experience, userLocation, className }: ExperienceCardProps) {
   const { formatPriceWithOriginal } = useCurrency();
+  const db = useFirestore();
+
+  // Busca slots ativos para determinar o preço da próxima data
+  const slotsQuery = useMemoFirebase(() => {
+    if (!db || !experience.id) return null;
+    const now = new Date().toISOString();
+    return query(
+      collection(db, "experiences", experience.id, "slots"),
+      where("status", "==", "active"),
+      where("datetime", ">=", now),
+      orderBy("datetime", "asc")
+    );
+  }, [db, experience.id]);
+
+  const { data: slots, loading: loadingPrice } = useCollection<any>(slotsQuery);
+
+  const nextSession = React.useMemo(() => {
+    if (!slots || slots.length === 0) return null;
+    return slots[0];
+  }, [slots]);
 
   const distanceMeters = React.useMemo(() => {
     if (userLocation && typeof experience.latitude === 'number' && typeof experience.longitude === 'number') {
@@ -32,16 +55,24 @@ export function ExperienceCard({ experience, userLocation, className }: Experien
 
   const pricingDisplay = React.useMemo(() => {
     const currency = experience.currency || 'BRL';
-    if (typeof experience.startingPrice === 'number' && experience.startingPrice > 0) {
-      return (
-        <div className="flex flex-col items-end">
-          <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">A partir de</p>
-          {formatPriceWithOriginal(experience.startingPrice, currency)}
-        </div>
-      );
+    
+    if (loadingPrice) return <Loader2 className="w-4 h-4 animate-spin opacity-20" />;
+
+    if (nextSession) {
+      const price = nextSession.hasPromo ? nextSession.promoPrice : nextSession.price;
+      if (price > 0) {
+        return (
+          <div className="flex flex-col items-end">
+            <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">Próxima Sessão</p>
+            {formatPriceWithOriginal(price, currency)}
+          </div>
+        );
+      }
+      return <span className="text-green-600 font-black italic uppercase text-[10px]">Grátis</span>;
     }
-    return <span className="text-green-600 font-black italic uppercase text-[10px]">Grátis</span>;
-  }, [experience.startingPrice, experience.currency, formatPriceWithOriginal]);
+
+    return <span className="text-muted-foreground font-black italic uppercase text-[10px]">Esgotado</span>;
+  }, [nextSession, experience.currency, formatPriceWithOriginal, loadingPrice]);
 
   const experienceUrl = `/${experience.organizer?.username || 'experiencia'}/experiencia/${experience.slug || experience.id}`;
 
@@ -90,15 +121,20 @@ export function ExperienceCard({ experience, userLocation, className }: Experien
           <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary group-hover:text-secondary transition-colors leading-tight line-clamp-1">
             {experience.title}
           </h3>
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">
-            {experience.organizer?.name || "Organizador"}
-          </p>
+          <div className="flex items-center gap-1.5">
+             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">
+               {experience.organizer?.name || "Organizador"}
+             </p>
+             {(experience.organizer?.verified || experience.organizer?.isVerified) && (
+               <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white shrink-0" />
+             )}
+          </div>
         </div>
 
         <div className="py-4 border-y border-dashed border-border/60">
-           <p className="text-xs font-medium text-muted-foreground line-clamp-2 leading-relaxed italic">
-             {experience.shortDescription || "Descubra uma nova vivência cultural única com a Viby."}
-           </p>
+           <div className="text-xs font-medium text-muted-foreground line-clamp-2 leading-relaxed italic">
+             <RichText content={experience.shortDescription || "Descubra uma nova vivência cultural única com a Viby."} />
+           </div>
         </div>
 
         <div className="flex items-center justify-between mt-auto">
