@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -60,11 +59,13 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
     const cityNorm = normalizeText(searchCity);
 
     return rawExp.filter(exp => {
+      if (exp.status !== 'active') return false;
+
       const matchesSearch = !search || 
         normalizeText(exp.title || "").includes(searchNorm) ||
         normalizeText(exp.shortDescription || "").includes(searchNorm);
       
-      const eventLoc = normalizeText(`${exp.city || ""} ${exp.state || ""}`);
+      const eventLoc = normalizeText(`${exp.city || ""} ${exp.state || ""} ${exp.address?.city || ""} ${exp.address?.stateRegion || ""}`);
       const matchesCity = !searchCity || eventLoc.includes(cityNorm);
 
       const matchesCategory = selectedCategory === 'all' || exp.category === selectedCategory;
@@ -83,7 +84,6 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* HERO ESPECÍFICO */}
       <section className="relative min-h-[60vh] flex items-center justify-center overflow-hidden bg-primary text-white">
         <div className="absolute inset-0 opacity-30 pointer-events-none">
            <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/experience/1920/1080')] bg-cover bg-center" />
@@ -102,7 +102,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
               Descubra workshops, tours, gastronomia e experiências exclusivas com agendamento simplificado.
             </p>
 
-            <Card className="bg-white/10 backdrop-blur-2xl border-white/10 rounded-[3rem] p-6 md:p-8 shadow-2xl mt-12 w-full text-left max-w-3xl">
+            <Card className="bg-white/10 backdrop-blur-2xl border border-white/10 rounded-[3rem] p-6 md:p-8 shadow-2xl mt-12 w-full text-left max-w-3xl">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                 <div className="md:col-span-5 relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
@@ -133,7 +133,6 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
         </div>
       </section>
 
-      {/* FILTROS DE CATEGORIA */}
       {categories && categories.length > 0 && (
         <section className="bg-white border-b sticky top-16 z-30 shadow-sm overflow-hidden">
            <div className="container mx-auto px-4 py-4">
@@ -168,11 +167,10 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
         </section>
       )}
 
-      {/* FEED PRINCIPAL */}
       <main id="experiencias-feed" className="container mx-auto px-4 py-16 flex-1 space-y-12">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
            <div className="space-y-1">
-              <h2 className="text-4xl font-black uppercase italic tracking-tighter text-primary">Próximas Datas</h2>
+              <h2 className="text-4xl font-black uppercase italic tracking-tighter text-primary">Explore</h2>
               <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Encontre o momento perfeito para sua vivência.</p>
            </div>
            {(search || searchCity || selectedCategory !== 'all') && (

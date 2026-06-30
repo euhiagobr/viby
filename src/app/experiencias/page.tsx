@@ -1,4 +1,3 @@
-
 import * as React from "react";
 import { Metadata } from "next";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -37,11 +36,9 @@ function serializeData(data: any): any {
   if (Array.isArray(data)) return data.map(item => serializeData(item));
   if (typeof data === 'object') {
     const serialized: any = {};
-    for (const key in data) {
-      if (Object.prototype.hasOwnProperty.call(data, key)) {
-        serialized[key] = serializeData(data[key]);
-      }
-    }
+    Object.keys(data).forEach(key => {
+      serialized[key] = serializeData(data[key]);
+    });
     return serialized;
   }
   return data;
@@ -53,7 +50,7 @@ async function getInitialExperiences() {
     const snap = await db.collection('experiences')
       .where('status', '==', 'active')
       .orderBy('createdAt', 'desc')
-      .limit(20)
+      .limit(60)
       .get();
       
     if (snap.empty) return [];
