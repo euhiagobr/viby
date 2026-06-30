@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -19,7 +20,9 @@ import {
   Navigation,
   CheckCircle2,
   ShoppingBag,
-  Coins
+  Coins,
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RichText } from '@/components/ui/rich-text';
@@ -29,6 +32,9 @@ import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useCurrency, CurrencyCode } from '@/contexts/CurrencyContext';
 import { Separator } from '@/components/ui/separator';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy } from 'firebase/firestore';
+import { ExperienceSlotsPublic } from '@/components/experiences/ExperienceSlotsPublic';
 
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
   ssr: false,
@@ -41,6 +47,20 @@ interface ExperienciaPublicaClientProps {
 
 export default function ExperienciaPublicaClient({ experience }: ExperienciaPublicaClientProps) {
   const { formatPriceWithOriginal } = useCurrency();
+  const db = useFirestore();
+
+  const [selectedSlot, setSelectedSlot] = React.useState<any>(null);
+
+  const slotsQuery = useMemoFirebase(() => {
+    if (!db || !experience.id) return null;
+    return query(
+      collection(db, "experiences", experience.id, "slots"),
+      where("status", "==", "active"),
+      orderBy("datetime", "asc")
+    );
+  }, [db, experience.id]);
+
+  const { data: slots, loading: loadingSlots } = useCollection<any>(slotsQuery);
 
   const handleShare = () => {
     if (navigator.share) {
@@ -58,6 +78,10 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
   const lat = address.latitude || experience.latitude || -23.55052;
   const lng = address.longitude || experience.longitude || -46.633308;
   const locationQuery = encodeURIComponent(`${address.addressLine1} ${address.city}`);
+
+  // O preço exibido depende se há um slot selecionado
+  const displayPrice = selectedSlot ? selectedSlot.price : experience.price;
+  const displayCurrency = (selectedSlot?.currency || experience.currency || 'BRL') as CurrencyCode;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
@@ -108,6 +132,19 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                 </div>
               </section>
             )}
+
+            {/* Disponibilidade / Horários */}
+            <section className="space-y-6">
+               {loadingSlots ? (
+                 <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
+               ) : (
+                 <ExperienceSlotsPublic 
+                   slots={slots || []} 
+                   onSelect={setSelectedSlot} 
+                   selectedSlotId={selectedSlot?.id} 
+                 />
+               )}
+            </section>
 
             <section className="space-y-6">
               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
@@ -190,24 +227,44 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                 <div className="space-y-6">
                    <div className="flex justify-between items-end">
                       <div className="space-y-1">
-                         <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Valor da Experiência</p>
-                         {formatPriceWithOriginal(experience.price || 0, (experience.currency || 'BRL') as CurrencyCode)}
+                         <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">
+                           {selectedSlot ? "Valor do Horário" : "Valor da Experiência"}
+                         </p>
+                         {formatPriceWithOriginal(displayPrice, displayCurrency)}
                       </div>
                       <div className="text-right">
                          <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Vagas</p>
-                         <p className="text-sm font-bold">{experience.capacity || "Ilimitado"}</p>
+                         <p className="text-sm font-bold">
+                           {selectedSlot ? (selectedSlot.capacity - (selectedSlot.sold || 0)) : (experience.capacity || "Ilimitado")}
+                         </p>
                       </div>
                    </div>
 
                    <div className="space-y-3">
-                      <Button disabled className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2">
-                        <ShoppingBag className="w-5 h-5" /> Reservar Vaga
+                      <Button 
+                        disabled={!selectedSlot || (selectedSlot.sold >= selectedSlot.capacity)} 
+                        className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2"
+                      >
+                        <ShoppingBag className="w-5 h-5" /> 
+                        {selectedSlot ? "Reservar Vaga" : "Selecione um Horário"}
                       </Button>
+                      
+                      {selectedSlot && (
+                        <div className="p-3 bg-green-50 rounded-xl flex items-start gap-2 border border-green-100 animate-in fade-in zoom-in-95">
+                           <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0 mt-0.5" />
+                           <div className="space-y-0.5">
+                              <p className="text-[8px] font-black uppercase text-green-800">Horário Selecionado</p>
+                              <p className="text-[10px] font-bold text-green-700">
+                                {new Date(selectedSlot.datetime).toLocaleDateString('pt-BR')} às {new Date(selectedSlot.datetime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                           </div>
+                        </div>
+                      )}
+                      
                       <div className="p-3 bg-muted/50 rounded-xl flex items-start gap-2">
                         <Info className="w-3.5 h-3.5 opacity-30 shrink-0 mt-0.5" />
-                        <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight">Vendas e agendamento serão habilitados na Etapa 3.</p>
+                        <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight">Vendas e agendamento serão habilitados na Etapa 4.</p>
                       </div>
-                   </div>
                 </div>
 
                 <Separator className="border-dashed" />

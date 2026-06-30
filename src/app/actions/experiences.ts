@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -85,7 +86,6 @@ export async function saveExperienceAction(id: string, data: any) {
       updateData.slug = slugify(data.title);
     }
 
-    // Aliases para busca e mapa (mesmo padrão de Eventos)
     if (data.address) {
       updateData.city = data.address.city || "";
       updateData.state = data.address.stateRegion || "";
@@ -109,7 +109,6 @@ export async function publishExperienceAction(id: string, finalData: any) {
 
     const slug = finalData.slug || slugify(finalData.title);
 
-    // Validação de Localização Obrigatória na Publicação
     if (!finalData.address?.latitude || !finalData.address?.longitude) {
       throw new Error("A localização geográfica é obrigatória para publicar uma experiência.");
     }
@@ -142,7 +141,13 @@ export async function publishExperienceAction(id: string, finalData: any) {
 export async function deleteExperienceAction(id: string) {
   const db = getAdminDb();
   try {
-    await db.collection('experiences').doc(id).delete();
+    // Delete slots too
+    const slotsSnap = await db.collection('experiences').doc(id).collection('slots').get();
+    const batch = db.batch();
+    slotsSnap.forEach(doc => batch.delete(doc.ref));
+    batch.delete(db.collection('experiences').doc(id));
+    await batch.commit();
+    
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -171,6 +176,52 @@ export async function duplicateExperienceAction(id: string, userId: string) {
 
     await newRef.set(duplicateData);
     return { success: true, id: newRef.id };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * ACTIONS DE SLOTS (ETAPA 3)
+ */
+
+export async function createExperienceSlotAction(experienceId: string, data: any) {
+  const db = getAdminDb();
+  try {
+    const slotRef = db.collection('experiences').doc(experienceId).collection('slots').doc();
+    const slotData = {
+      ...data,
+      id: slotRef.id,
+      experienceId,
+      sold: 0,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    await slotRef.set(slotData);
+    return { success: true, id: slotRef.id };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function updateExperienceSlotAction(experienceId: string, slotId: string, data: any) {
+  const db = getAdminDb();
+  try {
+    await db.collection('experiences').doc(experienceId).collection('slots').doc(slotId).update({
+      ...data,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteExperienceSlotAction(experienceId: string, slotId: string) {
+  const db = getAdminDb();
+  try {
+    await db.collection('experiences').doc(experienceId).collection('slots').doc(slotId).delete();
+    return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
   }

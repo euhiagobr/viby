@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -25,7 +26,9 @@ import {
   Coins,
   Users,
   Info,
-  ShieldCheck
+  ShieldCheck,
+  Calendar,
+  Layout
 } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
@@ -38,6 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { ExperienceSlotsAdmin } from '@/components/experiences/ExperienceSlotsAdmin';
 
 export default function EditarExperienciaPage() {
   const router = useRouter();
@@ -94,7 +98,7 @@ export default function EditarExperienciaPage() {
     
     uploadTask.on('state_changed', 
       (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-      () => setUploadProgress(null),
+      () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
       async () => {
         const url = await getDownloadURL(uploadTask.snapshot.ref);
         setFormData(prev => ({ ...prev, image: url }));
@@ -163,23 +167,29 @@ export default function EditarExperienciaPage() {
           <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias`}><ArrowLeft className="w-5 h-5" /></Link></Button>
           <div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Experiência</h1>
-            <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Ajuste os detalhes e localização</p>
+            <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Gestão de Conteúdo e Disponibilidade</p>
           </div>
         </div>
-        <Button 
-          onClick={handleSave} 
-          disabled={saving} 
-          className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg gap-2 uppercase italic"
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-          Salvar
-        </Button>
+        <div className="flex gap-2">
+           <Button variant="outline" asChild className="rounded-xl h-11 border-secondary text-secondary">
+              <Link href={`/${currentOrg?.username}/experiencia/${formData.slug}`} target="_blank">Ver Pública</Link>
+           </Button>
+           <Button 
+            onClick={handleSave} 
+            disabled={saving} 
+            className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg gap-2 uppercase italic"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            Salvar
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="conteudo" className="space-y-8">
         <TabsList className="bg-muted/50 p-1 rounded-xl h-12">
-          <TabsTrigger value="conteudo" className="rounded-lg px-8 font-bold gap-2">Conteúdo</TabsTrigger>
-          <TabsTrigger value="localizacao" className="rounded-lg px-8 font-bold gap-2">Localização</TabsTrigger>
+          <TabsTrigger value="conteudo" className="rounded-lg px-8 font-bold gap-2"><Layout className="w-4 h-4" /> Conteúdo</TabsTrigger>
+          <TabsTrigger value="disponibilidade" className="rounded-lg px-8 font-bold gap-2"><Calendar className="w-4 h-4" /> Disponibilidade</TabsTrigger>
+          <TabsTrigger value="localizacao" className="rounded-lg px-8 font-bold gap-2"><MapPin className="w-4 h-4" /> Localização</TabsTrigger>
         </TabsList>
 
         <TabsContent value="conteudo" className="space-y-8">
@@ -207,7 +217,7 @@ export default function EditarExperienciaPage() {
                  </div>
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
-                       <Users className="w-3.5 h-3.5 text-secondary" /> Capacidade / Estoque
+                       <Users className="w-3.5 h-3.5 text-secondary" /> Capacidade Base
                     </Label>
                     <Input 
                        type="number" 
@@ -277,7 +287,11 @@ export default function EditarExperienciaPage() {
            </Card>
         </TabsContent>
 
-        <TabsContent value="localizacao" className="space-y-8">
+        <TabsContent value="disponibilidade" className="mt-0">
+           <ExperienceSlotsAdmin experienceId={id} />
+        </TabsContent>
+
+        <TabsContent value="localizacao" className="space-y-8 mt-0">
            <EventLocation 
              address={formData.address} 
              onChange={v => setFormData({...formData, address: v})} 
@@ -305,14 +319,6 @@ export default function EditarExperienciaPage() {
            </Card>
         </TabsContent>
       </Tabs>
-
-      <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-start gap-4">
-         <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
-         <div className="space-y-1">
-            <h4 className="font-black uppercase text-xs italic text-primary">Alterações de Localização</h4>
-            <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed">O mapa é atualizado instantaneamente para todos os usuários. Certifique-se de que o PIN reflete o ponto exato da experiência.</p>
-         </div>
-      </div>
     </div>
   );
 }
