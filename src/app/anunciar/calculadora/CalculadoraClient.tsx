@@ -189,6 +189,14 @@ export default function CalculadoraClient() {
                        <p className="text-[9px] text-muted-foreground font-medium uppercase italic leading-tight mt-1">
                           {appliedCode ? "Valor reduzido via código promocional" : "Taxa padrão da plataforma aplicada ao comprador."}
                        </p>
+                       {appliedCode && (
+                        <div className="mt-3 pt-3 border-t border-dashed border-secondary/20 flex gap-2 items-start animate-in fade-in slide-in-from-top-1">
+                           <Info className="w-3.5 h-3.5 text-secondary shrink-0" />
+                           <p className="text-[8px] font-bold text-secondary uppercase leading-tight">
+                              A taxa é válida pelos primeiros 30 dias de evento cadastrado na plataforma. A taxa é válida para uma organização.
+                           </p>
+                        </div>
+                       )}
                     </div>
                  </div>
               </div>
