@@ -23,8 +23,8 @@ export interface PayButtonOptions {
 }
 
 /**
- * Executa o fluxo de checkout utilizando o Admin SDK para máxima estabilidade e segurança.
- * CORREÇÃO CRÍTICA: Todas as operações de leitura (get) agora ocorrem antes das escritas.
+ * Executa o fluxo de checkout utilizando exclusivamente o Admin SDK para máxima estabilidade.
+ * PADRÃO MANDATÓRIO: NUNCA usar collection() ou query() do Client SDK aqui.
  */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, useBalance, rates, globalFees, promotions, coupon } = options;
@@ -51,7 +51,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     orgsSnapMap[orgId] = oSnap.data();
   }
 
-  // 2. Verificar Disponibilidade dos Eventos e Travas de Ingressos Gratuitos
+  // 2. Verificar Disponibilidade e Travas
   for (const item of items) {
     const isExp = item.productType === 'experience';
     const collName = isExp ? "experiences" : "events";
@@ -59,7 +59,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     if (!eSnap.exists) throw new Error(`O item ${item.eventTitle} não está mais disponível.`);
     
     if (item.price === 0 && !isExp) {
-      const lockId = `free_lock_${user.id || user.uid}_${item.eventId}_${item.ticketTypeId}`;
+      const lockId = `free_lock_${user.uid || user.id}_${item.eventId}_${item.ticketTypeId}`;
       const lockSnap = await db.collection("registrations_locks").doc(lockId).get();
       if (lockSnap.exists) throw new Error("Você já resgatou este ingresso gratuito.");
     }
@@ -67,7 +67,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   // 3. Verificar Saldo da Carteira (Se aplicável)
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
-    const walletSnap = await db.collection("wallets").doc(user.id || user.uid).get();
+    const walletSnap = await db.collection("wallets").doc(user.uid || user.id).get();
     if (!walletSnap.exists || (walletSnap.data()?.balance || 0) < totals.balanceUsed) {
       throw new Error("Saldo insuficiente na carteira.");
     }
@@ -82,7 +82,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
         const res = await createExperienceReservationAction({
           experienceId: item.eventId,
           slotId: item.occurrenceId,
-          userId: user.id || user.uid,
+          userId: user.uid || user.id,
           quantity: item.quantity
         });
         if (!res.success) throw new Error(res.error || "Falha ao reservar vaga na experiência.");
@@ -90,7 +90,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     }
 
     const result = await generateFreeTickets({
-      userId: user.id || user.uid,
+      userId: user.uid || user.id,
       userName: profile?.name || user.displayName || "Comprador",
       userEmail: user.email!,
       items: items.map(item => ({
@@ -112,7 +112,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       const res = await createExperienceReservationAction({
         experienceId: item.eventId,
         slotId: item.occurrenceId,
-        userId: user.id || user.uid,
+        userId: user.uid || user.id,
         quantity: item.quantity
       });
 
@@ -180,7 +180,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   });
 
   const orderData = {
-    userId: user.id || user.uid,
+    userId: user.uid || user.id,
     userEmail: user.email,
     userName: profile?.name || user.displayName || "Comprador",
     items: orderItems,
@@ -198,7 +198,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   };
 
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
-    await db.collection("wallets").doc(user.id || user.uid).update({
+    await db.collection("wallets").doc(user.uid || user.id).update({
       balance: admin.firestore.FieldValue.increment(-totals.balanceUsed),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
@@ -249,7 +249,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     metadata: {
       type: "order_checkout",
       orderId: orderRef.id,
-      userId: user.id || user.uid,
+      userId: user.uid || user.id,
       balanceUsed: totals.balanceUsed.toString(),
       reservations: reservationIds.join(',')
     }

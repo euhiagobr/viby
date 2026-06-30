@@ -33,18 +33,27 @@ export function safeParseDate(val: any): Date | null {
 /**
  * Converte objetos complexos (como Timestamps) em valores primitivos puros (POJOs) 
  * para envio seguro entre Client e Server no Next.js 15.
+ * Força a conversão recursiva de qualquer objeto que possa ter métodos internos.
  */
 export function serializeForServer(data: any): any {
   if (data === null || data === undefined) return data;
   
-  // Caso seja um Timestamp do Firebase (ou objeto similar com seconds/nanoseconds)
-  if (typeof data === 'object' && typeof data.seconds === 'number') {
-    return new Date(data.seconds * 1000).toISOString();
-  }
+  // Caso seja um número, string ou boolean, retorna direto
+  if (typeof data !== 'object') return data;
 
   // Caso seja um objeto Date nativo
   if (data instanceof Date) {
     return data.toISOString();
+  }
+
+  // Caso seja um Timestamp do Firebase (Client ou Admin)
+  if (typeof data.toDate === 'function') {
+    return data.toDate().toISOString();
+  }
+
+  // Caso seja um objeto com estrutura de Timestamp {seconds, nanoseconds}
+  if (typeof data.seconds === 'number') {
+    return new Date(data.seconds * 1000).toISOString();
   }
 
   // Caso seja um array, processa cada item recursivamente
@@ -53,29 +62,13 @@ export function serializeForServer(data: any): any {
   }
   
   // Caso seja um objeto comum
-  if (typeof data === 'object') {
-    // Se o objeto tem um método toDate (SDK de cliente), converte para ISO
-    if (typeof data.toDate === 'function') {
-      return data.toDate().toISOString();
+  const result: any = {};
+  for (const key in data) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      result[key] = serializeForServer(data[key]);
     }
-
-    // Verifica se é um objeto plano (Plain Object)
-    const proto = Object.getPrototypeOf(data);
-    if (proto !== null && proto !== Object.prototype) {
-      // Se não for plano (ex: instância de classe), converte para string
-      return data.toString();
-    }
-
-    const result: any = {};
-    for (const key in data) {
-      if (Object.prototype.hasOwnProperty.call(data, key)) {
-        result[key] = serializeForServer(data[key]);
-      }
-    }
-    return result;
   }
-  
-  return data;
+  return result;
 }
 
 /**

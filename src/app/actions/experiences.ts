@@ -118,7 +118,6 @@ export async function publishExperienceAction(id: string, finalData: any) {
     }
     if (!finalData.availability?.startDate) throw new Error("A data de início é obrigatória.");
 
-    // Agora validamos se existem slots ativos, já que removemos o preço base
     const slotsSnap = await expRef.collection('slots').where('status', '==', 'active').limit(1).get();
     if (slotsSnap.empty) {
       throw new Error("Adicione pelo menos um horário disponível na aba 'Horários' para publicar.");
@@ -250,28 +249,31 @@ export async function createExperienceReservationAction(params: {
   try {
     return await db.runTransaction(async (transaction) => {
       const slotRef = db.collection('experiences').doc(experienceId).collection('slots').doc(slotId);
+      
+      // TODAS AS LEITURAS DEVEM OCORRER NO INÍCIO
       const slotSnap = await transaction.get(slotRef);
-
       if (!slotSnap.exists) throw new Error("Horário não localizado.");
       const slot = slotSnap.data()!;
-
       if (slot.status !== 'active') throw new Error("Este horário não está mais disponível.");
 
       const now = new Date();
-      const activeReservationsSnap = await db.collection('experience_reservations')
+      // LEITURA DE QUERY: Usando transaction.get(query) para conformidade total
+      const activeReservationsQuery = db.collection('experience_reservations')
         .where('slotId', '==', slotId)
         .where('status', '==', 'reserved')
-        .where('expiresAt', '>', admin.firestore.Timestamp.fromDate(now))
-        .get();
+        .where('expiresAt', '>', admin.firestore.Timestamp.fromDate(now));
+      
+      const activeReservationsSnap = await transaction.get(activeReservationsQuery);
 
       const currentlyReserved = activeReservationsSnap.docs.reduce((acc, doc) => acc + (doc.data().quantity || 0), 0);
       const sold = slot.sold || 0;
       const capacity = slot.capacity || 0;
 
       if (sold + currentlyReserved + quantity > capacity) {
-        throw new Error("Desculpe, este horário acabou de esgotar ou está em processo de compra por outros usuários.");
+        throw new Error("Desculpe, este horário acabou de esgotar ou está sendo reservado por outros usuários.");
       }
 
+      // AGORA AS ESCRITAS
       const reservationRef = db.collection('experience_reservations').doc();
       const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); 
 
