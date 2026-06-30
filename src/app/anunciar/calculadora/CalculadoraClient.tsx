@@ -15,7 +15,7 @@ import {
   Zap, 
   Coins, 
   Ticket,
-  Building2,
+  Building2, 
   ShieldCheck,
   Search,
   Loader2,
@@ -179,10 +179,6 @@ export default function CalculadoraClient() {
                          step={5}
                          className="py-4"
                        />
-                       <div className="flex justify-between text-[8px] font-black uppercase text-muted-foreground tracking-widest">
-                          <span>Padrão 20%</span>
-                          <span>Premium 40%</span>
-                       </div>
                     </div>
 
                     <div className="space-y-2 p-4 bg-muted/20 rounded-2xl border border-dashed">
