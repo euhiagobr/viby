@@ -1,8 +1,9 @@
+
 'use client';
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useUser, useFirestore, useFirebaseApp } from '@/firebase';
+import { useAuth, useUser, useDoc, useFirestore, useFirebaseApp } from '@/firebase';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,7 +27,9 @@ import {
   Plus,
   Trash2,
   Coins,
-  Users
+  Users,
+  X,
+  ImageIcon
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -37,6 +40,8 @@ import { EventLocation, EventHeader, EventDescription } from '@/components/event
 import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
+
+const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
 export default function NovaExperienciaPage() {
   const router = useRouter();
@@ -52,7 +57,7 @@ export default function NovaExperienciaPage() {
   const [draftId, setDraftId] = React.useState<string | null>(null);
   const [step, setStep] = React.useState(1);
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
-  const [galleryProgress, setGalleryProgress] = React.useState<{ [key: number]: number }>({});
+  const [galleryProgress, setGalleryProgress] = React.useState<{ [key: string]: number }>({});
 
   const [formData, setFormData] = React.useState({
     title: "",
@@ -106,11 +111,15 @@ export default function NovaExperienciaPage() {
     
     uploadTask.on('state_changed', 
       (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-      () => setUploadProgress(null),
+      () => {
+        setUploadProgress(null);
+        toast({ variant: "destructive", title: "Erro no upload" });
+      },
       async () => {
         const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-        setFormData(prev => ({ ...prev, image: url }));
+        setFormData(prev => ({ ...prev, image: downloadURL }));
         setUploadProgress(null);
+        toast({ title: "Capa atualizada!" });
       }
     );
   };
@@ -118,28 +127,41 @@ export default function NovaExperienciaPage() {
   const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !storage || !user || !draftId) return;
-    if (formData.gallery.length + files.length > 5) {
+    
+    const currentCount = formData.gallery.length;
+    const uploadingCount = Object.keys(galleryProgress).length;
+
+    if (currentCount + uploadingCount + files.length > 5) {
       toast({ variant: "destructive", title: "Limite atingido", description: "Máximo de 5 fotos na galeria." });
       return;
     }
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      const uploadId = Math.random().toString(36).substring(7);
+      
       const storageRef = ref(storage, `experiences/${draftId}/gallery_${Date.now()}_${i}`);
       const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
 
       uploadTask.on('state_changed', 
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setGalleryProgress(prev => ({ ...prev, [i]: progress }));
+          setGalleryProgress(prev => ({ ...prev, [uploadId]: progress }));
         },
-        null,
+        () => {
+          setGalleryProgress(prev => {
+            const next = { ...prev };
+            delete next[uploadId];
+            return next;
+          });
+          toast({ variant: "destructive", title: "Erro", description: `Falha ao subir ${file.name}` });
+        },
         async () => {
           const url = await getDownloadURL(uploadTask.snapshot.ref);
           setFormData(prev => ({ ...prev, gallery: [...prev.gallery, url] }));
           setGalleryProgress(prev => {
             const next = { ...prev };
-            delete next[i];
+            delete next[uploadId];
             return next;
           });
         }
@@ -179,6 +201,8 @@ export default function NovaExperienciaPage() {
   };
 
   if (loading) return <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
+
+  const totalUploading = Object.keys(galleryProgress).length;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
@@ -252,29 +276,40 @@ export default function NovaExperienciaPage() {
 
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
               <div className="flex items-center justify-between">
-                 <Label className="text-[10px] font-black uppercase opacity-60">Galeria de Fotos (Opcional - Máx 5)</Label>
-                 <Badge variant="outline" className="text-[8px] font-black uppercase">{formData.gallery.length}/5</Badge>
+                 <div className="space-y-0.5">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Galeria de Fotos (Opcional)</Label>
+                    <p className="text-[9px] font-medium text-muted-foreground uppercase">Adicione até 5 fotos para detalhar a vivência.</p>
+                 </div>
+                 <Badge variant="outline" className="text-[8px] font-black uppercase">{(formData.gallery.length + totalUploading)}/5</Badge>
               </div>
               
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                  {formData.gallery.map((url, i) => (
-                   <div key={i} className="relative aspect-square rounded-2xl overflow-hidden group">
-                      <img src={url} className="w-full h-full object-cover" />
+                   <div key={i} className="relative aspect-square rounded-2xl overflow-hidden group border">
+                      <img src={url} className="w-full h-full object-cover" alt="Galeria" />
                       <button 
                         type="button"
                         onClick={() => setFormData(prev => ({ ...prev, gallery: prev.gallery.filter((_, idx) => idx !== i) }))}
-                        className="absolute top-2 right-2 p-1.5 bg-destructive text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 p-1.5 bg-destructive text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
                       >
                          <X className="w-3.5 h-3.5" />
                       </button>
                    </div>
                  ))}
                  
-                 {formData.gallery.length < 5 && (
-                   <label className="aspect-square rounded-2xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-all">
-                      <Plus className="w-6 h-6 text-muted-foreground opacity-40" />
+                 {Object.entries(galleryProgress).map(([id, progress]) => (
+                   <div key={id} className="relative aspect-square rounded-2xl bg-muted flex flex-col items-center justify-center gap-2 border border-dashed animate-pulse">
+                      <Loader2 className="w-5 h-5 animate-spin text-secondary" />
+                      <span className="text-[8px] font-black uppercase text-secondary">Subindo...</span>
+                      <Progress value={progress} className="absolute bottom-0 left-0 right-0 h-1 rounded-none" />
+                   </div>
+                 ))}
+
+                 {(formData.gallery.length + totalUploading) < 5 && (
+                   <label className="aspect-square rounded-2xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-all hover:border-secondary/40 group">
+                      <Plus className="w-6 h-6 text-muted-foreground opacity-40 group-hover:text-secondary group-hover:opacity-100" />
                       <span className="text-[8px] font-black uppercase mt-1">Adicionar</span>
-                      <input type="file" multiple accept="image/*" className="hidden" onChange={handleGalleryUpload} />
+                      <input type="file" multiple accept="image/*" className="hidden" onChange={handleGalleryUpload} disabled={totalUploading > 0} />
                    </label>
                  )}
               </div>
@@ -322,7 +357,7 @@ export default function NovaExperienciaPage() {
               <Button variant="ghost" onClick={() => setStep(1)} className="h-16 px-8 rounded-2xl font-bold uppercase text-xs">Voltar</Button>
               <Button 
                  onClick={handlePublish} 
-                 disabled={publishing} 
+                 disabled={publishing || totalUploading > 0} 
                  className="flex-1 h-16 bg-secondary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2"
               >
                  {publishing ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <ShieldCheck className="w-6 h-6" />}
