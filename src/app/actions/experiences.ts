@@ -1,4 +1,4 @@
-'use client';
+'use server';
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -283,7 +283,7 @@ export async function createExperienceReservationAction(params: {
 
       transaction.set(reservationRef, reservationData);
 
-      return serializeData({ success: true, reservationId: reservationRef.id, expiresAt });
+      return serializeData({ success: true, reservationId: reservationId, expiresAt });
     });
   } catch (e: any) {
     console.error("[Reservation Action] Failure:", e.message);
