@@ -196,9 +196,12 @@ export default function CalculadoraClient() {
                     </div>
                  </div>
               </div>
-              <div className="p-6 bg-muted/30 border-t flex items-center justify-center gap-2">
-                 <ShieldCheck className="w-4 h-4 text-secondary opacity-40" />
-                 <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Simulação comercial baseada em médias de mercado</p>
+              <div className="p-6 bg-muted/30 border-t flex flex-col items-center justify-center gap-1">
+                 <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-secondary opacity-40" />
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Simulação comercial baseada em médias de mercado</p>
+                 </div>
+                 <p className="text-[8px] font-bold uppercase text-muted-foreground opacity-30 italic">Aplicamos uma taxa média de 12% aos outros concorrentes</p>
               </div>
            </Card>
 
