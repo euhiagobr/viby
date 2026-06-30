@@ -1,10 +1,10 @@
-
 "use client"
 
 import * as React from "react"
 import { useCollection, useFirestore, useAuth, useUser, useDoc } from "@/firebase"
 import { collection, doc, query, where, limit, orderBy, getDocs, startAfter, DocumentSnapshot } from "firebase/firestore"
 import { EventCard } from "@/components/events/EventCard"
+import { ExperienceCard } from "@/components/experiences/ExperienceCard"
 import { AdsRenderer } from "@/components/ads/AdsRenderer"
 import { Button } from "@/components/ui/button"
 import { 
@@ -185,6 +185,13 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
       }
       return { ...e, date: effectiveDate };
     }).filter(e => {
+      // Experiências são sempre visíveis se status == active
+      if (e.productType === 'experience') {
+        const searchNorm = normalizeText(search);
+        const matchesSearch = !search || normalizeText(e.title || "").includes(searchNorm);
+        return matchesSearch;
+      }
+
       if (!isEventVisible(e, now)) return false
       
       const searchNorm = normalizeText(search);
@@ -225,10 +232,14 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
         distMeters = calculateDistanceMeters(userLocation, { latitude: e.latitude, longitude: e.longitude });
       }
       
+      const dateStr = e.date?.toDate ? e.date.toDate().toISOString() : e.date;
+      const startDateTime = new Date(dateStr);
+      const finalDate = isNaN(startDateTime.getTime()) ? new Date() : startDateTime;
+
       return {
         ...e,
         _distanceMeters: distMeters,
-        _startDateTime: e.date?.toDate ? e.date.toDate() : new Date(e.date)
+        _startDateTime: finalDate
       };
     });
 
@@ -476,10 +487,18 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
                           googleSlotId="discovery-feed-slot" 
                         />
                       ) : (
-                        <EventCard 
-                          key={`event-${item.data.id}-${idx}`} 
-                          event={{ ...item.data, userLocation, isSponsored: item.data.isSponsored }} 
-                        />
+                        item.data.productType === 'experience' ? (
+                           <ExperienceCard 
+                             key={`exp-${item.data.id}-${idx}`}
+                             experience={item.data}
+                             userLocation={userLocation}
+                           />
+                        ) : (
+                          <EventCard 
+                            key={`event-${item.data.id}-${idx}`} 
+                            event={{ ...item.data, userLocation, isSponsored: item.data.isSponsored }} 
+                          />
+                        )
                       )
                     ))}
                  </div>

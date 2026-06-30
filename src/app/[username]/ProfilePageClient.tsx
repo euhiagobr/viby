@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -8,6 +7,7 @@ import { Loader2, Lock as LockIcon, ArrowLeft, Home, ShieldAlert, Share2, Inbox,
 import { Button } from "@/components/ui/button";
 import { AdsRenderer } from "@/components/ads/AdsRenderer";
 import { EventCard } from "@/components/events/EventCard";
+import { ExperienceCard } from "@/components/experiences/ExperienceCard";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import Image from "next/image";
@@ -430,9 +430,9 @@ export default function ProfilePageClient({ username }: { username: string }) {
                        ) : (
                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {orgExperiences.map((exp: any) => (
-                              <EventCard 
+                              <ExperienceCard 
                                 key={exp.id} 
-                                event={{ ...exp, productType: 'experience' }} 
+                                experience={exp} 
                                 userLocation={userLocation}
                               />
                             ))}

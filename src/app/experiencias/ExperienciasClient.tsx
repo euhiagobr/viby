@@ -3,8 +3,8 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where, limit, orderBy, getDocs, startAfter } from "firebase/firestore";
-import { EventCard } from "@/components/events/EventCard";
+import { collection, query, where, limit, orderBy, getDocs } from "firebase/firestore";
+import { ExperienceCard } from "@/components/experiences/ExperienceCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,6 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
   const [rawExp, setRawExp] = useState(initialData);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(initialData.length >= 20);
-  const [lastDoc, setLastDoc] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -54,11 +53,17 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
   );
   const { data: categories } = useCollection<any>(categoriesQuery);
 
+  /**
+   * Filtro de Experiências:
+   * Removemos a dependência de isEventVisible que buscava por datas fixas.
+   * Agora, as experiências são filtradas exclusivamente por status, busca e cidade.
+   */
   const processedExp = React.useMemo(() => {
     const searchNorm = normalizeText(search);
     const cityNorm = normalizeText(searchCity);
 
     return rawExp.filter(exp => {
+      // Regra de Ouro: Experiências ativas no marketplace
       if (exp.status !== 'active') return false;
 
       const matchesSearch = !search || 
@@ -98,7 +103,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
             <h1 className="text-6xl md:text-9xl font-black uppercase italic tracking-tighter leading-[0.8] text-white">
               VIVÊNCIAS <br /><span className="text-secondary">CULTURAIS</span>
             </h1>
-            <p className="text-lg md:text-2xl font-medium opacity-90 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-lg md:text-2xl font-medium opacity-95 max-w-2xl mx-auto leading-relaxed">
               Descubra workshops, tours, gastronomia e experiências exclusivas com agendamento simplificado.
             </p>
 
@@ -183,7 +188,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
         {processedExp.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
             {processedExp.map((exp) => (
-              <EventCard key={exp.id} event={{ ...exp, productType: 'experience', userLocation }} />
+              <ExperienceCard key={exp.id} experience={exp} userLocation={userLocation} />
             ))}
           </div>
         ) : (
