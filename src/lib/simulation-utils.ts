@@ -30,7 +30,7 @@ export interface SimulationResult {
   };
 }
 
-export const VIBY_MARKET_AVG_ORG_FEE = 0.10; // 10% - Média do mercado para organizadores
+export const VIBY_MARKET_AVG_ORG_FEE = 0.12; // 12% - Média do mercado para organizadores (Concorrência)
 
 export function calculateSimulation(
   qty: number,
