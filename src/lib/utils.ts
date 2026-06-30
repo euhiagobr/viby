@@ -26,28 +26,43 @@ export function safeParseDate(val: any): Date | null {
   }
   
   // 4. String ISO ou número
-  // Nota: new Date("YYYY-MM-DDTHH:mm") sem 'Z' é tratado como local pelo browser.
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
 }
 
 /**
- * Converte objetos complexos (como Timestamps) em valores primitivos para envio ao servidor.
+ * Converte objetos complexos (como Timestamps) em valores primitivos puros (POJOs) 
+ * para envio seguro entre Client e Server no Next.js 15.
  */
 export function serializeForServer(data: any): any {
   if (data === null || data === undefined) return data;
   
-  if (typeof data === 'object' && typeof data.seconds === 'number' && typeof data.nanoseconds === 'number') {
+  // Caso seja um Timestamp do Firebase (ou objeto similar com seconds/nanoseconds)
+  if (typeof data === 'object' && typeof data.seconds === 'number') {
     return new Date(data.seconds * 1000).toISOString();
   }
 
-  if (typeof data.toDate === 'function') return data.toDate().toISOString();
-  if (data instanceof Date) return data.toISOString();
-  if (Array.isArray(data)) return data.map(serializeForServer);
+  // Caso seja um objeto Date nativo
+  if (data instanceof Date) {
+    return data.toISOString();
+  }
+
+  // Caso seja um array, processa cada item recursivamente
+  if (Array.isArray(data)) {
+    return data.map(serializeForServer);
+  }
   
+  // Caso seja um objeto comum
   if (typeof data === 'object') {
+    // Se o objeto tem um método toDate (SDK de cliente), converte para ISO
+    if (typeof data.toDate === 'function') {
+      return data.toDate().toISOString();
+    }
+
+    // Verifica se é um objeto plano (Plain Object)
     const proto = Object.getPrototypeOf(data);
     if (proto !== null && proto !== Object.prototype) {
+      // Se não for plano (ex: instância de classe), converte para string
       return data.toString();
     }
 
@@ -59,12 +74,12 @@ export function serializeForServer(data: any): any {
     }
     return result;
   }
+  
   return data;
 }
 
 /**
  * Formata uma data para o padrão aceito pelo input datetime-local (YYYY-MM-DDTHH:mm)
- * Preservando a hora local sem conversão forçada para UTC.
  */
 export function formatDateForInput(date: Date | null | string): string {
   const d = safeParseDate(date);
@@ -76,6 +91,7 @@ export function formatDateForInput(date: Date | null | string): string {
  * Converte uma string de data local (do input) para uma string ISO UTC segura para o servidor.
  */
 export function dateToAtomsphericISO(localDateStr: string): string {
+  if (!localDateStr) return "";
   const d = new Date(localDateStr);
   if (isNaN(d.getTime())) return "";
   return d.toISOString();

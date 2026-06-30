@@ -24,9 +24,10 @@ export interface PayButtonOptions {
 
 /**
  * Executa o fluxo de checkout utilizando o Admin SDK para máxima estabilidade e segurança.
+ * CORREÇÃO CRÍTICA: Todas as operações de leitura (get) agora ocorrem antes das escritas.
  */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
-  const { user, profile, items, totals, useBalance, rates, globalFees, promotions, orgsData, coupon } = options;
+  const { user, profile, items, totals, useBalance, rates, globalFees, promotions, coupon } = options;
   const db = getAdminDb();
 
   if (!user) throw new Error("Usuário não identificado.");
@@ -39,11 +40,21 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
-  // 1. BLOCO DE LEITURA (VALIDAÇÕES INICIAIS)
+  // --- BLOCO DE LEITURA (READS FIRST) ---
+  
+  // 1. Validar Organizações e Coletar Stripe IDs
+  const orgIds = Array.from(new Set(items.map(i => i.organizationId)));
+  const orgsSnapMap: Record<string, any> = {};
+  for (const orgId of orgIds) {
+    const oSnap = await db.collection("organizations").doc(orgId).get();
+    if (!oSnap.exists) throw new Error("Uma das organizações parceiras não foi localizada.");
+    orgsSnapMap[orgId] = oSnap.data();
+  }
+
+  // 2. Verificar Disponibilidade dos Eventos e Travas de Ingressos Gratuitos
   for (const item of items) {
     const isExp = item.productType === 'experience';
     const collName = isExp ? "experiences" : "events";
-    
     const eSnap = await db.collection(collName).doc(item.eventId).get();
     if (!eSnap.exists) throw new Error(`O item ${item.eventTitle} não está mais disponível.`);
     
@@ -54,6 +65,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     }
   }
 
+  // 3. Verificar Saldo da Carteira (Se aplicável)
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
     const walletSnap = await db.collection("wallets").doc(user.id || user.uid).get();
     if (!walletSnap.exists || (walletSnap.data()?.balance || 0) < totals.balanceUsed) {
@@ -61,7 +73,9 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     }
   }
 
-  // 2. VERIFICAÇÃO DE TOTAL ZERO (PULO DO STRIPE)
+  // --- BLOCO DE ESCRITA (WRITES START HERE) ---
+
+  // 4. Fluxo de Itens Gratuitos (Pulo do Stripe)
   if (Number(totals.total) <= 0) {
     for (const item of items) {
       if (item.productType === 'experience' && item.occurrenceId) {
@@ -71,7 +85,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
           userId: user.id || user.uid,
           quantity: item.quantity
         });
-        if (!res.success) throw new Error(res.error || "Falha ao reservar vaga.");
+        if (!res.success) throw new Error(res.error || "Falha ao reservar vaga na experiência.");
       }
     }
 
@@ -91,7 +105,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     return { type: 'free', success: true };
   }
 
-  // 3. FLUXO PAGO (STRIPE)
+  // 5. Fluxo de Pagamento Real (Stripe)
   const reservationIds: string[] = [];
   for (const item of items) {
     if (item.productType === 'experience' && item.occurrenceId) {
@@ -107,9 +121,10 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     }
   }
 
+  // Preparar Snapshot de Itens para a Ordem
   const orderItems = items.flatMap(item => {
     const productType = (item.productType as ProductType) || 'event';
-    const org = orgsData[item.organizationId];
+    const org = orgsSnapMap[item.organizationId];
 
     if (coupon && coupon.eventId === item.eventId) {
       let discVal = 0;
@@ -196,7 +211,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   const stripeLineItems = orderItems.map((item) => {
     const resolvedProductType = (item.productType as ProductType) || 'event';
-    const split = calculateVibyOfficialSplit(item.price, eventCurrency, rates, orgsData[item.organizationId], globalFees, promotions, resolvedProductType);
+    const split = calculateVibyOfficialSplit(item.price, eventCurrency, rates, orgsSnapMap[item.organizationId], globalFees, promotions, resolvedProductType);
     
     totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     
@@ -222,10 +237,8 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     };
   });
 
-  const orgSnap = await db.collection("organizations").doc(items[0].organizationId).get();
-  const stripeAccountId = orgSnap.data()?.stripeAccountId;
-
-  if (!stripeAccountId) throw new Error("O organizador não possui conta de recebimento configurada.");
+  const stripeAccountId = orgsSnapMap[items[0].organizationId]?.stripeAccountId;
+  if (!stripeAccountId) throw new Error("O organizador não possui conta de recebimento configurada no Stripe.");
 
   const stripeResult = await createCheckoutSession({
     userEmail: user.email!,
