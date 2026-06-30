@@ -15,7 +15,7 @@ import { createCheckoutSession } from "@/app/actions/stripe";
 import { generateFreeTickets } from "@/app/actions/tickets";
 import { calculateVibyOfficialSplit, toCents, calculateFinancialBreakdown, ProductType } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
-import { CurrencyCode } from "@/contexts/CurrencyCode";
+import { CurrencyCode } from "@/contexts/CurrencyContext";
 import { createExperienceReservationAction } from "@/app/actions/experiences";
 
 export interface PayButtonOptions {
@@ -27,7 +27,7 @@ export interface PayButtonOptions {
   promotions: any;
   orgsData: Record<string, any>;
   useBalance: boolean;
-  rates?: Record<string, number>;
+  rates: Record<string, number>;
 }
 
 /**
@@ -47,7 +47,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   const reservationIds: string[] = [];
 
-  // 1. VALIDAÇÃO E RESERVA (LOCK)
+  // 1. RESOLUÇÃO DE TIPO E RESERVA (LOCK)
   for (const item of items) {
     const isExp = item.productType === 'experience';
     const collName = isExp ? "experiences" : "events";
@@ -92,11 +92,14 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     return { type: 'free', success: true };
   }
 
-  // 3. PREPARAR ORDEM (INTENT) COM SNAPSHOTS
+  // 3. PREPARAR ORDEM (INTENT) COM SNAPSHOTS FINANCEIROS POR PRODUCT_TYPE
   const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
   const exchangeDate = new Date().toISOString().slice(0, 10);
 
   const orderItems = items.map(item => {
+    // Auditoria: productType obrigatório
+    const resolvedProductType = (item.productType as ProductType) || 'event';
+
     const breakdown = calculateFinancialBreakdown(
       item.price, 
       globalFees, 
@@ -104,7 +107,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       orgsData[item.organizationId], 
       eventCurrency, 
       rates,
-      item.productType as ProductType || 'event'
+      resolvedProductType
     );
     return {
       ...item,
@@ -152,8 +155,10 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
-  // 4. MAPEAR PARA STRIPE CONNECT
+  // 4. MAPEAR PARA STRIPE CONNECT (SOMA DE FEES DERIVADAS DO PRODUCT_TYPE)
   const stripeLineItems = items.map((item) => {
+    const resolvedProductType = (item.productType as ProductType) || 'event';
+
     const split = calculateVibyOfficialSplit(
       item.price, 
       eventCurrency, 
@@ -161,7 +166,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       orgsData[item.organizationId], 
       globalFees, 
       promotions,
-      item.productType as ProductType || 'event'
+      resolvedProductType
     );
     totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     

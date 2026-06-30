@@ -64,16 +64,23 @@ export function formatCurrency(value: number): string {
  * CP = P + (P * taxa_cliente)
  * RP = P - (P * taxa_organizador)
  * V = (P * taxa_cliente) + (P * taxa_organizador)
+ * 
+ * RESOLUÇÃO OBRIGATÓRIA: O productType deve ser resolvido antes da execução.
  */
 export function calculateVibyOfficialSplit(
   facePrice: number, 
-  eventCurrency: CurrencyCode = 'BRL', 
-  rates?: Record<string, number>, 
-  orgFees?: any,
-  globalFees?: any,
-  promotions?: any,
-  productType: ProductType = 'event'
+  eventCurrency: CurrencyCode, 
+  rates: Record<string, number>, 
+  orgFees: any,
+  globalFees: any,
+  promotions: any,
+  productType: ProductType
 ) {
+  // Auditoria de Integridade: Resolução de Tipo
+  if (!productType) {
+    throw new Error("CRITICAL_FINANCIAL_ERROR: product_type must be resolved before calculation.");
+  }
+
   const price = Math.max(0, Number(facePrice) || 0);
   
   if (price === 0) {
@@ -89,7 +96,7 @@ export function calculateVibyOfficialSplit(
 
   const isExp = productType === 'experience';
 
-  // 1. RESOLUÇÃO DE MARGENS
+  // 1. RESOLUÇÃO DE MARGENS BASEADA EM PRODUCT_TYPE
   let markup = isExp ? VIBY_EXPERIENCE_BUYER_MARKUP : VIBY_BUYER_MARKUP;
   const v2Override = orgFees?.financialOverrides?.[productType];
   const isV2Active = isTemporalActive(v2Override?.validFrom, v2Override?.validTo);
@@ -154,7 +161,7 @@ export function calculateVibyOfficialSplit(
 
   let organizerNet, organizerFeeDeduction, buyerFeeTotal;
 
-  // Proteção de Repasse Negativo: Se P < appliedVibyCommission, transferimos o excedente para o comprador
+  // Proteção de Repasse Negativo
   if (price >= appliedVibyCommission) {
     organizerFeeDeduction = appliedVibyCommission;
     organizerNet = Number((price - appliedVibyCommission).toFixed(2));
@@ -180,12 +187,12 @@ export function calculateVibyOfficialSplit(
 
 export function calculateFinancialBreakdown(
   facePrice: number, 
-  globalFees?: any, 
-  promotions?: any, 
-  orgSettings?: any, 
-  eventCurrency: CurrencyCode = 'BRL', 
-  rates?: Record<string, number>,
-  productType: ProductType = 'event'
+  globalFees: any, 
+  promotions: any, 
+  orgSettings: any, 
+  eventCurrency: CurrencyCode, 
+  rates: Record<string, number>,
+  productType: ProductType
 ) {
   const split = calculateVibyOfficialSplit(facePrice, eventCurrency, rates, orgSettings, globalFees, promotions, productType);
   return {
@@ -202,13 +209,13 @@ export function calculateFinancialBreakdown(
 export function calculateDetailedVibyBreakdown(
   facePrice: number, 
   quantity: number = 1, 
-  rates?: Record<string, number>, 
-  stripeConfig?: any, 
-  eventCurrency: CurrencyCode = 'BRL',
-  orgSettings?: any,
-  globalFees?: any,
-  promotions?: any,
-  productType: ProductType = 'event'
+  rates: Record<string, number>, 
+  stripeConfig: any, 
+  eventCurrency: CurrencyCode,
+  orgSettings: any,
+  globalFees: any,
+  promotions: any,
+  productType: ProductType
 ) {
   const split = calculateVibyOfficialSplit(facePrice, eventCurrency, rates, orgSettings, globalFees, promotions, productType);
   const rateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));

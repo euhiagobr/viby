@@ -49,6 +49,9 @@ export async function createCheckoutSession(data: any) {
         orgCache[item.organizationId] = orgSnap.exists ? orgSnap.data() : {};
       }
 
+      // Auditoria: Garantir resolução de productType antes do split
+      const resolvedProductType = (item.productType as ProductType) || 'event';
+
       const split = calculateVibyOfficialSplit(
         item.price, 
         (orderData.currency || 'BRL') as any, 
@@ -56,7 +59,7 @@ export async function createCheckoutSession(data: any) {
         orgCache[item.organizationId], 
         globalFees, 
         promotions,
-        item.productType as ProductType || 'event'
+        resolvedProductType
       );
 
       totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;

@@ -44,6 +44,7 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
 
   const results = React.useMemo(() => {
     const facePrice = parseFloat(priceInput) || 0
+    // Auditoria: Garantir resolução de productType antes da chamada
     return calculateVibyOfficialSplit(facePrice, currency as CurrencyCode, rates, customFees, null, null, type)
   }, [priceInput, currency, rates, customFees, type])
 
@@ -119,7 +120,7 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
 
           <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
             <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-            <p className="text-[9px] text-secondary font-bold uppercase leading-relaxed">
+            <p className="text-[9px] font-black uppercase leading-relaxed">
               As taxas incidem individualmente sobre o <strong>Preço Base (P)</strong>. Não há composição de taxas sobre taxas.
             </p>
           </div>

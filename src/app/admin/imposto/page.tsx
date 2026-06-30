@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, where, doc, serverTimestamp, getDocs, writeBatch, getDoc } from "firebase/firestore"
+import { collection, query, orderBy, where, doc, serverTimestamp, getDocs, writeBatch, getDoc, Timestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/table"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { calculateDetailedVibyBreakdown } from "@/lib/financial-utils"
+import { calculateDetailedVibyBreakdown, ProductType } from "@/lib/financial-utils"
 import { useRouter } from "next/navigation"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
@@ -74,7 +74,6 @@ export default function AdminImpostoPage() {
       const batch = writeBatch(db)
       let count = 0
 
-      // Cache de configurações de organização para evitar loops de rede
       const orgCache: Record<string, any> = {}
 
       for (const regDoc of regsSnap.docs) {
@@ -91,6 +90,7 @@ export default function AdminImpostoPage() {
 
           const eventCurrency = (reg.currency || 'BRL') as CurrencyCode;
           const currentRates = reg.exchangeRate ? { [eventCurrency]: 1/reg.exchangeRate } : rates;
+          const resolvedProductType = (reg.productType as ProductType) || 'event';
 
           const breakdown = calculateDetailedVibyBreakdown(
             reg.ticketBasePrice || 0, 
@@ -100,7 +100,8 @@ export default function AdminImpostoPage() {
             eventCurrency,
             orgCache[orgId],
             globalFees,
-            promotions
+            promotions,
+            resolvedProductType
           )
           
           const monthKey = reg.timestamp ? 
