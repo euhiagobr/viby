@@ -3,7 +3,7 @@
  * Implementa a regra única e centralizada para toda a plataforma com suporte a moedas nativas e persistência histórica.
  */
 
-import { CurrencyCode } from "@/contexts/CurrencyCode";
+import { CurrencyCode } from "@/contexts/CurrencyContext";
 
 export type ProductType = 'event' | 'experience';
 
@@ -19,9 +19,11 @@ export const VIBY_TAX_RATE = 0.11; // 11% de imposto sobre a receita bruta da Vi
 
 /**
  * Verifica se um período de vigência está ativo.
- * Considera timezone America/Sao_Paulo (UTC-3) para inputs e comparação.
+ * Considera timezone America/Sao_Paulo (UTC-3) para os objetos de data do Firestore.
  */
 export function isTemporalActive(start: any, end: any): boolean {
+  if (!start && !end) return false;
+  
   const now = new Date();
   const startDate = start ? (start.toDate ? start.toDate() : new Date(start)) : null;
   const endDate = end ? (end.toDate ? end.toDate() : new Date(end)) : null;
@@ -59,7 +61,12 @@ export function formatCurrency(value: number): string {
 
 /**
  * CÁLCULO OFICIAL VIBY - Suporte Multi-Moeda e Taxas Customizadas por Organização
- * HIERARQUIA: Organização (se vigente) > Promoção (se vigente) > Config Global > Constantes
+ * HIERARQUIA: 
+ * 1. Overrides v2 (Segmentado por produto + Vigência)
+ * 2. Overrides v1 (Custom fields na Org + Vigência)
+ * 3. Promoções Vigentes
+ * 4. Configuração Global (Firestore)
+ * 5. Constantes Fallback (Code)
  */
 export function calculateVibyOfficialSplit(
   facePrice: number, 
@@ -83,49 +90,70 @@ export function calculateVibyOfficialSplit(
     };
   }
 
-  // Verificar se as taxas da organização estão em período de vigência
-  const isOrgFeeVigente = isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt);
-
   const isExp = productType === 'experience';
 
-  // 1. Taxa do Comprador (Markup)
+  // 1. RESOLUÇÃO DE MARGENS (Markup e Comissão)
+  
+  // Resolução de Precedência para Markup (Taxa do Comprador)
   let markup = isExp ? VIBY_EXPERIENCE_BUYER_MARKUP : VIBY_BUYER_MARKUP;
   
-  if (isOrgFeeVigente && orgFees?.customBuyerMarkup !== undefined && orgFees.customBuyerMarkup !== null) {
+  // Tenta Overrides v2 (Novo Padrão)
+  const v2Override = orgFees?.financialOverrides?.[productType];
+  const isV2Active = isTemporalActive(v2Override?.validFrom, v2Override?.validTo);
+
+  if (isV2Active && v2Override?.markupBuyerPercent != null) {
+    markup = v2Override.markupBuyerPercent / 100;
+  } 
+  // Tenta Overrides v1 (Legado)
+  else if (isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt) && orgFees?.customBuyerMarkup != null) {
     markup = orgFees.customBuyerMarkup / 100;
-  } else if (isPromoActive(promotions?.buyerPromoActive, promotions?.buyerPromoStart, promotions?.buyerPromoEnd)) {
+  }
+  // Tenta Promoções
+  else if (isPromoActive(promotions?.buyerPromoActive, promotions?.buyerPromoStart, promotions?.buyerPromoEnd)) {
     markup = promotions.buyerPromoPercent / 100;
-  } else if (globalFees) {
+  } 
+  // Tenta Config Global
+  else if (globalFees) {
     const globalMarkup = isExp ? globalFees.experienceBuyerMarkupPercent : globalFees.buyerMarkupPercent;
-    if (globalMarkup !== undefined) markup = globalMarkup / 100;
+    if (globalMarkup != null) markup = globalMarkup / 100;
   }
   
   const buyerMarkupFee = Number((price * markup).toFixed(2));
   
-  // 2. Taxa do Organizador (Comissão)
+  // Resolução de Precedência para Comissão (Taxa do Produtor)
   let commission = isExp ? VIBY_EXPERIENCE_ORGANIZER_FEE : VIBY_ORGANIZER_FEE;
   
-  if (isOrgFeeVigente && orgFees?.customOrganizerPercent !== undefined && orgFees.customOrganizerPercent !== null) {
+  if (isV2Active && v2Override?.commissionPercent != null) {
+    commission = v2Override.commissionPercent / 100;
+  }
+  else if (isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt) && orgFees?.customOrganizerPercent != null) {
     commission = orgFees.customOrganizerPercent / 100;
-  } else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
+  }
+  else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
     commission = promotions.organizerPromoPercent / 100;
-  } else if (globalFees) {
+  } 
+  else if (globalFees) {
     const globalCommission = isExp ? globalFees.experienceOrganizerBasePercent : globalFees.organizerBasePercent;
-    if (globalCommission !== undefined) commission = globalCommission / 100;
+    if (globalCommission != null) commission = globalCommission / 100;
   }
     
   const organizerPercentFee = Number((price * commission).toFixed(2));
   
-  // 3. Taxa Mínima (BRL)
+  // Resolução de Precedência para Taxa Mínima (BRL)
   let minFeeBRL = isExp ? VIBY_EXPERIENCE_MIN_FEE_BRL : VIBY_MIN_FEE_BRL;
   
-  if (isOrgFeeVigente && orgFees?.customOrganizerMinFee !== undefined && orgFees.customOrganizerMinFee !== null) {
+  if (isV2Active && v2Override?.minValue != null) {
+    minFeeBRL = v2Override.minValue;
+  }
+  else if (isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt) && orgFees?.customOrganizerMinFee != null) {
     minFeeBRL = orgFees.customOrganizerMinFee;
-  } else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
+  }
+  else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
     minFeeBRL = promotions.organizerPromoMinFee;
-  } else if (globalFees) {
+  } 
+  else if (globalFees) {
     const globalMin = isExp ? globalFees.experienceOrganizerMinFee : globalFees.organizerMinFee;
-    if (globalMin !== undefined) minFeeBRL = globalMin;
+    if (globalMin != null) minFeeBRL = globalMin;
   }
 
   // Converte a taxa mínima de BRL para a moeda do evento
