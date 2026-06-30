@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { 
   doc, 
   collection, 
@@ -41,7 +41,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
-import { cn } from "@/lib/utils"
+import { cn, safeParseDate } from "@/lib/utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { formatCurrency } from '@/lib/financial-utils'
 import { subDays, startOfDay, endOfDay } from 'date-fns'
@@ -223,7 +223,7 @@ export default function OrganizationDashboardPage() {
               Impacto QR Code
               <QrCode className="w-4 h-4 text-secondary" />
             </CardTitle>
-          </Header>
+          </CardHeader>
           <CardContent className="space-y-1">
             <div className="text-3xl font-black">{loadingQr ? <Loader2 className="w-6 h-6 animate-spin" /> : qrStats.total.toLocaleString()}</div>
             <p className="text-[9px] font-bold text-secondary uppercase">Escaneamentos totais</p>
