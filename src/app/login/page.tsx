@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -56,7 +57,6 @@ function LoginContent() {
     let email = identifier.trim().toLowerCase();
 
     try {
-      // Lógica de Resolução: Se não for e-mail (não tem @), busca o e-mail pelo username
       if (!email.includes("@")) {
         const usernameClean = email.replace('@', '');
         const usernameRef = doc(db, "usernames", usernameClean);
@@ -70,7 +70,6 @@ function LoginContent() {
             throw { code: 'auth/user-not-found' };
           }
         } else {
-          // Fallback: busca direta na coleção de usuários se o índice falhar
           const q = query(collection(db, "users"), where("username", "==", usernameClean), limit(1));
           const snap = await getDocs(q);
           if (!snap.empty) {
@@ -94,7 +93,8 @@ function LoginContent() {
     }
   }
 
-  if (!isInitialized || authLoading) {
+  // Se estiver carregando OU se já estiver logado (aguardando o useEffect de redirect), mostra o loader
+  if (!isInitialized || authLoading || user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
         <div className="flex flex-col items-center gap-4">

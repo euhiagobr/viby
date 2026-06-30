@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -41,7 +42,8 @@ export default function CadastroPage() {
     }
   }, [user, profile, isInitialized, authLoading, router]);
 
-  if (!isInitialized || authLoading) {
+  // Se estiver carregando OU se já estiver logado (aguardando o useEffect de redirect), mostra o loader
+  if (!isInitialized || authLoading || user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
         <div className="flex flex-col items-center gap-4">
