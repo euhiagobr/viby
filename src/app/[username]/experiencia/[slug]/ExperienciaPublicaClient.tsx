@@ -18,9 +18,8 @@ import {
   CheckCircle2,
   ShoppingBag,
   Loader2,
-  AlertTriangle,
-  FileText,
-  Calendar
+  Calendar,
+  ChevronDown
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RichText } from '@/components/ui/rich-text';
@@ -58,18 +57,23 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
 
   const [selectedSlot, setSelectedSlot] = React.useState<any>(null);
 
+  // Query de slots simplificada para garantir exibição sem depender de índices complexos no momento
   const slotsQuery = useMemoFirebase(() => {
     if (!db || !experience.id) return null;
     return query(
       collection(db, "experiences", experience.id, "slots"),
-      where("status", "==", "active"),
-      orderBy("datetime", "asc")
+      where("status", "==", "active")
     );
   }, [db, experience.id]);
 
-  const { data: slots, loading: loadingSlots } = useCollection<any>(slotsQuery);
+  const { data: rawSlots, loading: loadingSlots } = useCollection<any>(slotsQuery);
 
-  // Cálculo do menor preço disponível nos slots
+  // Ordenação em memória para garantir consistência
+  const slots = React.useMemo(() => {
+    if (!rawSlots) return [];
+    return [...rawSlots].sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime());
+  }, [rawSlots]);
+
   const minPrice = React.useMemo(() => {
     if (!slots || slots.length === 0) return experience.price || 0;
     const now = new Date();
@@ -78,25 +82,15 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
     return Math.min(...futureSlots.map(s => s.price || 0));
   }, [slots, experience.price]);
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: experience.title,
-        url: window.location.href
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      toast({ title: "Link copiado!" });
-    }
+  const scrollToSlots = () => {
+    const el = document.getElementById("horarios-section");
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
-  const handleAddToCart = () => {
-    const hasSlots = slots && slots.length > 0;
-    
-    if (hasSlots && !selectedSlot) {
-      const el = document.getElementById("horarios-section");
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-      toast({ variant: "destructive", title: "Selecione um horário", description: "Escolha uma das opções disponíveis na agenda." });
+  const handleAction = () => {
+    if (!selectedSlot) {
+      scrollToSlots();
+      toast({ title: "Selecione um horário", description: "Escolha uma opção na agenda abaixo." });
       return;
     }
 
@@ -106,11 +100,11 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
     }
 
     addItem({
-      id: selectedSlot ? `${experience.id}_${selectedSlot.id}` : `${experience.id}_base`,
+      id: `${experience.id}_${selectedSlot.id}`,
       eventId: experience.id,
       eventTitle: experience.title,
       eventImage: experience.image || "",
-      eventDate: selectedSlot ? selectedSlot.datetime : null,
+      eventDate: selectedSlot.datetime,
       eventCity: experience.city || "",
       organizationId: experience.organizationId,
       organizerId: experience.organizer?.id || "",
@@ -118,25 +112,24 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       ticketTypeId: "exp_access",
       ticketTypeName: "Vaga na Experiência",
       batchId: "slot",
-      batchName: selectedSlot ? "Horário Agendado" : "Acesso Base",
+      batchName: "Horário Agendado",
       currency: (experience.currency || 'BRL'),
-      price: selectedSlot ? selectedSlot.price : experience.price,
-      originalPrice: selectedSlot ? selectedSlot.price : experience.price,
+      price: selectedSlot.price,
+      originalPrice: selectedSlot.price,
       quantity: 1,
       requiresProof: false,
-      occurrenceId: selectedSlot ? selectedSlot.id : null,
+      occurrenceId: selectedSlot.id,
       productType: 'experience'
     });
 
-    toast({ title: "Adicionado!", description: "Continue para o pagamento no carrinho." });
+    toast({ title: "Adicionado!", description: "Sua vaga foi reservada." });
     router.push('/dashboard/carrinho');
   };
 
   const address = experience.address || {};
   const lat = address.latitude || experience.latitude || -23.55052;
   const lng = address.longitude || experience.longitude || -46.633308;
-  const locationQuery = encodeURIComponent(`${address.addressLine1} ${address.city}`);
-
+  
   const displayPrice = selectedSlot ? selectedSlot.price : minPrice;
   const displayCurrency = (selectedSlot?.currency || experience.currency || 'BRL') as CurrencyCode;
 
@@ -159,11 +152,9 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
           <div className="absolute inset-0 bg-gradient-to-t from-[#f8fafc] via-[#f8fafc]/30 to-transparent" />
           <div className="absolute bottom-0 left-0 p-6 md:p-12 w-full">
             <div className="container mx-auto max-w-6xl space-y-6">
-              <div className="flex flex-wrap gap-2">
-                <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg">
-                  {experience.category || "Vivência Cultural"}
-                </Badge>
-              </div>
+              <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg">
+                {experience.category || "Vivência Cultural"}
+              </Badge>
               <h1 className="text-4xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-[0.85]">{experience.title}</h1>
               <p className="text-lg md:text-2xl font-medium text-primary/70 max-w-2xl leading-relaxed uppercase tracking-wide italic">
                 {experience.shortDescription}
@@ -173,8 +164,9 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
         </div>
 
         <div className="container mx-auto px-4 py-12 max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
-          <div className="lg:col-span-8 space-y-12">
+          <div className="lg:col-span-8 space-y-16">
             
+            {/* Detalhes Principais */}
             <section className="space-y-6">
               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
                 <Info className="w-4 h-4 text-secondary" /> Detalhes da Experiência
@@ -186,6 +178,23 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               </Card>
             </section>
 
+            {/* Agenda de Horários */}
+            <section id="horarios-section" className="space-y-6 scroll-mt-24">
+               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
+                 <Calendar className="w-4 h-4 text-secondary" /> Escolha seu Horário
+               </h2>
+               {loadingSlots ? (
+                 <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
+               ) : (
+                 <ExperienceSlotsPublic 
+                   slots={slots} 
+                   onSelect={setSelectedSlot} 
+                   selectedSlotId={selectedSlot?.id} 
+                 />
+               )}
+            </section>
+
+            {/* Galeria */}
             {experience.gallery?.length > 0 && (
               <section className="space-y-6">
                 <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2">Galeria</h2>
@@ -199,21 +208,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               </section>
             )}
 
-            <section id="horarios-section" className="space-y-6">
-               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
-                 <Calendar className="w-4 h-4 text-secondary" /> Escolha seu Horário
-               </h2>
-               {loadingSlots ? (
-                 <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
-               ) : (
-                 <ExperienceSlotsPublic 
-                   slots={slots || []} 
-                   onSelect={setSelectedSlot} 
-                   selectedSlotId={selectedSlot?.id} 
-                 />
-               )}
-            </section>
-
+            {/* Localização */}
             <section className="space-y-6">
               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-secondary" /> Localização
@@ -234,14 +229,15 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                       </p>
                    </div>
                    <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${locationQuery}`} target="_blank" rel="noopener noreferrer">
-                        <Navigation className="w-4 h-4" /> GPS
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.addressLine1 + ' ' + address.city)}`} target="_blank" rel="noopener noreferrer">
+                        <Navigation className="w-4 h-4" /> Ver no Mapa
                       </a>
                    </Button>
                 </CardContent>
               </Card>
             </section>
 
+            {/* Regras e Políticas */}
             {(experience.additionalInfo || experience.usagePolicy) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {experience.additionalInfo && (
@@ -249,7 +245,9 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
                       <Info className="w-4 h-4" /> Informações Úteis
                     </h4>
-                    <p className="text-sm font-medium text-muted-foreground leading-relaxed whitespace-pre-line">{experience.additionalInfo}</p>
+                    <div className="text-sm font-medium text-muted-foreground leading-relaxed">
+                       <RichText content={experience.additionalInfo} />
+                    </div>
                   </Card>
                 )}
                 {experience.usagePolicy && (
@@ -257,13 +255,16 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4" /> Políticas e Regras
                     </h4>
-                    <p className="text-sm font-medium text-muted-foreground leading-relaxed whitespace-pre-line">{experience.usagePolicy}</p>
+                    <div className="text-sm font-medium text-muted-foreground leading-relaxed">
+                       <RichText content={experience.usagePolicy} />
+                    </div>
                   </Card>
                 )}
               </div>
             )}
           </div>
 
+          {/* Barra Lateral de Compra */}
           <aside className="lg:col-span-4 space-y-8">
             <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 space-y-8 sticky top-24">
               <div className="space-y-6">
@@ -287,12 +288,9 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                    <div className="flex justify-between items-end">
                       <div className="space-y-1">
                          <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">
-                           {selectedSlot ? "Valor do Horário" : "Valor Inicial"}
+                           {selectedSlot ? "Valor da Sessão" : "A partir de"}
                          </p>
-                         <div className="flex flex-col">
-                            {!selectedSlot && <span className="text-[8px] font-black uppercase text-secondary">A partir de</span>}
-                            {formatPriceWithOriginal(displayPrice, displayCurrency)}
-                         </div>
+                         {formatPriceWithOriginal(displayPrice, displayCurrency)}
                       </div>
                       <div className="text-right">
                          <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Vagas</p>
@@ -305,18 +303,24 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                    <div className="space-y-3">
                       <Button 
                         disabled={loadingSlots || (selectedSlot && selectedSlot.sold >= selectedSlot.capacity)} 
-                        onClick={handleAddToCart}
-                        className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2 active:scale-95 transition-transform"
+                        onClick={handleAction}
+                        className={cn(
+                          "w-full h-16 text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2 transition-all active:scale-95",
+                          selectedSlot ? "bg-primary" : "bg-secondary animate-pulse hover:animate-none"
+                        )}
                       >
-                        <ShoppingBag className="w-5 h-5" /> 
-                        {selectedSlot ? "Adicionar ao Carrinho" : "Selecione um Horário"}
+                        {selectedSlot ? (
+                          <><ShoppingBag className="w-5 h-5" /> Adicionar ao Carrinho</>
+                        ) : (
+                          <><Calendar className="w-5 h-5" /> Selecione um Horário</>
+                        )}
                       </Button>
                       
                       {selectedSlot && (
                         <div className="p-3 bg-green-50 rounded-xl flex items-start gap-2 border border-green-100 animate-in fade-in zoom-in-95">
                            <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0 mt-0.5" />
                            <div className="space-y-0.5">
-                              <p className="text-[8px] font-black uppercase text-green-800">Horário Selecionado</p>
+                              <p className="text-[8px] font-black uppercase text-green-800">Sessão Selecionada</p>
                               <p className="text-[10px] font-bold text-green-700">
                                 {new Date(selectedSlot.datetime).toLocaleDateString('pt-BR')} às {new Date(selectedSlot.datetime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                               </p>
@@ -329,19 +333,16 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                 <Separator className="border-dashed" />
 
                 <div className="space-y-4">
-                  <Button onClick={handleShare} variant="outline" className="w-full h-11 rounded-xl font-black uppercase italic text-[11px] gap-2 border-secondary/20 text-secondary">
+                  <Button variant="outline" className="w-full h-11 rounded-xl font-black uppercase italic text-[11px] gap-2 border-secondary/20 text-secondary" onClick={() => {
+                    if (navigator.share) navigator.share({ title: experience.title, url: window.location.href });
+                    else toast({ title: "Link copiado!" });
+                  }}>
                     <Share2 className="w-4 h-4" /> Indicar para Amigos
                   </Button>
                   <Button variant="ghost" asChild className="w-full h-11 rounded-xl font-bold uppercase text-[10px] text-muted-foreground">
                     <Link href={`/${experience.organizer?.username}`}>Ver Perfil da Marca</Link>
                   </Button>
                 </div>
-              </div>
-              <div className="p-4 bg-muted/30 rounded-2xl flex items-start gap-3">
-                <ShieldCheck className="w-4 h-4 text-secondary opacity-40 shrink-0" />
-                <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">
-                  Experiência protegida pela curadoria oficial Viby.
-                </p>
               </div>
             </Card>
           </aside>
