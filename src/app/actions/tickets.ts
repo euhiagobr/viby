@@ -185,3 +185,38 @@ export async function generateFreeTickets(data: {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Reenvia um ingresso com todos os metadados oficiais, incluindo regras de uso e QR visual.
+ */
+export async function resendTicketAction(registrationId: string) {
+  try {
+    const db = getAdminDb();
+    const regSnap = await db.collection("registrations").doc(registrationId).get();
+    if (!regSnap.exists) throw new Error("Ingresso não encontrado.");
+    const reg = regSnap.data()!;
+
+    // Resolvendo coleção baseada no tipo para capturar regras de uso reais
+    const sourceColl = reg.productType === 'experience' ? "experiences" : "events";
+    const eventSnap = await db.collection(sourceColl).doc(reg.eventId).get();
+    const event = eventSnap.exists ? eventSnap.data() : null;
+
+    const dateVal = reg.eventDate?.toDate ? reg.eventDate.toDate() : new Date(reg.eventDate);
+
+    await sendTicketEmail({
+      to: reg.userEmail,
+      userName: reg.userName || "Participante",
+      eventTitle: reg.eventTitle,
+      ticketCode: reg.ticketCode,
+      eventDate: dateVal.toLocaleString('pt-BR'),
+      eventCity: reg.eventCity,
+      voucherUrl: `https://viby.club/dashboard/ingressos/${registrationId}/voucher`,
+      usagePolicy: String(event?.usagePolicy || "").trim(),
+      additionalInfo: String(event?.additionalInfo || "").trim()
+    });
+
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}

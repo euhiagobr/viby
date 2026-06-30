@@ -68,7 +68,6 @@ async function logSentEmail(data: {
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     };
     
-    // Se o ID for fornecido (para atualizar log pendente), usa set, senão add
     await db.collection('sent_emails').add(payload);
   } catch (e) {
     console.warn("[Email Audit Log] Falha ao registrar cópia de segurança", e);
@@ -119,19 +118,26 @@ export async function sendTicketEmail(data: {
   const branding = await getBranding();
   const db = getAdminDb();
   
-  // Normalização de campos de texto longo para evitar quebras no template
   const usagePolicy = String(data.usagePolicy || "").trim();
   const additionalInfo = String(data.additionalInfo || "").trim();
 
+  // QR Code Dinâmico via API Externa para exibição direta no E-mail
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${data.ticketCode}`;
+
   const content = `
-    <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; font-weight: 900;">Seu Ingresso está aqui!</h2>
-    <p>Olá, <strong>${data.userName}</strong>. Prepare-se para a sua próxima experiência.</p>
+    <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; font-weight: 900; text-align: center;">Seu Ingresso está aqui!</h2>
+    <p style="text-align: center;">Olá, <strong>${data.userName}</strong>. Prepare-se para a sua próxima experiência.</p>
     
-    <div style="background: #f8fafc; padding: 25px; border-radius: 20px; border: 2px dashed #e2e8f0; margin: 25px 0;">
-      <p style="margin: 0; font-size: 18px; font-weight: 900; color: #1e293b;">${data.eventTitle.toUpperCase()}</p>
-      <p style="margin: 5px 0; font-size: 13px; color: #64748b;">📅 ${data.eventDate}</p>
-      ${data.eventCity ? `<p style="margin: 5px 0; font-size: 13px; color: #64748b;">📍 ${data.eventCity}</p>` : ''}
-      <p style="margin: 15px 0 0 0; font-size: 24px; font-weight: 900; color: #2C52EE; font-family: monospace;">${data.ticketCode}</p>
+    <div style="background: #f8fafc; padding: 30px; border-radius: 20px; border: 2px dashed #e2e8f0; margin: 25px 0; text-align: center;">
+      <p style="margin: 0; font-size: 20px; font-weight: 900; color: #1e293b;">${data.eventTitle.toUpperCase()}</p>
+      <p style="margin: 8px 0; font-size: 14px; color: #64748b;">📅 ${data.eventDate}</p>
+      ${data.eventCity ? `<p style="margin: 0; font-size: 14px; color: #64748b;">📍 ${data.eventCity}</p>` : ''}
+      
+      <div style="margin: 25px 0; display: inline-block; background: #ffffff; padding: 15px; border-radius: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+        <img src="${qrCodeUrl}" width="180" height="180" style="display: block; border-radius: 10px;" alt="QR Code" />
+      </div>
+
+      <p style="margin: 0; font-size: 24px; font-weight: 900; color: #2C52EE; font-family: monospace; letter-spacing: 3px;">${data.ticketCode}</p>
     </div>
 
     ${usagePolicy ? `
@@ -153,11 +159,11 @@ export async function sendTicketEmail(data: {
     ` : ''}
 
     <div style="text-align: center; margin-top: 30px;">
-      <a href="${data.voucherUrl}" style="background-color: #000; color: white; padding: 15px 30px; text-decoration: none; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-style: italic; display: inline-block;">Ver QR Code de Acesso</a>
+      <a href="${data.voucherUrl}" style="background-color: #000; color: white; padding: 15px 30px; text-decoration: none; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-style: italic; display: inline-block;">Gerenciar meu Ingresso</a>
     </div>
     
     <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 30px;">
-      Apresente o QR Code no seu celular na entrada do evento. Não é necessário imprimir.
+      Apresente o QR Code acima no seu celular na entrada. Não é necessário imprimir.
     </p>
   `;
 
@@ -188,7 +194,6 @@ export async function sendTicketEmail(data: {
     return { success: true };
   } catch (e: any) { 
     console.error("[sendTicketEmail] Error:", e);
-    // Registra a falha no log de auditoria
     await logSentEmail({
       recipientEmail: data.to,
       recipientName: data.userName,

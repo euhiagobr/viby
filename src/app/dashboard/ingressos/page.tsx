@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -22,7 +21,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { sendTicketEmail } from "@/app/actions/email"
+import { resendTicketAction } from "@/app/actions/tickets"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 
 export default function MeusIngressosPage() {
@@ -86,8 +85,6 @@ export default function MeusIngressosPage() {
 }
 
 function TicketListItem({ registration }: { registration: any }) {
-  const auth = useAuth()
-  const { user } = useUser(auth)
   const { formatPriceWithOriginal } = useCurrency()
   const [isSendingEmail, setIsSendingEmail] = React.useState(false)
 
@@ -99,26 +96,20 @@ function TicketListItem({ registration }: { registration: any }) {
   const isCheckedIn = registration.checkedIn === true;
   const isPending = registration.paymentStatus === 'Pendente';
 
-  const handleResendEmail = async () => {
-    if (!registration || !user?.email || isCancelled) return
-    setIsSendingEmail(true)
+  const handleResend = async () => {
+    if (isCancelled || isSendingEmail) return;
+    setIsSendingEmail(true);
     try {
-      const d = registration.eventDate?.toDate ? registration.eventDate.toDate() : new Date(registration.eventDate);
-      await sendTicketEmail({
-        to: user.email,
-        userName: registration.userName || "Participante",
-        eventTitle: registration.eventTitle,
-        ticketCode: registration.ticketCode,
-        eventDate: d.toLocaleString('pt-BR'),
-        voucherUrl: `https://viby.club/dashboard/ingressos/${registration.id}/voucher`
-      });
-      toast({ title: "E-mail enviado!" });
+      const result = await resendTicketAction(registration.id);
+      if (result.success) {
+        toast({ title: "Voucher reenviado!", description: "Verifique sua caixa de entrada." });
+      } else throw new Error(result.error);
     } catch (e) {
       toast({ variant: "destructive", title: "Erro no envio" });
     } finally {
-      setIsSendingEmail(false)
+      setIsSendingEmail(false);
     }
-  }
+  };
 
   const dateValue = registration.eventDate?.seconds * 1000 || registration.eventDate;
   const eventDateObj = new Date(dateValue);
@@ -179,7 +170,7 @@ function TicketListItem({ registration }: { registration: any }) {
           </div>
           <div className="flex gap-2">
             {!isCancelled && !isPending && (
-              <Button size="sm" variant="outline" onClick={handleResendEmail} disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
+              <Button size="sm" variant="outline" onClick={handleResend} disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
                 {isSendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
               </Button>
             )}
