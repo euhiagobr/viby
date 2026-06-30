@@ -49,6 +49,7 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
       slug: "",
       shortDescription: "",
       description: "",
+      category: "", // Obrigatório v2
       image: "",
       gallery: [],
       price: 0,
@@ -58,6 +59,12 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
       status: 'draft',
       organizationId: orgId,
       createdBy: userId,
+      availability: {
+        startDate: "",
+        endDate: "",
+        allowedDays: [0, 1, 2, 3, 4, 5, 6],
+        allowHolidays: true
+      },
       address: {
         country: "Brasil",
         countryCode: "BR"
@@ -103,14 +110,24 @@ export async function publishExperienceAction(id: string, finalData: any) {
   const db = getAdminDb();
   try {
     const expRef = db.collection('experiences').doc(id);
+    
+    // Validação de Negócio v2
+    if (!finalData.category) throw new Error("A categoria é obrigatória.");
+    if (!finalData.address?.latitude || !finalData.address?.longitude) {
+      throw new Error("A localização geográfica é obrigatória para publicar.");
+    }
+    if (!finalData.availability?.startDate) throw new Error("A data de início é obrigatória.");
+
+    // Verificar se existe pelo menos 1 slot ativo ou preço base
+    const slotsSnap = await expRef.collection('slots').where('status', '==', 'active').limit(1).get();
+    if (slotsSnap.empty && (!finalData.price || finalData.price <= 0)) {
+      throw new Error("Adicione pelo menos um horário disponível ou defina um preço base.");
+    }
+
     const orgSnap = await db.collection('organizations').doc(finalData.organizationId).get();
     const org = orgSnap.exists ? orgSnap.data() : null;
 
     const slug = finalData.slug || slugify(finalData.title);
-
-    if (!finalData.address?.latitude || !finalData.address?.longitude) {
-      throw new Error("A localização geográfica é obrigatória para publicar uma experiência.");
-    }
 
     const updatePayload = {
       ...finalData,
@@ -180,10 +197,6 @@ export async function duplicateExperienceAction(id: string, userId: string) {
   }
 }
 
-/**
- * ACTIONS DE SLOTS (ETAPA 3)
- */
-
 export async function createExperienceSlotAction(experienceId: string, data: any) {
   const db = getAdminDb();
   try {
@@ -226,10 +239,6 @@ export async function deleteExperienceSlotAction(experienceId: string, slotId: s
   }
 }
 
-/**
- * MOTOR DE RESERVAS (HOLD SYSTEM - ETAPA 4)
- * Cria um lock atômico de capacidade para evitar overbooking.
- */
 export async function createExperienceReservationAction(params: {
   experienceId: string;
   slotId: string;
@@ -249,7 +258,6 @@ export async function createExperienceReservationAction(params: {
 
       if (slot.status !== 'active') throw new Error("Este horário não está mais disponível.");
 
-      // 1. Calcular ocupação ativa (Vendidos + Reservas não expiradas)
       const now = new Date();
       const activeReservationsSnap = await db.collection('experience_reservations')
         .where('slotId', '==', slotId)
@@ -265,9 +273,8 @@ export async function createExperienceReservationAction(params: {
         throw new Error("Desculpe, este horário acabou de esgotar ou está em processo de compra por outros usuários.");
       }
 
-      // 2. Criar Documento de Reserva
       const reservationRef = db.collection('experience_reservations').doc();
-      const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 Min Hold
+      const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); 
 
       const reservationData = {
         id: reservationRef.id,
@@ -283,7 +290,7 @@ export async function createExperienceReservationAction(params: {
 
       transaction.set(reservationRef, reservationData);
 
-      return serializeData({ success: true, reservationId: reservationId, expiresAt });
+      return serializeData({ success: true, reservationId: reservationRef.id, expiresAt });
     });
   } catch (e: any) {
     console.error("[Reservation Action] Failure:", e.message);

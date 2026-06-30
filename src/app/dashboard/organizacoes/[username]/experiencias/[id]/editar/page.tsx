@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -42,6 +41,22 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ExperienceSlotsAdmin } from '@/components/experiences/ExperienceSlotsAdmin';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
+
+const EXPERIENCE_CATEGORIES = [
+  "Gastronomia", "Turismo", "Cultura", "Entretenimento", "Esportes", "Aventura", "Bem-estar", "Outros"
+];
+
+const WEEK_DAYS = [
+  { id: 0, label: "Dom" },
+  { id: 1, label: "Seg" },
+  { id: 2, label: "Ter" },
+  { id: 3, label: "Qua" },
+  { id: 4, label: "Qui" },
+  { id: 5, label: "Sex" },
+  { id: 6, label: "Sáb" }
+];
 
 export default function EditarExperienciaPage() {
   const router = useRouter();
@@ -60,22 +75,27 @@ export default function EditarExperienciaPage() {
   const [saving, setSaving] = React.useState(false);
   const [formData, setFormData] = React.useState<any>(null);
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
-  const [galleryProgress, setGalleryProgress] = React.useState<{ [key: number]: number }>({});
+  const [galleryProgress, setGalleryProgress] = React.useState<{ [key: string]: number }>({});
 
   React.useEffect(() => {
     if (exp) {
       setFormData({
         title: exp.title || "",
         slug: exp.slug || "",
+        category: exp.category || "Cultura",
         shortDescription: exp.shortDescription || "",
         description: exp.description || "",
         image: exp.image || "",
         gallery: exp.gallery || [],
         price: exp.price || 0,
         capacity: exp.capacity || 100,
-        additionalInfo: exp.additionalInfo || "",
-        usagePolicy: exp.usagePolicy || "",
         status: exp.status || "draft",
+        availability: exp.availability || {
+          startDate: "",
+          endDate: "",
+          allowedDays: [0, 1, 2, 3, 4, 5, 6],
+          allowHolidays: true
+        },
         address: exp.address || {
           venueName: "",
           addressLine1: "",
@@ -85,7 +105,9 @@ export default function EditarExperienciaPage() {
           countryCode: "BR",
           latitude: null,
           longitude: null
-        }
+        },
+        additionalInfo: exp.additionalInfo || "",
+        usagePolicy: exp.usagePolicy || ""
       });
     }
   }, [exp]);
@@ -98,11 +120,12 @@ export default function EditarExperienciaPage() {
     
     uploadTask.on('state_changed', 
       (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-      () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
+      () => setUploadProgress(null),
       async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
-        setFormData(prev => ({ ...prev, image: url }));
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+        setFormData(prev => ({ ...prev, image: downloadURL }));
         setUploadProgress(null);
+        toast({ title: "Capa atualizada!" });
       }
     );
   };
@@ -111,7 +134,7 @@ export default function EditarExperienciaPage() {
     const files = e.target.files;
     if (!files || !storage || !user || !id) return;
     
-    const currentCount = formData.gallery?.length || 0;
+    const currentCount = formData.gallery.length;
     if (currentCount + files.length > 5) {
       toast({ variant: "destructive", title: "Limite atingido", description: "Máximo de 5 fotos na galeria." });
       return;
@@ -119,21 +142,22 @@ export default function EditarExperienciaPage() {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      const uploadId = Math.random().toString(36).substring(7);
       const storageRef = ref(storage, `experiences/${id}/gallery_${Date.now()}_${i}`);
       const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
 
       uploadTask.on('state_changed', 
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setGalleryProgress(prev => ({ ...prev, [i]: progress }));
+          setGalleryProgress(prev => ({ ...prev, [uploadId]: progress }));
         },
         null,
         async () => {
           const url = await getDownloadURL(uploadTask.snapshot.ref);
-          setFormData(prev => ({ ...prev, gallery: [...(prev.gallery || []), url] }));
+          setFormData(prev => ({ ...prev, gallery: [...prev.gallery, url] }));
           setGalleryProgress(prev => {
             const next = { ...prev };
-            delete next[i];
+            delete next[uploadId];
             return next;
           });
         }
@@ -167,18 +191,14 @@ export default function EditarExperienciaPage() {
           <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias`}><ArrowLeft className="w-5 h-5" /></Link></Button>
           <div>
             <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Experiência</h1>
-            <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Gestão de Conteúdo e Disponibilidade</p>
+            <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Gestão Avançada de Marketplace</p>
           </div>
         </div>
         <div className="flex gap-2">
            <Button variant="outline" asChild className="rounded-xl h-11 border-secondary text-secondary">
               <Link href={`/${currentOrg?.username}/experiencia/${formData.slug}`} target="_blank">Ver Pública</Link>
            </Button>
-           <Button 
-            onClick={handleSave} 
-            disabled={saving} 
-            className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg gap-2 uppercase italic"
-          >
+           <Button onClick={handleSave} disabled={saving} className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg gap-2 uppercase italic">
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
             Salvar
           </Button>
@@ -186,13 +206,14 @@ export default function EditarExperienciaPage() {
       </div>
 
       <Tabs defaultValue="conteudo" className="space-y-8">
-        <TabsList className="bg-muted/50 p-1 rounded-xl h-12">
+        <TabsList className="bg-muted/50 p-1 rounded-xl h-12 flex-wrap">
           <TabsTrigger value="conteudo" className="rounded-lg px-8 font-bold gap-2"><Layout className="w-4 h-4" /> Conteúdo</TabsTrigger>
-          <TabsTrigger value="disponibilidade" className="rounded-lg px-8 font-bold gap-2"><Calendar className="w-4 h-4" /> Disponibilidade</TabsTrigger>
-          <TabsTrigger value="localizacao" className="rounded-lg px-8 font-bold gap-2"><MapPin className="w-4 h-4" /> Localização</TabsTrigger>
+          <TabsTrigger value="agenda" className="rounded-lg px-8 font-bold gap-2"><Calendar className="w-4 h-4" /> Agenda</TabsTrigger>
+          <TabsTrigger value="horarios" className="rounded-lg px-8 font-bold gap-2"><Clock className="w-4 h-4" /> Horários</TabsTrigger>
+          <TabsTrigger value="local" className="rounded-lg px-8 font-bold gap-2"><MapPin className="w-4 h-4" /> Localização</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="conteudo" className="space-y-8">
+        <TabsContent value="conteudo" className="space-y-8 mt-0">
            <EventHeader 
               title={formData.title} 
               onTitleChange={v => setFormData({...formData, title: v, slug: slugify(v)})} 
@@ -204,25 +225,22 @@ export default function EditarExperienciaPage() {
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
-                       <Coins className="w-3.5 h-3.5 text-secondary" /> Preço Base (BRL)
-                    </Label>
-                    <Input 
-                       type="number" 
-                       step="0.01"
-                       value={formData.price} 
-                       onChange={e => setFormData({...formData, price: parseFloat(e.target.value) || 0})}
-                       className="h-11 rounded-xl font-bold"
-                    />
+                    <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                    <Select value={formData.category} onValueChange={v => setFormData({...formData, category: v})}>
+                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                       <SelectContent className="rounded-xl">
+                          {EXPERIENCE_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                       </SelectContent>
+                    </Select>
                  </div>
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
-                       <Users className="w-3.5 h-3.5 text-secondary" /> Capacidade Base
+                       <Coins className="w-3.5 h-3.5 text-secondary" /> Preço Base Fallback (R$)
                     </Label>
                     <Input 
-                       type="number" 
-                       value={formData.capacity} 
-                       onChange={e => setFormData({...formData, capacity: parseInt(e.target.value) || 0})}
+                       type="number" step="0.01"
+                       value={formData.price} 
+                       onChange={e => setFormData({...formData, price: parseFloat(e.target.value) || 0})}
                        className="h-11 rounded-xl font-bold"
                     />
                  </div>
@@ -230,56 +248,27 @@ export default function EditarExperienciaPage() {
 
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase opacity-60">Descrição Curta (Vitrine)</Label>
-                <Input 
-                  value={formData.shortDescription}
-                  onChange={e => setFormData({...formData, shortDescription: e.target.value})}
-                  className="rounded-xl h-11"
-                />
+                <Input value={formData.shortDescription} onChange={e => setFormData({...formData, shortDescription: e.target.value})} maxLength={120} className="rounded-xl h-11" />
               </div>
 
-              <EventDescription 
-                value={formData.description} 
-                onChange={v => setFormData({...formData, description: v})} 
-              />
-
-              <div className="space-y-2 pt-4 border-t border-dashed">
-                 <Label className="text-[10px] font-black uppercase opacity-60">Status Público</Label>
-                 <Select value={formData.status} onValueChange={v => setFormData({...formData, status: v})}>
-                    <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                       <SelectItem value="draft">Rascunho</SelectItem>
-                       <SelectItem value="active">Ativa (Público)</SelectItem>
-                       <SelectItem value="paused">Pausada</SelectItem>
-                       <SelectItem value="closed">Encerrada</SelectItem>
-                    </SelectContent>
-                 </Select>
-              </div>
+              <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
            </Card>
 
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
               <div className="flex items-center justify-between">
                  <Label className="text-[10px] font-black uppercase opacity-60">Galeria de Fotos (Máx 5)</Label>
-                 <Badge variant="outline" className="text-[8px] font-black uppercase">{(formData.gallery || []).length}/5</Badge>
+                 <Badge variant="outline" className="text-[8px] font-black uppercase">{formData.gallery.length}/5</Badge>
               </div>
-              
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                 {formData.gallery?.map((url: string, i: number) => (
-                   <div key={i} className="relative aspect-square rounded-2xl overflow-hidden group">
+                 {formData.gallery.map((url, i) => (
+                   <div key={i} className="relative aspect-square rounded-2xl overflow-hidden group border">
                       <img src={url} className="w-full h-full object-cover" />
-                      <button 
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, gallery: prev.gallery.filter((_, idx) => idx !== i) }))}
-                        className="absolute top-2 right-2 p-1.5 bg-destructive text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                         <X className="w-3.5 h-3.5" />
-                      </button>
+                      <button type="button" onClick={() => setFormData(prev => ({ ...prev, gallery: prev.gallery.filter((_, idx) => idx !== i) }))} className="absolute top-2 right-2 p-1 bg-destructive text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"><X className="w-4 h-4" /></button>
                    </div>
                  ))}
-                 
-                 {(formData.gallery?.length || 0) < 5 && (
+                 {formData.gallery.length < 5 && (
                    <label className="aspect-square rounded-2xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-all">
-                      <Plus className="w-6 h-6 text-muted-foreground opacity-40" />
-                      <span className="text-[8px] font-black uppercase mt-1">Adicionar</span>
+                      <Plus className="w-6 h-6 opacity-40" />
                       <input type="file" multiple accept="image/*" className="hidden" onChange={handleGalleryUpload} />
                    </label>
                  )}
@@ -287,34 +276,64 @@ export default function EditarExperienciaPage() {
            </Card>
         </TabsContent>
 
-        <TabsContent value="disponibilidade" className="mt-0">
+        <TabsContent value="agenda" className="mt-0 space-y-8">
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Data de Início</Label>
+                    <Input type="date" value={formData.availability.startDate} onChange={e => setFormData({...formData, availability: {...formData.availability, startDate: e.target.value}})} className="rounded-xl h-11" />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Data de Término (Opcional)</Label>
+                    <Input type="date" value={formData.availability.endDate} onChange={e => setFormData({...formData, availability: {...formData.availability, endDate: e.target.value}})} className="rounded-xl h-11" />
+                 </div>
+              </div>
+
+              <div className="space-y-4">
+                 <Label className="text-[10px] font-black uppercase opacity-60">Dias da Semana Permitidos</Label>
+                 <div className="flex flex-wrap gap-2">
+                    {WEEK_DAYS.map(day => (
+                      <div key={day.id} className="flex items-center space-x-2 bg-muted/30 px-3 py-2 rounded-xl border">
+                        <Checkbox 
+                          id={`edit-day-${day.id}`} 
+                          checked={formData.availability.allowedDays.includes(day.id)} 
+                          onCheckedChange={(checked) => {
+                            const days = checked 
+                              ? [...formData.availability.allowedDays, day.id] 
+                              : formData.availability.allowedDays.filter(d => d !== day.id);
+                            setFormData({...formData, availability: {...formData.availability, allowedDays: days}});
+                          }}
+                        />
+                        <label htmlFor={`edit-day-${day.id}`} className="text-[10px] font-black uppercase cursor-pointer">{day.label}</label>
+                      </div>
+                    ))}
+                 </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
+                 <div className="flex items-center gap-3">
+                    <Calendar className="w-5 h-5 text-secondary" />
+                    <div><p className="text-sm font-bold uppercase italic text-primary">Permitir Feriados?</p></div>
+                 </div>
+                 <Switch checked={formData.availability.allowHolidays} onCheckedChange={v => setFormData({...formData, availability: {...formData.availability, allowHolidays: v}})} />
+              </div>
+           </Card>
+        </TabsContent>
+
+        <TabsContent value="horarios" className="mt-0">
            <ExperienceSlotsAdmin experienceId={id} />
         </TabsContent>
 
-        <TabsContent value="localizacao" className="space-y-8 mt-0">
-           <EventLocation 
-             address={formData.address} 
-             onChange={v => setFormData({...formData, address: v})} 
-           />
-
+        <TabsContent value="local" className="mt-0 space-y-8">
+           <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
               <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Informações Adicionais / Regras</Label>
-                 <Textarea 
-                   value={formData.additionalInfo}
-                   onChange={e => setFormData({...formData, additionalInfo: e.target.value})}
-                   placeholder="Instruções para o dia, itens obrigatórios..."
-                   className="min-h-[120px] rounded-xl resize-none leading-relaxed"
-                 />
+                 <Label className="text-[10px] font-black uppercase opacity-60">Informações Adicionais</Label>
+                 <Textarea value={formData.additionalInfo} onChange={e => setFormData({...formData, additionalInfo: e.target.value})} className="rounded-xl h-24" />
               </div>
               <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Política de Uso / Cancelamento</Label>
-                 <Textarea 
-                   value={formData.usagePolicy}
-                   onChange={e => setFormData({...formData, usagePolicy: e.target.value})}
-                   placeholder="Regras de reembolso, comportamento..."
-                   className="min-h-[120px] rounded-xl resize-none leading-relaxed"
-                 />
+                 <Label className="text-[10px] font-black uppercase opacity-60">Política de Cancelamento</Label>
+                 <Textarea value={formData.usagePolicy} onChange={e => setFormData({...formData, usagePolicy: e.target.value})} className="rounded-xl h-24" />
               </div>
            </Card>
         </TabsContent>
