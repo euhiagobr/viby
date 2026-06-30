@@ -19,7 +19,8 @@ import {
   ShoppingBag,
   Loader2,
   AlertTriangle,
-  FileText
+  FileText,
+  Calendar
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RichText } from '@/components/ui/rich-text';
