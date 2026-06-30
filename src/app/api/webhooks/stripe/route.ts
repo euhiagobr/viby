@@ -7,6 +7,16 @@ import { sendTicketEmail } from '@/app/actions/email';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * @fileOverview Webhook de Fulfillment Blindado
+ * 
+ * REGRAS DE PLATAFORMA APLICADAS:
+ * - VIBY-EXP-002: 'sold' atualizado EXCLUSIVAMENTE aqui via transação atômica.
+ * - VIBY-EXP-003: Idempotência garantida por 'stripe_processed_events'.
+ * - VIBY-EXP-004: Única fonte de verdade para confirmação de pagamento.
+ * - VIBY-EXP-007: Re-validação de capacidade (Double Guarantee) em transação.
+ */
+
 async function getStripeInstance(db: admin.firestore.Firestore) {
   const snap = await db.collection('settings').doc('stripe').get();
   const data = snap.data();
@@ -14,10 +24,6 @@ async function getStripeInstance(db: admin.firestore.Firestore) {
   return new Stripe(data.secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
-/**
- * Webhook de Fulfillment Blindado (Hardening Final)
- * Garante: Idempotência, Consistência de Estoque e Integridade de Reserva.
- */
 export async function POST(req: Request) {
   const db = getAdminDb();
   const payload = await req.text();
@@ -39,7 +45,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
-  // 1. IDEMPOTENCY CHECK (Previne re-processamento de retries do Stripe)
+  // 1. IDEMPOTENCY CHECK (VIBY-EXP-003)
   const eventLogRef = db.collection('stripe_processed_events').doc(event.id);
 
   try {
@@ -65,21 +71,19 @@ export async function POST(req: Request) {
           const items = orderData.items || [];
           const currency = (orderData.currency || 'BRL').toUpperCase();
           
-          // 2. VALIDAR RESERVAS (HOLD SYSTEM VALIDATION)
+          // 2. VALIDAR RESERVAS (VIBY-EXP-001 & VIBY-EXP-005)
           const reservationIds = (session.metadata.reservations || "").split(',').filter(Boolean);
           for (const resId of reservationIds) {
              const resRef = db.collection('experience_reservations').doc(resId);
              const resSnap = await transaction.get(resRef);
              const resData = resSnap.data();
 
-             // SEGREDO DE CONSISTÊNCIA: Se a reserva expirou, mas o pagamento chegou, tentamos salvar.
-             // Se ela já foi marcada como 'expired', abortamos se não houver mais estoque real.
              if (!resSnap.exists || resData?.status === 'cancelled') {
                 throw new Error("RESERVATION_INVALID");
              }
           }
 
-          // 3. ATOMIC FULFILLMENT & INVENTORY CHECK
+          // 3. ATOMIC FULFILLMENT & INVENTORY CHECK (VIBY-EXP-002 & VIBY-EXP-007)
           for (const item of items) {
             const isExp = item.productType === 'experience';
             
@@ -88,7 +92,6 @@ export async function POST(req: Request) {
               const slotSnap = await transaction.get(slotRef);
               const slotData = slotSnap.data();
 
-              // SAFETY RECHECK: Garante que sold não ultrapasse capacity mesmo em race conditions
               if ((slotData?.sold || 0) + item.quantity > (slotData?.capacity || 0)) {
                 console.error(`[CAPACITY_CONFLICT] Slot ${item.occurrenceId} is full.`);
                 transaction.update(orderRef, { status: 'needs_review', conflict_reason: 'oversold' });
@@ -115,7 +118,7 @@ export async function POST(req: Request) {
               }
             }
 
-            // 4. GERAÇÃO DE VOUCHERS
+            // 4. GERAÇÃO DE VOUCHERS (VIBY-EXP-006)
             for (let j = 0; j < item.quantity; j++) {
               const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
               const regRef = db.collection("registrations").doc();
@@ -178,7 +181,6 @@ export async function POST(req: Request) {
         }
       }
 
-      // Log de processamento para idempotência
       transaction.set(eventLogRef, {
         processedAt: admin.firestore.FieldValue.serverTimestamp(),
         type: event.type

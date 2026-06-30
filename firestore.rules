@@ -3,6 +3,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // --- REGRAS DE PLATAFORMA (EXPERIÊNCIAS + SLOTS + STRIPE) ---
+    // 1. RESERVATION LOCK: Checkout exige reserva válida 'reserved' e não expirada.
+    // 2. SOLD AUTHORITY: 'sold' é atualizado EXCLUSIVAMENTE via webhook Stripe.
+    // 3. IDEMPOTÊNCIA: Eventos Stripe devem ser idempotentes por event_id.
+    // 4. WEBHOOK AUTHORITY: Webhook é a única fonte de verdade de pagamento.
+    // 5. EXPIRAÇÃO SEGURA: Expiração não interfere em pagamentos em andamento ou confirmados.
+    // 6. CONSISTÊNCIA FINANCEIRA: 'order' é a fonte de verdade; price_snapshot é imutável.
+    // 7. CONCORRÊNCIA: Operações de slot devem ser atômicas e considerar sold + reserved ativos.
+    // 8. JOB SAFETY: Workers devem usar system_job_locks.
+
     // --- FUNÇÕES DE AUXÍLIO ---
     
     function isSignedIn() {

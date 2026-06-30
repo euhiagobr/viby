@@ -1,0 +1,50 @@
+
+{
+  "regras_plataforma": {
+    "modulo": "Experiências + Slots + Stripe Connect",
+    "versao": "1.0.0",
+    "descricao": "Diretrizes mandatórias para garantir consistência de estoque e integridade financeira.",
+    "regras": [
+      {
+        "id": "VIBY-EXP-001",
+        "nome": "RESERVATION LOCK",
+        "descricao": "Toda criação de checkout de Experiência deve obedecer: NÃO pode existir checkout sem reservation válida. A reserva deve estar com status 'reserved' e dentro do prazo de expires_at. Qualquer exceção invalida imediatamente o fluxo."
+      },
+      {
+        "id": "VIBY-EXP-002",
+        "nome": "ESTOQUE (SOLD AUTHORITY)",
+        "descricao": "'sold' é atualizado EXCLUSIVAMENTE via webhook Stripe. É proibido qualquer outro ponto do sistema alterar 'sold'. 'reserved' nunca pode alterar 'sold'. 'expired' nunca pode alterar 'sold'."
+      },
+      {
+        "id": "VIBY-EXP-003",
+        "nome": "IDEMPOTÊNCIA OBRIGATÓRIA",
+        "descricao": "Todo evento Stripe deve ser idempotente por event_id. Qualquer duplicidade detectada deve ser ignorada silenciosamente. Nenhum efeito colateral (order/voucher/sold) pode ocorrer duas vezes."
+      },
+      {
+        "id": "VIBY-EXP-004",
+        "nome": "WEBHOOK AUTHORITY",
+        "descricao": "Webhook Stripe é a única fonte de verdade de pagamento. Checkout não confirma venda. Reservation não confirma venda. Apenas webhook confirma transação final."
+      },
+      {
+        "id": "VIBY-EXP-005",
+        "nome": "EXPIRAÇÃO SEGURA",
+        "descricao": "Reservations expiradas não podem interferir em pagamentos em andamento. Expiração deve ser ignorada se a reserva já estiver em transição ou confirmada. Expiração nunca pode reverter estados confirmados."
+      },
+      {
+        "id": "VIBY-EXP-006",
+        "nome": "CONSISTÊNCIA FINANCEIRA",
+        "descricao": "Order é a única fonte de verdade financeira. price_snapshot é imutável após criação. Tax Engine deve ser determinístico e server-side only."
+      },
+      {
+        "id": "VIBY-EXP-007",
+        "nome": "CONCORRÊNCIA",
+        "descricao": "Qualquer operação de slot deve considerar: sold + reserved ativos não expirados. Disponibilidade nunca pode exceder capacity. Transações devem ser atômicas sempre que envolver slots."
+      },
+      {
+        "id": "VIBY-EXP-008",
+        "nome": "JOB EXECUTION SAFETY",
+        "descricao": "Qualquer worker (cron) deve usar system_job_locks. Jobs duplicados devem ser ignorados. Locks devem expirar automaticamente em caso de falha."
+      }
+    ]
+  }
+}
