@@ -9,7 +9,7 @@ import Footer from "@/components/layout/Footer";
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
 
 export const metadata: Metadata = {
-  title: 'Experiências e Vivências Culturais | Viby',
+  title: 'Experiências, passeios e atrações | Viby',
   description: 'Descubra vivências exclusivas, workshops, tours e experiências com agendamento perto de você. Reserve seu lugar na Viby.',
   alternates: {
     canonical: 'https://viby.club/experiencias',
@@ -45,34 +45,41 @@ function serializeData(data: any): any {
   return data;
 }
 
-async function getInitialExperiences() {
+async function getInitialData() {
   try {
     const db = getAdminDb();
     
-    // Busca inicial aumentada para 80 para suportar grid 4x4 e intercalação de ads
-    const snap = await db.collection('experiences')
-      .where('status', 'in', ['active'])
-      .orderBy('createdAt', 'desc')
-      .limit(80)
-      .get();
+    const [expSnap, catsSnap] = await Promise.all([
+      db.collection('experiences').where('status', '==', 'active').limit(50).get(),
+      db.collection('categories').where('type', '==', 'experience').orderBy('name', 'asc').get()
+    ]);
       
-    if (snap.empty) return [];
-    
-    const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    return serializeData(docs);
+    const experiences = expSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const categories = catsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    return {
+      experiences: serializeData(experiences),
+      categories: serializeData(categories)
+    };
   } catch (e: any) {
     console.error("[SSR Experiences Fetch Error]:", e.message);
-    return [];
+    return { experiences: [], categories: [] };
   }
 }
 
 export default async function ExperienciasLandingPage() {
-  const initialData = await getInitialExperiences();
+  const { experiences, categories } = await getInitialData();
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
-      <PublicHeader showBack />
-      <ExperienciasClient initialData={initialData} />
+    <div className="min-h-screen bg-white flex flex-col selection:bg-secondary/30 selection:text-primary">
+      <PublicHeader showBack hideCopa />
+      <ExperienciasClient initialExperiences={experiences} initialCategories={categories} />
+      
+      <div className="container mx-auto px-6 py-20 border-t border-muted/50">
+         <p className="text-center text-muted-foreground font-medium text-lg max-w-2xl mx-auto">
+            Descubra passeios, atrações e experiências selecionadas em todo o Brasil.
+         </p>
+      </div>
       <Footer />
     </div>
   );

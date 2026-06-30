@@ -1,305 +1,260 @@
+
 'use client';
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy, getDocs, limit } from "firebase/firestore";
-import { ExperienceCard } from "@/components/experiences/ExperienceCard";
-import { AdsRenderer } from "@/components/ads/AdsRenderer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { 
   Search, 
   MapPin, 
-  Sparkles, 
-  Loader2, 
-  Inbox, 
-  FilterX,
-  Calendar as CalendarIcon,
-  X,
+  Calendar as CalendarIcon, 
+  ChevronRight,
+  Filter,
+  Star,
   Zap,
-  Info
+  TrendingUp,
+  SlidersHorizontal,
+  X
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, isSameDay, startOfToday } from "date-fns";
+import { format, startOfToday, addDays, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getCurrentLocation, type Coordinates } from "@/lib/location-utils";
 import { cn, normalizeText } from "@/lib/utils";
+import { ExperienceCardPremium } from "@/components/experiences/ExperienceCardPremium";
+import { ExperienceCategoryCard } from "@/components/experiences/ExperienceCategoryCard";
+import { ExperienceCarousel } from "@/components/experiences/ExperienceCarousel";
 import { useAds } from "@/hooks/home/useAds";
 
 interface ExperienciasClientProps {
-  initialData: any[];
+  initialExperiences: any[];
+  initialCategories: any[];
 }
 
-export default function ExperienciasClient({ initialData }: ExperienciasClientProps) {
-  const db = useFirestore();
-  const { ads, loading: adsLoading } = useAds();
+export default function ExperienciasClient({ initialExperiences, initialCategories }: ExperienciasClientProps) {
+  const { ads } = useAds();
   const [mounted, setMounted] = useState(false);
-  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   
   const [search, setSearch] = useState("");
   const [searchCity, setSearchCity] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [now, setNow] = useState<Date>(new Date());
-  const [displayLimit, setDisplayLimit] = useState(16); // 4x4 Grid inicial
 
   useEffect(() => {
     setMounted(true);
-    setNow(new Date());
-    const timer = setInterval(() => setNow(new Date()), 60000);
-    getCurrentLocation().then(loc => { if (loc) setUserLocation(loc); }).catch(() => {});
-    return () => clearInterval(timer);
   }, []);
 
-  const categoriesQuery = useMemoFirebase(() => 
-    db ? query(collection(db, "categories"), where("type", "==", "experience"), orderBy("name", "asc")) : null, 
-    [db]
-  );
-  const { data: categories } = useCollection<any>(categoriesQuery);
-
-  // Filtro de processamento no cliente
-  const processedExp = React.useMemo(() => {
+  const filteredExperiences = React.useMemo(() => {
     const searchNorm = normalizeText(search);
     const cityNorm = normalizeText(searchCity);
 
-    return initialData.filter(exp => {
-      if (exp.status !== 'active') return false;
-
-      // Filtro por texto (Título ou Descrição Curta)
+    return initialExperiences.filter(exp => {
       const matchesSearch = !search || 
         normalizeText(exp.title || "").includes(searchNorm) ||
         normalizeText(exp.shortDescription || "").includes(searchNorm);
-      if (!matchesSearch) return false;
-
-      // Filtro por cidade
+      
       const eventLoc = normalizeText(`${exp.city || ""} ${exp.state || ""} ${exp.address?.city || ""} ${exp.address?.stateRegion || ""}`);
       const matchesCity = !searchCity || eventLoc.includes(cityNorm);
-      if (!matchesCity) return false;
-
-      // Filtro por Categoria
       const matchesCategory = selectedCategory === 'all' || exp.category === selectedCategory;
-      if (!matchesCategory) return false;
 
-      return true;
+      return matchesSearch && matchesCity && matchesCategory;
     });
-  }, [initialData, search, searchCity, selectedCategory]);
+  }, [initialExperiences, search, searchCity, selectedCategory]);
 
-  const unifiedFeed = React.useMemo(() => {
-    const feed: any[] = [];
-    if (!mounted || adsLoading) return feed;
-
-    let adIdx = 0;
-    let expIdx = 0;
-    const visiblePool = processedExp.slice(0, displayLimit);
-
-    // Regra 1: O primeiro item é sempre um anúncio se disponível
-    if (ads.length > 0) {
-      feed.push({ type: 'ad', adIndex: adIdx % ads.length });
-      adIdx++;
-    }
-
-    // Regra 2: Intercalação entre 3 a 7 experiências
-    const intervals = [3, 5, 4, 7, 6];
-    let intervalIdx = 0;
-
-    while (expIdx < visiblePool.length) {
-      const currentInterval = intervals[intervalIdx % intervals.length];
-      
-      for (let i = 0; i < currentInterval && expIdx < visiblePool.length; i++) {
-        feed.push({ type: 'experience', data: visiblePool[expIdx] });
-        expIdx++;
-      }
-
-      if (ads.length > 0 && expIdx < visiblePool.length) {
-        feed.push({ type: 'ad', adIndex: adIdx % ads.length });
-        adIdx++;
-        intervalIdx++;
-      }
-    }
-
-    return feed;
-  }, [processedExp, ads, adsLoading, mounted, displayLimit]);
-
-  const hasMore = processedExp.length > displayLimit;
-
-  const clearFilters = () => {
-    setSearch("");
-    setSearchCity("");
-    setSelectedCategory("all");
-    setSelectedDate(undefined);
-  };
+  const mostReserved = React.useMemo(() => {
+    return [...filteredExperiences].sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0)).slice(0, 10);
+  }, [filteredExperiences]);
 
   if (!mounted) return null;
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <section className="relative min-h-[60vh] flex items-center justify-center overflow-hidden bg-primary text-white">
-        <div className="absolute inset-0 opacity-30 pointer-events-none">
-           <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/experience/1920/1080')] bg-cover bg-center" />
-           <div className="absolute inset-0 bg-gradient-to-b from-primary/80 via-primary/40 to-primary" />
+    <div className="flex flex-col min-h-screen bg-white font-sans">
+      
+      {/* HERO SECTION - APPLE STYLE */}
+      <section className="relative h-[85vh] w-full flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <img 
+            src="https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?q=80&w=2070&auto=format&fit=crop" 
+            alt="Experience" 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/30 bg-gradient-to-t from-white via-transparent to-black/20" />
         </div>
-        
-        <div className="container mx-auto px-4 relative z-10 py-20 text-center">
-          <div className="max-w-5xl mx-auto space-y-8 flex flex-col items-center">
-            <Badge className="bg-secondary text-white border-none px-6 py-2 rounded-full font-black uppercase text-xs tracking-widest flex items-center gap-2 animate-bounce shadow-xl">
-              <Sparkles className="w-4 h-4 fill-current" /> Marketplace de Vivências
-            </Badge>
-            <h1 className="text-6xl md:text-9xl font-black uppercase italic tracking-tighter leading-[0.8] text-white">
-              VIVÊNCIAS <br /><span className="text-secondary">CULTURAIS</span>
-            </h1>
-            <p className="text-lg md:text-2xl font-medium opacity-95 max-w-2xl mx-auto leading-relaxed">
-              Descubra workshops, tours, gastronomia e experiências exclusivas com agendamento simplificado.
-            </p>
 
-            <Card className="bg-white/10 backdrop-blur-2xl border border-white/10 rounded-[3rem] p-6 md:p-8 shadow-2xl mt-12 w-full text-left">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                <div className="md:col-span-4 relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-                  <Input 
-                    placeholder="O que você quer viver?" 
-                    className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-                <div className="md:col-span-3 relative">
-                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-secondary" />
-                  <Input 
-                    placeholder="Cidade?" 
-                    className="bg-white/5 border-white/10 h-14 pl-12 rounded-2xl text-white placeholder:text-white/30"
-                    value={searchCity}
-                    onChange={(e) => setSearchCity(e.target.value)}
-                  />
-                </div>
-                <div className="md:col-span-3">
-                   <Popover>
-                      <PopoverTrigger asChild>
-                         <Button variant="outline" className={cn("w-full h-14 bg-white/5 border-white/10 rounded-2xl text-white gap-3 font-black uppercase italic text-xs", selectedDate && "bg-secondary border-secondary")}>
-                            <CalendarIcon className="w-4 h-4 text-secondary" />
-                            {selectedDate ? format(selectedDate, "dd 'de' MMMM", { locale: ptBR }) : "Quando?"}
-                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-[2rem] border-none shadow-2xl" align="center">
-                         <Calendar
-                           mode="single"
-                           selected={selectedDate}
-                           onSelect={setSelectedDate}
-                           disabled={(date) => date < startOfToday()}
-                           initialFocus
-                           locale={ptBR}
-                         />
-                      </PopoverContent>
-                   </Popover>
-                </div>
-                <div className="md:col-span-2">
-                   <Button onClick={() => window.scrollTo({top: 600, behavior:'smooth'})} className="w-full h-14 bg-secondary text-white font-black uppercase italic rounded-2xl shadow-xl hover:scale-105 transition-all">
-                      Buscar
-                   </Button>
-                </div>
-              </div>
-            </Card>
+        <div className="container mx-auto px-6 relative z-10 flex flex-col items-center text-center space-y-12">
+          <div className="max-w-4xl space-y-4">
+             <motion.h1 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-6xl md:text-8xl font-black tracking-tighter text-white drop-shadow-2xl"
+             >
+                Experiências, passeios e atrações
+             </motion.h1>
+             <motion.p 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="text-xl md:text-2xl font-medium text-white/90 drop-shadow-md"
+             >
+                Passeios, restaurantes, parques, degustações, aventuras e muito mais. Compre online em poucos minutos.
+             </motion.p>
           </div>
-        </div>
-      </section>
 
-      <section className="bg-white border-b sticky top-16 z-30 shadow-sm overflow-hidden">
-         <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide py-1">
-               <Button
-                  variant={selectedCategory === 'all' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setSelectedCategory('all')}
-                  className={cn(
-                    "rounded-full px-6 font-black uppercase text-[10px] tracking-widest shrink-0 transition-all",
-                    selectedCategory === 'all' ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "text-muted-foreground"
-                  )}
-               >
-                  Ver Tudo
-               </Button>
-               {categories?.map((cat: any) => (
-                 <Button
-                    key={cat.id}
-                    variant={selectedCategory === cat.name ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setSelectedCategory(cat.name)}
-                    className={cn(
-                      "rounded-full px-6 font-black uppercase text-[10px] tracking-widest shrink-0 transition-all",
-                      selectedCategory === cat.name ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "text-muted-foreground"
-                    )}
-                 >
-                    {cat.name}
-                 </Button>
-               ))}
+          {/* SEARCH BAR - STRIPE STYLE */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="w-full max-w-5xl bg-white shadow-2xl rounded-full p-2 flex flex-col md:flex-row items-center gap-2 ring-1 ring-black/5"
+          >
+            <div className="flex-1 w-full flex items-center px-6 gap-3 group">
+              <Search className="w-5 h-5 text-muted-foreground group-focus-within:text-secondary transition-colors" />
+              <input 
+                placeholder="Restaurante, passeio, degustação, parque..." 
+                className="w-full h-12 bg-transparent outline-none text-sm font-medium"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
             </div>
-         </div>
+            <div className="hidden md:block w-px h-8 bg-muted" />
+            <div className="flex-1 w-full flex items-center px-6 gap-3 group">
+              <MapPin className="w-5 h-5 text-muted-foreground group-focus-within:text-secondary transition-colors" />
+              <input 
+                placeholder="Cidade ou região" 
+                className="w-full h-12 bg-transparent outline-none text-sm font-medium"
+                value={searchCity}
+                onChange={e => setSearchCity(e.target.value)}
+              />
+            </div>
+            <div className="hidden md:block w-px h-8 bg-muted" />
+            <div className="flex-1 w-full flex items-center px-2">
+               <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="flex items-center gap-3 px-4 h-12 w-full text-muted-foreground hover:bg-muted/50 rounded-full transition-all">
+                      <CalendarIcon className="w-5 h-5" />
+                      <span className="text-sm font-medium truncate">
+                        {selectedDate ? format(selectedDate, "dd 'de' MMMM", { locale: ptBR }) : "Quando?"}
+                      </span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-4 rounded-3xl border-none shadow-2xl" align="center">
+                    <div className="space-y-4">
+                       <div className="flex flex-wrap gap-2">
+                          {['Hoje', 'Amanhã', 'Final de Semana'].map(label => (
+                            <Button key={label} variant="outline" size="sm" className="rounded-full text-[10px] font-black uppercase h-8">{label}</Button>
+                          ))}
+                       </div>
+                       <Calendar
+                         mode="single"
+                         selected={selectedDate}
+                         onSelect={setSelectedDate}
+                         disabled={(date) => date < startOfToday()}
+                         locale={ptBR}
+                       />
+                    </div>
+                  </PopoverContent>
+               </Popover>
+            </div>
+            <Button className="w-full md:w-auto h-14 px-10 bg-secondary text-white font-black rounded-full uppercase italic text-sm shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-all">
+              Buscar experiências
+            </Button>
+          </motion.div>
+        </div>
       </section>
 
-      <main id="experiencias-feed" className="container mx-auto px-4 py-16 flex-1 space-y-12">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-           <div className="space-y-1">
-              <h2 className="text-4xl font-black uppercase italic tracking-tighter text-primary">Próximas <span className="text-secondary">Vivências</span></h2>
-              <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Encontre o momento perfeito para sua jornada cultural.</p>
+      {/* CATEGORIES SECTION */}
+      <section className="py-24 bg-white">
+        <div className="container mx-auto px-6 space-y-12">
+           <div className="flex flex-col items-center text-center space-y-2">
+              <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tighter text-primary">Explore por categoria</h2>
+              <p className="text-muted-foreground font-medium uppercase text-xs tracking-widest">Encontre a sua próxima paixão</p>
            </div>
-           {(search || searchCity || selectedCategory !== 'all' || selectedDate) && (
-             <Button variant="ghost" onClick={clearFilters} className="text-destructive font-bold uppercase text-[10px] gap-2 h-10 px-4 rounded-xl hover:bg-destructive/5">
-                <FilterX className="w-4 h-4" /> Limpar filtros
-             </Button>
-           )}
+           
+           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+              {initialCategories.map(cat => (
+                <ExperienceCategoryCard 
+                  key={cat.id} 
+                  category={cat} 
+                  isActive={selectedCategory === cat.name}
+                  onClick={() => setSelectedCategory(selectedCategory === cat.name ? 'all' : cat.name)}
+                />
+              ))}
+           </div>
         </div>
+      </section>
 
-        {adsLoading ? (
-           <div className="py-32 flex flex-col items-center justify-center gap-4">
-              <Loader2 className="w-12 h-12 animate-spin text-secondary" />
-              <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Sincronizando Marketplace...</p>
-           </div>
-        ) : unifiedFeed.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {unifiedFeed.map((item, idx) => (
-              item.type === 'ad' ? (
-                <AdsRenderer 
-                  key={`ad-${idx}`} 
-                  location="marketplace" 
-                  index={item.adIndex} 
-                  googleSlotId="marketplace-feed-slot" 
-                />
-              ) : (
-                <ExperienceCard 
-                  key={item.data.id} 
-                  experience={item.data} 
-                  userLocation={userLocation}
-                  selectedDate={selectedDate}
-                />
-              )
-            ))}
-          </div>
-        ) : (
-          <div className="py-40 text-center bg-white rounded-[4rem] border-2 border-dashed flex flex-col items-center gap-6 shadow-inner">
-             <Inbox className="w-16 h-16 text-muted-foreground opacity-20" />
-             <div className="space-y-2">
-                <h3 className="text-2xl font-black uppercase italic text-primary">Nenhuma experiência disponível.</h3>
-                <p className="text-muted-foreground font-medium uppercase text-xs">Tente ajustar seus filtros ou mude o período da busca.</p>
-             </div>
-             <Button variant="outline" onClick={clearFilters} className="rounded-2xl h-14 px-10 border-2 uppercase font-black italic">
-                Ver Todas as Vivências
+      {/* FILTER BAR - LINEAR STYLE */}
+      <section className="sticky top-16 z-40 bg-white/80 backdrop-blur-md border-y border-muted/50 py-4">
+        <div className="container mx-auto px-6 flex items-center gap-3 overflow-x-auto scrollbar-hide no-wrap">
+           <Button variant="outline" className="rounded-full h-10 gap-2 border-muted font-bold text-xs uppercase text-muted-foreground hover:bg-muted">
+              <SlidersHorizontal className="w-4 h-4" /> Filtros
+           </Button>
+           <Separator orientation="vertical" className="h-6 mx-2" />
+           {['Categoria', 'Preço', 'Data', 'Avaliação', 'Duração', 'Cidade'].map(filter => (
+             <Button key={filter} variant="outline" className="rounded-full h-10 px-6 border-muted font-bold text-xs uppercase text-muted-foreground hover:bg-muted shrink-0 transition-all">
+                {filter}
              </Button>
-          </div>
-        )}
-
-        {hasMore && (
-           <div className="mt-20 flex justify-center">
-              <Button 
-                onClick={() => setDisplayLimit(prev => prev + 16)} 
-                className="h-14 px-12 bg-white text-primary font-black border-2 rounded-2xl hover:bg-muted transition-all"
-              >
-                Carregar Mais Vivências
+           ))}
+           <div className="ml-auto">
+              <Button variant="ghost" className="rounded-full h-10 gap-2 font-bold text-xs uppercase text-muted-foreground">
+                 Ordenar por <ChevronRight className="w-4 h-4" />
               </Button>
            </div>
-        )}
+        </div>
+      </section>
+
+      {/* VITRINES - AIRBNB STYLE */}
+      <main className="flex-1 space-y-32 py-24 bg-white overflow-hidden">
+        
+        {/* VITRINE 1: PADRÃO */}
+        <section className="space-y-12">
+          <div className="container mx-auto px-6 flex items-end justify-between">
+            <div className="space-y-2">
+              <h2 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter text-primary">Experiências Selecionadas</h2>
+              <p className="text-muted-foreground font-medium text-lg">Curadoria exclusiva Viby para você viver o agora.</p>
+            </div>
+            <Button variant="ghost" className="font-black uppercase italic text-sm text-secondary hover:bg-secondary/5 gap-2">
+               Ver todas <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
+          <ExperienceCarousel experiences={filteredExperiences} ads={ads} />
+        </section>
+
+        {/* VITRINE 2: MAIS RESERVADAS */}
+        <section className="space-y-12">
+          <div className="container mx-auto px-6 flex items-end justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                 <h2 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter text-primary">As Mais Reservadas</h2>
+                 <Badge className="bg-secondary text-white border-none font-black h-8 px-4 rounded-xl text-[10px] animate-pulse">Trending</Badge>
+              </div>
+              <p className="text-muted-foreground font-medium text-lg">As vivências que estão conquistando o Brasil nesta temporada.</p>
+            </div>
+            <Button variant="ghost" className="font-black uppercase italic text-sm text-secondary hover:bg-secondary/5 gap-2">
+               Ver todas <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
+          <ExperienceCarousel experiences={mostReserved} variant="sophisticated" />
+        </section>
+
       </main>
+
+      {/* EMPTY STATE */}
+      {filteredExperiences.length === 0 && (
+        <div className="py-40 text-center container mx-auto px-6">
+           <div className="max-w-md mx-auto space-y-6">
+              <Inbox className="w-20 h-20 mx-auto opacity-10" />
+              <h3 className="text-2xl font-bold">Nenhuma vivência localizada</h3>
+              <p className="text-muted-foreground">Tente ajustar seus filtros para encontrar novas experiências disponíveis.</p>
+              <Button onClick={clearFilters} variant="outline" className="rounded-full px-8 h-12 font-black uppercase italic">Limpar todos os filtros</Button>
+           </div>
+        </div>
+      )}
     </div>
   );
 }
+
+import { motion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
