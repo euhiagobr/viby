@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { PublicHeader } from '@/components/layout/PublicHeader';
 import Footer from '@/components/layout/Footer';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
@@ -18,24 +18,29 @@ import {
   CheckCircle2,
   ShoppingBag,
   Loader2,
-  Calendar,
-  ChevronDown
+  Calendar as CalendarIcon,
+  ChevronRight,
+  AlertTriangle,
+  Zap,
+  ArrowRight
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RichText } from '@/components/ui/rich-text';
-import { cn } from '@/lib/utils';
+import { cn, safeParseDate } from '@/lib/utils';
 import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { useCurrency, CurrencyCode } from '@/contexts/CurrencyContext';
 import { Separator } from '@/components/ui/separator';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, doc } from 'firebase/firestore';
-import { ExperienceSlotsPublic } from '@/components/experiences/ExperienceSlotsPublic';
+import { collection, query, where, doc } from 'firebase/firestore';
 import { useCart } from '@/contexts/CartContext';
 import { toast } from '@/hooks/use-toast';
 import { useAuth, useUser } from '@/firebase';
 import { useRouter, usePathname } from 'next/navigation';
+import { Calendar } from '@/components/ui/calendar';
+import { format, isSameDay, isWithinInterval, startOfDay } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
   ssr: false,
@@ -55,9 +60,9 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
   const router = useRouter();
   const pathname = usePathname();
 
+  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = React.useState<any>(null);
 
-  // Query de slots simplificada para garantir exibição sem depender de índices complexos no momento
   const slotsQuery = useMemoFirebase(() => {
     if (!db || !experience.id) return null;
     return query(
@@ -68,29 +73,54 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
 
   const { data: rawSlots, loading: loadingSlots } = useCollection<any>(slotsQuery);
 
-  // Ordenação em memória para garantir consistência
   const slots = React.useMemo(() => {
     if (!rawSlots) return [];
     return [...rawSlots].sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime());
   }, [rawSlots]);
 
-  const minPrice = React.useMemo(() => {
-    if (!slots || slots.length === 0) return experience.price || 0;
+  const dateStats = React.useMemo(() => {
+    const stats: Record<string, { available: boolean; full: boolean }> = {};
     const now = new Date();
-    const futureSlots = slots.filter(s => new Date(s.datetime) > now);
-    if (futureSlots.length === 0) return experience.price || 0;
-    return Math.min(...futureSlots.map(s => s.price || 0));
-  }, [slots, experience.price]);
+    
+    slots.forEach(slot => {
+      const d = new Date(slot.datetime);
+      if (d < now) return;
+      
+      const key = format(d, 'yyyy-MM-dd');
+      if (!stats[key]) stats[key] = { available: false, full: true };
+      
+      const hasVacancy = (slot.capacity - (slot.sold || 0)) > 0;
+      if (hasVacancy) {
+        stats[key].available = true;
+      }
+      if (!hasVacancy && stats[key].full) {
+        // Se pelo menos um tiver vaga, a data não é "full"
+      } else if (hasVacancy) {
+        stats[key].full = false;
+      }
+    });
 
-  const scrollToSlots = () => {
-    const el = document.getElementById("horarios-section");
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
+    return stats;
+  }, [slots]);
+
+  const availableDates = React.useMemo(() => 
+    Object.keys(dateStats).filter(k => dateStats[k].available).map(k => new Date(k + 'T12:00:00')), 
+    [dateStats]
+  );
+  
+  const fullDates = React.useMemo(() => 
+    Object.keys(dateStats).filter(k => !dateStats[k].available && dateStats[k].full).map(k => new Date(k + 'T12:00:00')), 
+    [dateStats]
+  );
+
+  const filteredSlotsForDate = React.useMemo(() => {
+    if (!selectedDate) return [];
+    return slots.filter(s => isSameDay(new Date(s.datetime), selectedDate));
+  }, [selectedDate, slots]);
 
   const handleAction = () => {
     if (!selectedSlot) {
-      scrollToSlots();
-      toast({ title: "Selecione um horário", description: "Escolha uma opção na agenda abaixo." });
+      toast({ title: "Selecione um horário", description: "Clique em uma das opções de horário disponíveis." });
       return;
     }
 
@@ -114,7 +144,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       batchId: "slot",
       batchName: "Horário Agendado",
       currency: (experience.currency || 'BRL'),
-      price: selectedSlot.price,
+      price: selectedSlot.hasPromo ? selectedSlot.promoPrice : selectedSlot.price,
       originalPrice: selectedSlot.price,
       quantity: 1,
       requiresProof: false,
@@ -122,32 +152,22 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       productType: 'experience'
     });
 
-    toast({ title: "Adicionado!", description: "Sua vaga foi reservada." });
+    toast({ title: "Adicionado!", description: "Sua vaga foi reservada no carrinho." });
     router.push('/dashboard/carrinho');
   };
 
   const address = experience.address || {};
   const lat = address.latitude || experience.latitude || -23.55052;
   const lng = address.longitude || experience.longitude || -46.633308;
-  
-  const displayPrice = selectedSlot ? selectedSlot.price : minPrice;
-  const displayCurrency = (selectedSlot?.currency || experience.currency || 'BRL') as CurrencyCode;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
       <PublicHeader showBack />
 
       <main className="flex-1 animate-in fade-in duration-700">
-        <div className="relative h-[40vh] md:h-[60vh] w-full overflow-hidden bg-black">
+        <div className="relative h-[40vh] md:h-[55vh] w-full overflow-hidden bg-black">
           {experience.image && (
-            <Image 
-              src={experience.image} 
-              alt={experience.title} 
-              fill 
-              className="object-cover opacity-80"
-              priority
-              unoptimized 
-            />
+            <Image src={experience.image} alt={experience.title} fill className="object-cover opacity-80" priority unoptimized />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-[#f8fafc] via-[#f8fafc]/30 to-transparent" />
           <div className="absolute bottom-0 left-0 p-6 md:p-12 w-full">
@@ -164,9 +184,9 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
         </div>
 
         <div className="container mx-auto px-4 py-12 max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
-          <div className="lg:col-span-8 space-y-16">
+          <div className="lg:col-span-7 space-y-16">
             
-            {/* Detalhes Principais */}
+            {/* SOBRE */}
             <section className="space-y-6">
               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
                 <Info className="w-4 h-4 text-secondary" /> Detalhes da Experiência
@@ -178,37 +198,33 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               </Card>
             </section>
 
-            {/* Agenda de Horários */}
-            <section id="horarios-section" className="space-y-6 scroll-mt-24">
-               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
-                 <Calendar className="w-4 h-4 text-secondary" /> Escolha seu Horário
-               </h2>
-               {loadingSlots ? (
-                 <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
-               ) : (
-                 <ExperienceSlotsPublic 
-                   slots={slots} 
-                   onSelect={setSelectedSlot} 
-                   selectedSlotId={selectedSlot?.id} 
-                 />
-               )}
-            </section>
-
-            {/* Galeria */}
-            {experience.gallery?.length > 0 && (
-              <section className="space-y-6">
-                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2">Galeria</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                   {experience.gallery.map((url: string, i: number) => (
-                     <div key={i} className="relative aspect-square rounded-[2rem] overflow-hidden shadow-sm hover:shadow-xl transition-all group">
-                        <Image src={url} alt={`Preview ${i}`} fill className="object-cover transition-transform duration-700 group-hover:scale-110" unoptimized />
-                     </div>
-                   ))}
-                </div>
+            {/* REGRAS EM MARKDOWN */}
+            {(experience.additionalInfo || experience.usagePolicy) && (
+              <section className="space-y-8">
+                {experience.usagePolicy && (
+                  <div className="space-y-6">
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-secondary" /> Regras e Políticas
+                    </h2>
+                    <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8 md:p-12">
+                       <RichText content={experience.usagePolicy} className="text-sm md:text-base font-medium text-muted-foreground leading-relaxed" />
+                    </Card>
+                  </div>
+                )}
+                {experience.additionalInfo && (
+                  <div className="space-y-6">
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
+                      <Info className="w-4 h-4 text-secondary" /> Informações Úteis
+                    </h2>
+                    <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8 md:p-12">
+                       <RichText content={experience.additionalInfo} className="text-sm md:text-base font-medium text-muted-foreground leading-relaxed" />
+                    </Card>
+                  </div>
+                )}
               </section>
             )}
 
-            {/* Localização */}
+            {/* LOCALIZAÇÃO */}
             <section className="space-y-6">
               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-secondary" /> Localização
@@ -222,56 +238,131 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                       <h4 className="font-black text-xl uppercase italic tracking-tighter text-primary">
                         {address.venueName || "Local de Realização"}
                       </h4>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
+                      <p className="text-xs font-medium text-muted-foreground uppercase leading-relaxed">
                         {address.addressLine1} {address.streetNumber && `, ${address.streetNumber}`}
                         <br />
                         {address.neighborhood && `${address.neighborhood}, `} {address.city} - {address.stateRegion}
                       </p>
                    </div>
                    <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.addressLine1 + ' ' + address.city)}`} target="_blank" rel="noopener noreferrer">
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((address.addressLine1 || '') + ' ' + (address.city || ''))}`} target="_blank" rel="noopener noreferrer">
                         <Navigation className="w-4 h-4" /> Ver no Mapa
                       </a>
                    </Button>
                 </CardContent>
               </Card>
             </section>
-
-            {/* Regras e Políticas */}
-            {(experience.additionalInfo || experience.usagePolicy) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {experience.additionalInfo && (
-                  <Card className="border-none shadow-sm rounded-3xl bg-white p-8 space-y-4">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
-                      <Info className="w-4 h-4" /> Informações Úteis
-                    </h4>
-                    <div className="text-sm font-medium text-muted-foreground leading-relaxed">
-                       <RichText content={experience.additionalInfo} />
-                    </div>
-                  </Card>
-                )}
-                {experience.usagePolicy && (
-                  <Card className="border-none shadow-sm rounded-3xl bg-white p-8 space-y-4">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4" /> Políticas e Regras
-                    </h4>
-                    <div className="text-sm font-medium text-muted-foreground leading-relaxed">
-                       <RichText content={experience.usagePolicy} />
-                    </div>
-                  </Card>
-                )}
-              </div>
-            )}
           </div>
 
-          {/* Barra Lateral de Compra */}
-          <aside className="lg:col-span-4 space-y-8">
-            <Card className="border-none shadow-xl rounded-[2.5rem] bg-white p-8 space-y-8 sticky top-24">
+          {/* MOTOR DE RESERVA (CALENDÁRIO) */}
+          <aside className="lg:col-span-5 space-y-8">
+            <Card className="border-none shadow-2xl rounded-[3rem] bg-white p-8 space-y-8 sticky top-24">
               <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                   <div className="space-y-1">
+                      <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">Selecionar Data</h3>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Escolha o dia da sua vivência</p>
+                   </div>
+                   <div className="flex gap-2">
+                      <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-secondary" /><span className="text-[7px] font-black uppercase">Livre</span></div>
+                      <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-muted-foreground/30" /><span className="text-[7px] font-black uppercase">Cheio</span></div>
+                      <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /><span className="text-[7px] font-black uppercase">Indisp.</span></div>
+                   </div>
+                </div>
+
+                <div className="bg-muted/30 rounded-[2rem] p-4 flex justify-center border-2 border-dashed border-border/40">
+                   <Calendar
+                     mode="single"
+                     selected={selectedDate}
+                     onSelect={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
+                     locale={ptBR}
+                     disabled={(date) => {
+                        const now = startOfDay(new Date());
+                        if (date < now) return true;
+                        // Regras visuais: Vermelho se não tiver slots no range operacional
+                        return false;
+                     }}
+                     modifiers={{
+                        available: availableDates,
+                        full: fullDates
+                     }}
+                     modifiersClassNames={{
+                        available: "bg-secondary/10 text-secondary font-black hover:bg-secondary hover:text-white rounded-xl",
+                        full: "bg-muted-foreground/10 text-muted-foreground/40 line-through rounded-xl"
+                     }}
+                     className="rounded-xl border-none"
+                   />
+                </div>
+
+                {selectedDate && (
+                  <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
+                    <Separator className="border-dashed" />
+                    <div className="space-y-3">
+                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Horários para {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}</p>
+                       <div className="grid grid-cols-1 gap-2">
+                          {filteredSlotsForDate.length > 0 ? filteredSlotsForDate.map(slot => {
+                            const isSoldOut = (slot.sold || 0) >= slot.capacity;
+                            const isSelected = selectedSlot?.id === slot.id;
+                            const currentPrice = slot.hasPromo ? slot.promoPrice : slot.price;
+
+                            return (
+                              <button
+                                key={slot.id}
+                                disabled={isSoldOut}
+                                onClick={() => setSelectedSlot(slot)}
+                                className={cn(
+                                  "w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all group",
+                                  isSelected ? "border-secondary bg-secondary/5 shadow-inner" : "border-transparent bg-muted/40 hover:border-secondary/20",
+                                  isSoldOut && "opacity-40 grayscale cursor-not-allowed"
+                                )}
+                              >
+                                 <div className="flex items-center gap-4">
+                                    <div className={cn("p-2 rounded-xl", isSelected ? "bg-secondary text-white" : "bg-white text-primary shadow-sm")}>
+                                       <Clock className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left">
+                                       <p className="text-sm font-black uppercase italic text-primary">{new Date(slot.datetime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                       <p className="text-[9px] font-bold text-muted-foreground uppercase">{isSoldOut ? "Lote Esgotado" : `${slot.capacity - (slot.sold || 0)} vagas livres`}</p>
+                                    </div>
+                                 </div>
+                                 <div className="text-right">
+                                    {slot.hasPromo ? (
+                                      <div className="flex flex-col items-end">
+                                         <span className="text-[8px] font-black text-red-500 uppercase line-through opacity-40">{formatPrice(slot.price)}</span>
+                                         <span className="text-sm font-black text-secondary">{formatPrice(slot.promoPrice)}</span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-sm font-black text-primary">{formatPrice(slot.price)}</span>
+                                    )}
+                                 </div>
+                              </button>
+                            );
+                          }) : (
+                            <div className="p-8 text-center bg-red-50 rounded-2xl border-2 border-dashed border-red-200">
+                               <AlertTriangle className="w-6 h-6 text-red-500 mx-auto mb-2" />
+                               <p className="text-[10px] font-black uppercase text-red-700">Sem disponibilidade para esta data</p>
+                            </div>
+                          )}
+                       </div>
+                    </div>
+
+                    {selectedSlot && (
+                      <Button 
+                        onClick={handleAction}
+                        className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2 transition-all hover:scale-105 active:scale-95"
+                      >
+                         <ShoppingBag className="w-5 h-5" /> Adicionar ao Carrinho
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                <Separator className="border-dashed" />
+
                 <div className="flex items-center gap-4">
-                  <Avatar className="h-14 w-14 border-2 border-secondary/10 p-0.5">
-                    <AvatarImage src={experience.organizer?.avatar} className="rounded-full object-cover" />
-                    <AvatarFallback className="font-bold text-xl uppercase">{experience.organizer?.name?.charAt(0)}</AvatarFallback>
+                  <Avatar className="h-12 w-12 border-2 border-secondary/10">
+                    <AvatarImage src={experience.organizer?.avatar} className="object-cover" />
+                    <AvatarFallback className="font-bold">{experience.organizer?.name?.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -280,68 +371,10 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                     </div>
                     <p className="text-[10px] font-bold text-muted-foreground uppercase mt-0.5">@{experience.organizer?.username}</p>
                   </div>
-                </div>
-
-                <Separator className="border-dashed" />
-
-                <div className="space-y-6">
-                   <div className="flex justify-between items-end">
-                      <div className="space-y-1">
-                         <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">
-                           {selectedSlot ? "Valor da Sessão" : "A partir de"}
-                         </p>
-                         {formatPriceWithOriginal(displayPrice, displayCurrency)}
-                      </div>
-                      <div className="text-right">
-                         <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Vagas</p>
-                         <p className="text-sm font-bold">
-                           {selectedSlot ? (selectedSlot.capacity - (selectedSlot.sold || 0)) : (experience.capacity || "Disponível")}
-                         </p>
-                      </div>
-                   </div>
-
-                   <div className="space-y-3">
-                      <Button 
-                        disabled={loadingSlots || (selectedSlot && selectedSlot.sold >= selectedSlot.capacity)} 
-                        onClick={handleAction}
-                        className={cn(
-                          "w-full h-16 text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2 transition-all active:scale-95",
-                          selectedSlot ? "bg-primary" : "bg-secondary animate-pulse hover:animate-none"
-                        )}
-                      >
-                        {selectedSlot ? (
-                          <><ShoppingBag className="w-5 h-5" /> Adicionar ao Carrinho</>
-                        ) : (
-                          <><Calendar className="w-5 h-5" /> Selecione um Horário</>
-                        )}
-                      </Button>
-                      
-                      {selectedSlot && (
-                        <div className="p-3 bg-green-50 rounded-xl flex items-start gap-2 border border-green-100 animate-in fade-in zoom-in-95">
-                           <CheckCircle2 className="w-3.5 h-3.5 text-green-600 shrink-0 mt-0.5" />
-                           <div className="space-y-0.5">
-                              <p className="text-[8px] font-black uppercase text-green-800">Sessão Selecionada</p>
-                              <p className="text-[10px] font-bold text-green-700">
-                                {new Date(selectedSlot.datetime).toLocaleDateString('pt-BR')} às {new Date(selectedSlot.datetime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                              </p>
-                           </div>
-                        </div>
-                      )}
-                   </div>
-                </div>
-
-                <Separator className="border-dashed" />
-
-                <div className="space-y-4">
-                  <Button variant="outline" className="w-full h-11 rounded-xl font-black uppercase italic text-[11px] gap-2 border-secondary/20 text-secondary" onClick={() => {
+                  <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-2" onClick={() => {
                     if (navigator.share) navigator.share({ title: experience.title, url: window.location.href });
                     else toast({ title: "Link copiado!" });
-                  }}>
-                    <Share2 className="w-4 h-4" /> Indicar para Amigos
-                  </Button>
-                  <Button variant="ghost" asChild className="w-full h-11 rounded-xl font-bold uppercase text-[10px] text-muted-foreground">
-                    <Link href={`/${experience.organizer?.username}`}>Ver Perfil da Marca</Link>
-                  </Button>
+                  }}><Share2 className="w-4 h-4" /></Button>
                 </div>
               </div>
             </Card>

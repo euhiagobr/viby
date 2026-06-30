@@ -23,7 +23,8 @@ import {
   Calendar,
   Layout,
   Clock,
-  Info
+  Info,
+  ShieldCheck
 } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc, query, collection, where } from 'firebase/firestore';
 import Link from 'next/link';
@@ -206,7 +207,7 @@ export default function EditarExperienciaPage() {
            </Button>
            <Button onClick={handleSave} disabled={saving} className="bg-secondary text-white font-black rounded-full px-8 h-11 shadow-lg gap-2 uppercase italic">
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            Salvar
+            Salvar Alterações
           </Button>
         </div>
       </div>
@@ -214,7 +215,7 @@ export default function EditarExperienciaPage() {
       <Tabs defaultValue="conteudo" className="space-y-8">
         <TabsList className="bg-muted/50 p-1 rounded-xl h-12 flex-wrap">
           <TabsTrigger value="conteudo" className="rounded-lg px-8 font-bold gap-2"><Layout className="w-4 h-4" /> Conteúdo</TabsTrigger>
-          <TabsTrigger value="agenda" className="rounded-lg px-8 font-bold gap-2"><Calendar className="w-4 h-4" /> Agenda</TabsTrigger>
+          <TabsTrigger value="agenda" className="rounded-lg px-8 font-bold gap-2"><Calendar className="w-4 h-4" /> Disponibilidade</TabsTrigger>
           <TabsTrigger value="horarios" className="rounded-lg px-8 font-bold gap-2"><Clock className="w-4 h-4" /> Horários</TabsTrigger>
           <TabsTrigger value="local" className="rounded-lg px-8 font-bold gap-2"><MapPin className="w-4 h-4" /> Localização</TabsTrigger>
         </TabsList>
@@ -258,7 +259,7 @@ export default function EditarExperienciaPage() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                  {formData.gallery.map((url, i) => (
-                   <div key={i} className="relative aspect-square rounded-2xl overflow-hidden group border">
+                   <div key={i} className="relative aspect-square rounded-2xl overflow-hidden group border shadow-sm">
                       <img src={url} className="w-full h-full object-cover" />
                       <button type="button" onClick={() => setFormData(prev => ({ ...prev, gallery: prev.gallery.filter((_, idx) => idx !== i) }))} className="absolute top-2 right-2 p-1 bg-destructive text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"><X className="w-4 h-4" /></button>
                    </div>
@@ -291,7 +292,7 @@ export default function EditarExperienciaPage() {
               </div>
 
               <div className="space-y-4">
-                 <Label className="text-[10px] font-black uppercase opacity-60">Dias da Semana Permitidos</Label>
+                 <Label className="text-[10px] font-black uppercase opacity-60">Dias da Semana de Funcionamento</Label>
                  <div className="flex flex-wrap gap-2">
                     {WEEK_DAYS.map(day => (
                       <div key={day.id} className="flex items-center space-x-2 bg-muted/30 px-3 py-2 rounded-xl border">
@@ -314,18 +315,21 @@ export default function EditarExperienciaPage() {
               <div className="flex items-center justify-between p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
                  <div className="flex items-center gap-3">
                     <Calendar className="w-5 h-5 text-secondary" />
-                    <div><p className="text-sm font-bold uppercase italic text-primary">Permitir Feriados?</p></div>
+                    <div><p className="text-sm font-bold uppercase italic text-primary">Operar em Feriados?</p></div>
                  </div>
                  <Switch checked={formData.availability.allowHolidays} onCheckedChange={v => setFormData({...formData, availability: {...formData.availability, allowHolidays: v}})} />
               </div>
            </Card>
 
-           <div className="p-4 bg-muted/30 rounded-xl flex gap-3">
-            <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-            <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
-              Configure os dias de operação nesta aba. Os horários e preços específicos são definidos na aba <strong>Horários</strong>.
-            </p>
-          </div>
+           <div className="p-4 bg-secondary/5 rounded-2xl border-2 border-dashed border-secondary/20 flex items-start gap-4 animate-in zoom-in-95">
+              <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                 <h4 className="font-black uppercase text-xs italic text-primary">Dica de Disponibilidade</h4>
+                 <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
+                    Defina aqui o período macro de funcionamento. Os horários e preços específicos (sessões) devem ser gerenciados na aba <strong>Horários</strong>.
+                 </p>
+              </div>
+           </div>
         </TabsContent>
 
         <TabsContent value="horarios" className="mt-0">
@@ -334,14 +338,15 @@ export default function EditarExperienciaPage() {
 
         <TabsContent value="local" className="mt-0 space-y-8">
            <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
-           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
-              <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase opacity-60">Informações Adicionais</Label>
-                 <Textarea value={formData.additionalInfo} onChange={e => setFormData({...formData, additionalInfo: e.target.value})} className="rounded-xl h-24" />
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-10">
+              <div className="space-y-3">
+                 <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5" /> Regras de Uso e Políticas (Markdown)</Label>
+                 <Textarea value={formData.usagePolicy} onChange={e => setFormData({...formData, usagePolicy: e.target.value})} placeholder="Escreva as regras em markdown. Use **negrito**, listas e ++texto grande++." className="rounded-[1.5rem] h-48 p-6 leading-relaxed font-medium" />
               </div>
-              <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase opacity-60">Política de Cancelamento</Label>
-                 <Textarea value={formData.usagePolicy} onChange={e => setFormData({...formData, usagePolicy: e.target.value})} className="rounded-xl h-24" />
+              <Separator className="border-dashed" />
+              <div className="space-y-3">
+                 <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Info className="w-3.5 h-3.5" /> Informações Adicionais</Label>
+                 <Textarea value={formData.additionalInfo} onChange={e => setFormData({...formData, additionalInfo: e.target.value})} placeholder="Outras informações importantes..." className="rounded-[1.5rem] h-32 p-6 leading-relaxed font-medium" />
               </div>
            </Card>
         </TabsContent>
