@@ -3,12 +3,13 @@
 import * as React from "react"
 import { useCart, CartItem } from "@/contexts/CartContext"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Input } from "@/components/ui/input"
 import { 
   ShoppingCart, 
   Trash2, 
@@ -19,7 +20,10 @@ import {
   AlertTriangle,
   Info,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  TicketPercent,
+  CheckCircle2,
+  X
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -41,6 +45,11 @@ export default function CarrinhoPage() {
   const [isRevalidating, setIsRevalidating] = React.useState(false)
   const [timeLeft, setTimeLeft] = React.useState<{ min: number, sec: number, percent: number } | null>(null)
 
+  // Estados para Cupons
+  const [couponInput, setCouponCode] = React.useState("")
+  const [appliedCoupon, setAppliedCoupon] = React.useState<any>(null)
+  const [isValidatingCoupon, setIsValidatingCoupon] = React.useState(false)
+
   const isProcessingRef = React.useRef(false)
 
   const walletRef = React.useMemo(() => (db && user) ? doc(db, "wallets", user.uid) : null, [db, user]);
@@ -61,7 +70,6 @@ export default function CarrinhoPage() {
     return items.some(item => (item.currency || 'BRL') !== firstCurrency);
   }, [items]);
 
-  // MONITOR DE EXPIRAÇÃO DE RESERVA (ETAPA 4)
   React.useEffect(() => {
     if (!expiresAt || items.length === 0) {
       setTimeLeft(null);
@@ -73,10 +81,9 @@ export default function CarrinhoPage() {
       if (diff <= 0) {
         setTimeLeft({ min: 0, sec: 0, percent: 0 });
         clearInterval(interval);
-        // O CartContext emitirá o evento de limpeza
         return;
       }
-      const totalMs = 10 * 60 * 1000; // Sincronizado com o hold de 10 min
+      const totalMs = 10 * 60 * 1000;
       const percent = (diff / totalMs) * 100;
       const min = Math.floor(diff / 60000);
       const sec = Math.floor((diff % 60000) / 1000);
@@ -152,27 +159,96 @@ export default function CarrinhoPage() {
     fetchData()
   }, [db, items.length]);
 
+  const handleApplyCoupon = async () => {
+    if (!db || !couponInput.trim() || isValidatingCoupon) return;
+
+    setIsValidatingCoupon(true);
+    try {
+      const q = query(
+        collection(db, "coupons"), 
+        where("code", "==", couponInput.trim().toUpperCase()),
+        where("status", "==", "Ativo"),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        toast({ variant: "destructive", title: "Cupom inválido", description: "O código informado não existe ou está expirado." });
+        setAppliedCoupon(null);
+        return;
+      }
+
+      const coupon = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
+      const now = new Date();
+      const expires = coupon.validUntil ? new Date(coupon.validUntil) : null;
+
+      if (expires && now > expires) {
+        toast({ variant: "destructive", title: "Cupom expirado" });
+        return;
+      }
+
+      if (coupon.maxUses > 0 && coupon.currentUses >= coupon.maxUses) {
+        toast({ variant: "destructive", title: "Cupom esgotado" });
+        return;
+      }
+
+      // Validar se o cupom pertence a algum item do carrinho
+      const matchedItem = items.find(i => i.eventId === coupon.eventId);
+      if (!matchedItem) {
+        toast({ variant: "destructive", title: "Restrição de Cupom", description: "Este código não é válido para os itens no seu carrinho." });
+        return;
+      }
+
+      setAppliedCoupon(coupon);
+      toast({ title: "Desconto aplicado!" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Erro na validação" });
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
   const cartTotals = React.useMemo(() => {
-    if (!items || items.length === 0) return { subtotal: 0, fees: 0, balanceUsed: 0, total: 0, currency: 'BRL' };
+    if (!items || items.length === 0) return { subtotal: 0, fees: 0, balanceUsed: 0, total: 0, discount: 0, currency: 'BRL' };
 
     const primaryCurrency = items[0].currency || 'BRL';
     const filteredItems = items.filter(i => (i.currency || 'BRL') === primaryCurrency);
 
     let subtotal = 0;
     let fees = 0;
+    let discount = 0;
     
     filteredItems.forEach(item => { 
-      const itemSubtotal = (item.price || 0) * (item.quantity || 0);
-      subtotal += itemSubtotal;
+      let itemBasePrice = item.price;
+      
+      // Aplicar desconto se houver cupom para este evento/experiência
+      if (appliedCoupon && appliedCoupon.eventId === item.eventId) {
+         if (appliedCoupon.discountType === 'percentage') {
+            const discVal = (item.price * (appliedCoupon.discountValue / 100));
+            discount += discVal * item.quantity;
+            itemBasePrice = Math.max(0, item.price - discVal);
+         } else if (appliedCoupon.discountType === 'fixed') {
+            const discVal = Math.min(item.price, appliedCoupon.discountValue);
+            discount += discVal * item.quantity;
+            itemBasePrice = Math.max(0, item.price - discVal);
+         } else if (appliedCoupon.discountType === 'free_ticket') {
+            discount += item.price * item.quantity;
+            itemBasePrice = 0;
+         }
+      }
+
+      subtotal += item.price * item.quantity;
       
       const org = orgsData?.[item.organizationId];
       if (org && globalFees) {
-        const res = calculateVibyOfficialSplit(item.price, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, item.productType);
+        // As taxas são calculadas sobre o preço NOMINAL ou DESCONTADO? 
+        // Na Viby, calculamos sobre o preço de face resultante.
+        const res = calculateVibyOfficialSplit(itemBasePrice, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, item.productType || 'event');
         fees += (res?.buyerFee || 0) * (item.quantity || 0);
       }
     });
 
-    const totalBeforeBalance = Number((subtotal + fees).toFixed(2));
+    const totalBeforeBalance = Number((subtotal + fees - discount).toFixed(2));
     const walletBalance = wallet?.balance || 0;
     
     const balanceUsed = (useBalance && primaryCurrency === 'BRL') ? Math.min(walletBalance, totalBeforeBalance) : 0;
@@ -181,11 +257,12 @@ export default function CarrinhoPage() {
     return { 
       subtotal, 
       fees, 
+      discount,
       balanceUsed, 
       total: finalTotal,
       currency: primaryCurrency
     };
-  }, [items, globalFees, promotions, orgsData, useBalance, wallet?.balance, rates]);
+  }, [items, globalFees, promotions, orgsData, useBalance, wallet?.balance, rates, appliedCoupon]);
 
   return (
     <div className="max-w-6xl auto space-y-10 pb-20 animate-in fade-in duration-500">
@@ -203,8 +280,7 @@ export default function CarrinhoPage() {
                <AlertTriangle className="h-5 w-5" />
                <AlertTitle className="font-black uppercase italic">Conflito de Moedas Detectado</AlertTitle>
                <AlertDescription className="font-medium text-xs uppercase leading-relaxed">
-                 Seu carrinho possui itens em moedas diferentes. O checkout está temporariamente bloqueado. 
-                 Remova os itens divergentes para prosseguir com o pagamento.
+                 Seu carrinho possui itens em moedas diferentes. Remova os itens divergentes para prosseguir.
                </AlertDescription>
              </Alert>
            )}
@@ -212,45 +288,57 @@ export default function CarrinhoPage() {
            {items.length === 0 ? (
              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-20 text-center">
                 <Inbox className="w-10 h-10 auto opacity-20 mb-4" />
-                <h2 className="text-xl font-black uppercase">Seu carrinho está vazio</h2>
-                <Button asChild className="mt-4"><Link href="/dashboard">Explorar Eventos</Link></Button>
+                <h2 className="text-xl font-black uppercase tracking-widest opacity-60">Seu carrinho está vazio</h2>
+                <Button asChild className="mt-8 bg-secondary text-white font-black rounded-xl h-12 px-8 uppercase italic"><Link href="/dashboard">Explorar Experiências</Link></Button>
              </Card>
            ) : (
              <div className="space-y-6">
-                {items.map((item) => (
-                  <Card key={item.id} className={cn(
-                    "border-none shadow-sm rounded-[2rem] overflow-hidden bg-white transition-opacity",
-                    hasCurrencyConflict && (item.currency || 'BRL') !== cartTotals.currency && "opacity-50 grayscale border-2 border-dashed border-destructive/20"
-                  )}>
-                     <div className="flex flex-col sm:flex-row">
-                        <div className="relative w-full sm:w-56 h-48 bg-muted">
-                           <Image src={item.eventImage || "https://picsum.photos/seed/event/400/300"} alt={item.eventTitle} fill className="object-cover" unoptimized />
-                           <div className="absolute top-3 left-3">
-                              <Badge className="bg-white/90 text-primary font-black text-[10px] uppercase shadow-sm">
-                                 {item.currency}
-                              </Badge>
-                           </div>
-                        </div>
-                        <CardContent className="p-6 flex-1 flex flex-col justify-between">
-                           <div className="flex justify-between items-start">
-                              <div>
-                                 <h3 className="font-black text-xl uppercase italic text-primary">{item.eventTitle}</h3>
-                                 <p className="text-[10px] font-bold text-muted-foreground uppercase">{item.ticketTypeName}</p>
-                              </div>
-                              <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></Button>
-                           </div>
-                           <div className="flex items-center justify-between mt-4">
-                              <div className="flex items-center gap-3 bg-muted p-1 rounded-xl">
-                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity - 1)}>-</Button>
-                                 <span className="font-bold text-sm">{item.quantity}</span>
-                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}>+</Button>
-                              </div>
-                              <p className="font-black text-lg">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</p>
-                           </div>
-                        </CardContent>
-                     </div>
-                  </Card>
-                ))}
+                {items.map((item) => {
+                  const hasDiscount = appliedCoupon && appliedCoupon.eventId === item.eventId;
+                  return (
+                    <Card key={item.id} className={cn(
+                      "border-none shadow-sm rounded-[2rem] overflow-hidden bg-white transition-opacity",
+                      hasCurrencyConflict && (item.currency || 'BRL') !== cartTotals.currency && "opacity-50 grayscale border-2 border-dashed border-destructive/20"
+                    )}>
+                      <div className="flex flex-col sm:flex-row">
+                          <div className="relative w-full sm:w-56 h-48 bg-muted">
+                            <Image src={item.eventImage || "https://picsum.photos/seed/event/400/300"} alt={item.eventTitle} fill className="object-cover" unoptimized />
+                            <div className="absolute top-3 left-3">
+                                <Badge className="bg-white/90 text-primary font-black text-[10px] uppercase shadow-sm">
+                                  {item.currency}
+                                </Badge>
+                            </div>
+                          </div>
+                          <CardContent className="p-6 flex-1 flex flex-col justify-between">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                  <h3 className="font-black text-xl uppercase italic text-primary leading-none">{item.eventTitle}</h3>
+                                  <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">{item.ticketTypeName}</p>
+                                </div>
+                                <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></Button>
+                            </div>
+                            <div className="flex items-center justify-between mt-4">
+                                <div className="flex items-center gap-3 bg-muted p-1 rounded-xl">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity - 1)}>-</Button>
+                                  <span className="font-bold text-sm">{item.quantity}</span>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}>+</Button>
+                                </div>
+                                <div className="text-right">
+                                   {hasDiscount ? (
+                                     <div className="flex flex-col">
+                                        <span className="text-[10px] line-through opacity-30 font-black">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</span>
+                                        <span className="text-lg font-black text-green-600 italic">Viby Promo Aplicada</span>
+                                     </div>
+                                   ) : (
+                                     <p className="font-black text-lg">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</p>
+                                   )}
+                                </div>
+                            </div>
+                          </CardContent>
+                      </div>
+                    </Card>
+                  );
+                })}
              </div>
            )}
         </div>
@@ -276,12 +364,39 @@ export default function CarrinhoPage() {
                </Card>
              )}
 
-             <Card className="border-none shadow-xl rounded-[2.5rem] bg-primary text-white p-8 relative overflow-hidden">
-                <div className="relative z-10">
-                   <p className="text-[10px] font-black uppercase opacity-40">Seu Saldo</p>
-                   <p className="text-2xl font-black italic">{formatPrice(wallet?.balance || 0, 'BRL')}</p>
+             <Card className="border-none shadow-sm rounded-3xl bg-white p-6 space-y-4">
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Cupom de Desconto</Label>
+                <div className="flex gap-2">
+                   <div className="relative flex-1">
+                      <TicketPercent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary opacity-30" />
+                      <Input 
+                        placeholder="CÓDIGO" 
+                        value={couponInput}
+                        onChange={e => setCouponCode(e.target.value.toUpperCase())}
+                        disabled={!!appliedCoupon}
+                        className="pl-10 h-11 rounded-xl border-dashed border-secondary/30 uppercase font-black"
+                      />
+                      {appliedCoupon && (
+                        <button onClick={() => { setAppliedCoupon(null); setCouponCode(""); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 bg-muted rounded-full hover:bg-red-50 text-red-500">
+                           <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                   </div>
+                   {!appliedCoupon && (
+                     <Button 
+                        onClick={handleApplyCoupon} 
+                        disabled={isValidatingCoupon || !couponInput.trim()}
+                        className="h-11 px-6 rounded-xl bg-secondary text-white font-bold uppercase italic"
+                      >
+                        {isValidatingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : "OK"}
+                     </Button>
+                   )}
                 </div>
-                <div className="absolute -bottom-4 -right-4 opacity-5"><Info className="w-20 h-20" /></div>
+                {appliedCoupon && (
+                   <p className="text-[9px] font-black uppercase text-green-600 flex items-center gap-1.5 animate-in zoom-in-95">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Cupom {appliedCoupon.code} aplicado com sucesso!
+                   </p>
+                )}
              </Card>
 
              <Card className="border-none shadow-2xl rounded-[3rem] bg-white p-8 space-y-8">
@@ -291,6 +406,12 @@ export default function CarrinhoPage() {
                       <span>Subtotal</span>
                       <span>{formatPrice(cartTotals.subtotal, cartTotals.currency as CurrencyCode)}</span>
                    </div>
+                   {cartTotals.discount > 0 && (
+                     <div className="flex justify-between text-xs font-black text-green-600 uppercase">
+                        <span>Desconto</span>
+                        <span>-{formatPrice(cartTotals.discount, cartTotals.currency as CurrencyCode)}</span>
+                     </div>
+                   )}
                    <div className="flex justify-between text-xs opacity-60 font-bold uppercase">
                       <span>Taxas de Serviço</span>
                       <span>{formatPrice(cartTotals.fees, cartTotals.currency as CurrencyCode)}</span>
@@ -318,8 +439,8 @@ export default function CarrinhoPage() {
                 
                 <div className="p-4 bg-muted/20 rounded-2xl flex items-start gap-3">
                    <ShieldCheck className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-                   <p className="text-[9px] font-bold text-muted-foreground uppercase leading-relaxed">
-                     Ambiente seguro. Sua reserva garante a vaga por 10 minutos enquanto você conclui o pagamento.
+                   <p className="text-[9px] font-bold text-muted-foreground uppercase leading-relaxed text-center">
+                     Ambiente seguro. Sua reserva garante a vaga por 10 minutos.
                    </p>
                 </div>
              </Card>

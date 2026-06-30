@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -19,7 +18,8 @@ import {
   Copy,
   Eye,
   Inbox,
-  ArrowRight
+  ArrowRight,
+  TicketPercent
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -161,6 +161,11 @@ export default function OrganizationExperiencesPage() {
                           <DropdownMenuItem asChild>
                              <Link href={`/${currentOrg?.username}/experiencia/${exp.slug}`} target="_blank" className="flex items-center gap-2 py-2 cursor-pointer">
                                 <Eye className="w-4 h-4" /> Ver Pública
+                             </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                             <Link href={`/dashboard/experiencia/${exp.id}/cupons`} className="flex items-center gap-2 py-2 cursor-pointer">
+                                <TicketPercent className="w-4 h-4 text-secondary" /> Cupons
                              </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleDuplicate(exp.id)} className="flex items-center gap-2 py-2 cursor-pointer">
