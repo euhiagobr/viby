@@ -4,7 +4,7 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useDoc } from "@/firebase"
-import { doc, getDoc, runTransaction, serverTimestamp, increment } from "firebase/firestore"
+import { doc, getDoc, runTransaction, serverTimestamp, increment, query, collection, where, getDocs, limit } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -248,6 +248,37 @@ export default function NovaOrganizacaoPage() {
     const normalizedUsername = formData.username.toLowerCase().trim()
 
     try {
+      // 1. Recuperar e Validar Campanha Pendente do sessionStorage
+      let autoFees: any = {};
+      const pendingCode = typeof window !== 'undefined' ? sessionStorage.getItem('viby_pending_campaign') : null;
+      
+      if (pendingCode) {
+        const q = query(
+          collection(db, "simulation_campaigns"), 
+          where("code", "==", pendingCode.toUpperCase()), 
+          where("active", "==", true), 
+          limit(1)
+        );
+        const campSnap = await getDocs(q);
+        
+        if (!campSnap.empty) {
+          const camp = campSnap.docs[0].data();
+          const now = new Date();
+          const start = camp.startAt?.toDate ? camp.startAt.toDate() : new Date(camp.startAt);
+          const end = camp.endAt?.toDate ? camp.endAt.toDate() : new Date(camp.endAt);
+          
+          if (now >= start && now <= end) {
+            autoFees = {
+              customOrganizerPercent: camp.orgFeePercent,
+              customOrganizerMinFee: camp.orgMinFee,
+              customBuyerMarkup: camp.buyerFeePercent,
+              customFeeStartAt: camp.startAt,
+              customFeeEndAt: camp.endAt
+            };
+          }
+        }
+      }
+
       await runTransaction(db, async (transaction) => {
         const usernameRef = doc(db, "usernames", normalizedUsername)
         const orgRef = doc(db, "organizations", orgId)
@@ -262,7 +293,7 @@ export default function NovaOrganizacaoPage() {
           username: normalizedUsername
         })
 
-        const finalData = { ...formData };
+        const finalData = { ...formData, ...autoFees };
         if (skipFiscal) {
           finalData.cpf = "";
           finalData.cnpj = "";
@@ -319,6 +350,11 @@ export default function NovaOrganizacaoPage() {
           });
         }
       })
+
+      // 2. Limpar a campanha da sessão após sucesso
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('viby_pending_campaign');
+      }
 
       toast({ title: "Organização criada!", description: "Sua marca está pronta para brilhar!" })
       localStorage.setItem('viby_current_org', orgId);

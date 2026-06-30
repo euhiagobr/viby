@@ -65,6 +65,16 @@ export default function CalculadoraClient() {
     window.history.replaceState(null, '', newUrl);
   }, [qty, value, competitionBuyer, appliedCode]);
 
+  // Persistência da campanha para o fluxo de cadastro
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (appliedCode) {
+      sessionStorage.setItem('viby_pending_campaign', appliedCode);
+    } else {
+      sessionStorage.removeItem('viby_pending_campaign');
+    }
+  }, [appliedCode]);
+
   const handleApplyCode = async (codeToUse?: string) => {
     const code = codeToUse || promoCode;
     if (!code) return;
@@ -350,9 +360,3 @@ function BuyerCard({ label, value, feePercent, feeValue, total, variant }: any) 
       </Card>
    )
 }
-
-function TableHeader({ children, className }: any) { return <thead className={className}>{children}</thead> }
-function TableBody({ children, className }: any) { return <tbody className={className}>{children}</tbody> }
-function TableRow({ children, className }: any) { return <tr className={className}>{children}</tr> }
-function TableHead({ children, className }: any) { return <th className={className}>{children}</th> }
-function TableCell({ children, className }: any) { return <td className={className}>{children}</td> }
