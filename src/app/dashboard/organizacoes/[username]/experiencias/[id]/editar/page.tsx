@@ -29,7 +29,7 @@ import {
   Calendar,
   Layout
 } from 'lucide-react';
-import { doc, serverTimestamp, updateDoc, query, collection, where, orderBy } from 'firebase/firestore';
+import { doc, serverTimestamp, updateDoc, query, collection, where } from 'firebase/firestore';
 import Link from 'next/link';
 import { toast } from '@/hooks/use-toast';
 import { saveExperienceAction } from '@/app/actions/experiences';
@@ -65,16 +65,21 @@ export default function EditarExperienciaPage() {
   const { currentOrg } = useCurrentOrganization();
   const storage = React.useMemo(() => (app ? getStorage(app) : null), [app]);
 
-  // Busca categorias dinâmicas do tipo 'experience'
+  // Busca categorias dinâmicas do tipo 'experience' sem orderBy para evitar erro de índice
   const categoriesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
       collection(db, "categories"),
-      where("type", "==", "experience"),
-      orderBy("name", "asc")
+      where("type", "==", "experience")
     );
   }, [db]);
-  const { data: categories, loading: categoriesLoading } = useCollection<any>(categoriesQuery);
+  const { data: rawCategories, loading: categoriesLoading } = useCollection<any>(categoriesQuery);
+
+  // Ordenação em memória para garantir usabilidade sem depender de índices complexos
+  const categories = React.useMemo(() => {
+    if (!rawCategories) return [];
+    return [...rawCategories].sort((a, b) => a.name.localeCompare(b.name));
+  }, [rawCategories]);
 
   const expRef = React.useMemo(() => (db && id) ? doc(db, "experiences", id) : null, [db, id]);
   const { data: exp, loading: expLoading } = useDoc<any>(expRef);
@@ -113,6 +118,7 @@ export default function EditarExperienciaPage() {
           stateRegion: "", 
           country: "Brasil", 
           countryCode: "BR",
+          postalCode: "", 
           latitude: null, 
           longitude: null
         },
@@ -241,7 +247,7 @@ export default function EditarExperienciaPage() {
                           <SelectValue placeholder={categoriesLoading ? "Carregando..." : "Selecione"} />
                        </SelectTrigger>
                        <SelectContent className="rounded-xl">
-                          {categories?.map((c: any) => (
+                          {categories.map((c: any) => (
                              <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
                           ))}
                        </SelectContent>

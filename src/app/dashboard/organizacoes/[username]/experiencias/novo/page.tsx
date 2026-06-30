@@ -44,7 +44,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { ExperienceSlotsAdmin } from '@/components/experiences/ExperienceSlotsAdmin';
 import { Checkbox } from '@/components/ui/checkbox';
-import { query, collection, where, orderBy } from 'firebase/firestore';
+import { query, collection, where } from 'firebase/firestore';
 
 const WEEK_DAYS = [
   { id: 0, label: "Dom" },
@@ -65,16 +65,21 @@ export default function NovaExperienciaPage() {
   const app = useFirebaseApp();
   const storage = React.useMemo(() => (app ? getStorage(app) : null), [app]);
 
-  // Busca categorias dinâmicas do tipo 'experience'
+  // Busca categorias dinâmicas do tipo 'experience' sem orderBy para evitar erro de índice
   const categoriesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
       collection(db, "categories"),
-      where("type", "==", "experience"),
-      orderBy("name", "asc")
+      where("type", "==", "experience")
     );
   }, [db]);
-  const { data: categories, loading: categoriesLoading } = useCollection<any>(categoriesQuery);
+  const { data: rawCategories, loading: categoriesLoading } = useCollection<any>(categoriesQuery);
+
+  // Ordenação em memória para garantir usabilidade sem depender de índices complexos
+  const categories = React.useMemo(() => {
+    if (!rawCategories) return [];
+    return [...rawCategories].sort((a, b) => a.name.localeCompare(b.name));
+  }, [rawCategories]);
 
   const [loading, setLoading] = React.useState(true);
   const [publishing, setPublishing] = React.useState(false);
@@ -275,10 +280,10 @@ export default function NovaExperienciaPage() {
                           <SelectValue placeholder={categoriesLoading ? "Carregando..." : "Selecione"} />
                        </SelectTrigger>
                        <SelectContent className="rounded-xl">
-                          {categories?.map((c: any) => (
+                          {categories.map((c: any) => (
                              <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
                           ))}
-                          {!categoriesLoading && categories?.length === 0 && (
+                          {!categoriesLoading && categories.length === 0 && (
                              <SelectItem value="none" disabled>Nenhuma categoria de experiência cadastrada</SelectItem>
                           )}
                        </SelectContent>
