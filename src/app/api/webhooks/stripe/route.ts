@@ -15,7 +15,7 @@ async function getStripeInstance(db: admin.firestore.Firestore) {
 
 /**
  * Webhook de Fulfillment Consolidado (Etapa 4 - Experiências)
- * Processa a baixa de estoque atômica para Eventos e Experience Slots.
+ * ATUALIZADO: Implementado suporte a Confirmação de Reservas (Hold System).
  */
 export async function POST(req: Request) {
   const db = getAdminDb();
@@ -64,13 +64,24 @@ export async function POST(req: Request) {
             const userId = session.metadata!.userId;
             const items = orderData.items || [];
             const currency = (orderData.currency || 'BRL').toUpperCase();
+            
+            // 1. Confirmar Reservas Temporárias
+            const reservationIds = (session.metadata.reservations || "").split(',').filter(Boolean);
+            for (const resId of reservationIds) {
+               const resRef = db.collection('experience_reservations').doc(resId);
+               transaction.update(resRef, { 
+                 status: 'confirmed', 
+                 orderId: orderId,
+                 updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+               });
+            }
 
             for (const item of items) {
               const isExp = item.productType === 'experience';
               
-              // 1. BAIXA DE ESTOQUE ATÔMICA
+              // 2. BAIXA DE ESTOQUE ATÔMICA
               if (isExp && item.occurrenceId) {
-                // Decremento no Slot da Experiência
+                // Incremento real no sold do Slot
                 const slotRef = db.collection("experiences").doc(item.eventId).collection("slots").doc(item.occurrenceId);
                 transaction.update(slotRef, {
                   sold: admin.firestore.FieldValue.increment(item.quantity),
@@ -93,7 +104,7 @@ export async function POST(req: Request) {
                 }
               }
 
-              // 2. GERAÇÃO DE VOUCHERS (REGISTRATIONS)
+              // 3. GERAÇÃO DE VOUCHERS (REGISTRATIONS)
               for (let j = 0; j < item.quantity; j++) {
                 const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
                 const regRef = db.collection("registrations").doc();

@@ -1,5 +1,4 @@
-
-'use server';
+'use client';
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -223,6 +222,71 @@ export async function deleteExperienceSlotAction(experienceId: string, slotId: s
     await db.collection('experiences').doc(experienceId).collection('slots').doc(slotId).delete();
     return { success: true };
   } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * MOTOR DE RESERVAS (HOLD SYSTEM - ETAPA 4)
+ * Cria um lock atômico de capacidade para evitar overbooking.
+ */
+export async function createExperienceReservationAction(params: {
+  experienceId: string;
+  slotId: string;
+  userId: string;
+  quantity: number;
+}) {
+  const db = getAdminDb();
+  const { experienceId, slotId, userId, quantity } = params;
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      const slotRef = db.collection('experiences').doc(experienceId).collection('slots').doc(slotId);
+      const slotSnap = await transaction.get(slotRef);
+
+      if (!slotSnap.exists) throw new Error("Horário não localizado.");
+      const slot = slotSnap.data()!;
+
+      if (slot.status !== 'active') throw new Error("Este horário não está mais disponível.");
+
+      // 1. Calcular ocupação ativa (Vendidos + Reservas não expiradas)
+      const now = new Date();
+      const activeReservationsSnap = await db.collection('experience_reservations')
+        .where('slotId', '==', slotId)
+        .where('status', '==', 'reserved')
+        .where('expiresAt', '>', admin.firestore.Timestamp.fromDate(now))
+        .get();
+
+      const currentlyReserved = activeReservationsSnap.docs.reduce((acc, doc) => acc + (doc.data().quantity || 0), 0);
+      const sold = slot.sold || 0;
+      const capacity = slot.capacity || 0;
+
+      if (sold + currentlyReserved + quantity > capacity) {
+        throw new Error("Desculpe, este horário acabou de esgotar ou está em processo de compra por outros usuários.");
+      }
+
+      // 2. Criar Documento de Reserva
+      const reservationRef = db.collection('experience_reservations').doc();
+      const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 Min Hold
+
+      const reservationData = {
+        id: reservationRef.id,
+        experienceId,
+        slotId,
+        userId,
+        quantity,
+        status: 'reserved',
+        reservedAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      transaction.set(reservationRef, reservationData);
+
+      return serializeData({ success: true, reservationId: reservationRef.id, expiresAt });
+    });
+  } catch (e: any) {
+    console.error("[Reservation Action] Failure:", e.message);
     return { success: false, error: e.message };
   }
 }

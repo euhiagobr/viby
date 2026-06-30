@@ -16,6 +16,7 @@ import { generateFreeTickets } from "@/app/actions/tickets";
 import { calculateVibyOfficialSplit, toCents, calculateFinancialBreakdown, ProductType } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
 import { CurrencyCode } from "@/contexts/CurrencyCode";
+import { createExperienceReservationAction } from "@/app/actions/experiences";
 
 export interface PayButtonOptions {
   user: any;
@@ -31,7 +32,7 @@ export interface PayButtonOptions {
 
 /**
  * Executa o fluxo de checkout garantindo a injeção correta da hierarquia de taxas.
- * ATUALIZADO (ETAPA 4): Suporte transacional para Experience Slots.
+ * ATUALIZADO (ETAPA 4): Implementado Reservation Layer para Experiências.
  */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, useBalance, rates, globalFees, promotions, orgsData } = options;
@@ -44,7 +45,9 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     throw new Error("Não é possível realizar checkout com múltiplas moedas.");
   }
 
-  // 1. VALIDAÇÃO DE DISPONIBILIDADE E LOCK DE SLOTS
+  const reservationIds: string[] = [];
+
+  // 1. VALIDAÇÃO E RESERVA (LOCK)
   for (const item of items) {
     const isExp = item.productType === 'experience';
     const collName = isExp ? "experiences" : "events";
@@ -52,26 +55,22 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     const eSnap = await getDoc(doc(staticDb, collName, item.eventId));
     if (!eSnap.exists()) throw new Error(`O item ${item.eventTitle} não está mais disponível.`);
     
-    // ANTI-OVERBOOKING: Validar Slot específico de Experiência
+    // ANTI-OVERBOOKING: Reserva atômica para Experiências
     if (isExp && item.occurrenceId) {
-      const slotRef = doc(staticDb, "experiences", item.eventId, "slots", item.occurrenceId);
-      const slotSnap = await getDoc(slotRef);
-      
-      if (!slotSnap.exists()) {
-        throw new Error("O horário selecionado não existe mais.");
+      const res = await createExperienceReservationAction({
+        experienceId: item.eventId,
+        slotId: item.occurrenceId,
+        userId: user.uid,
+        quantity: item.quantity
+      });
+
+      if (!res.success) {
+        throw new Error(res.error || "Não foi possível reservar este horário.");
       }
-      
-      const slotData = slotSnap.data();
-      if (slotData.status !== 'active') {
-        throw new Error("Este horário não está mais aceitando reservas.");
-      }
-      
-      if ((slotData.sold || 0) + item.quantity > slotData.capacity) {
-        throw new Error("Desculpe, este horário acabou de esgotar.");
-      }
+      reservationIds.push(res.reservationId);
     }
 
-    if (item.price === 0) {
+    if (item.price === 0 && !isExp) {
       const lockId = `free_lock_${user.uid}_${item.eventId}_${item.ticketTypeId}`;
       const lockSnap = await getDoc(doc(staticDb, "registrations_locks", lockId));
       if (lockSnap.exists()) throw new Error("Você já resgatou este ingresso gratuito.");
@@ -111,7 +110,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       ...item,
       producerNetAmount: breakdown.producerNetAmount,
       administrativeFeeAmount: breakdown.administrativeFeeAmount,
-      financials: breakdown // Snapshot imutável
+      financials: breakdown 
     };
   });
 
@@ -121,6 +120,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     userName: profile?.name || user.displayName || "Comprador",
     items: orderItems,
     currency: eventCurrency,
+    experienceReservations: reservationIds,
     exchangeData: {
       rate: exchangeRateToBRL,
       date: exchangeDate,
@@ -203,7 +203,8 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       type: "order_checkout",
       orderId: orderRef.id,
       userId: user.uid,
-      balanceUsed: totals.balanceUsed.toString()
+      balanceUsed: totals.balanceUsed.toString(),
+      reservations: reservationIds.join(',')
     }
   });
 

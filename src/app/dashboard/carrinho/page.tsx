@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -61,6 +60,7 @@ export default function CarrinhoPage() {
     return items.some(item => (item.currency || 'BRL') !== firstCurrency);
   }, [items]);
 
+  // MONITOR DE EXPIRAÇÃO DE RESERVA (ETAPA 4)
   React.useEffect(() => {
     if (!expiresAt || items.length === 0) {
       setTimeLeft(null);
@@ -72,9 +72,10 @@ export default function CarrinhoPage() {
       if (diff <= 0) {
         setTimeLeft({ min: 0, sec: 0, percent: 0 });
         clearInterval(interval);
+        // O CartContext emitirá o evento de limpeza
         return;
       }
-      const totalMs = 5 * 60 * 1000;
+      const totalMs = 10 * 60 * 1000; // Sincronizado com o hold de 10 min
       const percent = (diff / totalMs) * 100;
       const min = Math.floor(diff / 60000);
       const sec = Math.floor((diff % 60000) / 1000);
@@ -95,7 +96,8 @@ export default function CarrinhoPage() {
       
       for (const item of items) {
         try {
-          const eSnap = await getDoc(doc(db, "events", item.eventId));
+          const coll = item.productType === 'experience' ? 'experiences' : 'events';
+          const eSnap = await getDoc(doc(db, coll, item.eventId));
           if (eSnap.exists()) {
             const eData = eSnap.data();
             if (eData.status !== 'Excluído') {
@@ -164,7 +166,7 @@ export default function CarrinhoPage() {
       
       const org = orgsData?.[item.organizationId];
       if (org && globalFees) {
-        const res = calculateVibyOfficialSplit(item.price, primaryCurrency as CurrencyCode, rates);
+        const res = calculateVibyOfficialSplit(item.price, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, item.productType);
         fees += (res?.buyerFee || 0) * (item.quantity || 0);
       }
     });
@@ -265,11 +267,11 @@ export default function CarrinhoPage() {
                      <Clock className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
                    </div>
                    <div className="space-y-0.5">
-                     <p className="text-[9px] font-black uppercase text-muted-foreground">Expira em</p>
+                     <p className="text-[9px] font-black uppercase text-muted-foreground">Sua reserva expira em</p>
                      <p className="text-sm font-black tabular-nums">{String(timeLeft.min).padStart(2, '0')}:{String(timeLeft.sec).padStart(2, '0')}</p>
                    </div>
                  </div>
-                 <Badge variant="outline" className="text-[8px] font-black uppercase">Reserva Ativa</Badge>
+                 <Badge variant="outline" className="text-[8px] font-black uppercase border-secondary text-secondary">Hold Ativo</Badge>
                </Card>
              )}
 
@@ -289,7 +291,7 @@ export default function CarrinhoPage() {
                       <span>{formatPrice(cartTotals.subtotal, cartTotals.currency as CurrencyCode)}</span>
                    </div>
                    <div className="flex justify-between text-xs opacity-60 font-bold uppercase">
-                      <span>Taxas</span>
+                      <span>Taxas de Serviço</span>
                       <span>{formatPrice(cartTotals.fees, cartTotals.currency as CurrencyCode)}</span>
                    </div>
                    <Separator className="border-dashed" />
@@ -312,6 +314,13 @@ export default function CarrinhoPage() {
                   className={cn(hasCurrencyConflict && "grayscale opacity-50 cursor-not-allowed")}
                   rates={rates}
                 />
+                
+                <div className="p-4 bg-muted/20 rounded-2xl flex items-start gap-3">
+                   <ShieldCheck className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+                   <p className="text-[9px] font-bold text-muted-foreground uppercase leading-relaxed">
+                     Ambiente seguro. Sua reserva garante a vaga por 10 minutos enquanto você conclui o pagamento.
+                   </p>
+                </div>
              </Card>
           </div>
         )}
