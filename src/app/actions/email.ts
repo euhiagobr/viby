@@ -47,6 +47,9 @@ async function getTransporter() {
   });
 }
 
+/**
+ * Registra um log de e-mail no sistema de auditoria.
+ */
 async function logSentEmail(data: {
   recipientEmail: string;
   recipientName: string;
@@ -54,13 +57,19 @@ async function logSentEmail(data: {
   content: string;
   type: string;
   sender: string;
+  status?: 'enviado' | 'falha' | 'pendente';
+  error?: string | null;
 }) {
   try {
     const db = getAdminDb();
-    await db.collection('sent_emails').add({
+    const payload = {
       ...data,
+      status: data.status || 'enviado',
       timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
+    };
+    
+    // Se o ID for fornecido (para atualizar log pendente), usa set, senão add
+    await db.collection('sent_emails').add(payload);
   } catch (e) {
     console.warn("[Email Audit Log] Falha ao registrar cópia de segurança", e);
   }
@@ -96,9 +105,6 @@ function getEmailTemplate(branding: any, content: string) {
   `.trim();
 }
 
-/**
- * Envia o ingresso por e-mail com todas as regras e informações adicionais.
- */
 export async function sendTicketEmail(data: { 
   to: string; 
   userName: string; 
@@ -110,69 +116,89 @@ export async function sendTicketEmail(data: {
   usagePolicy?: string;
   additionalInfo?: string;
 }) {
+  const branding = await getBranding();
+  const db = getAdminDb();
+  
+  // Normalização de campos de texto longo para evitar quebras no template
+  const usagePolicy = String(data.usagePolicy || "").trim();
+  const additionalInfo = String(data.additionalInfo || "").trim();
+
+  const content = `
+    <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; font-weight: 900;">Seu Ingresso está aqui!</h2>
+    <p>Olá, <strong>${data.userName}</strong>. Prepare-se para a sua próxima experiência.</p>
+    
+    <div style="background: #f8fafc; padding: 25px; border-radius: 20px; border: 2px dashed #e2e8f0; margin: 25px 0;">
+      <p style="margin: 0; font-size: 18px; font-weight: 900; color: #1e293b;">${data.eventTitle.toUpperCase()}</p>
+      <p style="margin: 5px 0; font-size: 13px; color: #64748b;">📅 ${data.eventDate}</p>
+      ${data.eventCity ? `<p style="margin: 5px 0; font-size: 13px; color: #64748b;">📍 ${data.eventCity}</p>` : ''}
+      <p style="margin: 15px 0 0 0; font-size: 24px; font-weight: 900; color: #2C52EE; font-family: monospace;">${data.ticketCode}</p>
+    </div>
+
+    ${usagePolicy ? `
+      <div style="margin-bottom: 25px;">
+        <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Regras e Políticas:</h4>
+        <div style="font-size: 13px; line-height: 1.6; color: #334155; background: #fefce8; padding: 15px; border-radius: 12px; border: 1px solid #fef08a;">
+          ${usagePolicy.replace(/\n/g, '<br>')}
+        </div>
+      </div>
+    ` : ''}
+
+    ${additionalInfo ? `
+      <div style="margin-bottom: 25px;">
+        <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Informações Úteis:</h4>
+        <div style="font-size: 13px; line-height: 1.6; color: #334155;">
+          ${additionalInfo.replace(/\n/g, '<br>')}
+        </div>
+      </div>
+    ` : ''}
+
+    <div style="text-align: center; margin-top: 30px;">
+      <a href="${data.voucherUrl}" style="background-color: #000; color: white; padding: 15px 30px; text-decoration: none; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-style: italic; display: inline-block;">Ver QR Code de Acesso</a>
+    </div>
+    
+    <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 30px;">
+      Apresente o QR Code no seu celular na entrada do evento. Não é necessário imprimir.
+    </p>
+  `;
+
+  const htmlContent = getEmailTemplate(branding, content);
+
   try {
-    const branding = await getBranding();
     const transporter = await getTransporter();
-    const emailSettingsSnap = await getAdminDb().collection('settings').doc('email').get();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
     const smtpUser = emailSettingsSnap.data()?.smtpUser;
-
-    const content = `
-      <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; font-weight: 900;">Seu Ingresso está aqui!</h2>
-      <p>Olá, <strong>${data.userName}</strong>. Prepare-se para a sua próxima experiência.</p>
-      
-      <div style="background: #f8fafc; padding: 25px; border-radius: 20px; border: 2px dashed #e2e8f0; margin: 25px 0;">
-        <p style="margin: 0; font-size: 18px; font-weight: 900; color: #1e293b;">${data.eventTitle.toUpperCase()}</p>
-        <p style="margin: 5px 0; font-size: 13px; color: #64748b;">📅 ${data.eventDate}</p>
-        ${data.eventCity ? `<p style="margin: 5px 0; font-size: 13px; color: #64748b;">📍 ${data.eventCity}</p>` : ''}
-        <p style="margin: 15px 0 0 0; font-size: 24px; font-weight: 900; color: #2C52EE; font-family: monospace;">${data.ticketCode}</p>
-      </div>
-
-      ${data.usagePolicy ? `
-        <div style="margin-bottom: 25px;">
-          <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Regras e Políticas:</h4>
-          <div style="font-size: 13px; line-height: 1.6; color: #334155; background: #fefce8; padding: 15px; border-radius: 12px; border: 1px solid #fef08a;">
-            ${data.usagePolicy.replace(/\n/g, '<br>')}
-          </div>
-        </div>
-      ` : ''}
-
-      ${data.additionalInfo ? `
-        <div style="margin-bottom: 25px;">
-          <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Informações Úteis:</h4>
-          <div style="font-size: 13px; line-height: 1.6; color: #334155;">
-            ${data.additionalInfo.replace(/\n/g, '<br>')}
-          </div>
-        </div>
-      ` : ''}
-
-      <div style="text-align: center; margin-top: 30px;">
-        <a href="${data.voucherUrl}" style="background-color: #000; color: white; padding: 15px 30px; text-decoration: none; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-style: italic; display: inline-block;">Ver QR Code de Acesso</a>
-      </div>
-      
-      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 30px;">
-        Apresente o QR Code no seu celular na entrada do evento. Não é necessário imprimir.
-      </p>
-    `;
 
     await transporter.sendMail({
       from: `"${branding.siteName} Ingressos" <${smtpUser}>`,
       to: data.to,
       subject: `🎟️ Seu ingresso para: ${data.eventTitle}`,
-      html: getEmailTemplate(branding, content)
+      html: htmlContent
     });
 
     await logSentEmail({
       recipientEmail: data.to,
       recipientName: data.userName,
       subject: `🎟️ Seu ingresso para: ${data.eventTitle}`,
-      content: getEmailTemplate(branding, content),
+      content: htmlContent,
       type: "ticket_confirmation",
-      sender: "Viby Ingressos"
+      sender: "Viby Ingressos",
+      status: 'enviado'
     });
 
     return { success: true };
   } catch (e: any) { 
     console.error("[sendTicketEmail] Error:", e);
+    // Registra a falha no log de auditoria
+    await logSentEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject: `🎟️ Seu ingresso para: ${data.eventTitle}`,
+      content: htmlContent,
+      type: "ticket_confirmation",
+      sender: "Viby Ingressos",
+      status: 'falha',
+      error: e.message
+    });
     return { success: false, error: e.message }; 
   }
 }
@@ -431,8 +457,8 @@ export async function sendSupportTicketReceivedEmail(data: { to: string; userNam
       <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; font-weight: 900;">Chamado Recebido</h2>
       <p>Olá, <strong>${data.userName}</strong>. Recebemos sua solicitação sob o protocolo <strong>#${data.ticketNumber}</strong>.</p>
       <div style="background: #f8fafc; padding: 20px; border-radius: 15px; margin: 20px 0; border: 1px solid #e2e8f0;">
-        <p style="margin: 0; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Assunto:</p>
-        <p style="margin: 5px 0; font-size: 14px; font-weight: 700;">${data.ticketSubject}</p>
+        <p style="margin: 0; font-size: 11px; font-800; color: #94a3b8; text-transform: uppercase;">Assunto:</p>
+        <p style="margin: 5px 0; font-size: 14px; font-700;">${data.ticketSubject}</p>
       </div>
       <p>Nossa equipe analisará os detalhes e retornará o mais breve possível.</p>
       <div style="text-align: center; margin-top: 25px;">

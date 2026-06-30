@@ -156,7 +156,7 @@ export async function generateFreeTickets(data: {
 
           registrationIds.push(regRef.id);
 
-          // Preparar dados para o e-mail
+          // Preparar dados para o e-mail (Sanitizado)
           emailsToSend.push({
             to: userEmail,
             userName,
@@ -165,8 +165,8 @@ export async function generateFreeTickets(data: {
             eventDate: new Date(item.eventDate).toLocaleString('pt-BR'),
             eventCity: item.eventCity,
             voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`,
-            usagePolicy: eventInfo?.usagePolicy || "",
-            additionalInfo: eventInfo?.additionalInfo || ""
+            usagePolicy: String(eventInfo?.usagePolicy || "").trim(),
+            additionalInfo: String(eventInfo?.additionalInfo || "").trim()
           });
         }
       }

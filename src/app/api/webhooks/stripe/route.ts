@@ -153,7 +153,7 @@ export async function POST(req: Request) {
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Captura dados para o e-mail (fora da transação)
+              // Captura dados para o e-mail (Sanitizado)
               emailsToSend.push({
                 to: orderData.userEmail,
                 userName: orderData.userName,
@@ -162,8 +162,8 @@ export async function POST(req: Request) {
                 eventDate: new Date(item.eventDate).toLocaleString('pt-BR'),
                 eventCity: item.eventCity,
                 voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`,
-                usagePolicy: eventInfo?.usagePolicy || "",
-                additionalInfo: eventInfo?.additionalInfo || ""
+                usagePolicy: String(eventInfo?.usagePolicy || "").trim(),
+                additionalInfo: String(eventInfo?.additionalInfo || "").trim()
               });
             }
           }
