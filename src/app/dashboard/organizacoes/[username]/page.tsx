@@ -34,7 +34,8 @@ import {
   Navigation,
   Globe,
   FileText,
-  ImageIcon
+  ImageIcon,
+  Sparkles
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -71,18 +72,36 @@ export default function OrganizationDashboardPage() {
 
   const { data: rawAllEvents, loading: eventsLoading } = useCollection<any>(allEventsQuery);
 
-  const eventsSummary = React.useMemo(() => {
-    if (!rawAllEvents) return { total: 0, active: 0, recent: [] };
+  // Consulta de Experiências
+  const allExpQuery = useMemoFirebase(() => {
+    if (!db || !currentOrg) return null;
+    return query(
+      collection(db, 'experiences'), 
+      where('organizationId', '==', currentOrg.id)
+    );
+  }, [db, currentOrg?.id]);
+  const { data: rawAllExp, loading: expLoading } = useCollection<any>(allExpQuery);
+
+  const summary = React.useMemo(() => {
+    const events = rawAllEvents || [];
+    const experiences = rawAllExp || [];
     
-    const active = rawAllEvents.filter((e: any) => e.status === 'Ativo').length;
-    const sorted = [...rawAllEvents].sort((a, b) => {
+    const activeEvents = events.filter((e: any) => e.status === 'Ativo').length;
+    const activeExp = experiences.filter((e: any) => e.status === 'active').length;
+
+    const all = [...events.map(e => ({...e, productType: 'event'})), ...experiences.map(e => ({...e, productType: 'experience'}))];
+    const sorted = all.sort((a, b) => {
       const tA = a.createdAt?.seconds || 0;
       const tB = b.createdAt?.seconds || 0;
       return tB - tA;
     }).slice(0, 5);
 
-    return { total: rawAllEvents.length, active, recent: sorted };
-  }, [rawAllEvents]);
+    return { 
+      total: events.length + experiences.length, 
+      active: activeEvents + activeExp, 
+      recent: sorted 
+    };
+  }, [rawAllEvents, rawAllExp]);
 
   // Estatísticas de QR Code
   const [qrStats, setQrStats] = React.useState({
@@ -188,13 +207,13 @@ export default function OrganizationDashboardPage() {
         <Card className="border-none shadow-sm bg-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex justify-between">
-              Eventos Totais
+              Portfólio Ativo
               <Megaphone className="w-4 h-4 text-secondary" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black">{eventsSummary.total}</div>
-            <p className="text-[9px] font-bold text-secondary uppercase mt-1">{eventsSummary.active} ativos no ar</p>
+            <div className="text-3xl font-black">{summary.total}</div>
+            <p className="text-[9px] font-bold text-secondary uppercase mt-1">{summary.active} projetos no ar</p>
           </CardContent>
         </Card>
 
@@ -204,7 +223,7 @@ export default function OrganizationDashboardPage() {
               Impacto QR Code
               <QrCode className="w-4 h-4 text-secondary" />
             </CardTitle>
-          </CardHeader>
+          </Header>
           <CardContent className="space-y-1">
             <div className="text-3xl font-black">{loadingQr ? <Loader2 className="w-6 h-6 animate-spin" /> : qrStats.total.toLocaleString()}</div>
             <p className="text-[9px] font-bold text-secondary uppercase">Escaneamentos totais</p>
@@ -270,43 +289,46 @@ export default function OrganizationDashboardPage() {
         <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
           <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
              <div>
-                <CardTitle className="text-lg font-bold">Eventos Recentes</CardTitle>
-                <CardDescription>Últimos projetos cadastrados.</CardDescription>
+                <CardTitle className="text-lg font-bold">Recentes da Marca</CardTitle>
+                <CardDescription>Últimas publicações unificadas.</CardDescription>
              </div>
              <Button variant="ghost" size="sm" asChild className="rounded-xl font-bold uppercase text-[10px] gap-2">
-               <Link href={`/dashboard/organizacoes/${currentOrg.username}/events`}>Ver Todos <ArrowRight className="w-3.5 h-3.5" /></Link>
+               <Link href={`/dashboard/organizacoes/${currentOrg.username}/events`}>Ver Tudo <ArrowRight className="w-3.5 h-3.5" /></Link>
              </Button>
           </CardHeader>
           <CardContent className="p-0">
-             {eventsLoading ? (
+             {eventsLoading || expLoading ? (
                <div className="p-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-secondary" /></div>
-             ) : eventsSummary.recent.length > 0 ? (
+             ) : summary.recent.length > 0 ? (
                <div className="divide-y">
-                 {eventsSummary.recent.map((event: any) => {
-                   const dateValue = event.date || event.startDate;
-                   const formattedDate = dateValue ? (dateValue.toDate ? dateValue.toDate().toLocaleDateString('pt-BR') : new Date(dateValue).toLocaleDateString('pt-BR')) : 'Sem data';
+                 {summary.recent.map((item: any) => {
+                   const dateValue = item.date || item.startDate;
+                   const formattedDate = dateValue ? (dateValue.toDate ? dateValue.toDate().toLocaleDateString('pt-BR') : new Date(dateValue).toLocaleDateString('pt-BR')) : 'Recorrente';
                    
                    return (
-                     <div key={event.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                     <div key={item.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
                         <div className="flex items-center gap-4">
                            <div className="h-10 w-10 rounded-lg bg-muted overflow-hidden relative">
-                              {event.image && <img src={event.image} className="w-full h-full object-cover" />}
+                              {item.image && <img src={item.image} className="w-full h-full object-cover" />}
                            </div>
                            <div>
-                              <p className="font-bold text-sm leading-tight">{event.title}</p>
-                              <p className="text-[10px] text-muted-foreground font-bold uppercase">{formattedDate}</p>
+                              <p className="font-bold text-sm leading-tight">{item.title}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[10px] text-muted-foreground font-bold uppercase">{formattedDate}</p>
+                                <Badge variant="outline" className="text-[7px] h-3.5 px-1 border-secondary/20 text-secondary">{item.productType === 'experience' ? 'Vivência' : 'Evento'}</Badge>
+                              </div>
                            </div>
                         </div>
                         <Badge variant="outline" className={cn(
                           "text-[9px] font-black uppercase",
-                          event.status === 'Ativo' ? "border-green-200 text-green-600" : "border-muted text-muted-foreground"
-                        )}>{event.status || 'Rascunho'}</Badge>
+                          (item.status === 'Ativo' || item.status === 'active') ? "border-green-200 text-green-600" : "border-muted text-muted-foreground"
+                        )}>{item.status === 'active' ? 'Ativo' : (item.status || 'Rascunho')}</Badge>
                      </div>
                    );
                  })}
                </div>
              ) : (
-               <div className="p-12 text-center text-muted-foreground italic text-sm">Nenhum evento cadastrado ainda.</div>
+               <div className="p-12 text-center text-muted-foreground italic text-sm">Nenhum projeto cadastrado ainda.</div>
              )}
           </CardContent>
         </Card>

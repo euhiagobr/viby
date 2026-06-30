@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -20,7 +21,8 @@ import {
   Tag,
   MapPin,
   Inbox,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
@@ -110,26 +112,38 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
     
     setIsFetching(true)
     try {
-      const q = query(
+      // Busca Eventos
+      const qEvents = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
         orderBy("date", "asc"),
         ...(isInitial ? [limit(9)] : [startAfter(lastVisible), limit(6)])
       )
       
-      const snapshot = await getDocs(q)
-      const fetchedDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      const snapEvents = await getDocs(qEvents)
+      const eventsDocs = snapEvents.docs.map(d => ({ id: d.id, ...d.data(), productType: 'event' }))
+      
+      // Busca Experiências
+      const qExp = query(
+        collection(db, "experiences"),
+        where("status", "==", "active"),
+        limit(10)
+      )
+      const snapExp = await getDocs(qExp)
+      const expDocs = snapExp.docs.map(d => ({ id: d.id, ...d.data(), productType: 'experience' }))
+
+      const combined = [...eventsDocs, ...expDocs];
       
       if (isInitial) {
-        setRawEvents(fetchedDocs)
+        setRawEvents(combined)
       } else {
-        setRawEvents(prev => [...prev, ...fetchedDocs])
+        setRawEvents(prev => [...prev, ...eventsDocs])
       }
       
-      if (snapshot.docs.length > 0) {
-        setLastVisible(snapshot.docs[snapshot.docs.length - 1])
+      if (snapEvents.docs.length > 0) {
+        setLastVisible(snapEvents.docs[snapEvents.docs.length - 1])
       }
-      setHasMore(snapshot.docs.length >= (isInitial ? 9 : 6))
+      setHasMore(snapEvents.docs.length >= (isInitial ? 9 : 6))
     } catch (e) {
       console.error("[Explorar Pagination Error]", e)
     } finally {
@@ -184,7 +198,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
         if (!eventLoc.includes(cityNorm)) return false;
       }
 
-      const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory;
+      const matchesCategory = selectedCategory === 'all' || e.categoryId === selectedCategory || e.category === selectedCategoryName;
       
       let matchesDate = true;
       const parseDate = (val: any) => {
@@ -379,7 +393,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="end">
               <div className="p-3 border-b grid grid-cols-3 gap-2">
-                  <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>{t('home.today')}</Button>
+                  <Button variant="ghost" size="sm" className={cn("text-[9px] font-black uppercase rounded-lg", dateFilter === 'today' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('today'); setCustomDate(undefined); }}>{t('home.today')}</Button>
                   <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'tomorrow' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('tomorrow'); setCustomDate(undefined); }}>{t('home.tomorrow')}</Button>
                   <Button variant="ghost" size="sm" className={cn("text-[10px] font-black uppercase rounded-lg", dateFilter === 'week' && "bg-secondary text-white hover:bg-secondary/90")} onClick={() => { setDateFilter('week'); setCustomDate(undefined); }}>{t('home.week')}</Button>
               </div>
@@ -453,7 +467,7 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
 
                {unifiedFeed.length > 0 && (
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                    {unifiedFeed.filter(item => item.type === 'ad' || (item.data && item.data.status === 'Ativo')).map((item: any, idx: number) => (
+                    {unifiedFeed.filter(item => item.type === 'ad' || (item.data && item.data.status !== 'Excluído')).map((item: any, idx: number) => (
                       item.type === 'ad' ? (
                         <AdsRenderer 
                           key={`ad-slot-${item.adIndex}-${idx}`} 

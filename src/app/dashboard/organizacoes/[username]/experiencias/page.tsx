@@ -35,7 +35,7 @@ import { toast } from "@/hooks/use-toast";
 import { deleteExperienceAction, duplicateExperienceAction } from '@/app/actions/experiences';
 
 export default function OrganizationExperiencesPage() {
-  const { currentOrg, userRole } = useCurrentOrganization();
+  const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization();
   const db = useFirestore();
   const auth = useAuth();
   const { user } = useUser(auth);
@@ -46,17 +46,22 @@ export default function OrganizationExperiencesPage() {
     if (!db || !currentOrg) return null;
     return query(
       collection(db, 'experiences'), 
-      where('organizationId', '==', currentOrg.id),
-      orderBy('createdAt', 'desc')
+      where('organizationId', '==', currentOrg.id)
     );
   }, [db, currentOrg?.id]);
 
-  const { data: experiences, loading } = useCollection<any>(experiencesQuery);
+  const { data: rawExp, loading } = useCollection<any>(experiencesQuery);
 
   const filtered = React.useMemo(() => {
-    if (!experiences) return [];
-    return experiences.filter(e => e.title?.toLowerCase().includes(search.toLowerCase()));
-  }, [experiences, search]);
+    if (!rawExp) return [];
+    return rawExp
+      .filter(e => e.title?.toLowerCase().includes(search.toLowerCase()))
+      .sort((a, b) => {
+        const tA = a.createdAt?.seconds || 0;
+        const tB = b.createdAt?.seconds || 0;
+        return tB - tA;
+      });
+  }, [rawExp, search]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Deseja remover esta experiência permanentemente?")) return;
@@ -178,7 +183,7 @@ export default function OrganizationExperiencesPage() {
       ) : (
         <div className="py-24 text-center bg-white rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 shadow-inner">
            <Inbox className="w-12 h-12 text-muted-foreground opacity-10" />
-           <p className="text-muted-foreground font-bold italic">Nenhuma experiência cadastrada para esta marca.</p>
+           <p className="text-muted-foreground font-bold italic">Nenhuma vivência localizada para esta marca.</p>
            {isAtLeastEditor && (
              <Button asChild variant="outline" className="rounded-full font-bold h-10 border-secondary text-secondary">
                <Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias/novo`}>Criar minha primeira Experiência</Link>
