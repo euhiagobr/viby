@@ -150,12 +150,18 @@ export default function NovoEventoWizard() {
     initDraft();
   }, [user, currentOrg, isInitialized, authLoading]);
 
-  // Auto-Save com Debounce
+  // Auto-Save com Debounce - Convertendo para ISO absoluto
   useEffect(() => {
     if (!draftId || !autoSaveActive || publishing) return;
 
     const timer = setTimeout(async () => {
-      await saveDraftAction(draftId, step, formData);
+      const savePayload = {
+        ...formData,
+        startDate: dateToAtomsphericISO(formData.startDate),
+        endDate: dateToAtomsphericISO(formData.endDate),
+        recurringEndDate: formData.recurringEndDate ? dateToAtomsphericISO(formData.recurringEndDate) : ""
+      };
+      await saveDraftAction(draftId, step, savePayload);
     }, 2000);
 
     return () => clearTimeout(timer);
@@ -235,6 +241,9 @@ export default function NovoEventoWizard() {
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
       const finalPayload = {
         ...formData,
+        startDate: dateToAtomsphericISO(formData.startDate),
+        endDate: dateToAtomsphericISO(formData.endDate),
+        recurringEndDate: formData.recurringEndDate ? dateToAtomsphericISO(formData.recurringEndDate) : "",
         organizationId: currentOrg.id,
         ticketMode: formData.type === 'interno' ? ticketMode : 'none',
         ageRating: { code: ageRatingConfig.code, label: ageRatingConfig.label, minimumAge: ageRatingConfig.minimumAge },
@@ -440,7 +449,7 @@ export default function NovoEventoWizard() {
               )}
            </Card>
            <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
-           <Button onClick={handleNextStep} className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Próximo Passo <ChevronRight className="w-5 h-5" /></Button>
+           <Button onClick={handleNextStep} className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic text-lg gap-2">Próximo Passo <ChevronRight className="w-5 h-5" /></Button>
         </div>
       )}
 
