@@ -77,6 +77,30 @@
           "items": { "type": "object" } 
         }
       }
+    },
+    "ExperienceReservation": {
+      "title": "Reserva de Experiência",
+      "description": "Hold temporário de vaga em uma experiência durante o checkout.",
+      "type": "object",
+      "properties": {
+        "experienceId": { "type": "string" },
+        "slotId": { "type": "string" },
+        "userId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "status": { "type": "string", "enum": ["reserved", "confirmed", "expired", "cancelled"] },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "PartnerProfile": {
+      "title": "Perfil de Parceiro",
+      "description": "Dados de comissionamento e rede de um parceiro estratégico.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "status": { "type": "string" },
+        "tiers": { "type": "array" },
+        "stats": { "type": "object" }
+      }
     }
   },
   "auth": {
@@ -102,6 +126,18 @@
     "/recurring_occurrences/{occId}": {
       "schema": "RecurringOccurrence",
       "description": "Instâncias individuais de eventos com agenda."
+    },
+    "/experience_reservations/{resId}": {
+      "schema": "ExperienceReservation",
+      "description": "Travas temporárias de estoque para experiências."
+    },
+    "/partners/{partnerId}": {
+      "schema": "PartnerProfile",
+      "description": "Dados de parceiros estratégicos."
+    },
+    "/simulation_campaigns/{campId}": {
+      "schema": "object",
+      "description": "Configurações da calculadora comercial."
     }
   }
 }

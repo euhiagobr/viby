@@ -52,6 +52,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Campanhas de Simulação e Cupons Ads (Leitura pública para validação)
+    match /simulation_campaigns/{campId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /ad_coupons/{couponId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Recuperação de Senha (OTP)
     match /password_reset_codes/{codeId} {
       allow create: if true;
@@ -137,6 +147,30 @@ service cloud.firestore {
 
     // --- REGRAS RESTRITAS (Apenas Admin ou Dono) ---
     
+    // Reservas Temporárias de Experiência (Hold)
+    match /experience_reservations/{resId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isAdmin(); // Criação/Manutenção via Server Action
+    }
+
+    // Módulo de Parceiros Estratégicos
+    match /partners/{partnerId} {
+      allow read: if isOwner(partnerId) || isAdmin();
+      allow write: if isAdmin();
+    }
+    match /partner_referrals/{refId} {
+      allow read: if isSignedIn() && (resource.data.partnerId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    match /partner_commissions/{commId} {
+      allow read: if isSignedIn() && (resource.data.partnerId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    match /partner_withdrawals/{drawId} {
+      allow read: if isSignedIn() && (resource.data.partnerId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
     match /registrations/{regId} {
       allow read: if isAdmin() || isOwner(resource.data.userId) || isOrgMember(resource.data.organizationId);
       allow create: if isSignedIn();
