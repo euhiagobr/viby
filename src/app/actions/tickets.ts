@@ -1,8 +1,8 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
+import { sendTicketEmail } from './email';
 
 export async function generateFreeTickets(data: {
   userId: string;
@@ -47,7 +47,6 @@ export async function generateFreeTickets(data: {
             throw new Error("Você já resgatou este ingresso gratuito.");
           }
 
-          // Registrar o bloqueio permanentemente antes de emitir
           transaction.set(lockRef, { 
             userId, 
             eventId: item.eventId, 
@@ -56,11 +55,13 @@ export async function generateFreeTickets(data: {
           });
         }
 
-        // Incrementa contadores de venda no evento e métricas da organização
+        // Incrementa contadores
         const eventRef = db.collection("events").doc(item.eventId);
         const orgRef = db.collection("organizations").doc(item.organizationId);
+        
+        const eventSnap = await transaction.get(eventRef);
+        const eventData = eventSnap.data();
 
-        // Se for grátis, forçamos a quantidade 1 no loop de emissão
         const finalQty = isFree ? 1 : item.quantity;
 
         transaction.update(eventRef, {
@@ -113,6 +114,19 @@ export async function generateFreeTickets(data: {
 
           transaction.set(regRef, ticketData);
           results.push(regRef.id);
+
+          // Envio de E-mail com regras e info (Sempre fora do loop se for único, mas aqui é para cada ticket)
+          await sendTicketEmail({
+            to: userEmail,
+            userName,
+            eventTitle: item.eventTitle,
+            ticketCode,
+            eventDate: new Date(item.eventDate).toLocaleString('pt-BR'),
+            eventCity: item.eventCity,
+            voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`,
+            usagePolicy: eventData?.usagePolicy || "",
+            additionalInfo: eventData?.additionalInfo || ""
+          });
         }
       }
 

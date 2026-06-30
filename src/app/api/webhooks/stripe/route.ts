@@ -6,17 +6,6 @@ import { sendTicketEmail } from '@/app/actions/email';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * @fileOverview Webhook de Fulfillment Blindado
- * 
- * REGRAS DE PLATAFORMA APLICADAS:
- * - VIBY-EXP-002: 'sold' atualizado EXCLUSIVAMENTE aqui via transação atômica.
- * - VIBY-EXP-003: Idempotência garantida por 'stripe_processed_events'.
- * - VIBY-EXP-004: Única fonte de verdade para confirmação de pagamento.
- * - VIBY-EXP-007: Re-validação de capacidade (Double Guarantee) em transação.
- * - AUDIT-V2: Reconciliação financeira contra snapshot original.
- */
-
 async function getStripeInstance(db: admin.firestore.Firestore) {
   const snap = await db.collection('settings').doc('stripe').get();
   const data = snap.data();
@@ -66,8 +55,7 @@ export async function POST(req: Request) {
           const orderData = orderSnap.data()!;
           if (orderData.status === 'paid') return;
 
-          // RECONCILIAÇÃO FINANCEIRA (VIBY-AUDIT-V2)
-          const stripeAmount = session.amount_total; // centavos
+          const stripeAmount = session.amount_total;
           const expectedAmountCents = Math.round(orderData.totals.totalToPay * 100);
           
           if (Math.abs(stripeAmount! - expectedAmountCents) > 1) {
@@ -95,7 +83,11 @@ export async function POST(req: Request) {
 
           for (const item of items) {
             const isExp = item.productType === 'experience';
-            
+            const sourceColl = isExp ? "experiences" : "events";
+            const eventRef = db.collection(sourceColl).doc(item.eventId);
+            const eventSnap = await transaction.get(eventRef);
+            const eventInfo = eventSnap.data();
+
             if (isExp && item.occurrenceId) {
               const slotRef = db.collection("experiences").doc(item.eventId).collection("slots").doc(item.occurrenceId);
               const slotSnap = await transaction.get(slotRef);
@@ -111,7 +103,6 @@ export async function POST(req: Request) {
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
               });
             } else {
-              const eventRef = db.collection("events").doc(item.eventId);
               transaction.update(eventRef, { 
                 ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -156,19 +147,21 @@ export async function POST(req: Request) {
                 productType: item.productType || 'event',
                 confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                audit_checksum: item.financials?.checksum || null
+                timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              sendTicketEmail({
+              // Envio do e-mail incluindo regras e informações adicionais
+              await sendTicketEmail({
                 to: orderData.userEmail,
                 userName: orderData.userName,
                 eventTitle: item.eventTitle,
                 ticketCode,
-                eventDate: item.eventDate,
+                eventDate: new Date(item.eventDate).toLocaleString('pt-BR'),
                 eventCity: item.eventCity,
-                voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`
-              }).catch(e => console.error("[Webhook Email] Error:", e.message));
+                voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`,
+                usagePolicy: eventInfo?.usagePolicy || "",
+                additionalInfo: eventInfo?.additionalInfo || ""
+              });
             }
           }
           

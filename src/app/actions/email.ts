@@ -1,4 +1,3 @@
-
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -98,10 +97,88 @@ function getEmailTemplate(branding: any, content: string) {
 }
 
 /**
- * Envia a arte real gerada para o suporte Viby e Hiago.
+ * Envia o ingresso por e-mail com todas as regras e informações adicionais.
  */
+export async function sendTicketEmail(data: { 
+  to: string; 
+  userName: string; 
+  eventTitle: string; 
+  ticketCode: string; 
+  eventDate: string; 
+  eventCity?: string; 
+  voucherUrl: string;
+  usagePolicy?: string;
+  additionalInfo?: string;
+}) {
+  try {
+    const branding = await getBranding();
+    const transporter = await getTransporter();
+    const emailSettingsSnap = await getAdminDb().collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
+
+    const content = `
+      <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; font-weight: 900;">Seu Ingresso está aqui!</h2>
+      <p>Olá, <strong>${data.userName}</strong>. Prepare-se para a sua próxima experiência.</p>
+      
+      <div style="background: #f8fafc; padding: 25px; border-radius: 20px; border: 2px dashed #e2e8f0; margin: 25px 0;">
+        <p style="margin: 0; font-size: 18px; font-weight: 900; color: #1e293b;">${data.eventTitle.toUpperCase()}</p>
+        <p style="margin: 5px 0; font-size: 13px; color: #64748b;">📅 ${data.eventDate}</p>
+        ${data.eventCity ? `<p style="margin: 5px 0; font-size: 13px; color: #64748b;">📍 ${data.eventCity}</p>` : ''}
+        <p style="margin: 15px 0 0 0; font-size: 24px; font-weight: 900; color: #2C52EE; font-family: monospace;">${data.ticketCode}</p>
+      </div>
+
+      ${data.usagePolicy ? `
+        <div style="margin-bottom: 25px;">
+          <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Regras e Políticas:</h4>
+          <div style="font-size: 13px; line-height: 1.6; color: #334155; background: #fefce8; padding: 15px; border-radius: 12px; border: 1px solid #fef08a;">
+            ${data.usagePolicy.replace(/\n/g, '<br>')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${data.additionalInfo ? `
+        <div style="margin-bottom: 25px;">
+          <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Informações Úteis:</h4>
+          <div style="font-size: 13px; line-height: 1.6; color: #334155;">
+            ${data.additionalInfo.replace(/\n/g, '<br>')}
+          </div>
+        </div>
+      ` : ''}
+
+      <div style="text-align: center; margin-top: 30px;">
+        <a href="${data.voucherUrl}" style="background-color: #000; color: white; padding: 15px 30px; text-decoration: none; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-style: italic; display: inline-block;">Ver QR Code de Acesso</a>
+      </div>
+      
+      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 30px;">
+        Apresente o QR Code no seu celular na entrada do evento. Não é necessário imprimir.
+      </p>
+    `;
+
+    await transporter.sendMail({
+      from: `"${branding.siteName} Ingressos" <${smtpUser}>`,
+      to: data.to,
+      subject: `🎟️ Seu ingresso para: ${data.eventTitle}`,
+      html: getEmailTemplate(branding, content)
+    });
+
+    await logSentEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject: `🎟️ Seu ingresso para: ${data.eventTitle}`,
+      content: getEmailTemplate(branding, content),
+      type: "ticket_confirmation",
+      sender: "Viby Ingressos"
+    });
+
+    return { success: true };
+  } catch (e: any) { 
+    console.error("[sendTicketEmail] Error:", e);
+    return { success: false, error: e.message }; 
+  }
+}
+
 export async function sendAgendaRequestAction(data: {
-  images: string[]; // Array de base64 strings
+  images: string[];
   theme: string;
   format: string;
   userEmail: string;
@@ -118,7 +195,7 @@ export async function sendAgendaRequestAction(data: {
       filename: `arte-${index + 1}.png`,
       content: base64.split('base64,')[1],
       encoding: 'base64',
-      cid: `arte-${index + 1}` // Permite embutir no HTML
+      cid: `arte-${index + 1}`
     }));
 
     const imagesHtml = data.images.map((_, index) => `
@@ -158,18 +235,8 @@ export async function sendAgendaRequestAction(data: {
       attachments
     });
 
-    await logSentEmail({
-      recipientEmail: "viby@viby.club, hiago@viby.club",
-      recipientName: "Viby Suporte & Hiago",
-      subject,
-      content: "Arte PNG enviada em anexo via sistema.",
-      type: "generated_art_dispatch",
-      sender: "Viby Studio Engine"
-    });
-
     return { success: true };
   } catch (e: any) {
-    console.error("[sendAgendaRequestAction] Fatal Error:", e);
     return { success: false, error: e.message };
   }
 }
@@ -192,18 +259,8 @@ export async function sendManualMarketingEmail(data: { to: string; subject: stri
       html: htmlContent
     });
 
-    await logSentEmail({
-      recipientEmail: data.to,
-      recipientName: "Destinatário Manual",
-      subject: data.subject,
-      content: htmlContent,
-      type: "manual_marketing",
-      sender: `Viby Marketing (${branding.siteName})`
-    });
-
     return { success: true };
   } catch (e: any) {
-    console.error("[sendManualMarketingEmail]", e);
     return { success: false, error: e.message };
   }
 }
@@ -223,18 +280,8 @@ export async function sendCampaignEmailAction(data: { to: string; subject: strin
       html: data.html
     });
 
-    await logSentEmail({
-      recipientEmail: data.to,
-      recipientName: "Destinatário Campanha",
-      subject: data.subject,
-      content: data.html,
-      type: "campaign_dispatch",
-      sender: `Viby CRM (${branding.siteName})`
-    });
-
     return { success: true };
   } catch (e: any) {
-    console.error("[sendCampaignEmailAction]", e);
     return { success: false, error: e.message };
   }
 }
@@ -266,18 +313,8 @@ export async function sendOTPRecoveryEmail(data: { to: string; userName: string;
       html: htmlContent
     });
 
-    await logSentEmail({
-      recipientEmail: data.to,
-      recipientName: data.userName,
-      subject,
-      content: htmlContent,
-      type: "otp_recovery",
-      sender: "Viby Security"
-    });
-
     return { success: true };
   } catch (e: any) { 
-    console.error("[sendOTPRecoveryEmail]", e);
     return { success: false, error: e.message }; 
   }
 }
@@ -320,18 +357,8 @@ export async function sendPasswordChangedNotificationEmail(data: {
       html: htmlContent
     });
 
-    await logSentEmail({
-      recipientEmail: data.to,
-      recipientName: data.userName,
-      subject,
-      content: htmlContent,
-      type: "password_changed",
-      sender: "Viby Security"
-    });
-
     return { success: true };
   } catch (e: any) { 
-    console.error("[sendPasswordChangedNotificationEmail]", e);
     return { success: false, error: e.message }; 
   }
 }
@@ -358,32 +385,6 @@ export async function sendWelcomeEmail(data: { to: string; userName: string }) {
       to: data.to,
       subject: `✨ Bem-vindo(a) ao clube, ${data.userName}!`,
       html: htmlContent
-    });
-
-    return { success: true };
-  } catch (e: any) { return { success: false, error: e.message }; }
-}
-
-export async function sendAdminNewUserAlert(data: { userName: string; username: string; email: string; uid: string }) {
-  try {
-    const branding = await getBranding();
-    const transporter = await getTransporter();
-    const emailSettingsSnap = await getAdminDb().collection('settings').doc('email').get();
-    const smtpUser = emailSettingsSnap.data()?.smtpUser;
-
-    const content = `
-      <h2 style="color: #2C52EE;">Novo Cadastro Realizado</h2>
-      <p><strong>Nome:</strong> ${data.userName}</p>
-      <p><strong>Username:</strong> @${data.username}</p>
-      <p><strong>E-mail:</strong> ${data.email}</p>
-      <p><strong>UID:</strong> ${data.uid}</p>
-    `;
-
-    await transporter.sendMail({
-      from: `"Viby System" <${smtpUser}>`,
-      to: smtpUser, 
-      subject: `👤 Novo Usuário: ${data.userName}`,
-      html: getEmailTemplate(branding, content)
     });
 
     return { success: true };
@@ -419,38 +420,6 @@ export async function sendVerificationStatusEmail(data: { to: string; userName: 
   } catch (e: any) { return { success: false, error: e.message }; }
 }
 
-export async function sendTicketEmail(data: { to: string; userName: string; eventTitle: string; ticketCode: string; eventDate: string; eventCity?: string; voucherUrl: string }) {
-  try {
-    const branding = await getBranding();
-    const transporter = await getTransporter();
-    const emailSettingsSnap = await getAdminDb().collection('settings').doc('email').get();
-    const smtpUser = emailSettingsSnap.data()?.smtpUser;
-
-    const content = `
-      <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; font-weight: 900;">Seu Ingresso está aqui!</h2>
-      <p>Olá, <strong>${data.userName}</strong>. Prepare-se para a sua próxima experiência.</p>
-      <div style="background: #f8fafc; padding: 25px; border-radius: 20px; border: 2px dashed #e2e8f0; margin: 25px 0;">
-        <p style="margin: 0; font-size: 18px; font-weight: 900; color: #1e293b;">${data.eventTitle.toUpperCase()}</p>
-        <p style="margin: 5px 0; font-size: 13px; color: #64748b;">📅 ${data.eventDate}</p>
-        ${data.eventCity ? `<p style="margin: 5px 0; font-size: 13px; color: #64748b;">📍 ${data.eventCity}</p>` : ''}
-        <p style="margin: 15px 0 0 0; font-size: 24px; font-weight: 900; color: #2C52EE; font-family: monospace;">${data.ticketCode}</p>
-      </div>
-      <div style="text-align: center;">
-        <a href="${data.voucherUrl}" style="background-color: #000; color: white; padding: 15px 30px; text-decoration: none; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-style: italic; display: inline-block;">Ver QR Code de Acesso</a>
-      </div>
-    `;
-
-    await transporter.sendMail({
-      from: `"${branding.siteName} Ingressos" <${smtpUser}>`,
-      to: data.to,
-      subject: `🎟️ Seu ingresso para: ${data.eventTitle}`,
-      html: getEmailTemplate(branding, content)
-    });
-
-    return { success: true };
-  } catch (e: any) { return { success: false, error: e.message }; }
-}
-
 export async function sendSupportTicketReceivedEmail(data: { to: string; userName: string; ticketNumber: string; ticketSubject: string; ticketMessage: string; ticketUrl: string }) {
   try {
     const branding = await getBranding();
@@ -463,7 +432,7 @@ export async function sendSupportTicketReceivedEmail(data: { to: string; userNam
       <p>Olá, <strong>${data.userName}</strong>. Recebemos sua solicitação sob o protocolo <strong>#${data.ticketNumber}</strong>.</p>
       <div style="background: #f8fafc; padding: 20px; border-radius: 15px; margin: 20px 0; border: 1px solid #e2e8f0;">
         <p style="margin: 0; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Assunto:</p>
-        <p style="margin: 5px 0 0 0; font-weight: 700;">${data.ticketSubject}</p>
+        <p style="margin: 5px 0; font-size: 14px; font-weight: 700;">${data.ticketSubject}</p>
       </div>
       <p>Nossa equipe analisará os detalhes e retornará o mais breve possível.</p>
       <div style="text-align: center; margin-top: 25px;">
@@ -487,8 +456,7 @@ export async function sendSupportTicketResponseEmail(data: { to: string; userNam
   try {
     const branding = await getBranding();
     const transporter = await getTransporter();
-    const db = getAdminDb();
-    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const emailSettingsSnap = await getAdminDb().collection('settings').doc('email').get();
     const smtpUser = emailSettingsSnap.data()?.smtpUser;
 
     const content = `
@@ -634,11 +602,6 @@ export async function resendLoggedEmail(data: { recipientEmail: string; recipien
       to: data.recipientEmail,
       subject: `[Reenvio] ${data.subject}`,
       html: data.content
-    });
-
-    await logSentEmail({
-      ...data,
-      sender: "Viby Manual Resend"
     });
 
     return { success: true };
