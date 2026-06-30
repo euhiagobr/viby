@@ -40,7 +40,17 @@ service firebase.storage {
       allow write: if isSignedIn() || isAdmin();
     }
 
+    match /experiences/{experienceId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() || isAdmin();
+    }
+
     match /city-covers/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /city-covers-manual/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin();
     }

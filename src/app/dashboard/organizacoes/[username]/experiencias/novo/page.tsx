@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useUser, useDoc, useFirestore, useFirebaseApp } from '@/firebase';
+import { useAuth, useUser, useFirestore, useFirebaseApp } from '@/firebase';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ import { slugify } from '@/lib/slug-utils';
 import { EventLocation, EventHeader, EventDescription } from '@/components/events';
 import { IMAGE_CACHE_METADATA } from '@/lib/image-utils';
 import { cn } from '@/lib/utils';
+import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
@@ -58,6 +59,26 @@ export default function NovaExperienciaPage() {
   const [step, setStep] = React.useState(1);
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
   const [galleryProgress, setGalleryProgress] = React.useState<{ [key: string]: number }>({});
+
+  React.useEffect(() => {
+    if (!user || !currentOrg) return;
+
+    const init = async () => {
+      const res = await getOrCreateExperienceDraftAction(user.uid, currentOrg.id);
+      if (res.success) {
+        setDraftId(res.id);
+        setFormData(prev => ({
+          ...prev,
+          ...res,
+          gallery: res.gallery || [],
+          address: res.address || prev.address
+        }));
+      }
+      setLoading(false);
+    };
+
+    init();
+  }, [user, currentOrg]);
 
   const [formData, setFormData] = React.useState({
     title: "",
@@ -83,45 +104,34 @@ export default function NovaExperienciaPage() {
     }
   });
 
-  React.useEffect(() => {
-    if (!user || !currentOrg) return;
-
-    const init = async () => {
-      const res = await getOrCreateExperienceDraftAction(user.uid, currentOrg.id);
-      if (res.success) {
-        setDraftId(res.id);
-        setFormData(prev => ({
-          ...prev,
-          ...res,
-          gallery: res.gallery || [],
-          address: res.address || prev.address
-        }));
-      }
-      setLoading(false);
-    };
-
-    init();
-  }, [user, currentOrg]);
-
   const handleImageUpload = async (file: File) => {
     if (!storage || !user || !draftId) return;
     setUploadProgress(0);
-    const storageRef = ref(storage, `experiences/${draftId}/cover_${Date.now()}`);
-    const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
-    
-    uploadTask.on('state_changed', 
-      (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-      () => {
-        setUploadProgress(null);
-        toast({ variant: "destructive", title: "Erro no upload" });
-      },
-      async () => {
-        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-        setFormData(prev => ({ ...prev, image: downloadURL }));
-        setUploadProgress(null);
-        toast({ title: "Capa atualizada!" });
-      }
-    );
+    try {
+      const storageRef = ref(storage, `experiences/${draftId}/cover_${Date.now()}`);
+      const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
+      
+      uploadTask.on('state_changed', 
+        (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
+        (error) => {
+          setUploadProgress(null);
+          toast({ 
+            variant: "destructive", 
+            title: "Erro no upload da capa", 
+            description: `Falha: ${error.code}` 
+          });
+        },
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          setFormData(prev => ({ ...prev, image: downloadURL }));
+          setUploadProgress(null);
+          toast({ title: "Capa carregada!" });
+        }
+      );
+    } catch (e: any) {
+      setUploadProgress(null);
+      toast({ variant: "destructive", title: "Erro técnico no upload" });
+    }
   };
 
   const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,32 +150,40 @@ export default function NovaExperienciaPage() {
       const file = files[i];
       const uploadId = Math.random().toString(36).substring(7);
       
-      const storageRef = ref(storage, `experiences/${draftId}/gallery_${Date.now()}_${i}`);
-      const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
+      try {
+        const storageRef = ref(storage, `experiences/${draftId}/gallery_${Date.now()}_${i}`);
+        const uploadTask = uploadBytesResumable(storageRef, file, IMAGE_CACHE_METADATA);
 
-      uploadTask.on('state_changed', 
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setGalleryProgress(prev => ({ ...prev, [uploadId]: progress }));
-        },
-        () => {
-          setGalleryProgress(prev => {
-            const next = { ...prev };
-            delete next[uploadId];
-            return next;
-          });
-          toast({ variant: "destructive", title: "Erro", description: `Falha ao subir ${file.name}` });
-        },
-        async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref);
-          setFormData(prev => ({ ...prev, gallery: [...prev.gallery, url] }));
-          setGalleryProgress(prev => {
-            const next = { ...prev };
-            delete next[uploadId];
-            return next;
-          });
-        }
-      );
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setGalleryProgress(prev => ({ ...prev, [uploadId]: progress }));
+          },
+          (error) => {
+            setGalleryProgress(prev => {
+              const next = { ...prev };
+              delete next[uploadId];
+              return next;
+            });
+            toast({ 
+              variant: "destructive", 
+              title: "Erro no upload", 
+              description: `Falha ao subir ${file.name}: ${error.code}` 
+            });
+          },
+          async () => {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            setFormData(prev => ({ ...prev, gallery: [...prev.gallery, url] }));
+            setGalleryProgress(prev => {
+              const next = { ...prev };
+              delete next[uploadId];
+              return next;
+            });
+          }
+        );
+      } catch (err) {
+        toast({ variant: "destructive", title: "Falha ao iniciar upload de arquivo." });
+      }
     }
   };
 
