@@ -44,6 +44,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { ExperienceSlotsAdmin } from '@/components/experiences/ExperienceSlotsAdmin';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { query, collection, where } from 'firebase/firestore';
 
 const WEEK_DAYS = [
@@ -65,7 +66,6 @@ export default function NovaExperienciaPage() {
   const app = useFirebaseApp();
   const storage = React.useMemo(() => (app ? getStorage(app) : null), [app]);
 
-  // Busca categorias dinâmicas do tipo 'experience' sem orderBy para evitar erro de índice
   const categoriesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -75,7 +75,6 @@ export default function NovaExperienciaPage() {
   }, [db]);
   const { data: rawCategories, loading: categoriesLoading } = useCollection<any>(categoriesQuery);
 
-  // Ordenação em memória para garantir usabilidade sem depender de índices complexos
   const categories = React.useMemo(() => {
     if (!rawCategories) return [];
     return [...rawCategories].sort((a, b) => a.name.localeCompare(b.name));
@@ -283,9 +282,6 @@ export default function NovaExperienciaPage() {
                           {categories.map((c: any) => (
                              <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
                           ))}
-                          {!categoriesLoading && categories.length === 0 && (
-                             <SelectItem value="none" disabled>Nenhuma categoria de experiência cadastrada</SelectItem>
-                          )}
                        </SelectContent>
                     </Select>
                  </div>
@@ -394,7 +390,7 @@ export default function NovaExperienciaPage() {
            </Card>
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(2)} className="h-16 px-8 rounded-2xl font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={nextStep} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl uppercase italic text-lg gap-2">Gerenciar Horários <ChevronRight className="w-5 h-5" /></Button>
+              <Button onClick={nextStep} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Gerenciar Horários <ChevronRight className="w-5 h-5" /></Button>
            </div>
         </div>
       )}
