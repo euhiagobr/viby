@@ -70,7 +70,8 @@ import {
   Ticket,
   Sparkles,
   ArrowUpRight,
-  Settings
+  Settings,
+  Zap
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -97,7 +98,7 @@ import { cn, validateCPF, validateCNPJ, safeParseDate } from "@/lib/utils"
 import Link from "next/link"
 import { sendVerificationStatusEmail } from "@/app/actions/email"
 import { AffiliateCode } from "@/types/affiliate"
-import { formatCurrency, calculateVibyOfficialSplit } from "@/lib/financial-utils"
+import { formatCurrency, calculateVibyOfficialSplit, isTemporalActive } from "@/lib/financial-utils"
 import { useAdminPermissions } from "@/hooks/use-admin-permissions"
 
 const ORG_ROLES = [
@@ -248,7 +249,6 @@ export default function AdminPaginasPage() {
 
         const { id, ownerProfile, ...data } = editingOrg
         
-        // Conversão segura de datas v2 para Timestamps
         if (data.financialOverrides) {
            ['event', 'experience'].forEach(type => {
               const ov = data.financialOverrides[type];
@@ -433,7 +433,6 @@ export default function AdminPaginasPage() {
      }));
   };
 
-  // Cálculos de Simulação v2
   const testPriceNum = parseFloat(testPrice) || 0;
   const simulation = calculateVibyOfficialSplit(testPriceNum, 'BRL', {}, editingOrg, globalFees, promotions, testProductType);
 
@@ -605,7 +604,6 @@ export default function AdminPaginasPage() {
 
                           <TabsContent value="taxas" className="space-y-12 mt-0">
                              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                                {/* COLUNA DE CONFIGURAÇÃO */}
                                 <div className="lg:col-span-7 space-y-10">
                                    <div className="p-6 bg-secondary/5 rounded-[2rem] border-2 border-dashed border-secondary/20 flex items-start gap-4">
                                       <Zap className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
@@ -617,7 +615,6 @@ export default function AdminPaginasPage() {
                                       </div>
                                    </div>
 
-                                   {/* SEÇÃO: EVENTOS */}
                                    <section className="space-y-6">
                                       <div className="flex items-center gap-3 px-1">
                                          <Ticket className="w-5 h-5 text-primary" />
@@ -660,7 +657,6 @@ export default function AdminPaginasPage() {
                                       </div>
                                    </section>
 
-                                   {/* SEÇÃO: EXPERIÊNCIAS */}
                                    <section className="space-y-6">
                                       <div className="flex items-center gap-3 px-1">
                                          <Sparkles className="w-5 h-5 text-secondary" />
@@ -704,7 +700,6 @@ export default function AdminPaginasPage() {
                                    </section>
                                 </div>
 
-                                {/* COLUNA DE SIMULAÇÃO */}
                                 <div className="lg:col-span-5 space-y-8">
                                    <div className="flex items-center justify-between px-1">
                                       <div className="flex items-center gap-2">
@@ -732,13 +727,21 @@ export default function AdminPaginasPage() {
                                       </CardHeader>
                                       <CardContent className="p-8 space-y-6">
                                          <div className="space-y-4">
-                                            <div className="flex justify-between items-center text-[11px] font-bold uppercase opacity-60">
-                                               <span className="flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> Cliente Paga</span>
+                                            <div className="flex justify-between items-center text-sm font-bold">
+                                               <span className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] tracking-tight">
+                                                  <User className="w-3.5 h-3.5" /> Cliente Paga
+                                               </span>
                                                <span className="text-primary">{formatCurrency(simulation.totalCharged)}</span>
                                             </div>
-                                            <div className="flex justify-between items-center text-[11px] font-bold uppercase opacity-60">
-                                               <span className="flex items-center gap-1.5"><Percent className="w-3.5 h-3.5" /> Comissão Viby</span>
-                                               <span className="text-red-500">-{formatCurrency(simulation.vibyApplicationFee)}</span>
+                                            <div className="flex justify-between items-center text-sm font-bold">
+                                               <span className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] tracking-tight">
+                                                  <Percent className="w-3.5 h-3.5" /> Comissão Viby
+                                               </span>
+                                               <div className="flex flex-col items-end">
+                                                  <span className={cn(simulation.organizerFee > 0 ? "text-red-500" : "text-green-600")}>
+                                                    {simulation.organizerFee > 0 ? `-${formatCurrency(simulation.organizerFee)}` : "ISENTO"}
+                                                  </span>
+                                               </div>
                                             </div>
                                             <Separator className="border-dashed" />
                                             <div className="flex justify-between items-center bg-green-50 p-6 rounded-2xl border-2 border-dashed border-green-200">
