@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -56,7 +55,9 @@ export function ExperienceSlotsPublic({ slots, onSelect, selectedSlotId }: Exper
          {activeSlots.map((slot) => {
            const isSelected = selectedSlotId === slot.id;
            const date = new Date(slot.datetime);
-           const isSoldOut = (slot.sold || 0) >= slot.capacity;
+           const remaining = slot.capacity - (slot.sold || 0);
+           const isSoldOut = remaining <= 0;
+           const isLowStock = !isSoldOut && (remaining / slot.capacity) <= 0.1;
 
            return (
              <button
@@ -83,7 +84,7 @@ export function ExperienceSlotsPublic({ slots, onSelect, selectedSlotId }: Exper
                       </p>
                       <div className="flex items-center gap-2">
                          <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                           {isSoldOut ? "Esgotado" : `${slot.capacity - (slot.sold || 0)} vagas`}
+                           {isSoldOut ? "Esgotado" : isLowStock ? "Últimas vagas" : "Disponível"}
                          </span>
                          {!isSoldOut && (
                            <span className="text-[10px] font-black text-secondary uppercase">{formatCurrency(slot.price)}</span>

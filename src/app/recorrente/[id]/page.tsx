@@ -45,7 +45,9 @@ export default function PublicOccurrencePage() {
                       series?.curatorProfile === 'viby' || 
                       (series?.organizationId === VIBY_OFFICIAL_UID && (series?.type === 'divulgacao' || series?.type === 'externo'));
 
-  const isSoldOut = !isCuradoria && occ.capacidadeMaxima > 0 && (occ.ingressosVendidos || 0) >= occ.capacidadeMaxima;
+  const remaining = occ.capacidadeMaxima - (occ.ingressosVendidos || 0);
+  const isSoldOut = !isCuradoria && occ.capacidadeMaxima > 0 && remaining <= 0;
+  const isLowStock = !isSoldOut && !isCuradoria && (remaining / occ.capacidadeMaxima) <= 0.1;
 
   const eventProxy = {
     ...series,
@@ -111,8 +113,8 @@ export default function PublicOccurrencePage() {
                     <div className="p-3 bg-muted rounded-2xl text-secondary"><Users className="w-6 h-6" /></div>
                     <div>
                       <p className="text-[10px] font-black uppercase opacity-40">Disponibilidade</p>
-                      <p className={cn("font-bold text-sm leading-none mt-1", isSoldOut ? "text-orange-500" : "text-green-600")}>
-                        {isSoldOut ? "Esgotado" : `${occ.capacidadeMaxima - (occ.ingressosVendidos || 0)} vagas`}
+                      <p className={cn("font-bold text-sm leading-none mt-1 uppercase", isSoldOut ? "text-orange-500" : isLowStock ? "text-orange-600" : "text-green-600")}>
+                        {isSoldOut ? "Esgotado" : isLowStock ? "Últimas vagas" : "Disponível"}
                       </p>
                     </div>
                   </div>

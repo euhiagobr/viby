@@ -120,7 +120,9 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
 
   const handleAction = () => {
     if (!selectedSlot) {
-      toast({ title: "Selecione um horário", description: "Clique em uma das opções de horário disponíveis." });
+      const el = document.getElementById('seletor-agenda');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      toast({ title: "Escolha uma data", description: "Selecione o dia e horário desejado no calendário." });
       return;
     }
 
@@ -160,6 +162,15 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
   const lat = address.latitude || experience.latitude || -23.55052;
   const lng = address.longitude || experience.longitude || -46.633308;
 
+  const minPrice = React.useMemo(() => {
+    if (slots.length === 0) return 0;
+    const now = new Date();
+    const prices = slots
+      .filter(s => new Date(s.datetime) > now && (s.capacity - (s.sold || 0)) > 0)
+      .map(s => s.hasPromo ? s.promoPrice : s.price);
+    return prices.length > 0 ? Math.min(...prices) : 0;
+  }, [slots]);
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
       <PublicHeader showBack />
@@ -176,9 +187,14 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                 {experience.category || "Vivência Cultural"}
               </Badge>
               <h1 className="text-4xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-[0.85]">{experience.title}</h1>
-              <p className="text-lg md:text-2xl font-medium text-primary/70 max-w-2xl leading-relaxed uppercase tracking-wide italic">
-                {experience.shortDescription}
-              </p>
+              <div className="flex flex-col gap-1">
+                 <p className="text-lg md:text-2xl font-medium text-primary/70 max-w-2xl leading-relaxed uppercase tracking-wide italic">
+                  {experience.shortDescription}
+                 </p>
+                 {minPrice > 0 && (
+                   <p className="text-xl font-black text-secondary italic uppercase tracking-tighter">A partir de {formatPrice(minPrice, experience.currency || 'BRL')}</p>
+                 )}
+              </div>
             </div>
           </div>
         </div>
@@ -200,7 +216,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
 
             {/* REGRAS EM MARKDOWN */}
             {(experience.additionalInfo || experience.usagePolicy) && (
-              <section className="space-y-8">
+              <section className="space-y-12">
                 {experience.usagePolicy && (
                   <div className="space-y-6">
                     <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
@@ -255,7 +271,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
           </div>
 
           {/* MOTOR DE RESERVA (CALENDÁRIO) */}
-          <aside className="lg:col-span-5 space-y-8">
+          <aside id="seletor-agenda" className="lg:col-span-5 space-y-8">
             <Card className="border-none shadow-2xl rounded-[3rem] bg-white p-8 space-y-8 sticky top-24">
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -279,7 +295,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                      disabled={(date) => {
                         const now = startOfDay(new Date());
                         if (date < now) return true;
-                        // Regras visuais: Vermelho se não tiver slots no range operacional
                         return false;
                      }}
                      modifiers={{
@@ -301,9 +316,10 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Horários para {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}</p>
                        <div className="grid grid-cols-1 gap-2">
                           {filteredSlotsForDate.length > 0 ? filteredSlotsForDate.map(slot => {
-                            const isSoldOut = (slot.sold || 0) >= slot.capacity;
+                            const remaining = slot.capacity - (slot.sold || 0);
+                            const isSoldOut = remaining <= 0;
+                            const isLowStock = !isSoldOut && (remaining / slot.capacity) <= 0.1;
                             const isSelected = selectedSlot?.id === slot.id;
-                            const currentPrice = slot.hasPromo ? slot.promoPrice : slot.price;
 
                             return (
                               <button
@@ -322,17 +338,19 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                                     </div>
                                     <div className="text-left">
                                        <p className="text-sm font-black uppercase italic text-primary">{new Date(slot.datetime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                                       <p className="text-[9px] font-bold text-muted-foreground uppercase">{isSoldOut ? "Lote Esgotado" : `${slot.capacity - (slot.sold || 0)} vagas livres`}</p>
+                                       <p className={cn("text-[9px] font-bold uppercase", isLowStock ? "text-orange-600" : "text-muted-foreground")}>
+                                          {isSoldOut ? "Lote Esgotado" : isLowStock ? "Últimas vagas" : "Disponível"}
+                                       </p>
                                     </div>
                                  </div>
                                  <div className="text-right">
                                     {slot.hasPromo ? (
                                       <div className="flex flex-col items-end">
-                                         <span className="text-[8px] font-black text-red-500 uppercase line-through opacity-40">{formatPrice(slot.price)}</span>
-                                         <span className="text-sm font-black text-secondary">{formatPrice(slot.promoPrice)}</span>
+                                         <span className="text-[8px] font-black text-red-500 uppercase line-through opacity-40">{formatPrice(slot.price, experience.currency)}</span>
+                                         <span className="text-sm font-black text-secondary">{formatPrice(slot.promoPrice, experience.currency)}</span>
                                       </div>
                                     ) : (
-                                      <span className="text-sm font-black text-primary">{formatPrice(slot.price)}</span>
+                                      <span className="text-sm font-black text-primary">{formatPrice(slot.price, experience.currency)}</span>
                                     )}
                                  </div>
                               </button>
@@ -345,17 +363,17 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                           )}
                        </div>
                     </div>
-
-                    {selectedSlot && (
-                      <Button 
-                        onClick={handleAction}
-                        className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2 transition-all hover:scale-105 active:scale-95"
-                      >
-                         <ShoppingBag className="w-5 h-5" /> Adicionar ao Carrinho
-                      </Button>
-                    )}
                   </div>
                 )}
+
+                <div className="pt-4">
+                  <Button 
+                    onClick={handleAction}
+                    className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2 transition-all hover:scale-105 active:scale-95"
+                  >
+                    <ShoppingBag className="w-5 h-5" /> {selectedSlot ? "Adicionar ao Carrinho" : "Selecione um Horário"}
+                  </Button>
+                </div>
 
                 <Separator className="border-dashed" />
 
