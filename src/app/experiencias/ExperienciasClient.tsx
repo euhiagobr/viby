@@ -298,7 +298,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
              <Inbox className="w-16 h-16 text-muted-foreground opacity-20" />
              <div className="space-y-2">
                 <h3 className="text-2xl font-black uppercase italic text-primary">Nenhuma experiência disponível.</h3>
-                <p className="text-muted-foreground font-medium uppercase text-xs">Tente ajustar seus filtros ou selecionar outra data.</p>
+                <p className="text-muted-foreground font-medium uppercase text-xs">Tente ajustar seus filtros ou mude o período da busca.</p>
              </div>
              <Button variant="outline" onClick={clearFilters} className="rounded-2xl h-14 px-10 border-2 uppercase font-black italic">
                 Ver Todas as Vivências
