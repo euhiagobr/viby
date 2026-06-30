@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
@@ -58,12 +57,14 @@ export async function POST(req: Request) {
 
           // 1. LEITURA DE RESERVAS
           const reservationIds = (session.metadata.reservations || "").split(',').filter(Boolean);
+          const reservationSnaps = [];
           for (const resId of reservationIds) {
              const resRef = db.collection('experience_reservations').doc(resId);
              const resSnap = await transaction.get(resRef);
              if (!resSnap.exists || resSnap.data()?.status === 'cancelled') {
                 throw new Error("RESERVATION_INVALID");
              }
+             reservationSnaps.push({ ref: resRef, snap: resSnap });
           }
 
           // 2. LEITURA DE EVENTOS E SLOTS (Obrigatório antes de qualquer escrita no loop)
@@ -71,19 +72,21 @@ export async function POST(req: Request) {
           const itemSnapshots = [];
           
           for (const item of items) {
-            const isExp = item.productType === 'experience';
-            const sourceColl = isExp ? "experiences" : "events";
+            // RESOLUÇÃO DINÂMICA DE COLEÇÃO
+            const sourceColl = item.productType === 'experience' ? "experiences" : "events";
             const eventRef = db.collection(sourceColl).doc(item.eventId);
             const eventSnap = await transaction.get(eventRef);
             
+            if (!eventSnap.exists) throw new Error(`Document ${item.eventId} not found in ${sourceColl}`);
+
             let slotSnap = null;
-            if (isExp && item.occurrenceId) {
+            if (item.productType === 'experience' && item.occurrenceId) {
               const slotRef = db.collection("experiences").doc(item.eventId).collection("slots").doc(item.occurrenceId);
               slotSnap = await transaction.get(slotRef);
             }
 
             let occSnap = null;
-            if (!isExp && item.occurrenceId) {
+            if (item.productType !== 'experience' && item.occurrenceId) {
               const occRef = db.collection("recurring_occurrences").doc(item.occurrenceId);
               occSnap = await transaction.get(occRef);
             }
@@ -91,7 +94,7 @@ export async function POST(req: Request) {
             itemSnapshots.push({ item, eventRef, eventSnap, slotSnap, occSnap });
           }
 
-          // 3. BLOCO DE ESCRITA
+          // 3. BLOCO DE ESCRITA (Somente após todas as leituras)
           const userId = session.metadata.userId;
           const currency = (orderData.currency || 'BRL').toUpperCase();
 
@@ -170,8 +173,8 @@ export async function POST(req: Request) {
             }
           }
           
-          for (const resId of reservationIds) {
-            transaction.update(db.collection('experience_reservations').doc(resId), { 
+          for (const resItem of reservationSnaps) {
+            transaction.update(resItem.ref, { 
               status: 'confirmed', 
               orderId,
               updatedAt: admin.firestore.FieldValue.serverTimestamp() 

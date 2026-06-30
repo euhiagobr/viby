@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -29,34 +28,49 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       const isOrgManager = memberSnap.exists && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
 
       if (!isAdmin && !isOrgManager) throw new Error("Acesso negado.");
-      if (regData.status === 'cancelled') throw new Error("Já estornado.");
+      if (regData.status === 'cancelled' || regData.status === 'refunded') throw new Error("Já estornado.");
       if (regData.checkedIn) throw new Error("Ingresso já utilizado.");
 
       const occurrenceId = regData.occurrenceId;
+      const productType = regData.productType || 'event';
+      const isExp = productType === 'experience';
+
       let occSnap = null;
+      let occRef = null;
       if (occurrenceId) {
-        occSnap = await transaction.get(db.collection("recurring_occurrences").doc(occurrenceId));
+        occRef = isExp 
+          ? db.collection("experiences").doc(regData.eventId).collection("slots").doc(occurrenceId)
+          : db.collection("recurring_occurrences").doc(occurrenceId);
+        occSnap = await transaction.get(occRef);
       }
 
-      const eventRef = db.collection("events").doc(regData.eventId);
+      const sourceColl = isExp ? "experiences" : "events";
+      const eventRef = db.collection(sourceColl).doc(regData.eventId);
       const eventSnap = await transaction.get(eventRef);
 
       // 3. BLOCO DE ESCRITA
       const userId = regData.userId;
       const totalPaid = regData.price || 0;
 
-      if (occurrenceId && occSnap?.exists && (occSnap.data()?.ingressosVendidos || 0) > 0) {
-        transaction.update(db.collection("recurring_occurrences").doc(occurrenceId), { 
-          ingressosVendidos: admin.firestore.FieldValue.increment(-1),
+      if (isExp && occRef && occSnap?.exists && (occSnap.data()?.sold || 0) > 0) {
+        transaction.update(occRef, { 
+          sold: admin.firestore.FieldValue.increment(-1),
           updatedAt: admin.firestore.FieldValue.serverTimestamp() 
         });
-      }
-      
-      if (eventSnap.exists && (eventSnap.data()?.ingressosVendidos || 0) > 0) {
-        transaction.update(eventRef, { 
-          ingressosVendidos: admin.firestore.FieldValue.increment(-1),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-        });
+      } else {
+        if (occurrenceId && occRef && occSnap?.exists && (occSnap.data()?.ingressosVendidos || 0) > 0) {
+          transaction.update(occRef, { 
+            ingressosVendidos: admin.firestore.FieldValue.increment(-1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+          });
+        }
+        
+        if (eventSnap.exists && (eventSnap.data()?.ingressosVendidos || 0) > 0) {
+          transaction.update(eventRef, { 
+            ingressosVendidos: admin.firestore.FieldValue.increment(-1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+          });
+        }
       }
 
       if (totalPaid <= 0) {

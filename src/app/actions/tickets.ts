@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -17,7 +16,7 @@ export async function generateFreeTickets(data: {
 
     // 1. PRÉ-VALIDAÇÃO: Verificar se já existe registro na coleção principal (Legado/Inconsistência)
     for (const item of items) {
-      if (item.price === 0) {
+      if (item.price === 0 && item.productType !== 'experience') {
         const legacyCheck = await db.collection("registrations")
           .where("userId", "==", userId)
           .where("eventId", "==", item.eventId)
@@ -40,11 +39,17 @@ export async function generateFreeTickets(data: {
       for (const item of items) {
         const lockId = `free_lock_${userId}_${item.eventId}_${item.ticketTypeId}`;
         const lockRef = db.collection("registrations_locks").doc(lockId);
-        const eventRef = db.collection("events").doc(item.eventId);
+        
+        // RESOLUÇÃO DINÂMICA DE COLEÇÃO
+        const sourceColl = item.productType === 'experience' ? "experiences" : "events";
+        const eventRef = db.collection(sourceColl).doc(item.eventId);
+        
         const orgRef = db.collection("organizations").doc(item.organizationId);
         
         let occRef = null;
-        if (item.occurrenceId) {
+        if (item.productType === 'experience' && item.occurrenceId) {
+          occRef = db.collection("experiences").doc(item.eventId).collection("slots").doc(item.occurrenceId);
+        } else if (item.occurrenceId) {
           occRef = db.collection("recurring_occurrences").doc(item.occurrenceId);
         }
 
@@ -55,6 +60,8 @@ export async function generateFreeTickets(data: {
           transaction.get(orgRef),
           occRef ? transaction.get(occRef) : Promise.resolve(null)
         ]);
+
+        if (!eventSnap.exists) throw new Error(`Document ${item.eventId} not found in ${sourceColl}`);
 
         snapshots.push({
           item,
@@ -74,11 +81,11 @@ export async function generateFreeTickets(data: {
         const { item, lockRef, lockSnap, eventRef, eventSnap, orgRef, occRef, occSnap } = snap;
         const isFree = item.price === 0;
 
-        if (isFree && lockSnap.exists) {
+        if (isFree && item.productType !== 'experience' && lockSnap.exists) {
           throw new Error("Você já resgatou este ingresso gratuito.");
         }
 
-        if (isFree) {
+        if (isFree && item.productType !== 'experience') {
           transaction.set(lockRef, { 
             userId, 
             eventId: item.eventId, 
@@ -90,22 +97,30 @@ export async function generateFreeTickets(data: {
         const finalQty = isFree ? 1 : item.quantity;
         const eventData = eventSnap.data();
 
-        transaction.update(eventRef, {
-          ingressosVendidos: admin.firestore.FieldValue.increment(finalQty),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+        if (item.productType === 'experience' && occRef && occSnap && occSnap.exists) {
+           // Se for experiência, incrementamos o 'sold' no slot
+           transaction.update(occRef, {
+             sold: admin.firestore.FieldValue.increment(finalQty),
+             updatedAt: admin.firestore.FieldValue.serverTimestamp()
+           });
+        } else {
+          transaction.update(eventRef, {
+            ingressosVendidos: admin.firestore.FieldValue.increment(finalQty),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          if (occRef && occSnap && occSnap.exists) {
+            transaction.update(occRef, {
+              ingressosVendidos: admin.firestore.FieldValue.increment(finalQty),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+          }
+        }
 
         transaction.update(orgRef, {
           totalAttendeesCount: admin.firestore.FieldValue.increment(finalQty),
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
-
-        if (occRef && occSnap && occSnap.exists) {
-          transaction.update(occRef, {
-            ingressosVendidos: admin.firestore.FieldValue.increment(finalQty),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-          });
-        }
 
         for (let i = 0; i < finalQty; i++) {
           const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -128,6 +143,7 @@ export async function generateFreeTickets(data: {
             batchId: item.batchId,
             batchName: item.batchName,
             occurrenceId: item.occurrenceId || null,
+            productType: item.productType || 'event',
             price: 0,
             paymentStatus: "Disponível",
             status: "active",
@@ -140,7 +156,6 @@ export async function generateFreeTickets(data: {
           transaction.set(regRef, ticketData);
           results.push(regRef.id);
 
-          // Envio de e-mail (asíncrono, fora do loop principal de transação para performance se necessário, mas mantido aqui)
           await sendTicketEmail({
             to: userEmail,
             userName,
