@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy, collectionGroup } from "firebase/firestore";
+import { collection, query, where, orderBy, getDocs, limit } from "firebase/firestore";
 import { ExperienceCard } from "@/components/experiences/ExperienceCard";
 import { AdsRenderer } from "@/components/ads/AdsRenderer";
 import { Button } from "@/components/ui/button";
@@ -45,14 +45,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [now, setNow] = useState<Date>(new Date());
-  const [displayLimit, setDisplayLimit] = useState(16); // 4x4 inicial
-
-  // Carregar slots para filtro de data global e controle de expiração
-  const slotsQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return query(collectionGroup(db, "slots"), where("status", "==", "active"));
-  }, [db]);
-  const { data: allSlots, loading: slotsLoading } = useCollection<any>(slotsQuery);
+  const [displayLimit, setDisplayLimit] = useState(16); // 4x4 Grid inicial
 
   useEffect(() => {
     setMounted(true);
@@ -68,6 +61,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
   );
   const { data: categories } = useCollection<any>(categoriesQuery);
 
+  // Filtro de processamento no cliente
   const processedExp = React.useMemo(() => {
     const searchNorm = normalizeText(search);
     const cityNorm = normalizeText(searchCity);
@@ -75,17 +69,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
     return initialData.filter(exp => {
       if (exp.status !== 'active') return false;
 
-      const mySlots = allSlots?.filter(s => s.experienceId === exp.id) || [];
-      
-      // Regra de Expiração: Some 30 min após o ÚLTIMO slot
-      if (mySlots.length > 0) {
-        const sortedSlots = [...mySlots].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
-        const lastSlot = sortedSlots[0];
-        const expirationTime = new Date(new Date(lastSlot.datetime).getTime() + 30 * 60000);
-        if (now > expirationTime) return false;
-      }
-
-      // Filtro por texto
+      // Filtro por texto (Título ou Descrição Curta)
       const matchesSearch = !search || 
         normalizeText(exp.title || "").includes(searchNorm) ||
         normalizeText(exp.shortDescription || "").includes(searchNorm);
@@ -100,43 +84,37 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
       const matchesCategory = selectedCategory === 'all' || exp.category === selectedCategory;
       if (!matchesCategory) return false;
 
-      // Filtro por Data
-      if (selectedDate) {
-        const hasSlotOnDay = mySlots.some(s => isSameDay(new Date(s.datetime), selectedDate));
-        if (!hasSlotOnDay) return false;
-      }
-
       return true;
     });
-  }, [initialData, allSlots, search, searchCity, selectedCategory, selectedDate, now]);
+  }, [initialData, search, searchCity, selectedCategory]);
 
   const unifiedFeed = React.useMemo(() => {
     const feed: any[] = [];
-    if (!mounted || adsLoading || (slotsLoading && allSlots.length === 0)) return feed;
+    if (!mounted || adsLoading) return feed;
 
     let adIdx = 0;
     let expIdx = 0;
-    const paginatedExp = processedExp.slice(0, displayLimit);
+    const visiblePool = processedExp.slice(0, displayLimit);
 
-    // Regra: Sempre começa com um anúncio se houver
+    // Regra 1: O primeiro item é sempre um anúncio se disponível
     if (ads.length > 0) {
       feed.push({ type: 'ad', adIndex: adIdx % ads.length });
       adIdx++;
     }
 
-    // Intervalos randômicos entre 3 e 7
+    // Regra 2: Intercalação entre 3 a 7 experiências
     const intervals = [3, 5, 4, 7, 6];
     let intervalIdx = 0;
 
-    while (expIdx < paginatedExp.length) {
+    while (expIdx < visiblePool.length) {
       const currentInterval = intervals[intervalIdx % intervals.length];
       
-      for (let i = 0; i < currentInterval && expIdx < paginatedExp.length; i++) {
-        feed.push({ type: 'experience', data: paginatedExp[expIdx] });
+      for (let i = 0; i < currentInterval && expIdx < visiblePool.length; i++) {
+        feed.push({ type: 'experience', data: visiblePool[expIdx] });
         expIdx++;
       }
 
-      if (ads.length > 0 && expIdx < paginatedExp.length) {
+      if (ads.length > 0 && expIdx < visiblePool.length) {
         feed.push({ type: 'ad', adIndex: adIdx % ads.length });
         adIdx++;
         intervalIdx++;
@@ -144,7 +122,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
     }
 
     return feed;
-  }, [processedExp, ads, adsLoading, slotsLoading, allSlots, mounted, displayLimit]);
+  }, [processedExp, ads, adsLoading, mounted, displayLimit]);
 
   const hasMore = processedExp.length > displayLimit;
 
@@ -153,10 +131,6 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
     setSearchCity("");
     setSelectedCategory("all");
     setSelectedDate(undefined);
-  };
-
-  const handleLoadMore = () => {
-    setDisplayLimit(prev => prev + 16);
   };
 
   if (!mounted) return null;
@@ -171,7 +145,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
         
         <div className="container mx-auto px-4 relative z-10 py-20 text-center">
           <div className="max-w-5xl mx-auto space-y-8 flex flex-col items-center">
-            <Badge className="bg-secondary text-white border-none px-6 py-2 rounded-full font-black uppercase text-xs tracking-widest flex items-center gap-2 animate-bounce shadow-xl shadow-secondary/20">
+            <Badge className="bg-secondary text-white border-none px-6 py-2 rounded-full font-black uppercase text-xs tracking-widest flex items-center gap-2 animate-bounce shadow-xl">
               <Sparkles className="w-4 h-4 fill-current" /> Marketplace de Vivências
             </Badge>
             <h1 className="text-6xl md:text-9xl font-black uppercase italic tracking-tighter leading-[0.8] text-white">
@@ -232,39 +206,37 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
         </div>
       </section>
 
-      {categories && categories.length > 0 && (
-        <section className="bg-white border-b sticky top-16 z-30 shadow-sm overflow-hidden">
-           <div className="container mx-auto px-4 py-4">
-              <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide py-1">
+      <section className="bg-white border-b sticky top-16 z-30 shadow-sm overflow-hidden">
+         <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide py-1">
+               <Button
+                  variant={selectedCategory === 'all' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setSelectedCategory('all')}
+                  className={cn(
+                    "rounded-full px-6 font-black uppercase text-[10px] tracking-widest shrink-0 transition-all",
+                    selectedCategory === 'all' ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "text-muted-foreground"
+                  )}
+               >
+                  Ver Tudo
+               </Button>
+               {categories?.map((cat: any) => (
                  <Button
-                    variant={selectedCategory === 'all' ? 'default' : 'ghost'}
+                    key={cat.id}
+                    variant={selectedCategory === cat.name ? 'default' : 'ghost'}
                     size="sm"
-                    onClick={() => setSelectedCategory('all')}
+                    onClick={() => setSelectedCategory(cat.name)}
                     className={cn(
                       "rounded-full px-6 font-black uppercase text-[10px] tracking-widest shrink-0 transition-all",
-                      selectedCategory === 'all' ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "text-muted-foreground"
+                      selectedCategory === cat.name ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "text-muted-foreground"
                     )}
                  >
-                    Ver Tudo
+                    {cat.name}
                  </Button>
-                 {categories.map((cat: any) => (
-                   <Button
-                      key={cat.id}
-                      variant={selectedCategory === cat.name ? 'default' : 'ghost'}
-                      size="sm"
-                      onClick={() => setSelectedCategory(cat.name)}
-                      className={cn(
-                        "rounded-full px-6 font-black uppercase text-[10px] tracking-widest shrink-0 transition-all",
-                        selectedCategory === cat.name ? "bg-secondary text-white shadow-lg shadow-secondary/20" : "text-muted-foreground"
-                      )}
-                   >
-                      {cat.name}
-                   </Button>
-                 ))}
-              </div>
-           </div>
-        </section>
-      )}
+               ))}
+            </div>
+         </div>
+      </section>
 
       <main id="experiencias-feed" className="container mx-auto px-4 py-16 flex-1 space-y-12">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -279,7 +251,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
            )}
         </div>
 
-        {(slotsLoading && allSlots.length === 0) || adsLoading ? (
+        {adsLoading ? (
            <div className="py-32 flex flex-col items-center justify-center gap-4">
               <Loader2 className="w-12 h-12 animate-spin text-secondary" />
               <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Sincronizando Marketplace...</p>
@@ -298,7 +270,8 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
                 <ExperienceCard 
                   key={item.data.id} 
                   experience={item.data} 
-                  userLocation={userLocation} 
+                  userLocation={userLocation}
+                  selectedDate={selectedDate}
                 />
               )
             ))}
@@ -319,7 +292,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
         {hasMore && (
            <div className="mt-20 flex justify-center">
               <Button 
-                onClick={handleLoadMore} 
+                onClick={() => setDisplayLimit(prev => prev + 16)} 
                 className="h-14 px-12 bg-white text-primary font-black border-2 rounded-2xl hover:bg-muted transition-all"
               >
                 Carregar Mais Vivências

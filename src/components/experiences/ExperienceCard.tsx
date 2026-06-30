@@ -5,45 +5,86 @@ import { MapPin, Navigation, Sparkles, ArrowRight, Tag, BadgeCheck, Loader2 } fr
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { cn, normalizeText } from "@/lib/utils";
 import { calculateDistanceMeters } from "@/lib/event-scoring-utils";
-import { useCurrency } from "@/contexts/CurrencyContext";
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy } from "firebase/firestore";
+import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
 import { RichText } from "@/components/ui/rich-text";
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, isSameDay } from "date-fns";
 
 interface ExperienceCardProps {
   experience: any;
   userLocation?: any;
+  selectedDate?: Date;
   className?: string;
 }
 
-export function ExperienceCard({ experience, userLocation, className }: ExperienceCardProps) {
+export function ExperienceCard({ experience, userLocation, selectedDate, className }: ExperienceCardProps) {
   const { formatPriceWithOriginal } = useCurrency();
   const db = useFirestore();
+  const [nextSession, setNextSession] = React.useState<any>(null);
+  const [loadingPrice, setLoadingPrice] = React.useState(true);
+  const [isVisible, setIsVisible] = React.useState(true);
 
-  // Busca slots ativos para determinar o preço da próxima data
-  const slotsQuery = useMemoFirebase(() => {
-    if (!db || !experience.id) return null;
-    
-    const nowNormalized = format(new Date(), "yyyy-MM-dd'T'HH:mm");
-    
-    return query(
-      collection(db, "experiences", experience.id, "slots"),
-      where("status", "==", "active"),
-      where("datetime", ">=", nowNormalized),
-      orderBy("datetime", "asc")
-    );
-  }, [db, experience.id]);
+  React.useEffect(() => {
+    if (!db || !experience.id) return;
 
-  const { data: slots, loading: loadingPrice } = useCollection<any>(slotsQuery);
+    const fetchSessions = async () => {
+      setLoadingPrice(true);
+      try {
+        const now = new Date();
+        const nowStr = format(now, "yyyy-MM-dd'T'HH:mm");
+        
+        const q = query(
+          collection(db, "experiences", experience.id, "slots"),
+          where("status", "==", "active"),
+          orderBy("datetime", "asc")
+        );
+        
+        const snap = await getDocs(q);
+        const slots = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  const nextSession = React.useMemo(() => {
-    if (!slots || slots.length === 0) return null;
-    return slots[0];
-  }, [slots]);
+        if (slots.length === 0) {
+          setIsVisible(false);
+          setLoadingPrice(false);
+          return;
+        }
+
+        // Regra de Expiração: Some 30 min após o ÚLTIMO slot da série
+        const lastSlot = [...slots].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())[0];
+        const expirationTime = new Date(new Date(lastSlot.datetime).getTime() + 30 * 60000);
+        if (now > expirationTime) {
+          setIsVisible(false);
+          setLoadingPrice(false);
+          return;
+        }
+
+        // Filtro por data do calendário (se selecionada no pai)
+        if (selectedDate) {
+          const slotOnDay = slots.find(s => isSameDay(new Date(s.datetime), selectedDate));
+          if (!slotOnDay) {
+            setIsVisible(false);
+            setLoadingPrice(false);
+            return;
+          }
+          setNextSession(slotOnDay);
+        } else {
+          // Próximo slot futuro a partir de agora
+          const future = slots.find(s => new Date(s.datetime) >= now);
+          setNextSession(future || slots[0]);
+          setIsVisible(true);
+        }
+      } catch (e) {
+        console.warn("[ExperienceCard] Error loading sessions:", e);
+      } finally {
+        setLoadingPrice(false);
+      }
+    };
+
+    fetchSessions();
+  }, [db, experience.id, selectedDate]);
 
   const distanceMeters = React.useMemo(() => {
     if (userLocation && typeof experience.latitude === 'number' && typeof experience.longitude === 'number') {
@@ -53,10 +94,10 @@ export function ExperienceCard({ experience, userLocation, className }: Experien
   }, [userLocation, experience.latitude, experience.longitude]);
 
   const pricingDisplay = React.useMemo(() => {
-    const currency = experience.currency || 'BRL';
+    const currency = (experience.currency || 'BRL') as CurrencyCode;
     
     if (loadingPrice) {
-       return <div className="h-6 w-16 bg-muted animate-pulse rounded-lg" />;
+       return <div className="h-6 w-20 bg-muted animate-pulse rounded-lg" />;
     }
 
     if (nextSession) {
@@ -74,6 +115,8 @@ export function ExperienceCard({ experience, userLocation, className }: Experien
 
     return <span className="text-muted-foreground font-black italic uppercase text-[10px]">Esgotado</span>;
   }, [nextSession, experience.currency, formatPriceWithOriginal, loadingPrice]);
+
+  if (!isVisible) return null;
 
   const experienceUrl = `/${experience.organizer?.username || 'experiencia'}/experiencia/${experience.slug || experience.id}`;
 
