@@ -1,25 +1,24 @@
+
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, orderBy, getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
-import { doc, serverTimestamp } from "firebase/firestore"
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
+import { collection, query, where, orderBy, doc, serverTimestamp } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import { 
   Loader2, 
   ArrowLeft, 
-  Save, 
-  ChevronRight, 
   Plus, 
   X,
   Calendar,
@@ -32,10 +31,13 @@ import {
   CheckCircle2,
   Layout,
   Coins,
-  ChevronLeft
+  ChevronLeft,
+  ChevronRight,
+  Save
 } from "lucide-react"
 import Link from "next/link"
-import { cn, slugify } from "@/lib/utils"
+import { cn, dateToAtomsphericISO } from "@/lib/utils"
+import { slugify } from "@/lib/slug-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { EventLocation, EventHeader, EventDescription } from "@/components/events"
 import { IMAGE_CACHE_METADATA } from "@/lib/image-utils"
@@ -113,13 +115,14 @@ export default function NovaExperienciaPage() {
       const res = await getOrCreateExperienceDraftAction(user.uid, currentOrg.id);
       if (res.success) {
         setDraftId(res.id);
-        if (res.title) {
+        if (res.data && Object.keys(res.data).length > 0) {
+          const draftData = res.data;
           setFormData(prev => ({
             ...prev,
-            ...res,
-            gallery: res.gallery || [],
-            address: res.address || prev.address,
-            availability: res.availability || prev.availability
+            ...draftData,
+            gallery: draftData.gallery || [],
+            address: draftData.address || prev.address,
+            availability: draftData.availability || prev.availability
           }));
         }
       }
