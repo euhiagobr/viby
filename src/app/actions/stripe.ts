@@ -14,10 +14,6 @@ async function getStripeInstance(db: admin.firestore.Firestore) {
   return new Stripe(data.secretKey, { apiVersion: '2024-12-18.acacia' as any });
 }
 
-/**
- * Cria uma sessão de checkout do Stripe com cálculo de split robusto no servidor.
- * NUNCA confia em valores financeiros enviados pelo cliente.
- */
 export async function createCheckoutSession(data: any) {
   const db = getAdminDb();
   
@@ -31,7 +27,6 @@ export async function createCheckoutSession(data: any) {
 
     if (!orderId) throw new Error("ID do pedido é obrigatório para o checkout.");
 
-    // 1. RECUPERAR DADOS DO SERVIDOR PARA CÁLCULO SEGURO
     const [orderSnap, globalFeesSnap, promotionsSnap, ratesSnap] = await Promise.all([
       db.collection("orders").doc(orderId).get(),
       db.collection("settings").doc("fees").get(),
@@ -45,7 +40,6 @@ export async function createCheckoutSession(data: any) {
     const promotions = promotionsSnap.data();
     const rates = ratesSnap.data() || { BRL: 1, USD: 0.18, EUR: 0.16 };
 
-    // 2. RECALCULAR TODA A PARTILHA (SPLIT) NO BACKEND USANDO O TAX CALCULATION SERVICE
     let totalApplicationFeeCents = 0;
     const orgCache: Record<string, any> = {};
 
@@ -55,7 +49,6 @@ export async function createCheckoutSession(data: any) {
         orgCache[item.organizationId] = orgSnap.exists ? orgSnap.data() : {};
       }
 
-      // Utiliza o TaxCalculationService (calculateVibyOfficialSplit) com suporte a tipo de produto
       const split = calculateVibyOfficialSplit(
         item.price, 
         (orderData.currency || 'BRL') as any, 
@@ -69,10 +62,9 @@ export async function createCheckoutSession(data: any) {
       totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     }
 
-    // 3. CONFIGURAR SESSÃO COM SPLIT GARANTIDO PELO SERVIDOR
     const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ['card'],
-      line_items: lineItems, // Mantemos os lineItems formatados pelo cliente para manter o UX (descrições, imagens)
+      line_items: lineItems, 
       mode: 'payment',
       customer_email: userEmail,
       success_url: `${origin}/checkout/sucesso?session_id={CHECKOUT_SESSION_ID}`,

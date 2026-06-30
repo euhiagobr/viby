@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -24,7 +23,9 @@ import {
   Zap,
   Ticket,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  Coins,
+  ArrowUpRight
 } from "lucide-react"
 import { calculateVibyOfficialSplit, ProductType } from "@/lib/financial-utils"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
@@ -38,7 +39,7 @@ interface RevenueSimulatorProps {
 
 export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSimulatorProps) {
   const { formatPrice, currency, rates } = useCurrency()
-  const [priceInput, setPriceInput] = React.useState("50.00")
+  const [priceInput, setPriceInput] = React.useState("100.00")
   const [type, setType] = React.useState<ProductType>('event')
 
   const results = React.useMemo(() => {
@@ -60,14 +61,14 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
             <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Simulador de Repasse</DialogTitle>
           </div>
           <DialogDescription className="font-bold text-[10px] uppercase text-muted-foreground tracking-widest">
-            Auditoria de taxas por tipo de venda (Base: Face Price)
+            Auditoria de taxas com base única (Double Fee Model)
           </DialogDescription>
         </DialogHeader>
 
         <div className="p-8 space-y-8">
           <div className="grid grid-cols-2 gap-4">
              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Preço do Ingresso</Label>
+                <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Preço Base (P)</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">{currency === 'BRL' ? 'R$' : '$'}</span>
                   <Input 
@@ -87,11 +88,11 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
              </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="space-y-3">
               <div className="flex justify-between items-center text-sm font-bold">
                  <span className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] tracking-tight">
-                    <User className="w-3.5 h-3.5" /> Cliente Paga (Total)
+                    <User className="w-3.5 h-3.5" /> Cliente Paga (P + Markup)
                  </span>
                  <span className="text-primary font-black">{formatPrice(results.totalCharged, currency)}</span>
               </div>
@@ -105,10 +106,10 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
             
             <Separator className="border-dashed" />
 
-            <div className="bg-green-50 p-6 rounded-[2rem] border-2 border-dashed border-green-200 flex flex-col items-center text-center gap-2">
+            <div className="bg-green-50 p-8 rounded-[2rem] border-2 border-dashed border-green-200 flex flex-col items-center text-center gap-2">
                <div className="space-y-1">
-                  <p className="text-[9px] font-black uppercase text-green-700 tracking-widest">Repasse Organizador</p>
-                  <p className="text-4xl font-black text-green-600 italic tracking-tighter">{formatPrice(results.organizerNet, currency)}</p>
+                  <p className="text-[10px] font-black uppercase text-green-700 tracking-widest">Repasse Organizador (P - Comis.)</p>
+                  <p className="text-5xl font-black text-green-600 italic tracking-tighter">{formatPrice(results.organizerNet, currency)}</p>
                </div>
                {isLowPriceRuleActive && (
                   <Badge className="h-5 text-[8px] font-black uppercase bg-green-500 text-white border-none animate-pulse">Low Price Protection Ativa</Badge>
@@ -116,16 +117,16 @@ export function RevenueSimulator({ isOpen, onOpenChange, customFees }: RevenueSi
             </div>
           </div>
 
-          <div className="p-4 bg-muted/20 rounded-2xl border border-dashed flex items-start gap-3">
+          <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
             <Info className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-            <p className="text-[9px] text-muted-foreground font-bold uppercase leading-relaxed">
-              Cálculo baseado no <strong>Valor de Face (R$ {priceInput})</strong>. A Receita Viby contempla o Markup do Comprador + Comissão retida do Organizador.
+            <p className="text-[9px] text-secondary font-bold uppercase leading-relaxed">
+              As taxas incidem individualmente sobre o <strong>Preço Base (P)</strong>. Não há composição de taxas sobre taxas.
             </p>
           </div>
         </div>
 
         <DialogFooter className="p-6 bg-muted/30 border-t">
-          <Button onClick={() => onOpenChange(false)} className="w-full bg-primary text-white font-black h-12 rounded-xl uppercase italic">Fechar Auditoria</Button>
+          <Button onClick={() => onOpenChange(false)} className="w-full bg-primary text-white font-black h-12 rounded-xl uppercase italic">Fechar Simulador</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

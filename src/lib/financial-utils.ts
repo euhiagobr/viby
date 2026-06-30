@@ -19,10 +19,9 @@ export const VIBY_TAX_RATE = 0.11; // 11% de imposto sobre a receita bruta da Vi
 
 /**
  * Verifica se um período de vigência está ativo.
- * Considera timezone America/Sao_Paulo (UTC-3) para os objetos de data do Firestore.
  */
 export function isTemporalActive(start: any, end: any): boolean {
-  if (!start && !end) return false;
+  if (!start && !end) return true;
   
   const now = new Date();
   const startDate = start ? (start.toDate ? start.toDate() : new Date(start)) : null;
@@ -60,13 +59,11 @@ export function formatCurrency(value: number): string {
 }
 
 /**
- * CÁLCULO OFICIAL VIBY - Suporte Multi-Moeda e Taxas Customizadas por Organização
- * HIERARQUIA: 
- * 1. Overrides v2 (Segmentado por produto + Vigência)
- * 2. Overrides v1 (Custom fields na Org + Vigência)
- * 3. Promoções Vigentes
- * 4. Configuração Global (Firestore)
- * 5. Constantes Fallback (Code)
+ * CÁLCULO OFICIAL VIBY - MODELO "DOUBLE FEE ON BASE PRICE"
+ * P = Preço de Face
+ * CP = P + (P * taxa_cliente)
+ * RP = P - (P * taxa_organizador)
+ * V = (P * taxa_cliente) + (P * taxa_organizador)
  */
 export function calculateVibyOfficialSplit(
   facePrice: number, 
@@ -92,27 +89,20 @@ export function calculateVibyOfficialSplit(
 
   const isExp = productType === 'experience';
 
-  // 1. RESOLUÇÃO DE MARGENS (Markup e Comissão)
-  
-  // Resolução de Precedência para Markup (Taxa do Comprador)
+  // 1. RESOLUÇÃO DE MARGENS
   let markup = isExp ? VIBY_EXPERIENCE_BUYER_MARKUP : VIBY_BUYER_MARKUP;
-  
-  // Tenta Overrides v2 (Novo Padrão)
   const v2Override = orgFees?.financialOverrides?.[productType];
   const isV2Active = isTemporalActive(v2Override?.validFrom, v2Override?.validTo);
 
   if (isV2Active && v2Override?.markupBuyerPercent != null) {
     markup = v2Override.markupBuyerPercent / 100;
   } 
-  // Tenta Overrides v1 (Legado)
   else if (isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt) && orgFees?.customBuyerMarkup != null) {
     markup = orgFees.customBuyerMarkup / 100;
   }
-  // Tenta Promoções
   else if (isPromoActive(promotions?.buyerPromoActive, promotions?.buyerPromoStart, promotions?.buyerPromoEnd)) {
     markup = promotions.buyerPromoPercent / 100;
   } 
-  // Tenta Config Global
   else if (globalFees) {
     const globalMarkup = isExp ? globalFees.experienceBuyerMarkupPercent : globalFees.buyerMarkupPercent;
     if (globalMarkup != null) markup = globalMarkup / 100;
@@ -120,7 +110,6 @@ export function calculateVibyOfficialSplit(
   
   const buyerMarkupFee = Number((price * markup).toFixed(2));
   
-  // Resolução de Precedência para Comissão (Taxa do Produtor)
   let commission = isExp ? VIBY_EXPERIENCE_ORGANIZER_FEE : VIBY_ORGANIZER_FEE;
   
   if (isV2Active && v2Override?.commissionPercent != null) {
@@ -139,7 +128,6 @@ export function calculateVibyOfficialSplit(
     
   const organizerPercentFee = Number((price * commission).toFixed(2));
   
-  // Resolução de Precedência para Taxa Mínima (BRL)
   let minFeeBRL = isExp ? VIBY_EXPERIENCE_MIN_FEE_BRL : VIBY_MIN_FEE_BRL;
   
   if (isV2Active && v2Override?.minValue != null) {
@@ -156,30 +144,29 @@ export function calculateVibyOfficialSplit(
     if (globalMin != null) minFeeBRL = globalMin;
   }
 
-  // Converte a taxa mínima de BRL para a moeda do evento
   let minFeeInEventCurrency = minFeeBRL;
   if (eventCurrency !== 'BRL' && rates) {
     const rateBrlToEvent = rates[eventCurrency] || 1;
     minFeeInEventCurrency = Number((minFeeBRL * rateBrlToEvent).toFixed(2));
   }
   
-  const appliedVibyFee = Math.max(organizerPercentFee, minFeeInEventCurrency);
+  const appliedVibyCommission = Math.max(organizerPercentFee, minFeeInEventCurrency);
 
   let organizerNet, organizerFeeDeduction, buyerFeeTotal;
 
-  // Proteção contra repasse negativo (Low Price Protection)
-  if (price >= appliedVibyFee) {
-    organizerFeeDeduction = appliedVibyFee;
-    organizerNet = Number((price - appliedVibyFee).toFixed(2));
+  // Proteção de Repasse Negativo: Se P < appliedVibyCommission, transferimos o excedente para o comprador
+  if (price >= appliedVibyCommission) {
+    organizerFeeDeduction = appliedVibyCommission;
+    organizerNet = Number((price - appliedVibyCommission).toFixed(2));
     buyerFeeTotal = buyerMarkupFee;
   } else {
     organizerFeeDeduction = 0;
-    organizerNet = price; // Produtor recebe 100%
-    buyerFeeTotal = Number((buyerMarkupFee + appliedVibyFee).toFixed(2));
+    organizerNet = price; 
+    buyerFeeTotal = Number((buyerMarkupFee + appliedVibyCommission).toFixed(2));
   }
 
   const totalCharged = Number((price + buyerFeeTotal).toFixed(2));
-  const vibyApplicationFee = Number((buyerMarkupFee + appliedVibyFee).toFixed(2));
+  const vibyApplicationFee = Number((buyerFeeTotal + organizerFeeDeduction).toFixed(2));
 
   return {
     facePrice: price,
@@ -191,9 +178,6 @@ export function calculateVibyOfficialSplit(
   };
 }
 
-/**
- * Wrapper para decomposição financeira de transação única
- */
 export function calculateFinancialBreakdown(
   facePrice: number, 
   globalFees?: any, 
@@ -215,9 +199,6 @@ export function calculateFinancialBreakdown(
   };
 }
 
-/**
- * Calcula o detalhamento fiscal completo para o Ledger (Persistência em BRL)
- */
 export function calculateDetailedVibyBreakdown(
   facePrice: number, 
   quantity: number = 1, 
