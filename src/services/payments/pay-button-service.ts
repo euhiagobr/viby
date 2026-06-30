@@ -1,4 +1,4 @@
-'use client';
+'use server';
 
 import { 
   doc, 
@@ -33,6 +33,7 @@ export interface PayButtonOptions {
 
 /**
  * Executa o fluxo de checkout garantindo a injeção correta da hierarquia de taxas.
+ * Corrigido para garantir que todas as leituras (getDoc) ocorram antes das escritas (reservas/ordens).
  */
 export async function executeCheckoutFlow(options: PayButtonOptions) {
   const { user, profile, items, totals, useBalance, rates, globalFees, promotions, orgsData, coupon } = options;
@@ -48,14 +49,28 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const reservationIds: string[] = [];
   const eventCurrency = (items[0]?.currency || 'BRL') as CurrencyCode;
 
-  // 1. RESOLUÇÃO DE TIPO E RESERVA (LOCK)
+  // 1. BLOCO DE LEITURA (VALIDAÇÕES INICIAIS)
+  // Realizamos todas as leituras antes de qualquer escrita para evitar erro do Firestore
   for (const item of items) {
     const isExp = item.productType === 'experience';
     const collName = isExp ? "experiences" : "events";
     
+    // Verifica disponibilidade do item
     const eSnap = await getDoc(doc(staticDb, collName, item.eventId));
     if (!eSnap.exists()) throw new Error(`O item ${item.eventTitle} não está mais disponível.`);
     
+    // Verifica trava de ingresso gratuito (se for o caso)
+    if (item.price === 0 && !isExp) {
+      const lockId = `free_lock_${user.uid}_${item.eventId}_${item.ticketTypeId}`;
+      const lockSnap = await getDoc(doc(staticDb, "registrations_locks", lockId));
+      if (lockSnap.exists()) throw new Error("Você já resgatou este ingresso gratuito.");
+    }
+  }
+
+  // 2. BLOCO DE ESCRITA (RESERVAS)
+  // Agora que todas as leituras iniciais foram feitas, podemos prosseguir com as escritas
+  for (const item of items) {
+    const isExp = item.productType === 'experience';
     if (isExp && item.occurrenceId) {
       const res = await createExperienceReservationAction({
         experienceId: item.eventId,
@@ -69,15 +84,9 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       }
       reservationIds.push(res.reservationId);
     }
-
-    if (item.price === 0 && !isExp) {
-      const lockId = `free_lock_${user.uid}_${item.eventId}_${item.ticketTypeId}`;
-      const lockSnap = await getDoc(doc(staticDb, "registrations_locks", lockId));
-      if (lockSnap.exists()) throw new Error("Você já resgatou este ingresso gratuito.");
-    }
   }
 
-  // 2. PREPARAR ORDEM COM SNAPSHOTS FINANCEIROS E CUPONS (Mapeamento Flat)
+  // 3. PREPARAR ORDEM COM SNAPSHOTS FINANCEIROS E CUPONS (Mapeamento Flat)
   const exchangeRateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
   const exchangeDate = new Date().toISOString().slice(0, 10);
 
@@ -181,6 +190,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     return { type: 'free', success: true };
   }
 
+  // 4. PROCESSAR SALDO DA CARTEIRA
   if (useBalance && totals.balanceUsed > 0 && eventCurrency === 'BRL') {
     await runTransaction(staticDb, async (transaction) => {
       const walletRef = doc(staticDb, "wallets", user.uid);
@@ -197,7 +207,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   let balanceToSubtractCents = toCents(totals.balanceUsed);
   let totalApplicationFeeCents = 0;
 
-  // 4. MAPEAR PARA STRIPE CONNECT
+  // 5. MAPEAR PARA STRIPE CONNECT
   const stripeLineItems = orderItems.map((item) => {
     const resolvedProductType = (item.productType as ProductType) || 'event';
 
