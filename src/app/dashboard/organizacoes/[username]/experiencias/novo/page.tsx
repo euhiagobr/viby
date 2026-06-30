@@ -28,6 +28,7 @@ import {
   Coins,
   Users
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { toast } from '@/hooks/use-toast';
 import { getOrCreateExperienceDraftAction, publishExperienceAction, saveExperienceAction } from '@/app/actions/experiences';
@@ -107,7 +108,7 @@ export default function NovaExperienciaPage() {
       (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
       () => setUploadProgress(null),
       async () => {
-        const url = await getDownloadURL(uploadTask.snapshot.ref);
+        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
         setFormData(prev => ({ ...prev, image: url }));
         setUploadProgress(null);
       }
@@ -210,7 +211,7 @@ export default function NovaExperienciaPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
-                       <Coins className="w-3.5 h-3.5" /> Valor Base (BRL)
+                       <Coins className="w-3.5 h-3.5 text-secondary" /> Valor Base (BRL)
                     </Label>
                     <Input 
                        type="number" 
@@ -222,7 +223,7 @@ export default function NovaExperienciaPage() {
                  </div>
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
-                       <Users className="w-3.5 h-3.5" /> Capacidade / Estoque
+                       <Users className="w-3.5 h-3.5 text-secondary" /> Capacidade / Estoque
                     </Label>
                     <Input 
                        type="number" 
