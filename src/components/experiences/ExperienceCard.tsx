@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -21,9 +20,6 @@ interface ExperienceCardProps {
   className?: string;
 }
 
-/**
- * @fileOverview Card de Experiência: agora com busca de preço na próxima sessão ativa.
- */
 export function ExperienceCard({ experience, userLocation, className }: ExperienceCardProps) {
   const { formatPriceWithOriginal } = useCurrency();
   const db = useFirestore();
@@ -60,14 +56,16 @@ export function ExperienceCard({ experience, userLocation, className }: Experien
   const pricingDisplay = React.useMemo(() => {
     const currency = experience.currency || 'BRL';
     
-    if (loadingPrice) return <Loader2 className="w-4 h-4 animate-spin opacity-20" />;
+    if (loadingPrice && (!slots || slots.length === 0)) {
+       return <div className="h-6 w-16 bg-muted animate-pulse rounded-lg" />;
+    }
 
     if (nextSession) {
       const price = nextSession.hasPromo ? nextSession.promoPrice : nextSession.price;
       if (price > 0) {
         return (
           <div className="flex flex-col items-end">
-            <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">Próxima Sessão</p>
+            <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">A partir de</p>
             {formatPriceWithOriginal(price, currency)}
           </div>
         );
@@ -76,7 +74,7 @@ export function ExperienceCard({ experience, userLocation, className }: Experien
     }
 
     return <span className="text-muted-foreground font-black italic uppercase text-[10px]">Esgotado</span>;
-  }, [nextSession, experience.currency, formatPriceWithOriginal, loadingPrice]);
+  }, [nextSession, experience.currency, formatPriceWithOriginal, loadingPrice, slots]);
 
   const experienceUrl = `/${experience.organizer?.username || 'experiencia'}/experiencia/${experience.slug || experience.id}`;
 

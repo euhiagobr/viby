@@ -1,10 +1,9 @@
-
 'use client';
 
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy, getDocs, collectionGroup } from "firebase/firestore";
+import { collection, query, where, orderBy, collectionGroup } from "firebase/firestore";
 import { ExperienceCard } from "@/components/experiences/ExperienceCard";
 import { AdsRenderer } from "@/components/ads/AdsRenderer";
 import { Button } from "@/components/ui/button";
@@ -46,6 +45,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [now, setNow] = useState<Date>(new Date());
+  const [displayLimit, setDisplayLimit] = useState(16);
 
   // Carregar slots para filtro de data global e controle de expiração
   const slotsQuery = useMemoFirebase(() => {
@@ -75,31 +75,31 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
     return initialData.filter(exp => {
       if (exp.status !== 'active') return false;
 
-      // Filtro 1: Expiração automática (30 min após o ÚLTIMO slot)
       const mySlots = allSlots?.filter(s => s.experienceId === exp.id) || [];
+      
+      // Regra de Expiração: Some 30 min após o ÚLTIMO slot
       if (mySlots.length > 0) {
-        // Ordenamos por data DESC para pegar o horário mais tardio
         const lastSlot = [...mySlots].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())[0];
         const expirationTime = new Date(new Date(lastSlot.datetime).getTime() + 30 * 60000);
         if (now > expirationTime) return false;
       }
 
-      // Filtro 2: Busca por texto
+      // Filtro por texto
       const matchesSearch = !search || 
         normalizeText(exp.title || "").includes(searchNorm) ||
         normalizeText(exp.shortDescription || "").includes(searchNorm);
       if (!matchesSearch) return false;
 
-      // Filtro 3: Busca por cidade
+      // Filtro por cidade
       const eventLoc = normalizeText(`${exp.city || ""} ${exp.state || ""} ${exp.address?.city || ""} ${exp.address?.stateRegion || ""}`);
       const matchesCity = !searchCity || eventLoc.includes(cityNorm);
       if (!matchesCity) return false;
 
-      // Filtro 4: Categoria
+      // Filtro por Categoria
       const matchesCategory = selectedCategory === 'all' || exp.category === selectedCategory;
       if (!matchesCategory) return false;
 
-      // Filtro 5: Data específica
+      // Filtro por Data
       if (selectedDate) {
         const hasSlotOnDay = mySlots.some(s => isSameDay(new Date(s.datetime), selectedDate));
         if (!hasSlotOnDay) return false;
@@ -109,13 +109,13 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
     });
   }, [initialData, allSlots, search, searchCity, selectedCategory, selectedDate, now]);
 
-  // Lógica de Intercalação de Ads (Primeiro é Ad, depois a cada 3-7 experiências)
   const unifiedFeed = React.useMemo(() => {
     const feed: any[] = [];
-    if (!mounted || adsLoading) return feed;
+    if (!mounted || adsLoading || (slotsLoading && allSlots.length === 0)) return feed;
 
     let adIdx = 0;
     let expIdx = 0;
+    const paginatedExp = processedExp.slice(0, displayLimit);
 
     // Regra: Sempre começa com um anúncio se houver
     if (ads.length > 0) {
@@ -123,21 +123,18 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
       adIdx++;
     }
 
-    // Padrão de intercalação: 3, 4, 5, 6, 7 experiências entre cada Ad
     const intervals = [3, 4, 5, 6, 7];
     let intervalIdx = 0;
 
-    while (expIdx < processedExp.length) {
+    while (expIdx < paginatedExp.length) {
       const currentInterval = intervals[intervalIdx % intervals.length];
       
-      // Adiciona o bloco de experiências
-      for (let i = 0; i < currentInterval && expIdx < processedExp.length; i++) {
-        feed.push({ type: 'experience', data: processedExp[expIdx] });
+      for (let i = 0; i < currentInterval && expIdx < paginatedExp.length; i++) {
+        feed.push({ type: 'experience', data: paginatedExp[expIdx] });
         expIdx++;
       }
 
-      // Adiciona um anúncio após o intervalo
-      if (ads.length > 0 && expIdx < processedExp.length) {
+      if (ads.length > 0 && expIdx < paginatedExp.length) {
         feed.push({ type: 'ad', adIndex: adIdx % ads.length });
         adIdx++;
         intervalIdx++;
@@ -145,13 +142,17 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
     }
 
     return feed;
-  }, [processedExp, ads, adsLoading, mounted]);
+  }, [processedExp, ads, adsLoading, slotsLoading, allSlots, mounted, displayLimit]);
 
   const clearFilters = () => {
     setSearch("");
     setSearchCity("");
     setSelectedCategory("all");
     setSelectedDate(undefined);
+  };
+
+  const handleLoadMore = () => {
+    setDisplayLimit(prev => prev + 16);
   };
 
   if (!mounted) return null;
@@ -274,7 +275,12 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
            )}
         </div>
 
-        {unifiedFeed.length > 0 ? (
+        {(slotsLoading && allSlots.length === 0) || adsLoading ? (
+           <div className="py-32 flex flex-col items-center justify-center gap-4">
+              <Loader2 className="w-12 h-12 animate-spin text-secondary" />
+              <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Sincronizando Marketplace...</p>
+           </div>
+        ) : unifiedFeed.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {unifiedFeed.map((item, idx) => (
               item.type === 'ad' ? (
@@ -304,6 +310,17 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
                 Ver Todas as Vivências
              </Button>
           </div>
+        )}
+
+        {hasMore && processedExp.length > displayLimit && (
+           <div className="mt-20 flex justify-center">
+              <Button 
+                onClick={handleLoadMore} 
+                className="h-14 px-12 bg-white text-primary font-black border-2 rounded-2xl hover:bg-muted transition-all"
+              >
+                Carregar Mais Vivências
+              </Button>
+           </div>
         )}
       </main>
     </div>
