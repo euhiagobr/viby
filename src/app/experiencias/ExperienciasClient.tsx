@@ -45,7 +45,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [now, setNow] = useState<Date>(new Date());
-  const [displayLimit, setDisplayLimit] = useState(16);
+  const [displayLimit, setDisplayLimit] = useState(16); // 4x4 inicial
 
   // Carregar slots para filtro de data global e controle de expiração
   const slotsQuery = useMemoFirebase(() => {
@@ -79,7 +79,8 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
       
       // Regra de Expiração: Some 30 min após o ÚLTIMO slot
       if (mySlots.length > 0) {
-        const lastSlot = [...mySlots].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())[0];
+        const sortedSlots = [...mySlots].sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+        const lastSlot = sortedSlots[0];
         const expirationTime = new Date(new Date(lastSlot.datetime).getTime() + 30 * 60000);
         if (now > expirationTime) return false;
       }
@@ -123,7 +124,8 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
       adIdx++;
     }
 
-    const intervals = [3, 4, 5, 6, 7];
+    // Intervalos randômicos entre 3 e 7
+    const intervals = [3, 5, 4, 7, 6];
     let intervalIdx = 0;
 
     while (expIdx < paginatedExp.length) {
@@ -143,6 +145,8 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
 
     return feed;
   }, [processedExp, ads, adsLoading, slotsLoading, allSlots, mounted, displayLimit]);
+
+  const hasMore = processedExp.length > displayLimit;
 
   const clearFilters = () => {
     setSearch("");
@@ -312,7 +316,7 @@ export default function ExperienciasClient({ initialData }: ExperienciasClientPr
           </div>
         )}
 
-        {hasMore && processedExp.length > displayLimit && (
+        {hasMore && (
            <div className="mt-20 flex justify-center">
               <Button 
                 onClick={handleLoadMore} 

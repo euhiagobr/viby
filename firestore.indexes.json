@@ -29,13 +29,6 @@
       "collectionGroup": "slots",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "slots",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "datetime", "order": "ASCENDING" }
       ]

@@ -28,7 +28,6 @@ export function ExperienceCard({ experience, userLocation, className }: Experien
   const slotsQuery = useMemoFirebase(() => {
     if (!db || !experience.id) return null;
     
-    // Normalizamos o 'now' para o formato YYYY-MM-DDTHH:mm para bater com a string do banco
     const nowNormalized = format(new Date(), "yyyy-MM-dd'T'HH:mm");
     
     return query(
@@ -56,7 +55,7 @@ export function ExperienceCard({ experience, userLocation, className }: Experien
   const pricingDisplay = React.useMemo(() => {
     const currency = experience.currency || 'BRL';
     
-    if (loadingPrice && (!slots || slots.length === 0)) {
+    if (loadingPrice) {
        return <div className="h-6 w-16 bg-muted animate-pulse rounded-lg" />;
     }
 
@@ -74,7 +73,7 @@ export function ExperienceCard({ experience, userLocation, className }: Experien
     }
 
     return <span className="text-muted-foreground font-black italic uppercase text-[10px]">Esgotado</span>;
-  }, [nextSession, experience.currency, formatPriceWithOriginal, loadingPrice, slots]);
+  }, [nextSession, experience.currency, formatPriceWithOriginal, loadingPrice]);
 
   const experienceUrl = `/${experience.organizer?.username || 'experiencia'}/experiencia/${experience.slug || experience.id}`;
 
