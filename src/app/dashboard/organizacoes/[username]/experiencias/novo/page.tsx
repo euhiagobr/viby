@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useUser, useFirestore, useFirebaseApp } from '@/firebase';
+import { useAuth, useUser, useFirestore, useFirebaseApp, useCollection, useMemoFirebase } from '@/firebase';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,10 +44,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { ExperienceSlotsAdmin } from '@/components/experiences/ExperienceSlotsAdmin';
 import { Checkbox } from '@/components/ui/checkbox';
-
-const EXPERIENCE_CATEGORIES = [
-  "Gastronomia", "Turismo", "Cultura", "Entretenimento", "Esportes", "Aventura", "Bem-estar", "Outros"
-];
+import { query, collection, where, orderBy } from 'firebase/firestore';
 
 const WEEK_DAYS = [
   { id: 0, label: "Dom" },
@@ -67,6 +64,17 @@ export default function NovaExperienciaPage() {
   const db = useFirestore();
   const app = useFirebaseApp();
   const storage = React.useMemo(() => (app ? getStorage(app) : null), [app]);
+
+  // Busca categorias dinâmicas do tipo 'experience'
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(
+      collection(db, "categories"),
+      where("type", "==", "experience"),
+      orderBy("name", "asc")
+    );
+  }, [db]);
+  const { data: categories, loading: categoriesLoading } = useCollection<any>(categoriesQuery);
 
   const [loading, setLoading] = React.useState(true);
   const [publishing, setPublishing] = React.useState(false);
@@ -93,13 +101,19 @@ export default function NovaExperienciaPage() {
     },
     address: {
       venueName: "",
-      addressLine1: "",
-      city: "",
-      stateRegion: "",
-      country: "Brasil",
+      addressLine1: "", 
+      addressLine2: "",
+      streetNumber: "",
+      neighborhood: "", 
+      city: "", 
+      stateRegion: "", 
+      country: "Brasil", 
       countryCode: "BR",
-      latitude: null,
-      longitude: null
+      postalCode: "", 
+      latitude: null, 
+      longitude: null,
+      formattedAddress: "",
+      isCustomized: false
     }
   });
 
@@ -133,7 +147,7 @@ export default function NovaExperienciaPage() {
       
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => setUploadProgress(null),
+        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           setFormData(prev => ({ ...prev, image: downloadURL }));
@@ -195,7 +209,6 @@ export default function NovaExperienciaPage() {
       return;
     }
 
-    // Salvar rascunho a cada passo
     if (draftId) {
       await saveExperienceAction(draftId, formData);
     }
@@ -258,9 +271,16 @@ export default function NovaExperienciaPage() {
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Categoria (Obrigatório)</Label>
                     <Select value={formData.category} onValueChange={v => setFormData({...formData, category: v})}>
-                       <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                       <SelectTrigger className="rounded-xl h-11">
+                          <SelectValue placeholder={categoriesLoading ? "Carregando..." : "Selecione"} />
+                       </SelectTrigger>
                        <SelectContent className="rounded-xl">
-                          {EXPERIENCE_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          {categories?.map((c: any) => (
+                             <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                          ))}
+                          {!categoriesLoading && categories?.length === 0 && (
+                             <SelectItem value="none" disabled>Nenhuma categoria de experiência cadastrada</SelectItem>
+                          )}
                        </SelectContent>
                     </Select>
                  </div>
@@ -298,8 +318,12 @@ export default function NovaExperienciaPage() {
                    </div>
                  ))}
                  {formData.gallery.length < 5 && (
-                   <label className="aspect-square rounded-2xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-all">
-                      <Plus className="w-6 h-6 opacity-40" />
+                   <label className="aspect-square rounded-2xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-all relative overflow-hidden">
+                      {Object.keys(galleryProgress).length > 0 ? (
+                         <Loader2 className="w-6 h-6 animate-spin text-secondary" />
+                      ) : (
+                         <Plus className="w-6 h-6 opacity-40" />
+                      )}
                       <input type="file" multiple accept="image/*" className="hidden" onChange={handleGalleryUpload} />
                    </label>
                  )}

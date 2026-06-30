@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useAuth, useUser, useFirestore, useDoc, useFirebaseApp } from '@/firebase';
+import { useAuth, useUser, useFirestore, useDoc, useFirebaseApp, useCollection, useMemoFirebase } from '@/firebase';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ import {
   Calendar,
   Layout
 } from 'lucide-react';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, updateDoc, query, collection, where, orderBy } from 'firebase/firestore';
 import Link from 'next/link';
 import { toast } from '@/hooks/use-toast';
 import { saveExperienceAction } from '@/app/actions/experiences';
@@ -43,10 +43,6 @@ import { Separator } from '@/components/ui/separator';
 import { ExperienceSlotsAdmin } from '@/components/experiences/ExperienceSlotsAdmin';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
-
-const EXPERIENCE_CATEGORIES = [
-  "Gastronomia", "Turismo", "Cultura", "Entretenimento", "Esportes", "Aventura", "Bem-estar", "Outros"
-];
 
 const WEEK_DAYS = [
   { id: 0, label: "Dom" },
@@ -69,6 +65,17 @@ export default function EditarExperienciaPage() {
   const { currentOrg } = useCurrentOrganization();
   const storage = React.useMemo(() => (app ? getStorage(app) : null), [app]);
 
+  // Busca categorias dinâmicas do tipo 'experience'
+  const categoriesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(
+      collection(db, "categories"),
+      where("type", "==", "experience"),
+      orderBy("name", "asc")
+    );
+  }, [db]);
+  const { data: categories, loading: categoriesLoading } = useCollection<any>(categoriesQuery);
+
   const expRef = React.useMemo(() => (db && id) ? doc(db, "experiences", id) : null, [db, id]);
   const { data: exp, loading: expLoading } = useDoc<any>(expRef);
 
@@ -82,7 +89,7 @@ export default function EditarExperienciaPage() {
       setFormData({
         title: exp.title || "",
         slug: exp.slug || "",
-        category: exp.category || "Cultura",
+        category: exp.category || "",
         shortDescription: exp.shortDescription || "",
         description: exp.description || "",
         image: exp.image || "",
@@ -98,12 +105,15 @@ export default function EditarExperienciaPage() {
         },
         address: exp.address || {
           venueName: "",
-          addressLine1: "",
-          city: "",
-          stateRegion: "",
-          country: "Brasil",
+          addressLine1: "", 
+          addressLine2: "",
+          streetNumber: "",
+          neighborhood: "", 
+          city: "", 
+          stateRegion: "", 
+          country: "Brasil", 
           countryCode: "BR",
-          latitude: null,
+          latitude: null, 
           longitude: null
         },
         additionalInfo: exp.additionalInfo || "",
@@ -120,7 +130,7 @@ export default function EditarExperienciaPage() {
     
     uploadTask.on('state_changed', 
       (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-      () => setUploadProgress(null),
+      () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
       async () => {
         const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
         setFormData(prev => ({ ...prev, image: downloadURL }));
@@ -227,9 +237,13 @@ export default function EditarExperienciaPage() {
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                     <Select value={formData.category} onValueChange={v => setFormData({...formData, category: v})}>
-                       <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                       <SelectTrigger className="rounded-xl h-11">
+                          <SelectValue placeholder={categoriesLoading ? "Carregando..." : "Selecione"} />
+                       </SelectTrigger>
                        <SelectContent className="rounded-xl">
-                          {EXPERIENCE_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          {categories?.map((c: any) => (
+                             <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                          ))}
                        </SelectContent>
                     </Select>
                  </div>
@@ -267,8 +281,12 @@ export default function EditarExperienciaPage() {
                    </div>
                  ))}
                  {formData.gallery.length < 5 && (
-                   <label className="aspect-square rounded-2xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-all">
-                      <Plus className="w-6 h-6 opacity-40" />
+                   <label className="aspect-square rounded-2xl border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-all relative overflow-hidden">
+                      {Object.keys(galleryProgress).length > 0 ? (
+                         <Loader2 className="w-6 h-6 animate-spin text-secondary" />
+                      ) : (
+                         <Plus className="w-6 h-6 opacity-40" />
+                      )}
                       <input type="file" multiple accept="image/*" className="hidden" onChange={handleGalleryUpload} />
                    </label>
                  )}
