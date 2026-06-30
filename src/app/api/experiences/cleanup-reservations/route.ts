@@ -4,9 +4,8 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import * as admin from 'firebase-admin';
 
 /**
- * @fileOverview Reservation Expiration Worker
- * Este worker deve ser acionado periodicamente (ex: a cada 1-5 minutos) via Cron Job.
- * Objetivo: Liberar capacidade de slots ocupados por reservas que não concluíram o pagamento.
+ * @fileOverview Reservation Expiration Worker with Global Job Lock
+ * Executa a limpeza de reservas expiradas garantindo que não haja execuções paralelas.
  */
 
 export const dynamic = 'force-dynamic';
@@ -15,82 +14,81 @@ export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  // Proteção simples contra disparos externos não autorizados
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const db = getAdminDb();
   const now = admin.firestore.Timestamp.now();
+  const lockRef = db.collection('system_job_locks').doc('expire_experience_reservations');
   
-  let expiredCount = 0;
-  let errorCount = 0;
-  const processedIds: string[] = [];
-
   try {
-    // 1. Buscar reservas pendentes que já passaram do tempo de expiração
+    // 1. ADQUIRIR JOB LOCK (ATÔMICO)
+    const canRun = await db.runTransaction(async (transaction) => {
+      const lockSnap = await transaction.get(lockRef);
+      if (lockSnap.exists) {
+        const lockData = lockSnap.data();
+        // Se o lock ainda não expirou (janela de 5 min), aborta
+        if (lockData?.expires_at.toDate() > new Date()) {
+          return false;
+        }
+      }
+      
+      // Cria ou renova o lock para os próximos 5 minutos
+      transaction.set(lockRef, {
+        job_name: 'expire_experience_reservations',
+        locked_at: admin.firestore.FieldValue.serverTimestamp(),
+        expires_at: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 5 * 60 * 1000)),
+        locked_by: 'cron_worker_instance'
+      });
+      return true;
+    });
+
+    if (!canRun) {
+      return NextResponse.json({ status: "skipped", reason: "job_already_locked" });
+    }
+
+    // 2. PROCESSAR EXPIRAÇÕES
     const expiredSnap = await db.collection('experience_reservations')
       .where('status', '==', 'reserved')
-      .where('expires_at', '<=', now)
-      .limit(500) // Limite por execução para evitar timeout
+      .where('expiresAt', '<=', now)
+      .limit(500)
       .get();
 
     if (expiredSnap.empty) {
-      return NextResponse.json({ 
-        success: true, 
-        message: "Nenhuma reserva expirada para processar.",
-        count: 0 
+      await lockRef.delete(); // Libera o lock antecipadamente se nada para fazer
+      return NextResponse.json({ count: 0, message: "No expired reservations." });
+    }
+
+    let expiredCount = 0;
+    for (const resDoc of expiredSnap.docs) {
+      await db.runTransaction(async (transaction) => {
+        const freshSnap = await transaction.get(resDoc.ref);
+        if (freshSnap.exists && freshSnap.data()?.status === 'reserved') {
+          transaction.update(resDoc.ref, {
+            status: 'expired',
+            expiredAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          expiredCount++;
+        }
       });
     }
 
-    console.log(`[RESERVATION WORKER] Identificadas ${expiredSnap.size} reservas expiradas.`);
+    // 3. LIBERAR JOB LOCK
+    await lockRef.delete();
 
-    // 2. Processar expirações de forma atômica
-    for (const resDoc of expiredSnap.docs) {
-      try {
-        await db.runTransaction(async (transaction) => {
-          const freshSnap = await transaction.get(resDoc.ref);
-          if (!freshSnap.exists) return;
-
-          const data = freshSnap.data();
-          
-          // SEGURANÇA CONTRA RACE CONDITION:
-          // Só expira se o status ainda for 'reserved'. 
-          // Se o webhook de pagamento confirmou a reserva no meio tempo, ignoramos.
-          if (data?.status === 'reserved') {
-            transaction.update(resDoc.ref, {
-              status: 'expired',
-              expiredAt: admin.firestore.FieldValue.serverTimestamp(),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            expiredCount++;
-            processedIds.push(resDoc.id);
-          }
-        });
-      } catch (err) {
-        console.error(`[RESERVATION WORKER] Erro ao processar reserva ${resDoc.id}:`, err);
-        errorCount++;
-      }
-    }
-
-    console.log(`[RESERVATION WORKER] Cleanup concluído. Efetivadas: ${expiredCount}, Falhas: ${errorCount}`);
+    console.log(`[CLEANUP-WORKER] Processed ${expiredCount} expired reservations.`);
 
     return NextResponse.json({
       success: true,
-      summary: {
-        analyzed: expiredSnap.size,
-        expired: expiredCount,
-        errors: errorCount,
-        processedIds
-      },
+      expired: expiredCount,
       timestamp: new Date().toISOString()
     });
 
   } catch (error: any) {
-    console.error("[RESERVATION WORKER] Falha crítica na execução:", error.message);
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message 
-    }, { status: 500 });
+    console.error("[CLEANUP-WORKER-CRITICAL]", error.message);
+    await lockRef.delete().catch(() => {}); // Tenta liberar lock em erro
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
