@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -35,6 +34,10 @@ import { Separator } from '@/components/ui/separator';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { ExperienceSlotsPublic } from '@/components/experiences/ExperienceSlotsPublic';
+import { useCart } from '@/contexts/CartContext';
+import { toast } from '@/hooks/use-toast';
+import { useAuth, useUser } from '@/firebase';
+import { useRouter, usePathname } from 'next/navigation';
 
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
   ssr: false,
@@ -47,7 +50,12 @@ interface ExperienciaPublicaClientProps {
 
 export default function ExperienciaPublicaClient({ experience }: ExperienciaPublicaClientProps) {
   const { formatPriceWithOriginal } = useCurrency();
+  const { addItem } = useCart();
   const db = useFirestore();
+  const auth = useAuth();
+  const { user } = useUser(auth);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [selectedSlot, setSelectedSlot] = React.useState<any>(null);
 
@@ -70,8 +78,47 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       }).catch(() => {});
     } else {
       navigator.clipboard.writeText(window.location.href);
-      alert("Link copiado!");
+      toast({ title: "Link copiado!" });
     }
+  };
+
+  const handleReserve = () => {
+    if (!selectedSlot) {
+      toast({ variant: "destructive", title: "Selecione um horário", description: "Escolha uma das opções disponíveis acima." });
+      return;
+    }
+
+    if (!user) {
+      router.push(`/login?redirect=${encodeURIComponent(pathname || '/')}`);
+      return;
+    }
+
+    // Mapeamento para CartItem suportando Experience
+    addItem({
+      id: `${experience.id}_${selectedSlot.id}`,
+      eventId: experience.id,
+      eventTitle: experience.title,
+      eventImage: experience.image || "",
+      eventDate: selectedSlot.datetime,
+      eventCity: experience.city || "",
+      organizationId: experience.organizationId,
+      organizerId: experience.organizer?.id || "",
+      organizerUsername: experience.organizer?.username || "",
+      ticketTypeId: "exp_slot",
+      ticketTypeName: "Vaga",
+      batchId: "slot",
+      batchName: "Reserva",
+      currency: (experience.currency || 'BRL'),
+      price: selectedSlot.price,
+      originalPrice: selectedSlot.price,
+      quantity: 1,
+      requiresProof: false,
+      occurrenceId: selectedSlot.id,
+      productType: 'experience'
+    } as any);
+
+    toast({ title: "Vaga reservada!", description: "O item foi adicionado ao seu carrinho." });
+    router.push('/dashboard/carrinho');
   };
 
   const address = experience.address || {};
@@ -79,7 +126,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
   const lng = address.longitude || experience.longitude || -46.633308;
   const locationQuery = encodeURIComponent(`${address.addressLine1} ${address.city}`);
 
-  // O preço exibido depende se há um slot selecionado
   const displayPrice = selectedSlot ? selectedSlot.price : experience.price;
   const displayCurrency = (selectedSlot?.currency || experience.currency || 'BRL') as CurrencyCode;
 
@@ -88,7 +134,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       <PublicHeader showBack />
 
       <main className="flex-1 animate-in fade-in duration-700">
-        {/* Banner Section */}
         <div className="relative h-[40vh] md:h-[60vh] w-full overflow-hidden bg-black">
           {experience.image && (
             <Image 
@@ -119,7 +164,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
         <div className="container mx-auto px-4 py-12 max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
           <div className="lg:col-span-8 space-y-12">
             
-            {/* Galeria se existir */}
             {experience.gallery?.length > 0 && (
               <section className="space-y-6">
                 <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2">Galeria</h2>
@@ -133,7 +177,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               </section>
             )}
 
-            {/* Disponibilidade / Horários */}
             <section className="space-y-6">
                {loadingSlots ? (
                  <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
@@ -157,7 +200,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               </Card>
             </section>
 
-            {/* Localização Reutilizada */}
             <section className="space-y-6">
               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-secondary" /> Localização
@@ -186,7 +228,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               </Card>
             </section>
 
-            {/* Informações Adicionais */}
             {(experience.additionalInfo || experience.usagePolicy) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {experience.additionalInfo && (
@@ -243,6 +284,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                    <div className="space-y-3">
                       <Button 
                         disabled={!selectedSlot || (selectedSlot.sold >= selectedSlot.capacity)} 
+                        onClick={handleReserve}
                         className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2"
                       >
                         <ShoppingBag className="w-5 h-5" /> 
@@ -260,11 +302,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                            </div>
                         </div>
                       )}
-                      
-                      <div className="p-3 bg-muted/50 rounded-xl flex items-start gap-2">
-                        <Info className="w-3.5 h-3.5 opacity-30 shrink-0 mt-0.5" />
-                        <p className="text-[8px] font-bold text-muted-foreground uppercase leading-tight">Vendas e agendamento serão habilitados na Etapa 4.</p>
-                      </div>
                 </div>
 
                 <Separator className="border-dashed" />

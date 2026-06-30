@@ -1,8 +1,8 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from '@/hooks/use-toast';
+import { ProductType } from '@/lib/financial-utils';
 
 export interface CartItem {
   id: string; // Unique ID for the cart entry (eventId + batchId + typeId + sectorId + seatId)
@@ -33,6 +33,7 @@ export interface CartItem {
   occurrenceId?: string | null;
   couponCode?: string | null;
   discountAmount?: number;
+  productType?: ProductType;
 }
 
 interface CartContextType {
@@ -139,7 +140,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       
       // Garante que ingresso grátis entre com no máximo 1 unidade
       const finalQty = isFree ? 1 : item.quantity;
-      return [...prev, { ...item, quantity: finalQty, originalPrice: item.originalPrice || item.price }];
+      return [...prev, { ...item, quantity: finalQty, originalPrice: item.originalPrice || item.price, productType: item.productType || 'event' }];
     });
   };
 
@@ -157,7 +158,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           const finalQty = isFree ? 1 : item.quantity;
-          current.push({ ...item, quantity: finalQty, originalPrice: item.originalPrice || item.price });
+          current.push({ ...item, quantity: finalQty, originalPrice: item.originalPrice || item.price, productType: item.productType || 'event' });
         }
       });
       return current;

@@ -3,11 +3,18 @@
  * Implementa a regra única e centralizada para toda a plataforma com suporte a moedas nativas e persistência histórica.
  */
 
-import { CurrencyCode } from "@/contexts/CurrencyContext";
+import { CurrencyCode } from "@/contexts/CurrencyCode";
 
-export const VIBY_MIN_FEE_BRL = 3.99; // Fallback absoluto
-export const VIBY_BUYER_MARKUP = 0.15; // Fallback 15%
-export const VIBY_ORGANIZER_FEE = 0.10; // Fallback 10%
+export type ProductType = 'event' | 'experience';
+
+export const VIBY_MIN_FEE_BRL = 3.99; // Fallback absoluto Eventos
+export const VIBY_BUYER_MARKUP = 0.15; // Fallback 15% Eventos
+export const VIBY_ORGANIZER_FEE = 0.10; // Fallback 10% Eventos
+
+export const VIBY_EXPERIENCE_MIN_FEE_BRL = 4.99; // Fallback absoluto Experiências
+export const VIBY_EXPERIENCE_BUYER_MARKUP = 0.10; // Fallback 10% Experiências
+export const VIBY_EXPERIENCE_ORGANIZER_FEE = 0.15; // Fallback 15% Experiências
+
 export const VIBY_TAX_RATE = 0.11; // 11% de imposto sobre a receita bruta da Viby
 
 /**
@@ -60,7 +67,8 @@ export function calculateVibyOfficialSplit(
   rates?: Record<string, number>, 
   orgFees?: any,
   globalFees?: any,
-  promotions?: any
+  promotions?: any,
+  productType: ProductType = 'event'
 ) {
   const price = Math.max(0, Number(facePrice) || 0);
   
@@ -78,38 +86,46 @@ export function calculateVibyOfficialSplit(
   // Verificar se as taxas da organização estão em período de vigência
   const isOrgFeeVigente = isTemporalActive(orgFees?.customFeeStartAt, orgFees?.customFeeEndAt);
 
+  const isExp = productType === 'experience';
+
   // 1. Taxa do Comprador (Markup)
-  let markup = VIBY_BUYER_MARKUP;
+  let markup = isExp ? VIBY_EXPERIENCE_BUYER_MARKUP : VIBY_BUYER_MARKUP;
+  
   if (isOrgFeeVigente && orgFees?.customBuyerMarkup !== undefined && orgFees.customBuyerMarkup !== null) {
     markup = orgFees.customBuyerMarkup / 100;
   } else if (isPromoActive(promotions?.buyerPromoActive, promotions?.buyerPromoStart, promotions?.buyerPromoEnd)) {
     markup = promotions.buyerPromoPercent / 100;
-  } else if (globalFees?.buyerMarkupPercent !== undefined) {
-    markup = globalFees.buyerMarkupPercent / 100;
+  } else if (globalFees) {
+    const globalMarkup = isExp ? globalFees.experienceBuyerMarkupPercent : globalFees.buyerMarkupPercent;
+    if (globalMarkup !== undefined) markup = globalMarkup / 100;
   }
   
   const buyerMarkupFee = Number((price * markup).toFixed(2));
   
   // 2. Taxa do Organizador (Comissão)
-  let commission = VIBY_ORGANIZER_FEE;
+  let commission = isExp ? VIBY_EXPERIENCE_ORGANIZER_FEE : VIBY_ORGANIZER_FEE;
+  
   if (isOrgFeeVigente && orgFees?.customOrganizerPercent !== undefined && orgFees.customOrganizerPercent !== null) {
     commission = orgFees.customOrganizerPercent / 100;
   } else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
     commission = promotions.organizerPromoPercent / 100;
-  } else if (globalFees?.organizerBasePercent !== undefined) {
-    commission = globalFees.organizerBasePercent / 100;
+  } else if (globalFees) {
+    const globalCommission = isExp ? globalFees.experienceOrganizerBasePercent : globalFees.organizerBasePercent;
+    if (globalCommission !== undefined) commission = globalCommission / 100;
   }
     
   const organizerPercentFee = Number((price * commission).toFixed(2));
   
   // 3. Taxa Mínima (BRL)
-  let minFeeBRL = VIBY_MIN_FEE_BRL;
+  let minFeeBRL = isExp ? VIBY_EXPERIENCE_MIN_FEE_BRL : VIBY_MIN_FEE_BRL;
+  
   if (isOrgFeeVigente && orgFees?.customOrganizerMinFee !== undefined && orgFees.customOrganizerMinFee !== null) {
     minFeeBRL = orgFees.customOrganizerMinFee;
   } else if (isPromoActive(promotions?.organizerPromoActive, promotions?.organizerPromoStart, promotions?.organizerPromoEnd)) {
     minFeeBRL = promotions.organizerPromoMinFee;
-  } else if (globalFees?.organizerMinFee !== undefined) {
-    minFeeBRL = globalFees.organizerMinFee;
+  } else if (globalFees) {
+    const globalMin = isExp ? globalFees.experienceOrganizerMinFee : globalFees.organizerMinFee;
+    if (globalMin !== undefined) minFeeBRL = globalMin;
   }
 
   // Converte a taxa mínima de BRL para a moeda do evento
@@ -156,16 +172,18 @@ export function calculateFinancialBreakdown(
   promotions?: any, 
   orgSettings?: any, 
   eventCurrency: CurrencyCode = 'BRL', 
-  rates?: Record<string, number>
+  rates?: Record<string, number>,
+  productType: ProductType = 'event'
 ) {
-  const split = calculateVibyOfficialSplit(facePrice, eventCurrency, rates, orgSettings, globalFees, promotions);
+  const split = calculateVibyOfficialSplit(facePrice, eventCurrency, rates, orgSettings, globalFees, promotions, productType);
   return {
     ticketBasePrice: split.facePrice,
     customerFinalPrice: split.totalCharged,
     administrativeFeeAmount: split.buyerFee,
     producerFeeAmount: split.organizerFee,
     producerNetAmount: split.organizerNet,
-    totalVibyRevenue: split.vibyApplicationFee
+    totalVibyRevenue: split.vibyApplicationFee,
+    productType
   };
 }
 
@@ -180,9 +198,10 @@ export function calculateDetailedVibyBreakdown(
   eventCurrency: CurrencyCode = 'BRL',
   orgSettings?: any,
   globalFees?: any,
-  promotions?: any
+  promotions?: any,
+  productType: ProductType = 'event'
 ) {
-  const split = calculateVibyOfficialSplit(facePrice, eventCurrency, rates, orgSettings, globalFees, promotions);
+  const split = calculateVibyOfficialSplit(facePrice, eventCurrency, rates, orgSettings, globalFees, promotions, productType);
   const rateToBRL = eventCurrency === 'BRL' ? 1 : (1 / (rates?.[eventCurrency] || 1));
 
   const imposto = Number((split.vibyApplicationFee * VIBY_TAX_RATE).toFixed(2));
@@ -206,7 +225,8 @@ export function calculateDetailedVibyBreakdown(
     totalChargedBRL: Number((split.totalCharged * quantity * rateToBRL).toFixed(2)),
     vibyNetBRL: Number((vibyNet * quantity * rateToBRL).toFixed(2)),
     taxAmountBRL: Number((imposto * quantity * rateToBRL).toFixed(2)),
-    payoutToProducerBRL: Number((split.organizerNet * quantity * rateToBRL).toFixed(2))
+    payoutToProducerBRL: Number((split.organizerNet * quantity * rateToBRL).toFixed(2)),
+    productType
   };
 }
 

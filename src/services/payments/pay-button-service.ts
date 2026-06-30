@@ -13,9 +13,9 @@ import {
 import { db as staticDb } from "@/firebase/database";
 import { createCheckoutSession } from "@/app/actions/stripe";
 import { generateFreeTickets } from "@/app/actions/tickets";
-import { calculateVibyOfficialSplit, toCents, calculateFinancialBreakdown } from "@/lib/financial-utils";
+import { calculateVibyOfficialSplit, toCents, calculateFinancialBreakdown, ProductType } from "@/lib/financial-utils";
 import { CartItem } from "@/contexts/CartContext";
-import { CurrencyCode } from "@/contexts/CurrencyContext";
+import { CurrencyCode } from "@/contexts/CurrencyCode";
 
 export interface PayButtonOptions {
   user: any;
@@ -45,14 +45,17 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
 
   // 1. Validação de Disponibilidade e Lock de Grátis
   for (const item of items) {
-    const eSnap = await getDoc(doc(staticDb, "events", item.eventId));
-    if (!eSnap.exists()) throw new Error(`O evento ${item.eventTitle} não está mais disponível.`);
+    const isExp = item.productType === 'experience';
+    const collName = isExp ? "experiences" : "events";
+    
+    const eSnap = await getDoc(doc(staticDb, collName, item.eventId));
+    if (!eSnap.exists()) throw new Error(`O item ${item.eventTitle} não está mais disponível.`);
     
     const event = eSnap.data();
     let batchSource = event.batches || [];
 
     if (item.occurrenceId) {
-      const occSnap = await getDoc(doc(staticDb, "recurring_occurrences", item.occurrenceId));
+      const occSnap = await getDoc(doc(staticDb, isExp ? "experiences" : "recurring_occurrences", item.occurrenceId));
       if (occSnap.exists()) {
         const occData = occSnap.data();
         if (occData.batches && occData.batches.length > 0) batchSource = occData.batches;
@@ -93,14 +96,15 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   const exchangeDate = new Date().toISOString().slice(0, 10);
 
   const orderItems = items.map(item => {
-    // RESOLUÇÃO DE TAXAS COM HIERARQUIA COMPLETA
+    // RESOLUÇÃO DE TAXAS COM HIERARQUIA COMPLETA E TIPAGEM DE PRODUTO
     const breakdown = calculateFinancialBreakdown(
       item.price, 
       globalFees, 
       promotions, 
       orgsData[item.organizationId], 
       eventCurrency, 
-      rates
+      rates,
+      item.productType as ProductType || 'event'
     );
     return {
       ...item,
@@ -156,7 +160,8 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       rates, 
       orgsData[item.organizationId], 
       globalFees, 
-      promotions
+      promotions,
+      item.productType as ProductType || 'event'
     );
     totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
     
@@ -180,6 +185,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
         },
         unit_amount: unitAmountCents,
       },
+      padding: item.productType === 'experience' ? 'experience_tag' : undefined,
       quantity: item.quantity,
     };
   });

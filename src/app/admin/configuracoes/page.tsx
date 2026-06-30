@@ -43,7 +43,8 @@ import {
   Handshake,
   ShieldAlert,
   Ticket,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -91,7 +92,14 @@ export default function AdminConfiguracoesPage() {
   });
   const [stripeForm, setStripeForm] = React.useState({ publishableKey: '', secretKey: '', feePercent: '3.99', feeFixed: '0.39', mode: 'test' });
   const [emailForm, setEmailForm] = React.useState({ smtpHost: 'smtp.gmail.com', smtpPort: '465', smtpUser: '', smtpPass: '' });
-  const [feesForm, setFeesForm] = React.useState({ buyerMarkupPercent: '15', organizerBasePercent: '10', organizerMinFee: '3.99' });
+  const [feesForm, setFeesForm] = React.useState({ 
+    buyerMarkupPercent: '15', 
+    organizerBasePercent: '10', 
+    organizerMinFee: '3.99',
+    experienceBuyerMarkupPercent: '10',
+    experienceOrganizerBasePercent: '15',
+    experienceOrganizerMinFee: '4.99'
+  });
   const [adsForm, setAdsForm] = React.useState({ cpcValue: '0.50', cpmValue: '10.00', minRechargeValue: '30.00' });
   const [affiliateForm, setAffiliateForm] = React.useState({ enabled: true });
   
@@ -159,7 +167,10 @@ export default function AdminConfiguracoesPage() {
     if (globalFees) setFeesForm({ 
       buyerMarkupPercent: globalFees.buyerMarkupPercent?.toString() || '15', 
       organizerBasePercent: globalFees.organizerBasePercent?.toString() || '10', 
-      organizerMinFee: globalFees.organizerMinFee?.toString() || '3.99' 
+      organizerMinFee: globalFees.organizerMinFee?.toString() || '3.99',
+      experienceBuyerMarkupPercent: globalFees.experienceBuyerMarkupPercent?.toString() || '10',
+      experienceOrganizerBasePercent: globalFees.experienceOrganizerBasePercent?.toString() || '15',
+      experienceOrganizerMinFee: globalFees.experienceOrganizerMinFee?.toString() || '4.99'
     });
   }, [globalFees]);
 
@@ -464,6 +475,58 @@ export default function AdminConfiguracoesPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="contato" className="space-y-8">
+           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
+              <CardHeader className="bg-muted/30 p-8 border-b">
+                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Canais de Atendimento e Redes</CardTitle>
+                 <CardDescription>Informações de contato exibidas no rodapé do site.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-8 space-y-8">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp (Somente números)</Label>
+                       <Input value={contactForm.whatsapp} onChange={e => setContactForm({...contactForm, whatsapp: e.target.value})} placeholder="Ex: 5551999999999" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail de Contato</Label>
+                       <Input value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} placeholder="contato@viby.club" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Institucional</Label>
+                       <Input value={contactForm.website} onChange={e => setContactForm({...contactForm, website: e.target.value})} placeholder="https://viby.club" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram</Label>
+                       <Input value={contactForm.instagram} onChange={e => setContactForm({...contactForm, instagram: e.target.value})} placeholder="https://instagram.com/perfil" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Facebook className="w-3 h-3" /> Facebook</Label>
+                       <Input value={contactForm.facebook} onChange={e => setContactForm({...contactForm, facebook: e.target.value})} placeholder="https://facebook.com/perfil" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Linkedin className="w-3 h-3" /> LinkedIn</Label>
+                       <Input value={contactForm.linkedin} onChange={e => setContactForm({...contactForm, linkedin: e.target.value})} placeholder="https://linkedin.com/company/perfil" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Youtube className="w-3 h-3" /> YouTube</Label>
+                       <Input value={contactForm.youtube} onChange={e => setContactForm({...contactForm, youtube: e.target.value})} placeholder="https://youtube.com/@perfil" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Video className="w-3 h-3" /> TikTok</Label>
+                       <Input value={contactForm.tiktok} onChange={e => setContactForm({...contactForm, tiktok: e.target.value})} placeholder="https://tiktok.com/@perfil" className="rounded-xl h-11" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Twitter className="w-3 h-3" /> X (Twitter)</Label>
+                       <Input value={contactForm.twitter} onChange={e => setContactForm({...contactForm, twitter: e.target.value})} placeholder="https://x.com/perfil" className="rounded-xl h-11" />
+                    </div>
+                 </div>
+                 <Button onClick={() => handleSave('settings', 'contact', contactForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
+                    Salvar Informações de Contato
+                 </Button>
+              </CardContent>
+           </Card>
+        </TabsContent>
+
         <TabsContent value="vendas" className="space-y-8">
            <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
               <CardHeader className="bg-muted/30 p-8 border-b">
@@ -523,58 +586,6 @@ export default function AdminConfiguracoesPage() {
            </Card>
         </TabsContent>
 
-        <TabsContent value="contato" className="space-y-8">
-           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
-              <CardHeader className="bg-muted/30 p-8 border-b">
-                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Canais de Atendimento e Redes</CardTitle>
-                 <CardDescription>Informações de contato exibidas no rodapé do site.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-8 space-y-8">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Phone className="w-3 h-3" /> WhatsApp (Somente números)</Label>
-                       <Input value={contactForm.whatsapp} onChange={e => setContactForm({...contactForm, whatsapp: e.target.value})} placeholder="Ex: 5551999999999" className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Mail className="w-3 h-3" /> E-mail de Contato</Label>
-                       <Input value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} placeholder="contato@viby.club" className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Globe className="w-3 h-3" /> Site Institucional</Label>
-                       <Input value={contactForm.website} onChange={e => setContactForm({...contactForm, website: e.target.value})} placeholder="https://viby.club" className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Instagram className="w-3 h-3" /> Instagram</Label>
-                       <Input value={contactForm.instagram} onChange={e => setContactForm({...contactForm, instagram: e.target.value})} placeholder="https://instagram.com/perfil" className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Facebook className="w-3 h-3" /> Facebook</Label>
-                       <Input value={contactForm.facebook} onChange={e => setContactForm({...contactForm, facebook: e.target.value})} placeholder="https://facebook.com/perfil" className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Linkedin className="w-3 h-3" /> LinkedIn</Label>
-                       <Input value={contactForm.linkedin} onChange={e => setContactForm({...contactForm, linkedin: e.target.value})} placeholder="https://linkedin.com/company/perfil" className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Youtube className="w-3 h-3" /> YouTube</Label>
-                       <Input value={contactForm.youtube} onChange={e => setContactForm({...contactForm, youtube: e.target.value})} placeholder="https://youtube.com/@perfil" className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Video className="w-3 h-3" /> TikTok</Label>
-                       <Input value={contactForm.tiktok} onChange={e => setContactForm({...contactForm, tiktok: e.target.value})} placeholder="https://tiktok.com/@perfil" className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2"><Twitter className="w-3 h-3" /> X (Twitter)</Label>
-                       <Input value={contactForm.twitter} onChange={e => setContactForm({...contactForm, twitter: e.target.value})} placeholder="https://x.com/perfil" className="rounded-xl h-11" />
-                    </div>
-                 </div>
-                 <Button onClick={() => handleSave('settings', 'contact', contactForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
-                    Salvar Informações de Contato
-                 </Button>
-              </CardContent>
-           </Card>
-        </TabsContent>
-
         <TabsContent value="pagamentos">
            <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
               <CardHeader className="bg-muted/30 p-8 border-b">
@@ -603,32 +614,61 @@ export default function AdminConfiguracoesPage() {
            </Card>
         </TabsContent>
 
-        <TabsContent value="taxas">
-           <Card className="border-none shadow-sm rounded-[2.5rem] overflow-hidden bg-white max-w-4xl">
-              <CardHeader className="bg-muted/30 p-8 border-b">
-                 <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Regras Financeiras</CardTitle>
-                 <CardDescription>Taxas padrão aplicadas a todas as vendas.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-8 space-y-8">
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Markup Comprador (%)</Label>
-                       <Input value={feesForm.buyerMarkupPercent} onChange={e => setFeesForm({...feesForm, buyerMarkupPercent: e.target.value})} className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Comissão Produtor (%)</Label>
-                       <Input value={feesForm.organizerBasePercent} onChange={e => setFeesForm({...feesForm, organizerBasePercent: e.target.value})} className="rounded-xl h-11" />
-                    </div>
-                    <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Valor Mínimo (R$)</Label>
-                       <Input value={feesForm.organizerMinFee} onChange={e => setFeesForm({...feesForm, organizerMinFee: e.target.value})} className="rounded-xl h-11" />
-                    </div>
-                 </div>
-                 <Button onClick={() => handleSave('settings', 'fees', feesForm)} disabled={saving} className="w-full h-14 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic">
-                    Atualizar Taxas
-                 </Button>
-              </CardContent>
-           </Card>
+        <TabsContent value="taxas" className="space-y-8">
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+             <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+                <CardHeader className="bg-muted/30 p-8 border-b">
+                   <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
+                      <Ticket className="w-5 h-5 text-secondary" /> Taxas de Eventos
+                   </CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 space-y-8">
+                   <div className="grid grid-cols-1 gap-6">
+                      <div className="space-y-2">
+                         <Label className="text-[10px] font-black uppercase opacity-60">Markup Comprador (%)</Label>
+                         <Input value={feesForm.buyerMarkupPercent} onChange={e => setFeesForm({...feesForm, buyerMarkupPercent: e.target.value})} className="rounded-xl h-11" />
+                      </div>
+                      <div className="space-y-2">
+                         <Label className="text-[10px] font-black uppercase opacity-60">Comissão Produtor (%)</Label>
+                         <Input value={feesForm.organizerBasePercent} onChange={e => setFeesForm({...feesForm, organizerBasePercent: e.target.value})} className="rounded-xl h-11" />
+                      </div>
+                      <div className="space-y-2">
+                         <Label className="text-[10px] font-black uppercase opacity-60">Valor Mínimo (R$)</Label>
+                         <Input value={feesForm.organizerMinFee} onChange={e => setFeesForm({...feesForm, organizerMinFee: e.target.value})} className="rounded-xl h-11" />
+                      </div>
+                   </div>
+                </CardContent>
+             </Card>
+
+             <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+                <CardHeader className="bg-secondary/5 p-8 border-b">
+                   <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2 text-secondary">
+                      <Sparkles className="w-5 h-5" /> Taxas de Experiências
+                   </CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 space-y-8">
+                   <div className="grid grid-cols-1 gap-6">
+                      <div className="space-y-2">
+                         <Label className="text-[10px] font-black uppercase opacity-60">Markup Comprador (%)</Label>
+                         <Input value={feesForm.experienceBuyerMarkupPercent} onChange={e => setFeesForm({...feesForm, experienceBuyerMarkupPercent: e.target.value})} className="rounded-xl h-11" />
+                      </div>
+                      <div className="space-y-2">
+                         <Label className="text-[10px] font-black uppercase opacity-60">Comissão Produtor (%)</Label>
+                         <Input value={feesForm.experienceOrganizerBasePercent} onChange={e => setFeesForm({...feesForm, experienceOrganizerBasePercent: e.target.value})} className="rounded-xl h-11" />
+                      </div>
+                      <div className="space-y-2">
+                         <Label className="text-[10px] font-black uppercase opacity-60">Valor Mínimo (R$)</Label>
+                         <Input value={feesForm.experienceOrganizerMinFee} onChange={e => setFeesForm({...feesForm, experienceOrganizerMinFee: e.target.value})} className="rounded-xl h-11" />
+                      </div>
+                   </div>
+                </CardContent>
+             </Card>
+           </div>
+           
+           <Button onClick={() => handleSave('settings', 'fees', feesForm)} disabled={saving} className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg">
+              {saving ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Save className="w-6 h-6 mr-2" />}
+              Salvar Regras de Taxas Unificadas
+           </Button>
         </TabsContent>
 
         <TabsContent value="email">

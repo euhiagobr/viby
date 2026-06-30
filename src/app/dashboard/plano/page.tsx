@@ -11,29 +11,40 @@ import {
   Building2, 
   ArrowRight,
   Percent,
-  Coins
+  Coins,
+  Ticket,
+  Palette
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
 import Link from "next/link"
-import { formatCurrency } from "@/lib/financial-utils"
+import { formatCurrency, VIBY_BUYER_MARKUP, VIBY_ORGANIZER_FEE, VIBY_MIN_FEE_BRL, VIBY_EXPERIENCE_BUYER_MARKUP, VIBY_EXPERIENCE_ORGANIZER_FEE, VIBY_EXPERIENCE_MIN_FEE_BRL } from "@/lib/financial-utils"
+import { cn } from "@/lib/utils"
 
 export default function PlanoPage() {
   const db = useFirestore()
   const feesRef = React.useMemo(() => db ? doc(db, 'settings', 'fees') : null, [db])
-  const { loading: feesLoading } = useDoc<any>(feesRef)
+  const { data: globalFees, loading: feesLoading } = useDoc<any>(feesRef)
 
   if (feesLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   }
 
+  const eventMarkup = globalFees?.buyerMarkupPercent || (VIBY_BUYER_MARKUP * 100);
+  const eventCommission = globalFees?.organizerBasePercent || (VIBY_ORGANIZER_FEE * 100);
+  const eventMin = globalFees?.organizerMinFee || VIBY_MIN_FEE_BRL;
+
+  const expMarkup = globalFees?.experienceBuyerMarkupPercent || (VIBY_EXPERIENCE_BUYER_MARKUP * 100);
+  const expCommission = globalFees?.experienceOrganizerBasePercent || (VIBY_EXPERIENCE_ORGANIZER_FEE * 100);
+  const expMin = globalFees?.experienceOrganizerMinFee || VIBY_EXPERIENCE_MIN_FEE_BRL;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
+    <div className="max-w-4xl mx-auto space-y-12 pb-20 animate-in fade-in duration-500">
       <div className="space-y-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Transparência Viby</h1>
-        <p className="text-muted-foreground font-medium">Entenda como funcionam as taxas e os repasses da sua marca.</p>
+        <p className="text-muted-foreground font-medium">Entenda como funcionam as taxas e os repasses da sua marca por tipo de produto.</p>
       </div>
 
       <Card className="border-none shadow-xl rounded-[2.5rem] bg-primary text-white overflow-hidden relative">
@@ -42,18 +53,8 @@ export default function PlanoPage() {
             <Badge className="bg-secondary text-white font-black uppercase text-[10px] px-3">Modelo Zero Custo Fixo</Badge>
             <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-tight">Você só paga quando vende.</h2>
             <p className="text-lg opacity-80 leading-relaxed font-medium">
-              Eliminamos todos os planos e mensalidades. Tenha acesso total a todas as ferramentas da plataforma pagando apenas uma taxa sobre os ingressos vendidos.
+              Eliminamos todos os planos e mensalidades. Tenha acesso total a todas as ferramentas da plataforma pagando apenas uma taxa sobre o que for comercializado.
             </p>
-            <div className="flex flex-wrap gap-4 pt-4">
-              <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
-                <CheckCircle2 className="w-4 h-4 text-secondary" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Organizações Ilimitadas</span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
-                <CheckCircle2 className="w-4 h-4 text-secondary" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Eventos Ilimitados</span>
-              </div>
-            </div>
           </div>
           <div className="shrink-0">
              <div className="w-40 h-40 bg-secondary rounded-full flex items-center justify-center shadow-2xl shadow-secondary/20">
@@ -65,65 +66,76 @@ export default function PlanoPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
-            <CardHeader className="p-8 pb-4">
-               <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center mb-4 text-secondary">
-                  <Percent className="w-6 h-6" />
-               </div>
-               <CardTitle className="text-xl font-black uppercase italic tracking-tighter">Taxa da Plataforma</CardTitle>
-               <CardDescription className="font-medium">Aplicado sobre o valor de face do ingresso.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-8 pt-4 space-y-6">
-               <div className="space-y-4">
-                  <div className="flex justify-between items-center py-3 border-b border-dashed">
-                     <span className="text-sm font-bold opacity-60 uppercase">Percentual</span>
-                     <span className="font-black text-primary italic">10%</span>
+         {/* BOX EVENTOS */}
+         <section className="space-y-6">
+            <div className="flex items-center gap-2 px-2">
+               <Ticket className="w-5 h-5 text-secondary" />
+               <h3 className="text-lg font-black uppercase italic tracking-tighter">Eventos</h3>
+            </div>
+            <Card className="border-none shadow-sm rounded-[2rem] bg-white group hover:shadow-md transition-all">
+               <CardContent className="p-8 space-y-6">
+                  <div className="space-y-4">
+                     <FeeItem label="Taxa do Comprador" value={`${eventMarkup}%`} sub="Markup aplicado no checkout" />
+                     <FeeItem label="Comissão Viby" value={`${eventCommission}%`} sub="Retido do valor de face" />
+                     <FeeItem label="Valor Mínimo" value={formatCurrency(eventMin)} sub="Piso de repasse por ingresso" />
                   </div>
-                  <div className="flex justify-between items-center py-3 border-b border-dashed">
-                     <span className="text-sm font-bold opacity-60 uppercase">Valor Mínimo</span>
-                     <span className="font-black text-primary italic">R$ 3,99</span>
+                  <div className="p-4 bg-muted/30 rounded-2xl border border-dashed text-[9px] font-medium uppercase leading-relaxed">
+                    Ideal para shows, festas e festivais com grandes volumes e bilheteria em lotes.
                   </div>
-               </div>
-               <div className="p-4 bg-muted/30 rounded-2xl flex gap-3 border border-dashed">
-                  <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
-                    O Viby retém o maior valor entre os dois. Se 10% do ingresso for menor que R$ 3,99, será cobrado o valor mínimo.
-                  </p>
-               </div>
-            </CardContent>
-         </Card>
+               </CardContent>
+            </Card>
+         </section>
 
-         <Card className="border-none shadow-sm rounded-[2rem] bg-white">
-            <CardHeader className="p-8 pb-4">
-               <div className="w-12 h-12 bg-primary/5 rounded-2xl flex items-center justify-center mb-4 text-primary">
-                  <Building2 className="w-6 h-6" />
-               </div>
-               <CardTitle className="text-xl font-black uppercase italic tracking-tighter">Benefícios Inclusos</CardTitle>
-               <CardDescription className="font-medium">Tudo o que você precisa para crescer.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-8 pt-4 space-y-4">
-               {[
-                 "Acesso a métricas em tempo real",
-                 "Gestão de equipe administrativa",
-                 "Check-in via QR Code",
-                 "Selo de verificação de marca",
-                 "Antecipação de recebíveis",
-                 "Carteira de saldo protegida"
-               ].map((feat, i) => (
-                 <div key={i} className="flex items-center gap-3 text-xs font-bold uppercase tracking-tight">
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    <span>{feat}</span>
-                 </div>
-               ))}
-            </CardContent>
+         {/* BOX EXPERIÊNCIAS */}
+         <section className="space-y-6">
+            <div className="flex items-center gap-2 px-2">
+               <Palette className="w-5 h-5 text-secondary" />
+               <h3 className="text-lg font-black uppercase italic tracking-tighter">Experiências</h3>
+            </div>
+            <Card className="border-none shadow-sm rounded-[2rem] bg-white group hover:shadow-md transition-all">
+               <CardContent className="p-8 space-y-6">
+                  <div className="space-y-4">
+                     <FeeItem label="Taxa do Comprador" value={`${expMarkup}%`} sub="Taxa reduzida para o cliente" />
+                     <FeeItem label="Comissão Viby" value={`${expCommission}%`} sub="Foco em valor agregado" />
+                     <FeeItem label="Valor Mínimo" value={formatCurrency(expMin)} sub="Piso de repasse por horário" />
+                  </div>
+                  <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/20 text-[9px] font-medium uppercase leading-relaxed text-secondary">
+                    Perfeito para workshops, vivências exclusivas e roteiros com agendamento.
+                  </div>
+               </CardContent>
+            </Card>
+         </section>
+      </div>
+
+      <div className="max-w-2xl mx-auto">
+         <Card className="border-none shadow-sm rounded-3xl bg-muted/20 p-8 space-y-4">
+            <div className="flex items-center gap-3">
+               <Info className="w-5 h-5 text-primary" />
+               <h4 className="font-black uppercase text-xs italic">Sobre os Repasses</h4>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed font-medium">
+               A Viby garante que você nunca tenha repasse negativo. Em casos de ingressos de baixo valor onde a comissão seria maior que o preço de face, a plataforma transfere automaticamente a responsabilidade da taxa para o comprador (Low Price Protection).
+            </p>
          </Card>
       </div>
 
-      <div className="flex justify-center">
-         <Button asChild className="bg-secondary text-white font-black h-14 rounded-2xl px-12 shadow-xl shadow-secondary/20 uppercase italic transition-all hover:scale-105 gap-2">
-            <Link href="/dashboard/projetos/novo">Criar Meu Próximo Evento <ArrowRight className="w-5 h-5" /></Link>
+      <div className="flex justify-center pt-4">
+         <Button asChild className="bg-secondary text-white font-black h-16 rounded-[1.5rem] px-12 shadow-xl shadow-secondary/20 uppercase italic text-lg transition-all hover:scale-105 gap-2">
+            <Link href="/dashboard/projetos/novo">Criar Próximo Projeto <ArrowRight className="w-6 h-6" /></Link>
          </Button>
       </div>
     </div>
   )
+}
+
+function FeeItem({ label, value, sub }: { label: string, value: string, sub: string }) {
+   return (
+      <div className="flex justify-between items-center py-2 border-b border-dashed last:border-none">
+         <div className="space-y-0.5">
+            <p className="text-[10px] font-black uppercase text-primary">{label}</p>
+            <p className="text-[8px] font-bold text-muted-foreground uppercase">{sub}</p>
+         </div>
+         <span className="text-xl font-black text-primary italic">{value}</span>
+      </div>
+   )
 }

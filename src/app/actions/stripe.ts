@@ -5,7 +5,7 @@ import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { logSystemError } from '@/lib/error-manager';
-import { calculateVibyOfficialSplit, toCents } from '@/lib/financial-utils';
+import { calculateVibyOfficialSplit, toCents, ProductType } from '@/lib/financial-utils';
 
 async function getStripeInstance(db: admin.firestore.Firestore) {
   const snap = await db.collection('settings').doc('stripe').get();
@@ -45,7 +45,7 @@ export async function createCheckoutSession(data: any) {
     const promotions = promotionsSnap.data();
     const rates = ratesSnap.data() || { BRL: 1, USD: 0.18, EUR: 0.16 };
 
-    // 2. RECALCULAR TODA A PARTILHA (SPLIT) NO BACKEND
+    // 2. RECALCULAR TODA A PARTILHA (SPLIT) NO BACKEND USANDO O TAX CALCULATION SERVICE
     let totalApplicationFeeCents = 0;
     const orgCache: Record<string, any> = {};
 
@@ -55,13 +55,15 @@ export async function createCheckoutSession(data: any) {
         orgCache[item.organizationId] = orgSnap.exists ? orgSnap.data() : {};
       }
 
+      // Utiliza o TaxCalculationService (calculateVibyOfficialSplit) com suporte a tipo de produto
       const split = calculateVibyOfficialSplit(
         item.price, 
         (orderData.currency || 'BRL') as any, 
         rates, 
         orgCache[item.organizationId], 
         globalFees, 
-        promotions
+        promotions,
+        item.productType as ProductType || 'event'
       );
 
       totalApplicationFeeCents += toCents(split.vibyApplicationFee) * item.quantity;
@@ -84,7 +86,7 @@ export async function createCheckoutSession(data: any) {
         transfer_data: {
           destination: destinationStripeAccount,
         },
-        statement_descriptor: 'VIBY*INGRESSOS',
+        statement_descriptor: 'VIBY*PAY',
       }
     };
 
@@ -102,7 +104,7 @@ export async function createCheckoutSession(data: any) {
 
     let userMessage = error.message;
     if (error.message.includes('No such destination')) {
-       userMessage = "O organizador deste evento possui um problema na conta de recebimento. Por favor, tente novamente mais tarde.";
+       userMessage = "O organizador deste item possui um problema na conta de recebimento. Por favor, tente novamente mais tarde.";
     }
 
     return { success: false, error: userMessage };
