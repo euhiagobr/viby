@@ -69,7 +69,8 @@ import {
   Calculator,
   Ticket,
   Sparkles,
-  ArrowUpRight
+  ArrowUpRight,
+  Settings
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -874,7 +875,8 @@ export default function AdminPaginasPage() {
               
               <DialogFooter className="p-8 border-t bg-muted/30">
                  <Button type="submit" disabled={isSaving} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic text-lg">
-                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />} Salvar Todas as Alterações
+                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+                    Salvar Todas as Alterações
                  </Button>
               </DialogFooter>
            </form>
