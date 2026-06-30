@@ -12,22 +12,23 @@ interface ExperienceCategoryCardProps {
 }
 
 export function ExperienceCategoryCard({ category, isActive, onClick }: ExperienceCategoryCardProps) {
-  // Imagem mockada baseada na categoria para o marketplace
-  const mockImage = React.useMemo(() => {
+  // Imagem real do Firestore ou fallback para mock se não houver imageUrl cadastrada
+  const displayImage = React.useMemo(() => {
+    if (category.imageUrl) return category.imageUrl;
     const seed = category.name.length;
     return `https://picsum.photos/seed/${seed * 7}/600/600`;
-  }, [category.name]);
+  }, [category.imageUrl, category.name]);
 
   return (
     <button 
       onClick={onClick}
       className={cn(
         "group relative aspect-square w-full rounded-[2rem] overflow-hidden transition-all duration-500",
-        isActive ? "ring-4 ring-secondary ring-offset-4" : "hover:scale-[1.02]"
+        isActive ? "ring-4 ring-secondary ring-offset-4" : "hover:scale-[1.02] shadow-sm hover:shadow-xl"
       )}
     >
       <img 
-        src={mockImage} 
+        src={displayImage} 
         alt={category.name} 
         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
       />
