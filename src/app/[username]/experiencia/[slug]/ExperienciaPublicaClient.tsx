@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -130,7 +129,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                {/* Highlights */}
                <div className="flex flex-wrap gap-4 pt-4">
                   {experience.duration?.value && <Highlight icon={Clock} label={`${experience.duration.value} ${experience.duration.unit}`} />}
-                  {experience.maxGroupSize && <Highlight icon={Users} label={`Até ${experience.maxGroupSize} pessoas`} />}
+                  {experience.maxGroupSize && <Highlight icon={Users} label={`Para grupos de até ${experience.maxGroupSize} pessoas`} />}
                   {experience.confirmationType === 'immediate' && <Highlight icon={Zap} label="Reserva Imediata" />}
                   {experience.digitalVoucher && <Highlight icon={BadgeCheck} label="Voucher Digital" />}
                </div>
@@ -250,7 +249,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                             <AccordionTrigger className="px-8 py-6 hover:no-underline font-black uppercase italic text-primary text-left leading-tight">
                               {faq.q}
                             </AccordionTrigger>
-                            <AccordionContent className="px-8 pb-6 text-base font-medium text-muted-foreground leading-relaxed">
+                            <AccordionContent className="px-8 pb-6 text-base font-medium text-muted-foreground leading-relaxed font-medium">
                               {faq.a}
                             </AccordionContent>
                          </Card>

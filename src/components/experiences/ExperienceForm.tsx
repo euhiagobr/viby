@@ -150,8 +150,8 @@ export function ExperienceForm({ initialData, onSave, onPublish, isEditing, cate
                     </div>
                  </div>
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Máximo por reserva</Label>
-                    <Input type="number" value={formData.maxGroupSize || ""} onChange={e => setFormData({...formData, maxGroupSize: e.target.value})} className="rounded-xl h-11" placeholder="Ilimitado" />
+                    <Label className="text-[10px] font-black uppercase opacity-60">Para grupos de até (número) de pessoas</Label>
+                    <Input type="number" value={formData.maxGroupSize || ""} onChange={e => setFormData({...formData, maxGroupSize: e.target.value})} className="rounded-xl h-11" placeholder="Ex: 10" />
                  </div>
               </div>
 
