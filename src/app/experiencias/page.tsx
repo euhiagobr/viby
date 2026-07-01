@@ -12,16 +12,23 @@ export const revalidate = 0;
 
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
 
+/**
+ * Utilitário para converter objetos complexos em tipos primitivos para tráfego seguro.
+ */
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
   if (typeof data.toDate === 'function') return data.toDate().toISOString();
   if (data instanceof Date) return data.toISOString();
   if (Array.isArray(data)) return data.map(item => serializeData(item));
   if (typeof data === 'object') {
+    const proto = Object.getPrototypeOf(data);
+    if (proto !== null && proto !== Object.prototype) return String(data);
     const serialized: any = {};
-    Object.keys(data).forEach(key => {
-      serialized[key] = serializeData(data[key]);
-    });
+    for (const key in data) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        serialized[key] = serializeData(data[key]);
+      }
+    }
     return serialized;
   }
   return data;
@@ -40,7 +47,6 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   if (categoriaSlug) {
     try {
       const db = getAdminDb();
-      // Buscamos o nome original da categoria para o título
       const catsSnap = await db.collection('categories').where('type', '==', 'experience').get();
       const cat = catsSnap.docs.find(d => slugify(d.data().name) === categoriaSlug);
       
@@ -81,9 +87,11 @@ async function getInitialData() {
   try {
     const db = getAdminDb();
     
+    // Removido orderBy do servidor para evitar erro de índice ausente. 
+    // A ordenação é feita via JavaScript após o fetch.
     const [expSnap, catsSnap] = await Promise.all([
       db.collection('experiences').where('status', '==', 'active').get(),
-      db.collection('categories').where('type', '==', 'experience').orderBy('name', 'asc').get()
+      db.collection('categories').where('type', '==', 'experience').get()
     ]);
       
     const experiences = expSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -99,14 +107,35 @@ async function getInitialData() {
   }
 }
 
-export default async function ExperienciasLandingPage() {
+export default async function ExperienciasLandingPage(props: { searchParams: Promise<any> }) {
   const { experiences, categories } = await getInitialData();
 
   return (
     <div className="min-h-screen bg-white flex flex-col selection:bg-secondary/30 selection:text-primary">
       <PublicHeader showBack hideCopa />
-      <ExperienciasClient initialExperiences={experiences} initialCategories={categories} />
+      <React.Suspense fallback={<div className="flex-1 flex items-center justify-center py-40"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>}>
+        <ExperienciasClient initialExperiences={experiences} initialCategories={categories} />
+      </React.Suspense>
       <Footer />
     </div>
+  );
+}
+
+function Loader2(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
   );
 }

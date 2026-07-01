@@ -1,7 +1,8 @@
+
 'use client';
 
 import * as React from "react";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +51,7 @@ interface ExperienciasClientProps {
  * @fileOverview Marketplace de Experiências v3.
  * Implementação de URL como Source of Truth (Filtros Dinâmicos via Query Params).
  */
-export default function ExperienciasClient({ initialExperiences, initialCategories }: ExperienciasClientProps) {
+export default function ExperienciasClient({ initialExperiences = [], initialCategories = [] }: ExperienciasClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -116,12 +117,6 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
       const expSlug = slugify(exp.category || "");
       const matchesCategory = selectedCategorySlug === 'all' || expSlug === selectedCategorySlug;
 
-      // 4. Data
-      if (selectedDate) {
-        // No mundo real, aqui filtraríamos as experiências que possuem slots no dia.
-        // Como o marketplace lida com slots, deixamos o filtro aberto para o card gerenciar.
-      }
-      
       return matchesSearch && matchesCity && matchesCategory;
     });
   }, [initialExperiences, search, searchCity, selectedCategorySlug]);
@@ -129,6 +124,10 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
   const mostReserved = useMemo(() => {
     return [...filteredExperiences].sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0)).slice(0, 12);
   }, [filteredExperiences]);
+
+  const sortedCategories = useMemo(() => {
+    return [...initialCategories].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [initialCategories]);
 
   const clearFilters = () => {
     setSearch("");
@@ -148,11 +147,7 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
     if (key === 'avaliacao') setRatingFilter("all");
   };
 
-  if (!mounted) return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <Loader2 className="w-10 h-10 animate-spin text-secondary" />
-    </div>
-  );
+  if (!mounted) return null;
 
   const hasAnyFilter = search || searchCity || selectedCategorySlug !== 'all' || selectedDate || priceRange !== 'all' || ratingFilter !== 'all';
 
@@ -189,7 +184,6 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
              </motion.p>
           </div>
 
-          {/* SEARCH BAR */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -259,7 +253,7 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
            </div>
            
            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-              {initialCategories.map(cat => (
+              {sortedCategories.map(cat => (
                 <ExperienceCategoryCard 
                   key={cat.id} 
                   category={cat} 
@@ -271,7 +265,7 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
         </div>
       </section>
 
-      {/* FILTER BAR & CHIPS */}
+      {/* FILTER BAR */}
       <section className="sticky top-16 z-40 bg-white/95 backdrop-blur-md border-b py-4 shadow-sm">
         <div className="container mx-auto px-6 space-y-4">
            <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide no-wrap">
@@ -280,7 +274,6 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
               </Button>
               <Separator orientation="vertical" className="h-6 mx-2" />
               
-              {/* Filtro: Preço */}
               <Select value={priceRange} onValueChange={setPriceFilter}>
                  <SelectTrigger className="w-auto min-w-[120px] rounded-full h-10 border-muted font-bold text-xs uppercase text-muted-foreground">
                     <SelectValue placeholder="Preço" />
@@ -294,7 +287,6 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
                  </SelectContent>
               </Select>
 
-              {/* Filtro: Avaliação */}
               <Select value={ratingFilter} onValueChange={setRatingFilter}>
                  <SelectTrigger className="w-auto min-w-[120px] rounded-full h-10 border-muted font-bold text-xs uppercase text-muted-foreground">
                     <SelectValue placeholder="Avaliação" />
@@ -313,7 +305,6 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
               </div>
            </div>
 
-           {/* CHIPS DE FILTRO ATIVO */}
            <AnimatePresence>
              {hasAnyFilter && (
                <motion.div 
@@ -340,14 +331,13 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
         </div>
       </section>
 
-      {/* RESULTADOS / VITRINES */}
+      {/* VITRINES */}
       <main className="flex-1 space-y-24 py-16 bg-white overflow-hidden">
-        
         {hasAnyFilter ? (
           <section className="container mx-auto px-6 space-y-12 animate-in fade-in">
              <div className="space-y-1">
                 <div className="flex items-center gap-3">
-                   <h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">Resultados para {activeCategory?.name || search || "sua busca"}</h2>
+                   <h2 className="text-4xl font-black italic uppercase tracking-tighter text-primary">Resultados</h2>
                    <Badge className="bg-secondary text-white font-black">{filteredExperiences.length}</Badge>
                 </div>
                 {searchCity && <p className="text-muted-foreground font-medium uppercase text-xs tracking-widest">Em {searchCity}</p>}
@@ -372,21 +362,16 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
           </section>
         ) : (
           <>
-            {/* VITRINE 1: PADRÃO */}
             <section className="space-y-12">
               <div className="container mx-auto px-6 flex items-end justify-between">
                 <div className="space-y-2">
                   <h2 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter text-primary">Próximas Experiências</h2>
                   <p className="text-muted-foreground font-medium text-lg">Curadoria exclusiva Viby para você viver o agora.</p>
                 </div>
-                <Button variant="ghost" className="font-black uppercase italic text-sm text-secondary hover:bg-secondary/5 gap-2">
-                   Ver todas <ArrowRight className="w-4 h-4" />
-                </Button>
               </div>
               <ExperienceCarousel experiences={filteredExperiences} ads={ads} />
             </section>
 
-            {/* VITRINE 2: MAIS RESERVADAS */}
             <section className="space-y-12">
               <div className="container mx-auto px-6 flex items-end justify-between">
                 <div className="space-y-2">
@@ -396,9 +381,6 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
                   </div>
                   <p className="text-muted-foreground font-medium text-lg">As vivências que estão conquistando o Brasil nesta temporada.</p>
                 </div>
-                <Button variant="ghost" className="font-black uppercase italic text-sm text-secondary hover:bg-secondary/5 gap-2">
-                   Ver todas <ArrowRight className="w-4 h-4" />
-                </Button>
               </div>
               <ExperienceCarousel experiences={mostReserved} variant="sophisticated" />
             </section>
@@ -406,7 +388,6 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
         )}
       </main>
 
-      {/* FOOTER TEXT */}
       <div className="container mx-auto px-6 py-20 border-t border-muted/50">
          <p className="text-center text-muted-foreground font-medium text-lg max-w-2xl mx-auto">
             Descubra passeios, atrações e experiências selecionadas em todo o Brasil.
