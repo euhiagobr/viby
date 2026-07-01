@@ -398,12 +398,12 @@ export async function submitExperienceReviewAction(params: {
         newRec[recKey] = (newRec[recKey] || 0) + 1;
       }
 
-      // 4. Captura Demográfica Anônima
+      // 4. Captura Demográfica Anônima (Normalizada)
       const userMeta = {
-         gender: userData?.gender || 'not_informed',
+         gender: userData?.gender || 'Não informado',
          birthDate: userData?.birthDate || null,
-         city: userData?.city || userData?.location?.city || 'not_informed',
-         state: userData?.state || userData?.location?.state || 'not_informed'
+         city: userData?.city || userData?.location?.city || 'Não informado',
+         state: userData?.state || userData?.location?.state || 'Não informado'
       };
 
       // 5. Salvar Review

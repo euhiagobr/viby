@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -45,6 +46,15 @@ import {
   YAxis, 
   Tooltip as ChartTooltip
 } from 'recharts';
+
+const GENDER_LABELS: Record<string, string> = {
+  'masculino': 'Masculino',
+  'feminino': 'Feminino',
+  'nao-binario': 'Não binário',
+  'outro': 'Outro',
+  'not_informed': 'Não informado',
+  'Não informado': 'Não informado'
+};
 
 export default function OrganizationGlobalReviewsPage() {
   const { currentOrg, loading: orgLoading } = useCurrentOrganization();
@@ -109,8 +119,9 @@ export default function OrganizationGlobalReviewsPage() {
       criteria.price += dr.price || 5;
       criteria.environment += dr.environment || 5;
 
-      // Anonymized Demographics
-      const gender = r.gender || 'Não informado';
+      // Anonymized Demographics (Normalização para Display)
+      const rawGender = r.gender || 'Não informado';
+      const gender = GENDER_LABELS[rawGender.toLowerCase()] || (rawGender.charAt(0).toUpperCase() + rawGender.slice(1));
       genderMap[gender] = (genderMap[gender] || 0) + 1;
 
       if (r.birthDate) {
@@ -218,7 +229,7 @@ export default function OrganizationGlobalReviewsPage() {
                                       <Cell key={`cell-${index}`} fill={['#2C52EE', '#ec4899', '#f59e0b', '#10b981'][index % 4]} />
                                     ))}
                                   </Pie>
-                                  <ChartTooltip />
+                                  <ChartTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
                                </PieChart>
                             </ResponsiveContainer>
                          </div>
@@ -236,7 +247,7 @@ export default function OrganizationGlobalReviewsPage() {
                                <BarChart data={metrics.demographics.age}>
                                   <XAxis dataKey="name" hide />
                                   <Bar dataKey="value" fill="#2C52EE" radius={[4, 4, 0, 0]} />
-                                  <ChartTooltip />
+                                  <ChartTooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none' }} />
                                </BarChart>
                             </ResponsiveContainer>
                          </div>
@@ -297,7 +308,7 @@ export default function OrganizationGlobalReviewsPage() {
                 <CardHeader className="bg-muted/30 border-b p-8 flex flex-row items-center justify-between">
                    <div>
                      <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
-                        <History className="w-5 h-5 text-secondary" /> Feed Unificado
+                        <History className="w-5 h-5 text-secondary" /> Feed de Avaliações
                      </CardTitle>
                      <CardDescription className="font-bold text-secondary text-[10px] uppercase">Últimos comentários recebidos</CardDescription>
                    </div>
@@ -381,7 +392,7 @@ export default function OrganizationGlobalReviewsPage() {
            <p className="text-sm font-black uppercase tracking-widest">Sua marca ainda não possui avaliações visíveis.</p>
            {!reviewsLoading && (
              <p className="text-[10px] font-bold uppercase max-w-xs mx-auto text-center">
-               Os Insights e avaliações aparecerão aqui assim que seus primeiros clientes compartilharem suas experiências.
+               Os Insights aparecerão aqui assim que seus primeiros clientes compartilharem suas experiências.
              </p>
            )}
         </div>
