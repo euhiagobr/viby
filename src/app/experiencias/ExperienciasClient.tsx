@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -25,6 +24,13 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 import { format, startOfToday, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, normalizeText } from "@/lib/utils";
@@ -110,8 +116,11 @@ export default function ExperienciasClient({ initialExperiences, initialCategori
       const expSlug = slugify(exp.category || "");
       const matchesCategory = selectedCategorySlug === 'all' || expSlug === selectedCategorySlug;
 
-      // 4. Preço (Simulação simplificada baseada em basePrice ou similar se existir)
-      // Nota: No marketplace real o preço é dinâmico por slot, aqui filtramos por metadado base se houver.
+      // 4. Data
+      if (selectedDate) {
+        // No mundo real, aqui filtraríamos as experiências que possuem slots no dia.
+        // Como o marketplace lida com slots, deixamos o filtro aberto para o card gerenciar.
+      }
       
       return matchesSearch && matchesCity && matchesCategory;
     });
