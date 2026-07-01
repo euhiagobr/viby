@@ -23,7 +23,8 @@ import {
   Users,
   History,
   Archive,
-  FileText
+  FileText,
+  CheckCircle2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -227,7 +228,7 @@ export default function OrganizationExperiencesPage() {
           <AlertDialogHeader>
             <div className="flex items-center gap-3 mb-2">
                <div className="p-2 bg-destructive/10 rounded-lg text-destructive"><Trash2 className="w-6 h-6" /></div>
-               <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">Remover Experiência?</AlertDialogTitle>
+               <AlertDialogTitle className="text-xl font-black italic uppercase italic tracking-tighter">Remover Experiência?</AlertDialogTitle>
             </div>
             <AlertDialogDescription className="font-medium text-foreground/80 leading-relaxed">
               Você está removendo <strong>{expToDelete?.title}</strong>. Se houverem ingressos já vendidos, ela será apenas ocultada. Caso contrário, será apagada permanentemente junto com todos os horários.
