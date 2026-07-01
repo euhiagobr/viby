@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -17,7 +18,8 @@ import {
   Mail,
   Zap,
   ArrowRight,
-  ImageIcon
+  ImageIcon,
+  Sparkles
 } from "lucide-react"
 import { useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
@@ -54,7 +56,8 @@ export default function Footer() {
     {
       title: "Plataforma",
       links: [
-        { label: "Explorar", href: "/dashboard" },
+        { label: "Explorar Eventos", href: "/dashboard" },
+        { label: "Experiências", href: "/experiencias", icon: Sparkles },
         { label: "Copa do Mundo", href: "/copa-do-mundo" },
         { label: "Anunciar Evento", href: "/anunciar" }
       ]
@@ -117,7 +120,7 @@ export default function Footer() {
             </div>
 
             <div className="flex flex-col gap-3">
-               <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-[#ffdf00] text-[#002776] bg-[#ffdf00]/5 hover:bg-[#ffdf00]/10 transition-all w-fit">
+               <Button asChild variant="outline" className="rounded-xl h-11 px-6 font-black uppercase text-[10px] gap-2 border-[#ffdf00] text-[#002776] bg-[#ffdf00]/10 hover:bg-[#ffdf00]/10 transition-all w-fit">
                   <Link href="/copa-do-mundo">
                      <Trophy className="w-4 h-4" /> Especial Copa 2026
                   </Link>
@@ -133,7 +136,8 @@ export default function Footer() {
                  <ul className="space-y-4">
                    {group.links.map((link) => (
                      <li key={link.href}>
-                       <Link href={link.href} className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors uppercase tracking-tight">
+                       <Link href={link.href} className="text-sm font-bold text-muted-foreground hover:text-secondary transition-colors uppercase tracking-tight flex items-center gap-2">
+                         {link.icon && <link.icon className="w-3.5 h-3.5 text-secondary fill-secondary" />}
                          {link.label}
                        </Link>
                      </li>

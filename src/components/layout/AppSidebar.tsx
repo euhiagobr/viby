@@ -82,6 +82,7 @@ export function AppSidebar() {
 
   const personalItems = [
     { title: t('nav.discovery'), url: "/dashboard", icon: Globe, exact: true },
+    { title: "Experiências", url: "/experiencias", icon: Sparkles },
     { title: "Copa 2026", url: "/copa-do-mundo", icon: Trophy },
     { title: t('nav.tickets'), url: "/dashboard/ingressos", icon: Ticket },
     { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
@@ -176,7 +177,7 @@ export function AppSidebar() {
               <SidebarMenu>
                 {orgItems.map((item) => {
                   const isActive = item.exact 
-                    ? pathname === item.url 
+                    ? pathname === url 
                     : pathname?.startsWith(item.url);
 
                   return (

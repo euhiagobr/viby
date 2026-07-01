@@ -6,12 +6,13 @@ import Link from "next/link"
 import Image from "next/image"
 import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { Trophy, ArrowLeft, ShoppingCart } from "lucide-react"
+import { Trophy, ArrowLeft, ShoppingCart, Sparkles, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserNav } from "./UserNav"
 import { useTranslation } from "@/i18n/i18n-context"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useCart } from "@/contexts/CartContext"
+import { cn } from "@/lib/utils"
 
 interface PublicHeaderProps {
   showBack?: boolean
@@ -25,6 +26,7 @@ interface PublicHeaderProps {
 export function PublicHeader({ showBack, hideCopa = false, children }: PublicHeaderProps) {
   const { t } = useTranslation()
   const router = useRouter()
+  const pathname = usePathname()
   const db = useFirestore()
   const auth = useAuth()
   const { user } = useUser(auth)
@@ -61,6 +63,28 @@ export function PublicHeader({ showBack, hideCopa = false, children }: PublicHea
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 shrink-0 h-full">
+          {/* Navegação Principal Desktop */}
+          <div className="hidden lg:flex items-center gap-8 mr-6 h-8 border-r border-border/40 pr-8">
+            <Link 
+              href="/dashboard" 
+              className={cn(
+                "text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2",
+                (pathname === '/dashboard' || pathname === '/') ? "text-secondary" : "text-primary/60 hover:text-primary"
+              )}
+            >
+              <Globe className="w-3.5 h-3.5" /> Explorar
+            </Link>
+            <Link 
+              href="/experiencias" 
+              className={cn(
+                "text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2",
+                pathname?.startsWith('/experiencias') ? "text-secondary" : "text-primary/60 hover:text-primary"
+              )}
+            >
+              <Sparkles className="w-3.5 h-3.5 fill-current" /> Experiências
+            </Link>
+          </div>
+
           {!hideCopa && (
             <Button asChild variant="outline" className="hidden md:flex rounded-full h-9 border-[#ffdf00] bg-[#ffdf00]/10 text-[#002776] font-black uppercase text-[9px] gap-2">
                <Link href="/copa-do-mundo"><Trophy className="w-3.5 h-3.5" /> Copa 2026</Link>
