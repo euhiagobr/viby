@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -24,7 +23,7 @@ import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { resendTicketAction } from "@/app/actions/tickets"
-import { useCurrency, CurrencyCode } from "@/contexts/CurrencyCode"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { ReviewModal } from "@/components/experiences/ReviewModal"
 
 export default function MeusIngressosPage() {
