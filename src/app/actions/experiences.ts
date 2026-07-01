@@ -6,6 +6,10 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { slugify } from '@/lib/slug-utils';
 import { revalidatePath } from 'next/cache';
 
+/**
+ * Utilitário para converter objetos complexos (Timestamps) em tipos primitivos
+ * para tráfego seguro entre Server e Client Components no Next.js 15.
+ */
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
   if (typeof data.toDate === 'function') return data.toDate().toISOString();
@@ -25,6 +29,9 @@ function serializeData(data: any): any {
   return data;
 }
 
+/**
+ * Busca um rascunho ativo ou cria um novo para a experiência.
+ */
 export async function getOrCreateExperienceDraftAction(userId: string, orgId: string) {
   const db = getAdminDb();
   try {
@@ -55,7 +62,7 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
       exclusions: [],
       rules: [],
       faqs: [],
-      duration: "",
+      duration: { value: 1, unit: 'horas' },
       maxGroupSize: null,
       confirmationType: 'immediate',
       voucherType: 'qrcode',
@@ -76,6 +83,9 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
   }
 }
 
+/**
+ * Salva o estado atual da experiência.
+ */
 export async function saveExperienceAction(id: string, data: any) {
   const db = getAdminDb();
   try {
@@ -95,6 +105,9 @@ export async function saveExperienceAction(id: string, data: any) {
   }
 }
 
+/**
+ * Publica uma experiência garantindo que tenha pelo menos um slot ativo.
+ */
 export async function publishExperienceAction(id: string, finalData: any) {
   const db = getAdminDb();
   try {
@@ -123,6 +136,127 @@ export async function publishExperienceAction(id: string, finalData: any) {
     await expRef.update(updatePayload);
     revalidatePath('/');
     return { success: true, slug: finalData.slug, username: org?.username };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Cria uma reserva temporária (lock) de vaga para o checkout.
+ */
+export async function createExperienceReservationAction(params: {
+  experienceId: string;
+  slotId: string;
+  userId: string;
+  quantity: number;
+}) {
+  const db = getAdminDb();
+  try {
+    return await db.runTransaction(async (transaction) => {
+      const slotRef = db.collection('experiences').doc(params.experienceId).collection('slots').doc(params.slotId);
+      const slotSnap = await transaction.get(slotRef);
+      
+      if (!slotSnap.exists) throw new Error("Horário não encontrado.");
+      const slotData = slotSnap.data()!;
+
+      // 1. Calcular reservas ativas (não expiradas e não convertidas)
+      const activeResSnap = await db.collection('experience_reservations')
+        .where('slotId', '==', params.slotId)
+        .where('status', '==', 'reserved')
+        .where('expiresAt', '>', admin.firestore.Timestamp.now())
+        .get();
+      
+      const reservedCount = activeResSnap.docs.reduce((acc, d) => acc + (d.data().quantity || 0), 0);
+      const available = (slotData.capacity || 0) - (slotData.sold || 0) - reservedCount;
+
+      if (available < params.quantity) {
+        throw new Error("Não há vagas suficientes para este horário.");
+      }
+
+      // 2. Criar reserva (Lock de 10 minutos)
+      const resRef = db.collection('experience_reservations').doc();
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+      const reservationData = {
+        id: resRef.id,
+        experienceId: params.experienceId,
+        slotId: params.slotId,
+        userId: params.userId,
+        quantity: params.quantity,
+        status: 'reserved',
+        expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+
+      transaction.set(resRef, reservationData);
+      return { success: true, reservationId: resRef.id };
+    });
+  } catch (e: any) {
+    console.error("[Reservation Action Error]", e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Processa o envio de uma avaliação real de experiência.
+ */
+export async function submitExperienceReviewAction(params: any) {
+  const db = getAdminDb();
+  try {
+    // 1. Moderação Automática
+    const { validateReviewContent } = await import('@/lib/moderation/service');
+    const moderation = validateReviewContent({
+       title: params.title,
+       text: params.fullExperience,
+       likedMost: params.likedMost,
+       canImprove: params.canImprove
+    });
+
+    if (!moderation.isValid) {
+      return { success: false, error: moderation.reason };
+    }
+
+    // 2. Salvar Review
+    const reviewRef = db.collection('experience_reviews').doc();
+    await reviewRef.set({
+      ...params,
+      id: reviewRef.id,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // 3. Atualizar Metadados da Experiência (Ranking e Média)
+    const expRef = db.collection('experiences').doc(params.experienceId);
+    await db.runTransaction(async (transaction) => {
+      const expSnap = await transaction.get(expRef);
+      if (expSnap.exists()) {
+        const data = expSnap.data()!;
+        const oldCount = data.reviewCount || 0;
+        const oldAvg = data.averageRating || 5.0;
+        const newCount = oldCount + 1;
+        const newAvg = Number(((oldAvg * oldCount + params.generalRating) / newCount).toFixed(1));
+        
+        const dist = data.ratingDistribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        dist[params.generalRating.toString()] = (dist[params.generalRating.toString()] || 0) + 1;
+
+        transaction.update(expRef, {
+          reviewCount: newCount,
+          averageRating: newAvg,
+          ratingDistribution: dist,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    });
+
+    // 4. Marcar ingresso como avaliado
+    await db.collection('registrations').doc(params.registrationId).update({
+      ratingSubmitted: true,
+      ratingValue: params.generalRating,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
@@ -171,7 +305,6 @@ export async function deleteExperienceSlotAction(experienceId: string, slotId: s
 export async function deleteExperienceAction(id: string) {
   const db = getAdminDb();
   try {
-    // Check for reservations
     const reservationsSnap = await db.collection('registrations')
       .where('eventId', '==', id)
       .where('productType', '==', 'experience')
@@ -181,10 +314,8 @@ export async function deleteExperienceAction(id: string) {
     const expRef = db.collection('experiences').doc(id);
 
     if (!reservationsSnap.empty) {
-      // If reservations exist, soft delete (change status to deleted or hidden)
       await expRef.update({ status: 'deleted', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
     } else {
-      // If no reservations, delete document and subcollections
       const slotsSnap = await expRef.collection('slots').get();
       const batch = db.batch();
       slotsSnap.forEach(s => batch.delete(s.ref));
