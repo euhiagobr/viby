@@ -47,9 +47,6 @@ async function getTransporter() {
   });
 }
 
-/**
- * Registra um log de e-mail no sistema de auditoria.
- */
 async function logSentEmail(data: {
   recipientEmail: string;
   recipientName: string;
