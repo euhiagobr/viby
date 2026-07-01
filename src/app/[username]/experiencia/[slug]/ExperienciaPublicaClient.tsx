@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -17,10 +16,10 @@ import {
   Star,
   Users,
   CheckCircle2,
+  XCircle,
   ArrowRight,
   Info,
   ChevronRight,
-  XCircle,
   Zap
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -29,8 +28,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 import { ExperiencePublicReviews } from '@/components/experiences/ExperiencePublicReviews';
 import { CommunityGallery } from '@/components/experiences/CommunityGallery';
 import { ExperienceBookingCard } from '@/components/experiences/ExperienceBookingCard';
@@ -55,30 +53,40 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
   const db = useFirestore();
   const [isGalleryOpen, setIsGalleryOpen] = React.useState(false);
 
+  // Normalização de Atributos/Características
   const attributes = React.useMemo(() => {
     return (experience.characteristics || []).map((id: string) => 
       EXPERIENCE_CHARACTERISTICS.find(c => c.id === id)
     ).filter(Boolean);
   }, [experience.characteristics]);
 
+  // Normalização de Regras (Trata ID, Objeto ou String)
   const rules = React.useMemo(() => {
     return (experience.rules || []).map((rule: any) => {
-      const catalog = EXPERIENCE_RULES.find(r => r.id === rule.id);
-      return catalog ? { ...rule, icon: catalog.icon } : rule;
+      const id = typeof rule === 'string' ? rule : rule.id;
+      const catalog = EXPERIENCE_RULES.find(r => r.id === id);
+      if (catalog) return { ...catalog };
+      return typeof rule === 'string' ? { label: rule } : rule;
     });
   }, [experience.rules]);
 
+  // Normalização de Inclusões (Garante campo .label)
   const inclusions = React.useMemo(() => {
     return (experience.inclusions || []).map((inc: any) => {
-      const catalog = EXPERIENCE_INCLUSIONS.find(i => i.id === inc.id);
-      return catalog ? { ...inc, icon: catalog.icon } : inc;
+      const id = typeof inc === 'string' ? inc : inc.id;
+      const catalog = EXPERIENCE_INCLUSIONS.find(i => i.id === id);
+      if (catalog) return { ...catalog };
+      return typeof inc === 'string' ? { label: inc } : inc;
     });
   }, [experience.inclusions]);
 
+  // Normalização de Exclusões
   const exclusions = React.useMemo(() => {
     return (experience.exclusions || []).map((exc: any) => {
-      const catalog = EXPERIENCE_INCLUSIONS.find(i => i.id === exc.id);
-      return catalog ? { ...exc, icon: catalog.icon } : exc;
+      const id = typeof exc === 'string' ? exc : exc.id;
+      const catalog = EXPERIENCE_INCLUSIONS.find(i => i.id === id);
+      if (catalog) return { ...catalog };
+      return typeof exc === 'string' ? { label: exc } : exc;
     });
   }, [experience.exclusions]);
 
@@ -110,7 +118,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
              {experience.gallery?.length > 4 && (
                <button 
                 onClick={() => setIsGalleryOpen(true)}
-                className="absolute bottom-8 right-8 bg-white/90 backdrop-blur-md text-primary font-black uppercase italic text-xs h-12 px-8 rounded-2xl shadow-2xl hover:bg-white border-none z-10"
+                className="absolute bottom-8 right-8 bg-white/90 backdrop-blur-md text-primary font-black uppercase italic text-xs h-12 px-8 rounded-2xl shadow-xl hover:bg-white border-none z-10"
                >
                  + {experience.gallery.length - 4} Fotos
                </button>
@@ -232,12 +240,21 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               <section className="space-y-8">
                  <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground px-2">Regras e Políticas</h2>
                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {rules.map((rule: any, i: number) => (
-                      <Card key={i} className="border-none shadow-sm bg-muted/30 p-6 flex flex-col items-center text-center gap-3 rounded-3xl group hover:bg-white transition-all">
-                         {rule.icon && <rule.icon className="w-6 h-6 text-primary group-hover:text-secondary transition-colors" />}
-                         <span className="text-[10px] font-black uppercase text-primary leading-tight">{rule.label}</span>
-                      </Card>
-                    ))}
+                    {rules.map((rule: any, i: number) => {
+                      const Icon = rule.icon;
+                      return (
+                        <Card key={i} className="border-none shadow-sm bg-muted/30 p-6 flex flex-col items-center text-center gap-3 rounded-3xl group hover:bg-white transition-all">
+                           {Icon && (
+                             typeof Icon === 'string' ? (
+                               <span className="text-3xl">{Icon}</span>
+                             ) : (
+                               <Icon className="w-6 h-6 text-primary group-hover:text-secondary transition-colors" />
+                             )
+                           )}
+                           <span className="text-[10px] font-black uppercase text-primary leading-tight">{rule.label}</span>
+                        </Card>
+                      );
+                    })}
                  </div>
               </section>
             )}
