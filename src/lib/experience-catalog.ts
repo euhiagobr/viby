@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -32,7 +31,8 @@ import {
   Zap,
   MapPin,
   Mountain,
-  UserCheck
+  UserCheck,
+  Rainbow
 } from "lucide-react";
 
 export interface CatalogItem {
@@ -54,6 +54,7 @@ export const EXPERIENCE_CHARACTERISTICS: CatalogItem[] = [
   { id: 'couple_friendly', label: 'Ideal para Casais', icon: Heart },
   { id: 'kids_welcome', label: 'Crianças Bem-vindas', icon: Baby },
   { id: 'nature', label: 'Contato com a Natureza', icon: Mountain },
+  { id: 'lgbt_friendly', label: 'Ideal para LGBTs', icon: Rainbow },
 ];
 
 export const EXPERIENCE_RULES: CatalogItem[] = [
