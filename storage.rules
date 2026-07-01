@@ -8,10 +8,20 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return isSignedIn() && firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid));
+      return isSignedIn() && (
+        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
+        request.auth.token.admin == true ||
+        firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid))
+      );
     }
 
     // --- ACESSO PÚBLICO (Leitura liberada para assets e mídias de vitrine) ---
+
+    // Categorias
+    match /categories/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     // Branding, Logos e Assets de Identidade
     match /admin/site/{allPaths=**} {

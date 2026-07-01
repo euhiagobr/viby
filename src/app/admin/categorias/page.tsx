@@ -60,7 +60,11 @@ export default function AdminCategoriasPage() {
 
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }) },
+        (error) => { 
+          console.error("[Storage Error]", error);
+          setUploadProgress(null); 
+          toast({ variant: "destructive", title: "Erro no upload", description: "Verifique suas permissões de administrador." }) 
+        },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setImageUrl(downloadURL)
@@ -247,15 +251,15 @@ export default function AdminCategoriasPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="mt-0">
+        <TabsContent value="event" className="mt-0">
           <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
             <CardHeader className="bg-muted/20 border-b p-8">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary">
-                    Categorias: {activeTab === 'event' ? 'Eventos' : 'Experiências'}
+                    Categorias: Eventos
                   </CardTitle>
-                  <CardDescription className="font-medium">Total de {filteredCategories.length} classificações ativas.</CardDescription>
+                  <CardDescription className="font-medium">Classificações para a vitrine de ingressos.</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -293,7 +297,60 @@ export default function AdminCategoriasPage() {
               ) : (
                 <div className="py-24 text-center border-2 border-dashed rounded-[3rem] bg-muted/10 opacity-40">
                   <Tag className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-xs font-black uppercase tracking-widest italic">Nenhuma categoria de {activeTab === 'event' ? 'eventos' : 'experiências'} cadastrada.</p>
+                  <p className="text-xs font-black uppercase tracking-widest italic">Nenhuma categoria de eventos cadastrada.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="experience" className="mt-0">
+          <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+            <CardHeader className="bg-muted/20 border-b p-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-xl font-black italic uppercase tracking-tighter text-primary">
+                    Categorias: Experiências
+                  </CardTitle>
+                  <CardDescription className="font-medium">Classificações para o marketplace de vivências.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-8">
+              {categoriesLoading ? (
+                <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+              ) : filteredCategories.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredCategories.map((cat: any) => (
+                    <div key={cat.id} className="flex items-center justify-between p-4 rounded-[1.5rem] border border-border bg-white hover:border-secondary/30 transition-all shadow-sm group">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-12 h-12 bg-muted rounded-xl border border-border group-hover:bg-secondary/10 transition-colors overflow-hidden shrink-0 flex items-center justify-center">
+                          {cat.imageUrl ? (
+                             <img src={cat.imageUrl} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                             <Hash className="w-5 h-5 text-secondary" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-black text-sm uppercase italic text-primary truncate">{cat.name}</p>
+                          <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest truncate">slug: {cat.slug}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="text-secondary hover:bg-secondary/10 rounded-xl h-8 w-8" onClick={() => handleOpenEdit(cat)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 rounded-xl h-8 w-8" onClick={() => handleDeleteCategory(cat.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-24 text-center border-2 border-dashed rounded-[3rem] bg-muted/10 opacity-40">
+                  <Tag className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-xs font-black uppercase tracking-widest italic">Nenhuma categoria de experiências cadastrada.</p>
                 </div>
               )}
             </CardContent>
