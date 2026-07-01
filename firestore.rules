@@ -40,6 +40,12 @@ service cloud.firestore {
 
     // --- REGRAS PÚBLICAS (Acesso de leitura para todos) ---
 
+    // Avaliações de Experiência
+    match /experience_reviews/{reviewId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
     // Configurações do Site, Logo e Branding
     match /settings/{document=**} {
       allow read: if true;

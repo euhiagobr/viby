@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -335,7 +336,7 @@ export async function submitExperienceReviewAction(params: {
   video?: string;
 }) {
   const db = getAdminDb();
-  const { registrationId, experienceId, generalRating, recommend } = params;
+  const { registrationId, experienceId, organizationId, generalRating, recommend } = params;
 
   // MODERAÇÃO AUTOMÁTICA
   const validation = validateReviewContent({

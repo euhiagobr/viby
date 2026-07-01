@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,10 +17,7 @@ import {
   Inbox, 
   CheckCircle2, 
   TrendingUp,
-  Target,
-  Users,
-  ChevronRight,
-  Sparkles,
+  History,
   Search,
   FilterX
 } from 'lucide-react';
@@ -28,7 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function OrganizationGlobalReviewsPage() {
   const { currentOrg, loading: orgLoading } = useCurrentOrganization();
@@ -36,7 +33,7 @@ export default function OrganizationGlobalReviewsPage() {
   const [search, setSearch] = React.useState("");
 
   const reviewsQuery = useMemoFirebase(() => {
-    if (!db || !currentOrg) return null;
+    if (!db || !currentOrg?.id) return null;
     return query(
       collection(db, "experience_reviews"),
       where("organizationId", "==", currentOrg.id),
@@ -72,7 +69,9 @@ export default function OrganizationGlobalReviewsPage() {
 
     rawReviews.forEach(r => {
       totalScore += r.generalRating;
-      dist[r.generalRating.toString() as keyof typeof dist]++;
+      const key = r.generalRating.toString();
+      if (dist[key] !== undefined) dist[key as keyof typeof dist]++;
+      
       if (r.recommend === 'sim') recSim++;
       
       const dr = r.detailedRatings || {};
@@ -149,7 +148,7 @@ export default function OrganizationGlobalReviewsPage() {
                      <CardTitle className="text-xl font-black italic uppercase tracking-tighter flex items-center gap-2">
                         <History className="w-5 h-5 text-secondary" /> Feed Unificado
                      </CardTitle>
-                     <CardDescription className="font-bold text-secondary text-[10px] uppercase">Últimos comentários recebidos em todas as experiências</CardDescription>
+                     <CardDescription className="font-bold text-secondary text-[10px] uppercase">Últimos comentários recebidos</CardDescription>
                    </div>
                    <div className="relative w-64">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -163,7 +162,9 @@ export default function OrganizationGlobalReviewsPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                    <ScrollArea className="h-[600px]">
-                      {filteredReviews.length > 0 ? (
+                      {reviewsLoading ? (
+                        <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
+                      ) : filteredReviews.length > 0 ? (
                         <div className="divide-y">
                            {filteredReviews.map((review) => (
                              <div key={review.id} className="p-8 space-y-4 hover:bg-muted/5 transition-colors">
@@ -202,7 +203,7 @@ export default function OrganizationGlobalReviewsPage() {
                       ) : (
                         <div className="py-20 text-center opacity-30 italic flex flex-col items-center gap-4">
                            <FilterX className="w-10 h-10" />
-                           <p className="text-xs font-black uppercase tracking-widest">Nenhum review para esta busca.</p>
+                           <p className="text-xs font-black uppercase tracking-widest">Nenhum review encontrado.</p>
                         </div>
                       )}
                    </ScrollArea>
@@ -224,7 +225,7 @@ export default function OrganizationGlobalReviewsPage() {
                 <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
                    <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
                    <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed italic">
-                      Lógica NPS: {metrics.recPercent}% dos seus clientes recomendariam suas experiências para amigos e familiares.
+                      As avaliações são moderadas automaticamente e ajudam a elevar a relevância da sua marca no marketplace.
                    </p>
                 </div>
              </div>
@@ -233,7 +234,12 @@ export default function OrganizationGlobalReviewsPage() {
       ) : (
         <div className="py-32 text-center bg-white rounded-[3rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 opacity-40 italic">
            <Inbox className="w-12 h-12" />
-           <p className="text-sm font-black uppercase tracking-widest">Sua marca ainda não recebeu avaliações.</p>
+           <p className="text-sm font-black uppercase tracking-widest">Sua marca ainda não possui avaliações visíveis.</p>
+           {!reviewsLoading && (
+             <p className="text-[10px] font-bold uppercase max-w-xs mx-auto">
+               As avaliações aparecem aqui assim que seus primeiros clientes compartilharem suas experiências.
+             </p>
+           )}
         </div>
       )}
     </div>
