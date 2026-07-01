@@ -19,7 +19,9 @@ import {
   CheckCircle2,
   ArrowRight,
   Info,
-  ChevronRight
+  ChevronRight,
+  XCircle,
+  Zap
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RichText } from '@/components/ui/rich-text';
@@ -293,7 +295,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                         <AccordionTrigger className="px-8 py-6 hover:no-underline font-black uppercase italic tracking-tighter text-primary">
                           {faq.q}
                         </AccordionTrigger>
-                        <AccordionContent className="px-8 pb-6 text-base font-medium text-muted-foreground leading-relaxed">
+                        <AccordionContent className="px-8 pb-6 text-base font-medium text-muted-foreground leading-relaxed font-medium">
                           {faq.a}
                         </AccordionContent>
                      </Card>
