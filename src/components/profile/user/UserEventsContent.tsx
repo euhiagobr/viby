@@ -1,5 +1,4 @@
-
-"use client";
+'use client';
 
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -124,7 +123,11 @@ export function UserEventsContent({ registrations, isOwner = false }: UserEvents
 
 function EventCompactCard({ registration, isPast = false }: { registration: any, isPast?: boolean }) {
   const d = registration.eventDate?.toDate ? registration.eventDate.toDate() : new Date(registration.eventDate);
-  const path = `/${registration.organizerUsername || 'evento'}/${registration.eventId}`;
+  const isExp = registration.productType === 'experience';
+  
+  const path = isExp 
+    ? `/${registration.organizerUsername || 'experiencia'}/experiencia/${registration.eventId}`
+    : `/${registration.organizerUsername || 'evento'}/${registration.eventId}`;
 
   return (
     <Link href={path}>
@@ -136,7 +139,7 @@ function EventCompactCard({ registration, isPast = false }: { registration: any,
            <Image src={registration.eventImage || "https://picsum.photos/seed/event/200/200"} alt="Event" fill className="object-cover" unoptimized />
            {registration.checkedIn && (
              <div className="absolute top-1 right-1 bg-green-500 text-white p-0.5 rounded-full shadow-lg">
-                <CheckCircle2 className="w-3 h-3" />
+                <CheckCircle2 className="w-3.5 h-3.5" />
              </div>
            )}
         </div>

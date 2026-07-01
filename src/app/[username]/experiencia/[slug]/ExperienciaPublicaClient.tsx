@@ -185,7 +185,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
           <div className="absolute bottom-0 left-0 p-6 md:p-12 w-full">
             <div className="container mx-auto max-w-6xl space-y-6">
               <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg">
-                {experience.category || "Vivência Cultural"}
+                {experience.category || "Experiência Cultural"}
               </Badge>
               <h1 className="text-4xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-[0.85]">{experience.title}</h1>
               <div className="flex flex-col gap-1">

@@ -142,7 +142,7 @@ export function ExperienceCard({ experience, userLocation, selectedDate, classNa
         
         <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
            <Badge className="bg-secondary text-white border-none shadow-lg px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3 fill-current" /> Vivência
+              <Sparkles className="w-3 h-3 fill-current" /> Experiência
            </Badge>
         </div>
 
@@ -177,7 +177,7 @@ export function ExperienceCard({ experience, userLocation, selectedDate, classNa
 
         <div className="py-4 border-y border-dashed border-border/60">
            <div className="text-xs font-medium text-muted-foreground line-clamp-2 leading-relaxed italic">
-             <RichText content={experience.shortDescription || "Descubra uma nova vivência cultural única com a Viby."} />
+             <RichText content={experience.shortDescription || "Descubra uma nova experiência cultural única com a Viby."} />
            </div>
         </div>
 

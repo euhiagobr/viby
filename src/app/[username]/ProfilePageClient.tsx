@@ -375,7 +375,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
                   <div className="flex justify-center mb-12">
                     <TabsList className="bg-muted/50 p-1 rounded-xl h-14 overflow-x-auto flex-nowrap scrollbar-hide">
                       <TabsTrigger value="upcoming" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Agenda</TabsTrigger>
-                      <TabsTrigger value="experiences" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Vivências</TabsTrigger>
+                      <TabsTrigger value="experiences" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Experiências</TabsTrigger>
                       <TabsTrigger value="partnerships" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Co-organizadores</TabsTrigger>
                       <TabsTrigger value="past" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Histórico</TabsTrigger>
                       <TabsTrigger value="about" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Sobre</TabsTrigger>
@@ -418,14 +418,14 @@ export default function ProfilePageClient({ username }: { username: string }) {
                   <TabsContent value="experiences" className="animate-in fade-in duration-500">
                     <div className="space-y-8">
                        <div className="space-y-1 px-2">
-                          <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Vivências & Marketplace</h2>
+                          <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Experiências & Marketplace</h2>
                           <p className="text-muted-foreground font-medium">Experiências exclusivas com agendamento.</p>
                        </div>
 
                        {(!orgExperiences || orgExperiences.length === 0) ? (
                          <div className="py-24 text-center bg-white rounded-[3rem] border-2 border-dashed border-border/60 flex flex-col items-center gap-4">
                             <Sparkles className="w-12 h-12 text-muted-foreground opacity-10" />
-                            <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Nenhuma vivência disponível no momento.</p>
+                            <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Nenhuma experiência disponível no momento.</p>
                          </div>
                        ) : (
                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
