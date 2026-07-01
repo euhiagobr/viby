@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -30,7 +29,8 @@ import {
   Info,
   Building2,
   Users,
-  Target
+  Target,
+  AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -68,6 +68,7 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
   const [step, setStep] = React.useState(1);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null);
+  const [moderationError, setModerationError] = React.useState<string | null>(null);
 
   const [form, setForm] = React.useState({
     generalRating: 5,
@@ -90,8 +91,14 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
     video: "",
   });
 
-  const handleNext = () => setStep(prev => prev + 1);
-  const handleBack = () => setStep(prev => prev - 1);
+  const handleNext = () => {
+    setModerationError(null);
+    setStep(prev => prev + 1);
+  };
+  const handleBack = () => {
+    setModerationError(null);
+    setStep(prev => prev - 1);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'photo' | 'video') => {
     const file = e.target.files?.[0];
@@ -113,8 +120,8 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
         () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          if (type === 'photo') setForm(prev => ({ ...prev, photos: [...prev.photos, url] }));
-          else setForm(prev => ({ ...prev, video: url }));
+          if (type === 'photo') setForm(prev => ({ ...prev, photos: [...prev.photos, downloadURL] }));
+          else setForm(prev => ({ ...prev, video: downloadURL }));
           setUploadProgress(null);
         }
       );
@@ -123,8 +130,10 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
 
   const handleSubmit = async () => {
     if (isSubmitting || !user) return;
+    setModerationError(null);
+
     if (form.fullExperience.length < 80) {
-      toast({ variant: "destructive", title: "Relato muito curto", description: "Conte um pouco mais sobre sua experiência (mín. 80 caracteres)." });
+      setModerationError("Seu relato está muito curto. Conte um pouco mais sobre sua experiência (mín. 80 caracteres).");
       setStep(5);
       return;
     }
@@ -144,7 +153,11 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
       if (res.success) {
         toast({ title: "Avaliação publicada!", description: "Obrigado por ajudar a comunidade Viby." });
         onOpenChange(false);
-      } else throw new Error(res.error);
+      } else {
+        // Trata erro de moderação retornado pelo servidor
+        setModerationError(res.error);
+        toast({ variant: "destructive", title: "Atenção", description: "Verifique os termos utilizados na sua avaliação." });
+      }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao publicar", description: e.message });
     } finally {
@@ -153,7 +166,7 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(v) => { onOpenChange(v); if(!v) { setStep(1); setModerationError(null); } }}>
       <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl bg-white flex flex-col h-[90vh]">
         <DialogHeader className="p-8 border-b bg-muted/30 shrink-0">
           <div className="flex justify-between items-center">
@@ -166,6 +179,13 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-8">
+           {moderationError && (
+             <div className="mb-6 p-4 bg-red-50 rounded-2xl border-2 border-dashed border-red-200 flex items-start gap-3 animate-in shake duration-500">
+                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-red-700 font-black uppercase leading-relaxed">{moderationError}</p>
+             </div>
+           )}
+
            {step === 1 && (
              <div className="space-y-10 py-10 animate-in slide-in-from-right-4">
                 <div className="text-center space-y-4">
@@ -272,7 +292,7 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
                         className={cn("rounded-2xl min-h-[150px] p-6 leading-relaxed", form.fullExperience.length < 80 && "border-orange-200 bg-orange-50/10")}
                         placeholder="Descreva sua experiência do início ao fim..."
                       />
-                      <div className="flex justify-end"><span className={cn("text-[9px] font-black uppercase", form.fullExperience.length >= 80 ? "text-green-600" : "text-muted-foreground")}>{form.fullExperience.length}/80 caracteres</span></div>
+                      <div className="flex justify-between"><span className={cn("text-[9px] font-black uppercase", form.fullExperience.length >= 80 ? "text-green-600" : "text-muted-foreground")}>{form.fullExperience.length}/80 caracteres</span></div>
                    </div>
                 </div>
              </div>

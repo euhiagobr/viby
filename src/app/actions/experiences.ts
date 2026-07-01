@@ -1,10 +1,10 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { slugify } from '@/lib/slug-utils';
 import { revalidatePath } from 'next/cache';
+import { validateReviewContent } from '@/lib/moderation/service';
 
 /**
  * Utilitário para serialização segura para o Next.js 15.
@@ -306,8 +306,7 @@ export async function createExperienceReservationAction(params: {
 }
 
 /**
- * Submete uma avaliação detalhada de experiência.
- * Agora atualiza estatísticas de recomendação e distribuição de notas.
+ * Submete uma avaliação detalhada de experiência com moderação automática.
  */
 export async function submitExperienceReviewAction(params: {
   registrationId: string;
@@ -337,6 +336,18 @@ export async function submitExperienceReviewAction(params: {
 }) {
   const db = getAdminDb();
   const { registrationId, experienceId, generalRating, recommend } = params;
+
+  // MODERAÇÃO AUTOMÁTICA
+  const validation = validateReviewContent({
+    title: params.title,
+    text: params.fullExperience,
+    likedMost: params.likedMost,
+    canImprove: params.canImprove
+  });
+
+  if (!validation.isValid) {
+    return { success: false, error: validation.reason };
+  }
 
   try {
     return await db.runTransaction(async (transaction) => {
