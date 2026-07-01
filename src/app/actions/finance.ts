@@ -6,6 +6,10 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { calculateRefundAmount, calculateRetainedGatewayFee } from '@/lib/financial-utils';
 import { recordAuditLog } from './audit';
 
+/**
+ * Processa o cancelamento interno de um ingresso.
+ * Utilizado para ingressos gratuitos ou pagamentos via saldo de carteira.
+ */
 export async function processTicketRefund(registrationId: string, executorUid: string, reason: string) {
   try {
     const db = getAdminDb();
@@ -53,6 +57,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       const userId = regData.userId;
       const totalPaid = regData.price || 0;
 
+      // Devolução de Estoque
       if (isExp && occRef && occSnap?.exists && (occSnap.data()?.sold || 0) > 0) {
         transaction.update(occRef, { 
           sold: admin.firestore.FieldValue.increment(-1),
@@ -74,17 +79,20 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         }
       }
 
+      // Se for Gratuito, marcamos apenas como Cancelado
       if (totalPaid <= 0) {
         transaction.update(regRef, {
           status: 'cancelled',
           paymentStatus: 'Cancelado',
           cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
           cancelledBy: executorUid,
+          cancelledByRole: isAdmin ? 'admin' : 'organizer',
           cancelReason: reason
         });
         return { success: true, isFree: true, orgId: regData.organizationId, eventId: regData.eventId };
       }
 
+      // Se for pago via Saldo/Interno, devolvemos para a carteira
       const refundAmount = calculateRefundAmount(totalPaid);
       const retainedFee = calculateRetainedGatewayFee(totalPaid);
 
@@ -93,6 +101,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
         paymentStatus: 'refunded_wallet',
         cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
         cancelledBy: executorUid,
+        cancelledByRole: isAdmin ? 'admin' : 'organizer',
         cancelReason: reason,
         refundAmount: refundAmount,
         retainedFee: retainedFee,
@@ -122,12 +131,12 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       action: 'ticket_cancel',
       category: 'ticket',
       success: true,
-      metadata: { refundAmount: result.refundAmount, reason }
+      metadata: { refundAmount: result.refundAmount, reason, type: result.isFree ? 'free_cancel' : 'wallet_refund' }
     });
 
     return result;
   } catch (error: any) {
-    console.error("Erro no estorno:", error.message);
+    console.error("Erro no estorno interno:", error.message);
     
     await recordAuditLog({
       userId: executorUid,
