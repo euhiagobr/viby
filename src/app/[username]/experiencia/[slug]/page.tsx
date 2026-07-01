@@ -1,8 +1,12 @@
+
 import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 import ExperienciaPublicaClient from './ExperienciaPublicaClient';
 import { notFound } from 'next/navigation';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 async function getExperienceData(usernameParam: string, slugParam: string) {
   const db = getAdminDb();
@@ -18,7 +22,6 @@ async function getExperienceData(usernameParam: string, slugParam: string) {
     const doc = q.docs[0];
     const data = doc.data();
     
-    // Serialização básica para o Next.js 15
     return {
       id: doc.id,
       ...data,
@@ -59,8 +62,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       title,
       description,
       images: [image]
-    },
-    robots: { index: true, follow: true }
+    }
   };
 }
 
@@ -70,5 +72,30 @@ export default async function PublicExperiencePage({ params }: { params: Promise
 
   if (!exp || (exp.status === 'draft')) notFound();
 
-  return <ExperienciaPublicaClient experience={exp} />;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": exp.title,
+    "description": exp.shortDescription,
+    "image": exp.image,
+    "brand": {
+      "@type": "Brand",
+      "name": exp.organizer?.name
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": exp.averageRating || 5,
+      "reviewCount": exp.reviewCount || 1
+    }
+  };
+
+  return (
+    <>
+      <script 
+        type="application/ld+json" 
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} 
+      />
+      <ExperienciaPublicaClient experience={exp} />
+    </>
+  );
 }
