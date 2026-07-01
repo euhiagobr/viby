@@ -19,13 +19,33 @@ import {
   TrendingUp,
   History,
   Search,
-  FilterX
+  FilterX,
+  PieChart as PieIcon,
+  Users,
+  MapPin,
+  BarChart3,
+  Globe,
+  Calendar,
+  Zap,
+  Target
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { 
+  PieChart, 
+  Pie, 
+  Cell, 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip as ChartTooltip,
+  Cell as RechartsCell
+} from 'recharts';
 
 export default function OrganizationGlobalReviewsPage() {
   const { currentOrg, loading: orgLoading } = useCurrentOrganization();
@@ -37,7 +57,7 @@ export default function OrganizationGlobalReviewsPage() {
     return query(
       collection(db, "experience_reviews"),
       where("organizationId", "==", currentOrg.id),
-      limit(100)
+      limit(200)
     );
   }, [db, currentOrg?.id]);
 
@@ -66,6 +86,15 @@ export default function OrganizationGlobalReviewsPage() {
     const dist = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     let recSim = 0;
     const criteria = { org: 0, service: 0, quality: 0, price: 0, environment: 0 };
+    
+    // Demographics
+    const genderMap: Record<string, number> = {};
+    const ageMap: Record<string, number> = {
+      'Até 17': 0, '18-24': 0, '25-34': 0, '35-44': 0, '45-54': 0, '55-64': 0, '65+': 0
+    };
+    const stateMap: Record<string, number> = {};
+    const cityMap: Record<string, number> = {};
+    const targetMap: Record<string, number> = {};
 
     rawReviews.forEach(r => {
       totalScore += r.generalRating;
@@ -80,7 +109,41 @@ export default function OrganizationGlobalReviewsPage() {
       criteria.quality += dr.quality || 5;
       criteria.price += dr.price || 5;
       criteria.environment += dr.environment || 5;
+
+      // Anonymized Demographics
+      const gender = r.gender || 'Não informado';
+      genderMap[gender] = (genderMap[gender] || 0) + 1;
+
+      if (r.birthDate) {
+        const age = new Date().getFullYear() - new Date(r.birthDate).getFullYear();
+        if (age < 18) ageMap['Até 17']++;
+        else if (age <= 24) ageMap['18-24']++;
+        else if (age <= 34) ageMap['25-34']++;
+        else if (age <= 44) ageMap['35-44']++;
+        else if (age <= 54) ageMap['45-54']++;
+        else if (age <= 64) ageMap['55-64']++;
+        else ageMap['65+']++;
+      }
+
+      if (r.state) stateMap[r.state] = (stateMap[r.state] || 0) + 1;
+      if (r.city) cityMap[r.city] = (cityMap[r.city] || 0) + 1;
+      
+      if (r.targets) {
+        r.targets.forEach((t: string) => {
+          targetMap[t] = (targetMap[t] || 0) + 1;
+        });
+      }
     });
+
+    const filterSmallGroups = (map: Record<string, number>) => {
+      const result: any[] = [];
+      Object.entries(map).forEach(([name, value]) => {
+        if (value >= 5 || count < 20) { // Oculta se menos de 5, exceto em bases pequenas
+          result.push({ name, value });
+        }
+      });
+      return result.sort((a, b) => b.value - a.value);
+    };
 
     return {
       avg: (totalScore / count).toFixed(1),
@@ -93,6 +156,13 @@ export default function OrganizationGlobalReviewsPage() {
         quality: (criteria.quality / count).toFixed(1),
         price: (criteria.price / count).toFixed(1),
         environment: (criteria.environment / count).toFixed(1),
+      },
+      demographics: {
+        gender: filterSmallGroups(genderMap),
+        age: Object.entries(ageMap).map(([name, value]) => ({ name, value })),
+        states: filterSmallGroups(stateMap),
+        cities: filterSmallGroups(cityMap).slice(0, 5),
+        targets: filterSmallGroups(targetMap)
       }
     };
   }, [rawReviews]);
@@ -100,47 +170,129 @@ export default function OrganizationGlobalReviewsPage() {
   if (orgLoading) return <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-500">
+    <div className="space-y-10 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <Star className="w-8 h-8 text-secondary fill-secondary" />
           Avaliações da Marca
         </h1>
-        <p className="text-muted-foreground font-medium">Reputação consolidada e feedback dos clientes em tempo real.</p>
+        <p className="text-muted-foreground font-medium">Análise de reputação e inteligência de público.</p>
       </div>
 
       {metrics ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-             <Card className="border-none shadow-sm bg-white p-6 flex flex-col items-center justify-center text-center gap-2">
-                <p className="text-[9px] font-black uppercase text-muted-foreground">Nota Média Global</p>
-                <div className="flex items-center gap-2">
-                   <Star className="w-6 h-6 fill-orange-400 text-orange-400" />
-                   <span className="text-3xl font-black italic tracking-tighter text-primary">{metrics.avg}</span>
-                </div>
-             </Card>
-             <Card className="border-none shadow-sm bg-white p-6 flex flex-col items-center justify-center text-center gap-2">
-                <p className="text-[9px] font-black uppercase text-muted-foreground">Total Reviews</p>
-                <div className="flex items-center gap-2">
-                   <MessageSquare className="w-6 h-6 text-secondary" />
-                   <span className="text-3xl font-black italic tracking-tighter text-primary">{metrics.count}</span>
-                </div>
-             </Card>
-             <Card className="border-none shadow-sm bg-green-50 p-6 flex flex-col items-center justify-center text-center gap-2">
-                <p className="text-[9px] font-black uppercase text-green-700">Recomendação</p>
-                <div className="flex items-center gap-2">
-                   <ThumbsUp className="w-6 h-6 text-green-600 fill-current" />
-                   <span className="text-3xl font-black italic tracking-tighter text-green-700">{metrics.recPercent}%</span>
-                </div>
-             </Card>
-             <Card className="border-none shadow-sm bg-primary text-white p-6 flex flex-col items-center justify-center text-center gap-2">
-                <p className="text-[9px] font-black uppercase opacity-60">Impacto da Marca</p>
-                <div className="text-xl font-black uppercase italic tracking-widest">
-                   {Number(metrics.avg) >= 4.5 ? 'Excelente' : Number(metrics.avg) >= 3.5 ? 'Bom' : 'Atenção'}
-                </div>
-             </Card>
-          </div>
+          {/* PAINEL DE INSIGHTS */}
+          <section className="space-y-6">
+             <div className="flex items-center gap-3 px-2">
+                <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><BarChart3 className="w-5 h-5" /></div>
+                <h2 className="text-xl font-black uppercase italic tracking-tighter text-primary">Perfil de quem avaliou</h2>
+             </div>
 
+             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                {/* Coluna 1: KPIs & Gênero */}
+                <div className="md:col-span-4 space-y-6">
+                   <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
+                      <div className="grid grid-cols-2 gap-6">
+                         <div className="space-y-1">
+                            <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Total Reviews</p>
+                            <p className="text-3xl font-black italic text-primary">{metrics.count}</p>
+                         </div>
+                         <div className="space-y-1">
+                            <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Recomendação</p>
+                            <p className="text-3xl font-black italic text-green-600">{metrics.recPercent}%</p>
+                         </div>
+                      </div>
+                      <Separator className="border-dashed" />
+                      <div className="space-y-4">
+                         <p className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-2"><Users className="w-3 h-3" /> Distribuição de Gênero</p>
+                         <div className="h-48 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                               <PieChart>
+                                  <Pie
+                                    data={metrics.demographics.gender}
+                                    cx="50%" cy="50%"
+                                    innerRadius={40} outerRadius={70}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                  >
+                                    {metrics.demographics.gender.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={['#2C52EE', '#ec4899', '#f59e0b', '#10b981'][index % 4]} />
+                                    ))}
+                                  </Pie>
+                                  <ChartTooltip />
+                               </PieChart>
+                            </ResponsiveContainer>
+                         </div>
+                      </div>
+                   </Card>
+                </div>
+
+                {/* Coluna 2: Idade & Localização */}
+                <div className="md:col-span-4 space-y-6">
+                   <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8 h-full">
+                      <div className="space-y-4">
+                         <p className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-2"><Clock className="w-3 h-3" /> Faixa Etária</p>
+                         <div className="h-32 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                               <BarChart data={metrics.demographics.age}>
+                                  <XAxis dataKey="name" hide />
+                                  <Bar dataKey="value" fill="#2C52EE" radius={[4, 4, 0, 0]} />
+                                  <ChartTooltip />
+                               </BarChart>
+                            </ResponsiveContainer>
+                         </div>
+                      </div>
+                      <Separator className="border-dashed" />
+                      <div className="space-y-4">
+                         <p className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-2"><MapPin className="w-3 h-3" /> Principais Estados</p>
+                         <div className="space-y-2">
+                            {metrics.demographics.states.slice(0, 4).map((s, i) => (
+                               <div key={i} className="flex items-center gap-3">
+                                  <span className="text-[10px] font-black w-6">{s.name}</span>
+                                  <Progress value={(s.value / metrics.count) * 100} className="h-1.5 flex-1" />
+                                  <span className="text-[9px] font-bold opacity-40">{Math.round((s.value / metrics.count) * 100)}%</span>
+                               </div>
+                            ))}
+                         </div>
+                      </div>
+                   </Card>
+                </div>
+
+                {/* Coluna 3: Perfil & Critérios */}
+                <div className="md:col-span-4 space-y-6">
+                   <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8 h-full">
+                      <div className="space-y-4">
+                         <p className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-2"><Target className="w-3 h-3" /> Perfil Predominante</p>
+                         <div className="flex flex-wrap gap-2">
+                            {metrics.demographics.targets.slice(0, 6).map((t, i) => (
+                              <Badge key={i} variant="secondary" className="bg-secondary/5 text-secondary text-[8px] font-black uppercase h-5">
+                                 {t.name} ({Math.round((t.value / metrics.count) * 100)}%)
+                              </Badge>
+                            ))}
+                         </div>
+                      </div>
+                      <Separator className="border-dashed" />
+                      <div className="space-y-4">
+                         <p className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-2"><CheckCircle2 className="w-3 h-3" /> Avaliação Técnica</p>
+                         <div className="space-y-3">
+                            <CriteriaProgress label="Serviço" value={metrics.criteria.service} />
+                            <CriteriaProgress label="Qualidade" value={metrics.criteria.quality} />
+                            <CriteriaProgress label="Ambiente" value={metrics.criteria.environment} />
+                         </div>
+                      </div>
+                   </Card>
+                </div>
+             </div>
+
+             <div className="p-4 bg-muted/40 rounded-2xl border border-dashed flex items-center justify-center gap-3 opacity-60">
+                <ShieldCheck className="w-4 h-4 text-secondary" />
+                <p className="text-[9px] font-black uppercase tracking-widest">Dados agregados e anonimizados em conformidade com a LGPD</p>
+             </div>
+          </section>
+
+          <Separator className="border-dashed" />
+
+          {/* LISTA DE REVIEWS */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
              <Card className="lg:col-span-8 border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
                 <CardHeader className="bg-muted/30 border-b p-8 flex flex-row items-center justify-between">
@@ -212,22 +364,15 @@ export default function OrganizationGlobalReviewsPage() {
 
              <div className="lg:col-span-4 space-y-8">
                 <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
-                   <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-dashed pb-4">Performance por Critério</h4>
+                   <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-dashed pb-4">Performance Global</h4>
                    <div className="space-y-6">
-                      <CriteriaLine label="Organização" value={metrics.criteria.org} />
-                      <CriteriaLine label="Atendimento" value={metrics.criteria.service} />
-                      <CriteriaLine label="Qualidade" value={metrics.criteria.quality} />
-                      <CriteriaLine label="Custo-benefício" value={metrics.criteria.price} />
-                      <CriteriaLine label="Ambiente" value={metrics.criteria.environment} />
+                      <CriteriaProgress label="Organização" value={metrics.criteria.org} />
+                      <CriteriaProgress label="Atendimento" value={metrics.criteria.service} />
+                      <CriteriaProgress label="Qualidade" value={metrics.criteria.quality} />
+                      <CriteriaProgress label="Custo-benefício" value={metrics.criteria.price} />
+                      <CriteriaProgress label="Ambiente" value={metrics.criteria.environment} />
                    </div>
                 </Card>
-
-                <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
-                   <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
-                   <p className="text-[10px] text-secondary font-bold uppercase leading-relaxed italic">
-                      As avaliações são moderadas automaticamente e ajudam a elevar a relevância da sua marca no marketplace.
-                   </p>
-                </div>
              </div>
           </div>
         </>
@@ -236,8 +381,8 @@ export default function OrganizationGlobalReviewsPage() {
            <Inbox className="w-12 h-12" />
            <p className="text-sm font-black uppercase tracking-widest">Sua marca ainda não possui avaliações visíveis.</p>
            {!reviewsLoading && (
-             <p className="text-[10px] font-bold uppercase max-w-xs mx-auto">
-               As avaliações aparecem aqui assim que seus primeiros clientes compartilharem suas experiências.
+             <p className="text-[10px] font-bold uppercase max-w-xs mx-auto text-center">
+               Os Insights e avaliações aparecerão aqui assim que seus primeiros clientes compartilharem suas experiências.
              </p>
            )}
         </div>
@@ -246,7 +391,7 @@ export default function OrganizationGlobalReviewsPage() {
   );
 }
 
-function CriteriaLine({ label, value }: { label: string, value: string }) {
+function CriteriaProgress({ label, value }: { label: string, value: string }) {
    const val = parseFloat(value);
    return (
       <div className="space-y-2">

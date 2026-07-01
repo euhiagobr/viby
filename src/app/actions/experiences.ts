@@ -307,7 +307,7 @@ export async function createExperienceReservationAction(params: {
 }
 
 /**
- * Submete uma avaliação detalhada de experiência com moderação automática.
+ * Submete uma avaliação detalhada de experiência com moderação automática e captura demográfica.
  */
 export async function submitExperienceReviewAction(params: {
   registrationId: string;
@@ -336,7 +336,7 @@ export async function submitExperienceReviewAction(params: {
   video?: string;
 }) {
   const db = getAdminDb();
-  const { registrationId, experienceId, organizationId, generalRating, recommend } = params;
+  const { registrationId, experienceId, organizationId, generalRating, recommend, userId } = params;
 
   // MODERAÇÃO AUTOMÁTICA
   const validation = validateReviewContent({
@@ -357,6 +357,10 @@ export async function submitExperienceReviewAction(params: {
 
       if (!regSnap.exists) throw new Error("Voucher não encontrado.");
       if (regSnap.data()?.ratingSubmitted) throw new Error("Este voucher já foi avaliado.");
+
+      const userRef = db.collection('users').doc(userId);
+      const userSnap = await transaction.get(userRef);
+      const userData = userSnap.exists ? userSnap.data() : null;
 
       const expRef = db.collection('experiences').doc(experienceId);
       const expSnap = await transaction.get(expRef);
@@ -394,16 +398,25 @@ export async function submitExperienceReviewAction(params: {
         newRec[recKey] = (newRec[recKey] || 0) + 1;
       }
 
-      // 4. Salvar Review
+      // 4. Captura Demográfica Anônima
+      const userMeta = {
+         gender: userData?.gender || 'not_informed',
+         birthDate: userData?.birthDate || null,
+         city: userData?.city || userData?.location?.city || 'not_informed',
+         state: userData?.state || userData?.location?.state || 'not_informed'
+      };
+
+      // 5. Salvar Review
       const reviewRef = db.collection('experience_reviews').doc(registrationId);
       transaction.set(reviewRef, {
         ...params,
+        ...userMeta, // Injetado para Insights anônimos
         badges,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // 5. Atualizar Experiência
+      // 6. Atualizar Experiência
       transaction.update(expRef, {
         averageRating: newAvg,
         reviewCount: newCount,
@@ -412,7 +425,7 @@ export async function submitExperienceReviewAction(params: {
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // 6. Marcar Voucher como avaliado
+      // 7. Marcar Voucher como avaliado
       transaction.update(regRef, {
         ratingSubmitted: true,
         ratingValue: generalRating,
