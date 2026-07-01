@@ -5,7 +5,7 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDoc, useFirestore, useAuth, useUser, useFirebaseApp, useMemoFirebase, useCollection } from "@/firebase"
-import { doc, collection, query, orderBy, where, serverTimestamp, updateDoc, getDocs } from "firebase/firestore"
+import { doc, collection, query, orderBy, where, serverTimestamp, updateDoc, getDocs, deleteField } from "firebase/firestore"
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -36,7 +36,9 @@ import {
   Upload,
   Camera,
   Info,
-  XCircle
+  XCircle,
+  AlertTriangle,
+  Ban
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -118,7 +120,8 @@ export default function EditarExperienciaPage() {
     image: "",
     gallery: [] as string[],
     capacity: 100,
-    duration: "",
+    durationValue: "",
+    durationUnit: "horas",
     maxGroupSize: null,
     isUnlimitedCapacity: false,
     instantBooking: true,
@@ -134,7 +137,8 @@ export default function EditarExperienciaPage() {
       startDate: "",
       endDate: "",
       allowedDays: [0, 1, 2, 3, 4, 5, 6] as number[],
-      allowHolidays: true
+      allowHolidays: true,
+      specialDates: [] as { date: string, isOpen: boolean, label: string }[]
     },
     address: {
       venueName: "", street: "", number: "", complement: "", neighborhood: "", 
@@ -161,11 +165,14 @@ export default function EditarExperienciaPage() {
       setFormData({
         ...formData,
         ...event,
+        durationValue: event.durationValue || event.duration?.split(' ')[0] || "",
+        durationUnit: event.durationUnit || (event.duration?.includes('min') ? 'minutos' : 'horas'),
         availability: {
           startDate: formatDateForInput(event.availability?.startDate),
           endDate: formatDateForInput(event.availability?.endDate),
           allowedDays: event.availability?.allowedDays || [0, 1, 2, 3, 4, 5, 6],
-          allowHolidays: event.availability?.allowHolidays ?? true
+          allowHolidays: event.availability?.allowHolidays ?? true,
+          specialDates: event.availability?.specialDates || []
         },
         address: event.address || formData.address,
         gallery: event.gallery || [],
@@ -189,7 +196,7 @@ export default function EditarExperienciaPage() {
       
       uploadTask.on('state_changed', 
         (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100),
-        () => setUploadProgress(null),
+        () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           setFormData(prev => ({ ...prev, image: downloadURL }));
@@ -240,7 +247,13 @@ export default function EditarExperienciaPage() {
     if (!eventId || loading) return;
     setLoading(true);
     try {
-      const res = await saveExperienceAction(eventId, formData);
+      // Monta a string de duração para exibição pública
+      const durationStr = formData.durationValue ? `${formData.durationValue} ${formData.durationUnit}` : "";
+      
+      const res = await saveExperienceAction(eventId, {
+        ...formData,
+        duration: durationStr
+      });
       if (res.success) {
         toast({ title: "Progresso salvo!" });
       } else throw new Error(res.error);
@@ -271,7 +284,10 @@ export default function EditarExperienciaPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias`}><ArrowLeft className="w-5 h-5" /></Link></Button>
-          <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Experiência</h1>
+          <div className="text-left">
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary leading-none">Editar Experiência</h1>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">Passo {step} de 5</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
            {[1, 2, 3, 4, 5].map(s => (
@@ -357,13 +373,13 @@ export default function EditarExperienciaPage() {
                     <Input type="date" value={formData.availability.startDate} onChange={e => setFormData({...formData, availability: {...formData.availability, startDate: e.target.value}})} className="rounded-xl h-11" />
                  </div>
                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase opacity-60">Término Final</Label>
+                    <Label className="text-[10px] font-black uppercase opacity-60">Término Final (Opcional)</Label>
                     <Input type="date" value={formData.availability.endDate} onChange={e => setFormData({...formData, availability: {...formData.availability, endDate: e.target.value}})} className="rounded-xl h-11" />
                  </div>
               </div>
 
               <div className="space-y-6">
-                 <Label className="text-[10px] font-black uppercase opacity-60">Dias de Funcionamento</Label>
+                 <Label className="text-[10px] font-black uppercase opacity-60">Dias de Funcionamento Padrão</Label>
                  <div className="flex flex-wrap gap-3">
                     {WEEK_DAYS.map(day => (
                       <div key={day.id} className="flex items-center space-x-2 bg-muted/30 px-4 py-3 rounded-2xl border transition-all hover:bg-white">
@@ -390,6 +406,61 @@ export default function EditarExperienciaPage() {
                  </div>
                  <Switch checked={formData.availability.allowHolidays} onCheckedChange={v => setFormData({...formData, availability: {...formData.availability, allowHolidays: v}})} />
               </div>
+
+              <Separator className="border-dashed" />
+
+              <div className="space-y-6">
+                 <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                       <h4 className="font-black uppercase text-xs italic text-primary">Datas Especiais / Exceções</h4>
+                       <p className="text-[9px] font-bold text-muted-foreground uppercase">Adicione feriados ou datas específicas para abrir ou fechar.</p>
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setFormData({...formData, availability: {...formData.availability, specialDates: [...(formData.availability.specialDates || []), { date: "", isOpen: false, label: "" }]}})}
+                      className="rounded-xl h-9 border-dashed font-black uppercase text-[9px] gap-2"
+                    >
+                       <Plus className="w-3.5 h-3.5" /> Adicionar Data
+                    </Button>
+                 </div>
+
+                 <div className="space-y-3">
+                    {(formData.availability.specialDates || []).map((sd: any, idx: number) => (
+                       <div key={idx} className="flex gap-3 items-end p-4 bg-muted/20 rounded-2xl border border-border group animate-in slide-in-from-left-2">
+                          <div className="flex-1 space-y-1.5">
+                             <Label className="text-[8px] font-black uppercase opacity-40 ml-1">Data Específica</Label>
+                             <Input type="date" value={sd.date} onChange={e => {
+                                const list = [...formData.availability.specialDates];
+                                list[idx].date = e.target.value;
+                                setFormData({...formData, availability: {...formData.availability, specialDates: list}});
+                             }} className="h-9 text-xs rounded-lg" />
+                          </div>
+                          <div className="flex-1 space-y-1.5">
+                             <Label className="text-[8px] font-black uppercase opacity-40 ml-1">Descrição (ex: Natal)</Label>
+                             <Input value={sd.label} onChange={e => {
+                                const list = [...formData.availability.specialDates];
+                                list[idx].label = e.target.value;
+                                setFormData({...formData, availability: {...formData.availability, specialDates: list}});
+                             }} className="h-9 text-xs rounded-lg" />
+                          </div>
+                          <div className="flex flex-col items-center gap-1.5 pb-1">
+                             <span className={cn("text-[8px] font-black uppercase", sd.isOpen ? "text-green-600" : "text-destructive")}>{sd.isOpen ? 'ABERTO' : 'FECHADO'}</span>
+                             <Switch checked={sd.isOpen} onCheckedChange={v => {
+                                const list = [...formData.availability.specialDates];
+                                list[idx].isOpen = v;
+                                setFormData({...formData, availability: {...formData.availability, specialDates: list}});
+                             }} />
+                          </div>
+                          <button type="button" onClick={() => {
+                             const list = formData.availability.specialDates.filter((_:any, i:number) => i !== idx);
+                             setFormData({...formData, availability: {...formData.availability, specialDates: list}});
+                          }} className="p-2 text-destructive opacity-20 hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
+                       </div>
+                    ))}
+                 </div>
+              </div>
            </Card>
 
            <div className="flex gap-4">
@@ -402,17 +473,54 @@ export default function EditarExperienciaPage() {
       {step === 4 && (
         <div className="space-y-10 animate-in slide-in-from-right-4">
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
+              <div className="flex items-center gap-3">
+                 <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><Zap className="w-5 h-5" /></div>
+                 <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">Informações Operacionais</h3>
+              </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 <div className="space-y-2">
+                 <div className="space-y-3">
                     <Label className="text-[10px] font-black uppercase opacity-60">Tempo de Duração</Label>
-                    <Input value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} placeholder="Ex: 3 horas" className="rounded-xl h-11" />
+                    <div className="flex gap-2">
+                       <Input 
+                         type="number"
+                         value={formData.durationValue} 
+                         onChange={e => setFormData({...formData, durationValue: e.target.value})} 
+                         placeholder="Ex: 3" 
+                         className="rounded-xl h-11 flex-1 font-black text-primary" 
+                       />
+                       <Select value={formData.durationUnit} onValueChange={v => setFormData({...formData, durationUnit: v})}>
+                          <SelectTrigger className="w-32 h-11 rounded-xl">
+                             <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                             <SelectItem value="minutos">Minutos</SelectItem>
+                             <SelectItem value="horas">Horas</SelectItem>
+                             <SelectItem value="dias">Dias</SelectItem>
+                          </SelectContent>
+                       </Select>
+                    </div>
                  </div>
                  <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Participantes por grupo</Label>
-                       <Switch checked={formData.isUnlimitedCapacity} onCheckedChange={v => setFormData({...formData, isUnlimitedCapacity: v, maxGroupSize: v ? null : formData.maxGroupSize})} />
+                       <Label className="text-[10px] font-black uppercase opacity-60">Limite de pessoas por reserva/grupo</Label>
+                       <div className="flex items-center gap-2">
+                          <span className="text-[8px] font-black uppercase opacity-40">Ilimitado</span>
+                          <Switch 
+                            checked={formData.isUnlimitedCapacity} 
+                            onCheckedChange={v => setFormData({...formData, isUnlimitedCapacity: v, maxGroupSize: v ? null : formData.maxGroupSize})} 
+                          />
+                       </div>
                     </div>
-                    <Input type="number" disabled={formData.isUnlimitedCapacity} value={formData.maxGroupSize || ""} onChange={e => setFormData({...formData, maxGroupSize: parseInt(e.target.value) || null})} className="rounded-xl h-11" />
+                    <Input 
+                      type="number"
+                      disabled={formData.isUnlimitedCapacity}
+                      value={formData.maxGroupSize || ""} 
+                      onChange={e => setFormData({...formData, maxGroupSize: parseInt(e.target.value) || null})} 
+                      placeholder="Ex: 10" 
+                      className="rounded-xl h-11 font-bold" 
+                    />
+                    <p className="text-[8px] font-bold text-muted-foreground uppercase px-1">Define o máximo de participantes permitidos em uma única reserva.</p>
                  </div>
               </div>
            </Card>
@@ -435,7 +543,7 @@ export default function EditarExperienciaPage() {
                          const next = isSelected ? formData.rules.filter((r:any) => r.id !== rule.id) : [...formData.rules, rule];
                          setFormData({...formData, rules: next});
                        }}
-                       className={cn("p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all", isSelected ? "border-secondary bg-secondary/5 text-primary" : "border-border bg-white text-muted-foreground")}
+                       className={cn("p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all", isSelected ? "border-secondary bg-secondary/5 text-primary shadow-inner" : "border-border bg-white text-muted-foreground hover:bg-muted")}
                      >
                         <span className="text-2xl">{rule.icon}</span>
                         <span className="text-[8px] font-black uppercase text-center">{rule.label}</span>
