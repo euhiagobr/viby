@@ -35,8 +35,14 @@ import {
   CheckCircle2
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
+import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { cn, normalizeText, normalizeEventDates, safeParseDate, generateRecurrenceDates, formatDateForInput, dateToAtomsphericISO } from "@/lib/utils"
+import { slugify } from "@/lib/slug-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { 
   EventHeader, 
@@ -90,13 +96,11 @@ export default function EditarExperienciaPage() {
   const [ticketMode, setTicketMode] = useState<any>('free')
   const [sessions, setSessions] = useState<any[]>([])
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
-  const [galleryProgress, setGalleryProgress] = useState<{ [key: string]: number }>({})
   const [matchSelection, setMatchSelection] = useState({ teamA: "", teamB: "" });
 
   const eventRef = React.useMemo(() => {
     if (!db || !eventId) return null
     try {
-      // CORREÇÃO: Buscando na coleção 'experiences' em vez de 'events'
       return doc(db, "experiences", eventId)
     } catch (e) {
       return null
@@ -142,7 +146,6 @@ export default function EditarExperienciaPage() {
     });
   }, [rawReviews]);
 
-  // CORREÇÃO: Mover todos os useMemo para cima do retorno condicional
   const avgCriteria = React.useMemo(() => {
     if (!reviews || reviews.length === 0) return null;
     const totals = { org: 0, service: 0, quality: 0, price: 0, environment: 0 };
@@ -246,7 +249,6 @@ export default function EditarExperienciaPage() {
     if (!db || !currentOrg || !formData) return
     setLoading(true)
     try {
-      // Normalização final e persistência
       await updateDoc(doc(db, "experiences", eventId), {
         ...formData,
         updatedAt: serverTimestamp()
@@ -347,7 +349,7 @@ export default function EditarExperienciaPage() {
            </Card>
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(3)} className="h-20 px-8 rounded-[2.5rem] font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 transition-all active:scale-95">
+              <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-3 transition-all active:scale-95">
                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
                  Salvar Alterações
               </Button>
