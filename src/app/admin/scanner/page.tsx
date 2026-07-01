@@ -25,12 +25,13 @@ import {
   ShieldAlert,
   Lock,
   Search,
-  ShieldCheck
+  ShieldCheck,
+  Sparkles
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { cn } from "@/lib/utils"
+import { cn, safeParseDate } from "@/lib/utils"
 import { processGamificationEvent } from "@/lib/gamification-service"
 
 export default function AdminScannerPage() {
@@ -157,6 +158,15 @@ export default function AdminScannerPage() {
     setManualCode(""); 
   }
 
+  const formatTicketDate = (dateValue: any) => {
+    const d = safeParseDate(dateValue);
+    if (!d) return { date: "A definir", time: "" };
+    return {
+      date: d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
+      time: d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    };
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-20 pt-10 px-4 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
@@ -249,8 +259,30 @@ export default function AdminScannerPage() {
                         <div><p className="text-[10px] font-black uppercase opacity-40">Participante</p><p className="font-black text-xl text-primary uppercase italic">{ticketData.userName}</p></div>
                      </div>
                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center text-secondary"><Calendar className="w-6 h-6" /></div>
-                        <div><p className="text-[10px] font-black uppercase opacity-40">Experiência</p><p className="font-bold text-sm uppercase truncate">{ticketData.eventTitle}</p></div>
+                        <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center text-secondary">
+                          {ticketData.productType === 'experience' ? <Sparkles className="w-6 h-6" /> : <Calendar className="w-6 h-6" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase opacity-40">{ticketData.productType === 'experience' ? 'Experiência' : 'Evento'}</p>
+                          <p className="font-bold text-sm uppercase truncate">{ticketData.eventTitle}</p>
+                        </div>
+                     </div>
+                     <div className="grid grid-cols-2 gap-4 pt-4 border-t border-dashed">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase opacity-40 flex items-center gap-1.5"><Calendar className="w-3 h-3" /> Data Reservada</p>
+                          <p className="text-xs font-black text-primary uppercase">{formatTicketDate(ticketData.eventDate).date}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase opacity-40 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Horário</p>
+                          <p className="text-xs font-black text-primary uppercase">{formatTicketDate(ticketData.eventDate).time}</p>
+                        </div>
+                     </div>
+                     <div className="p-4 bg-muted/20 rounded-2xl flex items-center justify-between">
+                        <div className="space-y-0.5">
+                           <p className="text-[8px] font-black uppercase opacity-40">Categoria / Lote</p>
+                           <p className="text-xs font-bold text-secondary uppercase">{ticketData.ticketTypeName} - {ticketData.batchName}</p>
+                        </div>
+                        <Badge variant="outline" className="text-[8px] font-black uppercase h-5">{ticketData.currency} {ticketData.price}</Badge>
                      </div>
                   </div>
 
