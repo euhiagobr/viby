@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useCurrentOrganization } from '@/contexts/OrganizationContext';
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, deleteField } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,8 @@ import {
   Eye,
   Inbox,
   ArrowRight,
-  TicketPercent
+  TicketPercent,
+  Users
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
@@ -153,6 +154,11 @@ export default function OrganizationExperiencesPage() {
                     <Button asChild variant="outline" className="flex-1 rounded-xl h-10 font-black uppercase italic text-[10px] gap-2 border-secondary text-secondary">
                        <Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias/${exp.id}/editar`}><Edit className="w-3.5 h-3.5" /> Editar</Link>
                     </Button>
+                    {isAtLeastEditor && (
+                      <Button asChild variant="secondary" className="flex-1 rounded-xl h-10 font-black uppercase italic text-[10px] gap-2 shadow-sm">
+                        <Link href={`/dashboard/experiencia/${exp.id}/publico`}><Users className="w-3.5 h-3.5" /> Compradores</Link>
+                      </Button>
+                    )}
                     <DropdownMenu>
                        <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl bg-muted/50"><MoreHorizontal className="w-4 h-4" /></Button>
