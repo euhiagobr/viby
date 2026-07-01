@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useAuth, useUser, useFirestore } from "@/firebase"
+import { useAuth, useUser, useFirestore, useDoc } from "@/firebase"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
@@ -118,9 +119,9 @@ function LoginContent() {
               <Image 
                 src={settings.logoUrl} 
                 alt={siteName} 
-                width={120} 
+                width={140} 
                 height={40} 
-                className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" 
+                className="h-10 w-auto object-contain transition-transform group-hover:scale-105" 
                 priority 
                 unoptimized 
               />
