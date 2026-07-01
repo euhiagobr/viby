@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/hooks/use-toast"
-import { Loader2, User, Lock as LockIcon, KeyRound, AlertCircle, ShieldCheck } from "lucide-react"
+import { Loader2, User, Lock as LockIcon, KeyRound, AlertCircle, ShieldCheck, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import Footer from "@/components/layout/Footer"
 import { Separator } from "@/components/ui/separator"
@@ -112,8 +112,8 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
-      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md h-16 flex items-center">
+        <div className="container mx-auto px-4 h-full flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
             {settings?.logoUrl ? (
               <Image 
