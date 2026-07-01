@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -182,7 +181,7 @@ export default function ExperienciaPublicoPage() {
     return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   };
 
-  if (expLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="animate-spin text-secondary" /></div>
+  if (expLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="animate-spin" /></div>
 
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-500">
@@ -198,7 +197,7 @@ export default function ExperienciaPublicoPage() {
         </div>
         <div className="flex gap-2">
            <Button asChild className="bg-primary text-white font-black rounded-full px-8 h-12 shadow-lg gap-2 uppercase italic">
-              <Link href="/admin/scanner">
+              <Link href="/dashboard/scanner">
                  <ScanQrCode className="w-5 h-5" /> Abrir Scanner
               </Link>
            </Button>
@@ -230,7 +229,7 @@ export default function ExperienciaPublicoPage() {
               </Tabs>
               <div className="relative w-full md:w-80">
                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                 <Input placeholder="Buscar por nome ou código..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11 rounded-xl border-dashed" />
+                 <Input placeholder="Buscar por nome ou código..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 rounded-xl h-11 border-dashed" />
               </div>
            </div>
         </CardHeader>

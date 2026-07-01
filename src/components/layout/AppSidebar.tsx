@@ -21,7 +21,8 @@ import {
   RefreshCw,
   ImageIcon,
   Sparkles,
-  Star
+  Star,
+  ScanQrCode
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -84,6 +85,7 @@ export function AppSidebar() {
     { title: "Experiências", url: "/experiencias", icon: Sparkles },
     { title: "Copa 2026", url: "/copa-do-mundo", icon: Trophy },
     { title: t('nav.tickets'), url: "/dashboard/ingressos", icon: Ticket },
+    { title: "Scanner QR", url: "/dashboard/scanner", icon: ScanQrCode },
     { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
     { title: t('nav.organizations'), url: "/dashboard/organizacoes", icon: Building2 },
     { title: t('common.notifications'), url: "/dashboard/notificacoes", icon: Bell, badge: unreadNotificationsCount || null },
