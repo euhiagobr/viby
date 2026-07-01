@@ -45,6 +45,13 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
 import Link from "next/link"
 import { cn, normalizeText, normalizeEventDates, safeParseDate, formatDateForInput, dateToAtomsphericISO } from "@/lib/utils"
 import { slugify } from "@/lib/slug-utils"
