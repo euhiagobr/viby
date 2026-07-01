@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -177,7 +176,7 @@ export function AppSidebar() {
               <SidebarMenu>
                 {orgItems.map((item) => {
                   const isActive = item.exact 
-                    ? pathname === url 
+                    ? pathname === item.url 
                     : pathname?.startsWith(item.url);
 
                   return (

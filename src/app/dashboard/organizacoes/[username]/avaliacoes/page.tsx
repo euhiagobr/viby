@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -336,7 +335,7 @@ export default function OrganizationGlobalReviewsPage() {
                                             <h4 className="font-bold text-sm uppercase italic">{review.userName}</h4>
                                             <CheckCircle2 className="w-3.5 h-3.5 fill-blue-500 text-white" />
                                          </div>
-                                         <p className="text-[9px] font-bold text-muted-foreground uppercase">Em {new Date(review.createdAt?.seconds * 1000 || review.createdAt).toLocaleDateString('pt-BR')}</p>
+                                         <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">Visitou em {new Date(review.createdAt?.seconds * 1000 || review.createdAt).toLocaleDateString('pt-BR')}</p>
                                       </div>
                                    </div>
                                    <div className="flex gap-0.5">
@@ -350,8 +349,8 @@ export default function OrganizationGlobalReviewsPage() {
                                    <p className="text-xs text-muted-foreground leading-relaxed">"{review.fullExperience}"</p>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                   {review.badges?.map((b: string, i: number) => (
-                                     <Badge key={i} variant="secondary" className="bg-secondary/5 text-secondary border-secondary/10 text-[7px] font-black uppercase h-5 px-2">{b}</Badge>
+                                   {review.badges?.map((badge: string, i: number) => (
+                                     <Badge key={i} variant="secondary" className="bg-secondary/5 text-secondary border-secondary/10 text-[7px] font-black uppercase h-6 px-2">{badge}</Badge>
                                    ))}
                                 </div>
                              </div>
