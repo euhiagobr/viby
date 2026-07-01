@@ -18,14 +18,13 @@ import {
   Calculator, 
   Info, 
   CheckCircle2, 
-  TrendingUp,
-  Coins,
-  ArrowUpRight,
-  Sparkles,
-  Building2,
-  Globe,
+  Coins, 
   Zap,
-  ShoppingBag
+  ShoppingBag,
+  User,
+  Building2,
+  TrendingUp,
+  Percent
 } from 'lucide-react';
 import { calculateVibyOfficialSplit, isTemporalActive } from '@/lib/financial-utils';
 import { useCurrency, CurrencyCode } from '@/contexts/CurrencyContext';
@@ -43,24 +42,27 @@ export function ExperienceRevenueSimulator({ isOpen, onOpenChange, organization 
   const { formatPrice, currency, rates } = useCurrency();
   const db = useFirestore();
   
-  const [priceInput, setPriceInput] = React.useState("150.00");
+  const [priceInput, setPriceInput] = React.useState("100.00");
   const [qtyInput, setQtyInput] = React.useState("1");
 
   const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
   const { data: globalFees } = useDoc<any>(feesRef);
 
+  const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
+  const { data: promotions } = useDoc<any>(promosRef);
+
   const results = React.useMemo(() => {
     const facePrice = parseFloat(priceInput) || 0;
     const qty = Math.max(1, parseInt(qtyInput) || 1);
     
-    // Unificação de Lógica: Consome a mesma função do Checkout e Admin
+    // Consome a mesma função de cálculo do Checkout e do Motor Fiscal
     const split = calculateVibyOfficialSplit(
       facePrice, 
       currency as CurrencyCode, 
       rates, 
       organization, 
       globalFees, 
-      null, 
+      promotions, 
       'experience'
     );
 
@@ -69,9 +71,10 @@ export function ExperienceRevenueSimulator({ isOpen, onOpenChange, organization 
       qty,
       totalGross: Number((split.facePrice * qty).toFixed(2)),
       totalNet: Number((split.organizerNet * qty).toFixed(2)),
-      totalFees: Number((split.vibyApplicationFee * qty).toFixed(2))
+      totalFees: Number((split.vibyApplicationFee * qty).toFixed(2)),
+      totalBuyerPays: Number((split.totalCharged * qty).toFixed(2))
     };
-  }, [priceInput, qtyInput, currency, rates, organization, globalFees]);
+  }, [priceInput, qtyInput, currency, rates, organization, globalFees, promotions]);
 
   const configOrigin = React.useMemo(() => {
     const v2Override = organization?.financialOverrides?.experience;
@@ -108,15 +111,15 @@ export function ExperienceRevenueSimulator({ isOpen, onOpenChange, organization 
              
              <div className="grid grid-cols-2 gap-3">
                 <div className="p-4 bg-muted/20 rounded-2xl border border-dashed flex flex-col gap-1">
-                   <span className="text-[8px] font-black uppercase opacity-40">Comissão Retida</span>
+                   <span className="text-[8px] font-black uppercase opacity-40">Sua Comissão (Retida)</span>
                    <span className="text-sm font-black text-primary italic">
                       {((results.organizerFee / (results.facePrice || 1)) * 100).toFixed(1)}%
                    </span>
                 </div>
                 <div className="p-4 bg-muted/20 rounded-2xl border border-dashed flex flex-col gap-1">
-                   <span className="text-[8px] font-black uppercase opacity-40">Taxa Mínima</span>
+                   <span className="text-[8px] font-black uppercase opacity-40">Taxa do Cliente (Markup)</span>
                    <span className="text-sm font-black text-primary italic">
-                      {formatPrice(results.organizerFee > 0 ? (results.facePrice - results.organizerNet) : 0, currency as CurrencyCode)}
+                      {((results.buyerFee / (results.facePrice || 1)) * 100).toFixed(1)}%
                    </span>
                 </div>
              </div>
@@ -125,10 +128,10 @@ export function ExperienceRevenueSimulator({ isOpen, onOpenChange, organization 
           <Separator className="border-dashed" />
 
           {/* CALCULADORA */}
-          <div className="space-y-4">
+          <div className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Preço do Ingresso</Label>
+                   <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Preço do Ingresso (P)</Label>
                    <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black opacity-30">
                         {currency === 'BRL' ? 'R$' : '$'}
@@ -152,14 +155,14 @@ export function ExperienceRevenueSimulator({ isOpen, onOpenChange, organization 
                 </div>
              </div>
 
-             <div className="space-y-3 pt-2">
+             <div className="space-y-4 pt-2">
                 <div className="flex justify-between items-center text-xs font-bold uppercase opacity-60">
-                   <span>Valor Bruto ({results.qty} un.)</span>
-                   <span>{formatPrice(results.totalGross, currency as CurrencyCode)}</span>
+                   <span className="flex items-center gap-2"><User className="w-3 h-3" /> Cliente paga (Final)</span>
+                   <span className="text-primary">{formatPrice(results.totalBuyerPays, currency as CurrencyCode)}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs font-bold uppercase text-red-500">
-                   <span className="flex items-center gap-1.5"><Info className="w-3 h-3" /> Total Taxas retidas</span>
-                   <span>-{formatPrice(results.totalFees, currency as CurrencyCode)}</span>
+                   <span className="flex items-center gap-1.5"><TrendingUp className="w-3 h-3" /> Total Taxas (Viby)</span>
+                   <span className="font-black">-{formatPrice(results.totalFees, currency as CurrencyCode)}</span>
                 </div>
              </div>
 
@@ -170,14 +173,14 @@ export function ExperienceRevenueSimulator({ isOpen, onOpenChange, organization 
                 <p className="text-5xl font-black text-green-600 italic tracking-tighter">
                    {formatPrice(results.totalNet, currency as CurrencyCode)}
                 </p>
-                <p className="text-[8px] font-bold text-green-800/40 uppercase">Valor líquido creditado na sua conta</p>
+                <p className="text-[8px] font-bold text-green-800/40 uppercase">Líquido de comissões por {results.qty} un.</p>
              </div>
           </div>
 
           <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
             <Zap className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
             <p className="text-[9px] text-secondary font-bold leading-relaxed uppercase italic">
-              As taxas são descontadas automaticamente no momento da confirmação do pagamento. O valor "Você recebe" já está livre de comissões e impostos da plataforma.
+              A Viby utiliza o modelo de Taxa Dupla: o comprador paga um markup sobre o preço, e o organizador paga uma comissão sobre a venda. Ambos os valores compõem a receita da plataforma.
             </p>
           </div>
         </div>
