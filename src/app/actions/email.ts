@@ -1,3 +1,4 @@
+
 'use server';
 
 import nodemailer from 'nodemailer';
@@ -10,7 +11,7 @@ async function getBranding() {
     const snap = await db.collection('settings').doc('site').get();
     const data = snap.data();
     
-    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Flogo_placeholder.png?alt=media";
+    const defaultLogo = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
     
     return {
       logoUrl: data?.logoUrl || defaultLogo,
@@ -101,6 +102,9 @@ function getEmailTemplate(branding: any, content: string) {
   `.trim();
 }
 
+/**
+ * Envia o e-mail do voucher com suporte a detalhes completos de Experiências.
+ */
 export async function sendTicketEmail(data: { 
   to: string; 
   userName: string; 
@@ -111,14 +115,51 @@ export async function sendTicketEmail(data: {
   voucherUrl: string;
   usagePolicy?: string;
   additionalInfo?: string;
+  // Novos campos estruturados da Experience
+  description?: string;
+  inclusions?: any[];
+  exclusions?: any[];
+  rules?: any[];
 }) {
   const branding = await getBranding();
   const db = getAdminDb();
   
   const usagePolicy = String(data.usagePolicy || "").trim();
   const additionalInfo = String(data.additionalInfo || "").trim();
+  const description = String(data.description || "").replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').trim();
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${data.ticketCode}`;
+
+  const inclusionsHtml = data.inclusions && data.inclusions.length > 0 ? `
+    <div style="margin-bottom: 25px; padding: 20px; background-color: #f0fdf4; border-radius: 20px; border: 1px solid #dcfce7;">
+      <h4 style="font-size: 11px; text-transform: uppercase; color: #166534; letter-spacing: 1px; margin: 0 0 12px 0;">O que está incluso:</h4>
+      <ul style="padding: 0; margin: 0; list-style: none;">
+        ${data.inclusions.map(i => `<li style="font-size: 13px; color: #1e293b; margin-bottom: 8px;">✅ ${typeof i === 'string' ? i : i.label}</li>`).join('')}
+      </ul>
+    </div>
+  ` : '';
+
+  const exclusionsHtml = data.exclusions && data.exclusions.length > 0 ? `
+    <div style="margin-bottom: 25px; padding: 20px; background-color: #fff1f2; border-radius: 20px; border: 1px solid #ffe4e6;">
+      <h4 style="font-size: 11px; text-transform: uppercase; color: #9f1239; letter-spacing: 1px; margin: 0 0 12px 0;">Não incluso:</h4>
+      <ul style="padding: 0; margin: 0; list-style: none;">
+        ${data.exclusions.map(i => `<li style="font-size: 13px; color: #1e293b; margin-bottom: 8px;">❌ ${typeof i === 'string' ? i : i.label}</li>`).join('')}
+      </ul>
+    </div>
+  ` : '';
+
+  const rulesHtml = data.rules && data.rules.length > 0 ? `
+    <div style="margin-bottom: 25px;">
+      <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 12px;">Regras e Políticas:</h4>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        ${data.rules.map(r => `
+          <div style="display: inline-block; background-color: #f1f5f9; padding: 8px 12px; border-radius: 10px; font-size: 11px; color: #475569; font-weight: bold; margin-bottom: 5px; margin-right: 5px;">
+            ℹ️ ${typeof r === 'string' ? r : r.label}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
 
   const content = `
     <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; font-weight: 900; text-align: center;">Seu Ingresso está aqui!</h2>
@@ -136,9 +177,19 @@ export async function sendTicketEmail(data: {
       <p style="margin: 0; font-size: 24px; font-weight: 900; color: #2C52EE; font-family: monospace; letter-spacing: 3px;">${data.ticketCode}</p>
     </div>
 
+    ${description ? `
+      <div style="margin-bottom: 25px; font-size: 14px; line-height: 1.6; color: #334155;">
+        ${description.replace(/\n/g, '<br>')}
+      </div>
+    ` : ''}
+
+    ${inclusionsHtml}
+    ${exclusionsHtml}
+    ${rulesHtml}
+
     ${usagePolicy ? `
       <div style="margin-bottom: 25px;">
-        <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Regras e Políticas:</h4>
+        <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Instruções Adicionais:</h4>
         <div style="font-size: 13px; line-height: 1.6; color: #334155; background: #fefce8; padding: 15px; border-radius: 12px; border: 1px solid #fef08a;">
           ${usagePolicy.replace(/\n/g, '<br>')}
         </div>

@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import * as admin from 'firebase-admin';
@@ -163,7 +164,11 @@ export async function POST(req: Request) {
                 eventCity: item.eventCity,
                 voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`,
                 usagePolicy: String(eventInfo?.usagePolicy || "").trim(),
-                additionalInfo: String(eventInfo?.additionalInfo || "").trim()
+                additionalInfo: String(eventInfo?.additionalInfo || "").trim(),
+                description: eventInfo?.description || "",
+                inclusions: eventInfo?.inclusions || [],
+                exclusions: eventInfo?.exclusions || [],
+                rules: eventInfo?.rules || []
               });
             }
           }

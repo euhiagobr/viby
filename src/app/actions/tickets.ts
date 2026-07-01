@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -166,7 +167,11 @@ export async function generateFreeTickets(data: {
             eventCity: item.eventCity,
             voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`,
             usagePolicy: String(eventInfo?.usagePolicy || "").trim(),
-            additionalInfo: String(eventInfo?.additionalInfo || "").trim()
+            additionalInfo: String(eventInfo?.additionalInfo || "").trim(),
+            description: eventInfo?.description || "",
+            inclusions: eventInfo?.inclusions || [],
+            exclusions: eventInfo?.exclusions || [],
+            rules: eventInfo?.rules || []
           });
         }
       }
@@ -212,7 +217,11 @@ export async function resendTicketAction(registrationId: string) {
       eventCity: reg.eventCity,
       voucherUrl: `https://viby.club/dashboard/ingressos/${registrationId}/voucher`,
       usagePolicy: String(event?.usagePolicy || "").trim(),
-      additionalInfo: String(event?.additionalInfo || "").trim()
+      additionalInfo: String(event?.additionalInfo || "").trim(),
+      description: event?.description || "",
+      inclusions: event?.inclusions || [],
+      exclusions: event?.exclusions || [],
+      rules: event?.rules || []
     });
 
     return { success: true };
