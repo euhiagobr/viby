@@ -144,3 +144,85 @@ export async function createExperienceSlotAction(experienceId: string, data: any
     return { success: false, error: e.message };
   }
 }
+
+export async function updateExperienceSlotAction(experienceId: string, slotId: string, data: any) {
+  const db = getAdminDb();
+  try {
+    await db.collection('experiences').doc(experienceId).collection('slots').doc(slotId).update({
+      ...data,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteExperienceSlotAction(experienceId: string, slotId: string) {
+  const db = getAdminDb();
+  try {
+    await db.collection('experiences').doc(experienceId).collection('slots').doc(slotId).delete();
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function deleteExperienceAction(id: string) {
+  const db = getAdminDb();
+  try {
+    // Check for reservations
+    const reservationsSnap = await db.collection('registrations')
+      .where('eventId', '==', id)
+      .where('productType', '==', 'experience')
+      .limit(1)
+      .get();
+    
+    const expRef = db.collection('experiences').doc(id);
+
+    if (!reservationsSnap.empty) {
+      // If reservations exist, soft delete (change status to deleted or hidden)
+      await expRef.update({ status: 'deleted', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    } else {
+      // If no reservations, delete document and subcollections
+      const slotsSnap = await expRef.collection('slots').get();
+      const batch = db.batch();
+      slotsSnap.forEach(s => batch.delete(s.ref));
+      batch.delete(expRef);
+      await batch.commit();
+    }
+    revalidatePath('/');
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function duplicateExperienceAction(id: string, userId: string) {
+  const db = getAdminDb();
+  try {
+    const originalSnap = await db.collection('experiences').doc(id).get();
+    if (!originalSnap.exists) throw new Error("Original not found.");
+    
+    const data = originalSnap.data()!;
+    const newRef = db.collection('experiences').doc();
+    
+    const duplicateData = {
+      ...data,
+      id: newRef.id,
+      title: `${data.title} (Cópia)`,
+      slug: slugify(`${data.title} (Cópia)`),
+      status: 'draft',
+      createdBy: userId,
+      reviewCount: 0,
+      averageRating: 5.0,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await newRef.set(duplicateData);
+    return { success: true, id: newRef.id };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
