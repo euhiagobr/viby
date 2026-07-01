@@ -20,7 +20,8 @@ import {
   XCircle,
   ShieldCheck,
   ShieldAlert,
-  Info
+  Info,
+  Lock as LockIcon
 } from "lucide-react"
 import Image from "next/image"
 import { QRCodeSVG } from "qrcode.react"
