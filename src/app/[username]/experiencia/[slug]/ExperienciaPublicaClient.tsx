@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -17,10 +18,16 @@ import {
   ShoppingBag,
   Loader2,
   Calendar as CalendarIcon,
-  AlertTriangle,
   Star,
+  Users,
+  Check,
+  ChevronRight,
+  ShieldAlert,
   Camera,
-  Users
+  MessageCircle,
+  HelpCircle,
+  X,
+  Plus
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RichText } from '@/components/ui/rich-text';
@@ -41,6 +48,13 @@ import { format, isSameDay, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ExperiencePublicReviews } from '@/components/experiences/ExperiencePublicReviews';
 import { CommunityGallery } from '@/components/experiences/CommunityGallery';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
   ssr: false,
@@ -62,6 +76,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
 
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = React.useState<any>(null);
+  const [isGalleryOpen, setIsGalleryOpen] = React.useState(false);
 
   const slotsQuery = useMemoFirebase(() => {
     if (!db || !experience.id) return null;
@@ -92,13 +107,8 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       const remaining = slot.capacity - (slot.sold || 0);
       const hasVacancy = remaining > 0;
       
-      if (hasVacancy) {
-        stats[key].available = true;
-      }
-      
-      if (hasVacancy) {
-        stats[key].full = false;
-      }
+      if (hasVacancy) stats[key].available = true;
+      if (hasVacancy) stats[key].full = false;
     });
 
     return stats;
@@ -121,9 +131,9 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
 
   const handleAction = () => {
     if (!selectedSlot) {
-      const el = document.getElementById('seletor-agenda');
+      const el = document.getElementById('booking-card');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
-      toast({ title: "Escolha uma data", description: "Selecione o dia e horário desejado no calendário." });
+      toast({ title: "Escolha uma data", description: "Selecione o dia e horário desejado." });
       return;
     }
 
@@ -155,13 +165,8 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       productType: 'experience'
     });
 
-    toast({ title: "Adicionado!", description: "Sua vaga foi reservada no carrinho." });
     router.push('/dashboard/carrinho');
   };
-
-  const address = experience.address || {};
-  const lat = address.latitude || experience.latitude || -23.55052;
-  const lng = address.longitude || experience.longitude || -46.633308;
 
   const minPrice = React.useMemo(() => {
     if (slots.length === 0) return 0;
@@ -172,234 +177,380 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
     return prices.length > 0 ? Math.min(...prices) : 0;
   }, [slots]);
 
+  const address = experience.address || {};
+  const lat = address.latitude || experience.latitude || -23.55052;
+  const lng = address.longitude || experience.longitude || -46.633308;
+
+  // Itens Inclusos e Regras (Fallbacks para visualização editorial)
+  const inclusions = experience.inclusions || ["Guia Especializado", "Seguro Aventura", "Equipamentos de Segurança", "Kit de Boas-vindas"];
+  const exclusions = experience.exclusions || ["Alimentação", "Transporte até o local", "Gastos Pessoais"];
+  const rules = experience.rules || [
+    { label: "Não permitido fumar", icon: ShieldAlert },
+    { label: "Aceita pets", icon: Check },
+    { label: "Acessível", icon: ShieldCheck },
+    { label: "Fotografias liberadas", icon: Camera }
+  ];
+
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col selection:bg-secondary selection:text-white">
+    <div className="min-h-screen bg-white flex flex-col selection:bg-secondary/10 selection:text-secondary">
       <PublicHeader showBack />
 
-      <main className="flex-1 animate-in fade-in duration-700">
-        <div className="relative h-[40vh] md:h-[55vh] w-full overflow-hidden bg-black">
-          {experience.image && (
-            <Image src={experience.image} alt={experience.title} fill className="object-cover opacity-80" priority unoptimized />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#f8fafc] via-[#f8fafc]/30 to-transparent" />
-          <div className="absolute bottom-0 left-0 p-6 md:p-12 w-full">
-            <div className="container mx-auto max-w-6xl space-y-6">
-              <Badge className="bg-secondary text-white border-none text-[10px] font-black uppercase px-4 py-1.5 rounded-full shadow-lg">
-                {experience.category || "Experiência Cultural"}
-              </Badge>
-              <h1 className="text-4xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-[0.85]">{experience.title}</h1>
-              <div className="flex flex-col gap-1">
-                 <p className="text-lg md:text-2xl font-medium text-primary/70 max-w-2xl leading-relaxed uppercase tracking-wide italic">
-                  {experience.shortDescription}
-                 </p>
-                 <div className="flex items-center gap-6 mt-2">
-                    {minPrice > 0 && (
-                      <p className="text-xl font-black text-secondary italic uppercase tracking-tighter">A partir de {formatPrice(minPrice, experience.currency || 'BRL')}</p>
-                    )}
-                    <div className="flex items-center gap-2 bg-white/80 px-3 py-1.5 rounded-full shadow-sm">
-                       <Star className="w-4 h-4 fill-orange-400 text-orange-400" />
-                       <span className="text-sm font-black text-primary">{Number(experience.averageRating || 5).toFixed(1)} <span className="opacity-40 font-bold">({experience.reviewCount || 0})</span></span>
-                    </div>
-                 </div>
-              </div>
-            </div>
+      <main className="flex-1 pb-32">
+        {/* 1. GALERIA PREMIUM */}
+        <section className="container mx-auto px-4 pt-8 md:pt-12">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 h-[500px] md:h-[600px] rounded-[3rem] overflow-hidden shadow-2xl relative group">
+             <div className="md:col-span-2 relative h-full">
+                <Image src={experience.image} alt={experience.title} fill className="object-cover transition-transform duration-1000 group-hover:scale-[1.02]" priority unoptimized />
+             </div>
+             <div className="hidden md:grid grid-cols-2 grid-rows-2 col-span-2 gap-2 h-full">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="relative bg-muted overflow-hidden">
+                     <Image src={experience.gallery?.[i] || experience.image} alt="" fill className="object-cover transition-transform duration-700 hover:scale-110" unoptimized />
+                  </div>
+                ))}
+             </div>
+             {experience.gallery?.length > 4 && (
+               <Button 
+                onClick={() => setIsGalleryOpen(true)}
+                className="absolute bottom-8 right-8 bg-white/90 backdrop-blur-md text-primary font-black uppercase italic text-xs h-12 px-8 rounded-2xl shadow-2xl hover:bg-white border-none"
+               >
+                 <Camera className="w-4 h-4 mr-2" /> +{experience.gallery.length - 4} Fotos
+               </Button>
+             )}
           </div>
-        </div>
+        </section>
 
-        <div className="container mx-auto px-4 py-12 max-w-6xl flex flex-col lg:grid lg:grid-cols-12 gap-12">
+        <div className="container mx-auto px-4 pt-12 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-16">
           
-          <div className="lg:col-span-7 flex flex-col gap-16 order-1">
+          {/* LADO ESQUERDO: CONTEÚDO EDITORIAL */}
+          <div className="lg:col-span-8 space-y-20">
             
-            <section className="space-y-6 order-1">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
-                <Info className="w-4 h-4 text-secondary" /> Detalhes da Experiência
-              </h2>
-              <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-                <CardContent className="p-8 md:p-12">
-                  <RichText content={experience.description} className="text-lg md:text-xl font-medium text-foreground/80 leading-relaxed" />
-                </CardContent>
-              </Card>
+            {/* 2. HEADER INFO */}
+            <section className="space-y-6">
+               <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                     <Badge className="bg-secondary text-white border-none font-black uppercase text-[10px] tracking-widest px-4 h-6">{experience.category || "Experiência"}</Badge>
+                     <div className="flex items-center gap-1.5 bg-muted/50 px-3 py-1 rounded-full">
+                        <Star className="w-3.5 h-3.5 fill-orange-400 text-orange-400" />
+                        <span className="text-sm font-black">{Number(experience.averageRating || 5).toFixed(1)} <span className="opacity-40 font-bold">({experience.reviewCount || 0} avaliações)</span></span>
+                     </div>
+                  </div>
+                  <h1 className="text-4xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-[0.85]">{experience.title}</h1>
+                  <div className="flex items-center gap-2 text-muted-foreground font-bold text-lg uppercase tracking-tight">
+                     <MapPin className="w-5 h-5 text-secondary" /> {experience.city} • {experience.state}
+                  </div>
+               </div>
+
+               {/* Destaques Rápidos */}
+               <div className="flex flex-wrap gap-4 pt-4">
+                  <Highlight icon={Clock} label="3 Horas" />
+                  <Highlight icon={Users} label="Até 12 pessoas" />
+                  <Highlight icon={Zap} label="Reserva Imediata" />
+                  <Highlight icon={ShieldCheck} label="Voucher Digital" />
+               </div>
             </section>
 
-            <section className="space-y-6 order-2">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-secondary" /> Localização
-              </h2>
-              <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
-                <div className="h-64 w-full">
-                  <LocationMap latitude={lat} longitude={lng} interactive={false} onChange={() => {}} />
-                </div>
-                <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
-                   <div className="space-y-1 text-center md:text-left">
-                      <h4 className="font-black text-xl uppercase italic tracking-tighter text-primary">
-                        {address.venueName || "Local de Realização"}
-                      </h4>
-                      <p className="text-xs font-medium text-muted-foreground uppercase leading-relaxed">
-                        {address.addressLine1} {address.streetNumber && `, ${address.streetNumber}`}
-                        <br />
-                        {address.neighborhood && `${address.neighborhood}, `} {address.city} - {address.stateRegion}
-                      </p>
-                   </div>
-                   <Button variant="outline" className="rounded-xl h-12 px-6 gap-2 font-bold uppercase text-[10px] border-secondary text-secondary" asChild>
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((address.addressLine1 || '') + ' ' + (address.city || ''))}`} target="_blank" rel="noopener noreferrer">
-                        <Navigation className="w-4 h-4" /> Ver no Mapa
-                      </a>
-                   </Button>
-                </CardContent>
-              </Card>
+            <Separator className="border-dashed" />
+
+            {/* 5. SOBRE A EXPERIÊNCIA */}
+            <section className="space-y-8">
+               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground flex items-center gap-2">
+                 <Info className="w-4 h-4 text-secondary" /> Sobre esta experiência
+               </h2>
+               <div className="prose prose-slate max-w-none prose-p:text-xl prose-p:font-medium prose-p:text-foreground/70 prose-p:leading-relaxed">
+                  <RichText content={experience.description} />
+               </div>
             </section>
 
-            {experience.usagePolicy && (
-              <section className="space-y-6 order-4">
-                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-secondary" /> Regras e Políticas
-                </h2>
-                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8 md:p-12">
-                   <RichText content={experience.usagePolicy} className="text-sm md:text-base font-medium text-muted-foreground leading-relaxed" />
-                </Card>
-              </section>
-            )}
+            {/* 6 & 7. INCLUSÕES E EXCLUSÕES */}
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-12">
+               <div className="space-y-6">
+                  <h3 className="font-black uppercase italic tracking-tighter text-xl text-primary">O que está incluso</h3>
+                  <ul className="space-y-4">
+                     {inclusions.map((item, i) => (
+                       <li key={i} className="flex items-center gap-3 text-lg font-medium text-foreground/70">
+                          <CheckCircle2 className="w-6 h-6 text-green-500 shrink-0" /> {item}
+                       </li>
+                     ))}
+                  </ul>
+               </div>
+               <div className="space-y-6">
+                  <h3 className="font-black uppercase italic tracking-tighter text-xl text-primary">O que não está incluso</h3>
+                  <ul className="space-y-4">
+                     {exclusions.map((item, i) => (
+                       <li key={i} className="flex items-center gap-3 text-lg font-medium text-muted-foreground/60">
+                          <X className="w-6 h-6 text-destructive shrink-0 opacity-40" /> {item}
+                       </li>
+                     ))}
+                  </ul>
+               </div>
+            </section>
+
+            {/* 8. COMO FUNCIONA (TIMELINE) */}
+            <section className="space-y-12 py-10 bg-muted/20 rounded-[3rem] p-12 border">
+               <div className="text-center space-y-2">
+                  <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Como funciona</h2>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sua jornada do início ao fim</p>
+               </div>
+               <div className="relative flex flex-col md:flex-row justify-between items-start gap-12 md:gap-4 before:hidden md:before:block before:absolute before:top-8 before:left-0 before:right-0 before:h-0.5 before:bg-border before:border-dashed">
+                  <TimelineStep num="01" label="Reserva" desc="Garanta sua vaga pelo site" />
+                  <TimelineStep num="02" label="Confirmação" desc="Voucher imediato no seu e-mail" />
+                  <TimelineStep num="03" label="Chegada" desc="Apresente o QR Code no local" />
+                  <TimelineStep num="04" label="Experiência" desc="Viva momentos inesquecíveis" />
+               </div>
+            </section>
+
+            {/* 9. LOCALIZAÇÃO */}
+            <section className="space-y-8">
+               <div className="flex items-center justify-between px-2">
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground">Localização</h2>
+               </div>
+               <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+                  <div className="md:col-span-8 h-96 rounded-[3rem] overflow-hidden shadow-xl border">
+                    <LocationMap latitude={lat} longitude={lng} interactive={false} onChange={() => {}} />
+                  </div>
+                  <div className="md:col-span-4 space-y-6">
+                     <div className="space-y-1">
+                        <h4 className="font-black text-2xl uppercase italic tracking-tighter text-primary">{address.venueName || experience.city}</h4>
+                        <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed">
+                           {address.addressLine1}, {address.streetNumber}<br/>
+                           {address.neighborhood}, {address.city} - {address.stateRegion}
+                        </p>
+                     </div>
+                     <Button asChild className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic gap-2 hover:scale-105 transition-transform">
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.addressLine1 + ' ' + address.city)}`} target="_blank">
+                           <Navigation className="w-4 h-4" /> Abrir no Maps
+                        </a>
+                     </Button>
+                  </div>
+               </div>
+            </section>
+
+            {/* 10. REGRAS (CARDS) */}
+            <section className="space-y-8">
+               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground px-2">Regras e Políticas</h2>
+               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {rules.map((rule, i) => (
+                    <Card key={i} className="border-none shadow-sm bg-muted/30 p-6 flex flex-col items-center text-center gap-3 rounded-3xl">
+                       <rule.icon className="w-6 h-6 text-secondary" />
+                       <span className="text-[10px] font-black uppercase text-primary leading-tight">{rule.label}</span>
+                    </Card>
+                  ))}
+               </div>
+               <div className="p-8 bg-white border rounded-[2rem] text-sm text-muted-foreground leading-relaxed">
+                  <RichText content={experience.usagePolicy || "Consulte as políticas de cancelamento e no-show antes da reserva."} />
+               </div>
+            </section>
+
           </div>
 
-          <aside id="seletor-agenda" className="lg:col-span-5 order-3 lg:row-start-1 lg:row-span-10">
-            <div className="lg:sticky lg:top-24 space-y-8">
-              <Card className="border-none shadow-2xl rounded-[3rem] bg-white p-8 space-y-8">
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                        <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">Selecionar Data</h3>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase">Escolha o dia da sua vivência</p>
-                    </div>
-                  </div>
+          {/* LADO DIREITO: CARD DE RESERVA (STICKY) */}
+          <aside className="lg:col-span-4">
+             <div className="sticky top-24 space-y-8" id="booking-card">
+                <Card className="border-none shadow-2xl rounded-[3rem] bg-white p-8 space-y-8 overflow-hidden relative">
+                   <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-secondary to-purple-500" />
+                   
+                   <div className="space-y-1">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-60">A partir de</p>
+                      <div className="text-4xl font-black text-primary italic tracking-tighter">{formatPrice(minPrice, experience.currency)}</div>
+                   </div>
 
-                  <div className="bg-muted/30 rounded-[2rem] p-4 flex justify-center border-2 border-dashed border-border/40">
-                    <CalendarComponent
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
-                      locale={ptBR}
-                      disabled={(date) => {
-                          const now = startOfDay(new Date());
-                          if (date < now) return true;
-                          return false;
-                      }}
-                      modifiers={{
-                          available: availableDates,
-                          full: fullDates
-                      }}
-                      modifiersClassNames={{
-                          available: "bg-secondary/10 text-secondary font-black hover:bg-secondary hover:text-white rounded-xl",
-                          full: "bg-muted-foreground/10 text-muted-foreground/40 line-through rounded-xl"
-                      }}
-                      className="rounded-xl border-none"
-                    />
-                  </div>
+                   <Separator className="border-dashed" />
 
-                  {selectedDate && (
-                    <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
-                      <Separator className="border-dashed" />
+                   <div className="space-y-6">
                       <div className="space-y-3">
-                        <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Horários para {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}</p>
-                        <div className="grid grid-cols-1 gap-2">
-                            {filteredSlotsForDate.length > 0 ? filteredSlotsForDate.map(slot => {
-                              const remaining = slot.capacity - (slot.sold || 0);
-                              const isSoldOut = remaining <= 0;
-                              const isLowStock = !isSoldOut && (remaining / slot.capacity) <= 0.1;
-                              const isSelected = selectedSlot?.id === slot.id;
+                         <Label className="text-[10px] font-black uppercase tracking-widest ml-1">1. Escolha a Data</Label>
+                         <div className="bg-muted/30 p-4 rounded-[2rem] border-2 border-dashed flex justify-center">
+                            <CalendarComponent 
+                               mode="single" 
+                               selected={selectedDate} 
+                               onSelect={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
+                               locale={ptBR}
+                               modifiers={{ available: availableDates, full: fullDates }}
+                               modifiersClassNames={{ available: "bg-secondary/10 text-secondary font-black rounded-xl", full: "bg-muted text-muted-foreground opacity-30 line-through" }}
+                               disabled={(date) => date < startOfDay(new Date())}
+                               className="rounded-xl border-none"
+                            />
+                         </div>
+                      </div>
 
-                              return (
-                                <button
+                      {selectedDate && (
+                        <div className="space-y-4 animate-in slide-in-from-top-2">
+                           <Label className="text-[10px] font-black uppercase tracking-widest ml-1">2. Escolha o Horário</Label>
+                           <div className="grid grid-cols-1 gap-2">
+                              {filteredSlotsForDate.map(slot => (
+                                <button 
                                   key={slot.id}
-                                  disabled={isSoldOut}
                                   onClick={() => setSelectedSlot(slot)}
                                   className={cn(
-                                    "w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all group",
-                                    isSelected ? "border-secondary bg-secondary/5 shadow-inner" : "border-transparent bg-muted/40 hover:border-secondary/20",
-                                    isSoldOut && "opacity-40 grayscale cursor-not-allowed"
+                                    "flex items-center justify-between p-4 rounded-2xl border-2 transition-all",
+                                    selectedSlot?.id === slot.id ? "border-secondary bg-secondary/5 shadow-inner" : "border-transparent bg-muted/40 hover:bg-muted"
                                   )}
                                 >
-                                  <div className="flex items-center gap-4">
-                                      <div className={cn("p-2 rounded-xl", isSelected ? "bg-secondary text-white" : "bg-white text-primary shadow-sm")}>
-                                        <Clock className="w-4 h-4" />
-                                      </div>
-                                      <div className="text-left">
-                                        <p className="text-sm font-black uppercase italic text-primary">{new Date(slot.datetime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                                        <p className={cn("text-[9px] font-bold uppercase", isLowStock ? "text-orange-600" : "text-muted-foreground")}>
-                                            {isSoldOut ? "Lote Esgotado" : isLowStock ? "Últimas vagas" : "Disponível"}
-                                        </p>
-                                      </div>
-                                  </div>
-                                  <div className="text-right">
-                                      {slot.hasPromo ? (
-                                        <div className="flex flex-col items-end">
-                                          <span className="text-[8px] font-black text-red-500 uppercase line-through opacity-40">{formatPrice(slot.price, experience.currency)}</span>
-                                          <span className="text-sm font-black text-secondary">{formatPrice(slot.promoPrice, experience.currency)}</span>
-                                        </div>
-                                      ) : (
-                                        <span className="text-sm font-black text-primary">{formatPrice(slot.price, experience.currency)}</span>
-                                      )}
-                                  </div>
+                                   <div className="flex items-center gap-3">
+                                      <Clock className="w-4 h-4 text-secondary" />
+                                      <span className="font-black text-sm uppercase italic">{new Date(slot.datetime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                   </div>
+                                   <span className="font-black text-sm">{formatPrice(slot.hasPromo ? slot.promoPrice : slot.price, experience.currency)}</span>
                                 </button>
-                              );
-                            }) : (
-                              <div className="p-8 text-center bg-red-50 rounded-2xl border-2 border-dashed border-red-200">
-                                <AlertTriangle className="w-6 h-6 text-red-500 mx-auto mb-2" />
-                                <p className="text-[10px] font-black uppercase text-red-700">Sem disponibilidade para esta data</p>
-                              </div>
-                            )}
+                              ))}
+                           </div>
                         </div>
+                      )}
+
+                      <Button 
+                        onClick={handleAction}
+                        disabled={loadingSlots}
+                        className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg hover:scale-[1.02] transition-transform"
+                      >
+                         {loadingSlots ? <Loader2 className="animate-spin" /> : <><ShoppingBag className="w-5 h-5 mr-2" /> Reservar agora</>}
+                      </Button>
+
+                      <div className="space-y-3 pt-4 border-t border-dashed">
+                         <TrustLine label="Compra Segura 256-bit" />
+                         <TrustLine label="Confirmação Imediata" />
+                         <TrustLine label="Atendimento Viby Club" />
                       </div>
-                    </div>
-                  )}
+                   </div>
+                </Card>
 
-                  <div className="pt-4">
-                    <Button 
-                      onClick={handleAction}
-                      className="w-full h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-sm gap-2 transition-all hover:scale-105 active:scale-95"
-                    >
-                      <ShoppingBag className="w-5 h-5" /> {selectedSlot ? "Adicionar ao Carrinho" : "Selecione um Horário"}
-                    </Button>
-                  </div>
-
-                  <Separator className="border-dashed" />
-
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-12 w-12 border-2 border-secondary/10">
-                      <AvatarImage src={experience.organizer?.avatar} className="object-cover" />
-                      <AvatarFallback className="font-bold">{experience.organizer?.name?.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-black text-sm uppercase italic text-primary truncate">{experience.organizer?.name}</h4>
-                        <BadgeCheck className="w-4 h-4 text-blue-500 shrink-0" />
+                {/* Card do Organizador */}
+                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8 space-y-6">
+                   <div className="flex items-center gap-4">
+                      <Avatar className="h-16 w-16 border-4 border-muted shadow-sm">
+                         <AvatarImage src={experience.organizer?.avatar} className="object-cover" />
+                         <AvatarFallback className="font-black">{experience.organizer?.name?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                         <div className="flex items-center gap-1.5">
+                            <h4 className="font-black text-lg uppercase italic text-primary leading-none">{experience.organizer?.name}</h4>
+                            <BadgeCheck className="w-4 h-4 text-blue-500" />
+                         </div>
+                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Membro desde 2024</p>
                       </div>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase mt-0.5">@{experience.organizer?.username}</p>
-                    </div>
-                    <Button variant="outline" size="icon" className="rounded-xl h-10 w-10 border-2" onClick={() => {
-                      if (navigator.share) navigator.share({ title: experience.title, url: window.location.href });
-                      else toast({ title: "Link copiado!" });
-                    }}><Share2 className="w-4 h-4" /></Button>
-                  </div>
-                </div>
-              </Card>
-
-              <div className="p-6 bg-secondary/5 rounded-[2.5rem] border border-secondary/10 flex items-start gap-4">
-                <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
-                <p className="text-[9px] text-secondary font-bold uppercase leading-relaxed italic">
-                   Garantia de reserva: Sua vaga é assegurada por 10 minutos após ser adicionada ao carrinho para que você conclua o checkout com tranquilidade.
-                </p>
-              </div>
-            </div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-4 py-4 border-y border-dashed">
+                      <div className="text-center">
+                         <p className="text-xl font-black text-primary italic">12</p>
+                         <p className="text-[8px] font-black uppercase opacity-40">Vivências</p>
+                      </div>
+                      <div className="text-center">
+                         <p className="text-xl font-black text-primary italic">4.9</p>
+                         <p className="text-[8px] font-black uppercase opacity-40">Nota Média</p>
+                      </div>
+                   </div>
+                   <Button variant="ghost" asChild className="w-full h-10 rounded-xl font-black uppercase italic text-[10px] gap-2 border">
+                      <Link href={`/${experience.organizer?.username}`}>Ver Perfil Completo <ArrowRight className="w-3.5 h-3.5" /></Link>
+                   </Button>
+                </Card>
+             </div>
           </aside>
         </div>
 
-        {/* NOVAS SEÇÕES: GALERIA E REVIEWS */}
+        {/* 11 & 12. REVIEWS & COMUNIDADE */}
         <CommunityGallery experienceId={experience.id} />
         <ExperiencePublicReviews experience={experience} />
 
+        {/* 15. FAQ */}
+        <section className="container mx-auto px-4 max-w-4xl py-24">
+           <div className="text-center space-y-2 mb-12">
+              <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Dúvidas Frequentes</h2>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tudo o que você precisa saber</p>
+           </div>
+           <Accordion type="single" collapsible className="space-y-4">
+              <FaqItem q="Como recebo meu voucher?" a="Assim que o pagamento for confirmado, o voucher com QR Code aparecerá na sua conta e será enviado para o seu e-mail." />
+              <FaqItem q="Posso reagendar a data?" a="O reagendamento é permitido até 48h antes da experiência, conforme disponibilidade de horários." />
+              <FaqItem q="O que acontece em caso de chuva?" a="Para experiências ao ar livre, o organizador entrará em contato para reagendar ou estornar o valor integral." />
+           </Accordion>
+        </section>
+
+        {/* 16. FINAL CTA */}
+        <section className="container mx-auto px-4 py-32 text-center">
+           <div className="max-w-3xl mx-auto space-y-12">
+              <div className="space-y-4">
+                 <h2 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter text-primary leading-none">Pronto para viver essa experiência?</h2>
+                 <p className="text-xl font-medium text-muted-foreground">Junte-se a centenas de pessoas que já viveram momentos inesquecíveis.</p>
+              </div>
+              <Button 
+                onClick={() => document.getElementById('booking-card')?.scrollIntoView({ behavior: 'smooth' })}
+                className="h-20 px-16 bg-secondary text-white font-black rounded-[2.5rem] shadow-2xl shadow-secondary/30 uppercase italic text-2xl hover:scale-105 transition-all"
+              >
+                 Reservar agora <ArrowRight className="w-8 h-8 ml-4" />
+              </Button>
+           </div>
+        </section>
       </main>
 
       <Footer />
+
+      {/* FULLSCREEN GALLERY LIGHTBOX */}
+      <AnimatePresence>
+        {isGalleryOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex flex-col p-8"
+          >
+             <div className="flex justify-between items-center mb-8">
+                <h3 className="text-white font-black uppercase italic tracking-tighter text-2xl">{experience.title}</h3>
+                <Button variant="ghost" onClick={() => setIsGalleryOpen(false)} className="rounded-full h-12 w-12 text-white hover:bg-white/10"><X className="w-8 h-8" /></Button>
+             </div>
+             <ScrollArea className="flex-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+                   {[experience.image, ...(experience.gallery || [])].map((url, i) => (
+                     <div key={i} className="relative aspect-video rounded-3xl overflow-hidden border border-white/10">
+                        <img src={url} className="w-full h-full object-cover" alt="" />
+                     </div>
+                   ))}
+                </div>
+             </ScrollArea>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
+}
+
+function Highlight({ icon: Icon, label }: any) {
+  return (
+    <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-2xl border border-border/40">
+       <Icon className="w-4 h-4 text-secondary" />
+       <span className="text-xs font-bold uppercase tracking-tight text-primary/80">{label}</span>
+    </div>
+  )
+}
+
+function TimelineStep({ num, label, desc }: any) {
+  return (
+    <div className="relative z-10 flex flex-col items-center md:items-start text-center md:text-left gap-4 flex-1">
+       <div className="w-16 h-16 rounded-[1.5rem] bg-white shadow-xl flex items-center justify-center font-black italic text-xl text-secondary border border-secondary/10">{num}</div>
+       <div className="space-y-1">
+          <p className="font-black uppercase italic text-primary">{label}</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase leading-relaxed max-w-[150px]">{desc}</p>
+       </div>
+    </div>
+  )
+}
+
+function TrustLine({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-green-600">
+       <CheckCircle2 className="w-3.5 h-3.5" />
+       <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
+    </div>
+  )
+}
+
+function FaqItem({ q, a }: { q: string, a: string }) {
+  return (
+    <AccordionItem value={q} className="border-none">
+       <Card className="border-none shadow-sm bg-muted/10 rounded-2xl overflow-hidden">
+          <AccordionTrigger className="px-8 py-6 hover:no-underline font-black uppercase italic tracking-tighter text-primary">
+            {q}
+          </AccordionTrigger>
+          <AccordionContent className="px-8 pb-6 text-base font-medium text-muted-foreground leading-relaxed">
+            {a}
+          </AccordionContent>
+       </Card>
+    </AccordionItem>
+  )
 }
