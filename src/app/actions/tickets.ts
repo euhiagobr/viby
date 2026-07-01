@@ -196,3 +196,44 @@ export async function generateFreeTickets(data: {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Reenvia o e-mail do voucher para um ingresso já existente.
+ */
+export async function resendTicketAction(registrationId: string) {
+  const db = getAdminDb();
+  try {
+    const regSnap = await db.collection("registrations").doc(registrationId).get();
+    if (!regSnap.exists) throw new Error("Ingresso não localizado.");
+    const reg = regSnap.data()!;
+
+    // Buscar detalhes do evento para o e-mail completo
+    const isExp = reg.productType === 'experience';
+    const sourceColl = isExp ? "experiences" : "events";
+    const eventSnap = await db.collection(sourceColl).doc(reg.eventId).get();
+    const eventInfo = eventSnap.exists ? eventSnap.data() : {};
+
+    const d = reg.eventDate?.toDate ? reg.eventDate.toDate() : new Date(reg.eventDate);
+
+    const result = await sendTicketEmail({
+      to: reg.userEmail,
+      userName: reg.userName,
+      eventTitle: reg.eventTitle,
+      ticketCode: reg.ticketCode,
+      eventDate: d.toLocaleString('pt-BR'),
+      eventCity: reg.eventCity,
+      voucherUrl: `https://viby.club/dashboard/ingressos/${registrationId}/voucher`,
+      usagePolicy: String(eventInfo?.usagePolicy || "").trim(),
+      additionalInfo: String(eventInfo?.additionalInfo || "").trim(),
+      description: eventInfo?.description || "",
+      inclusions: eventInfo?.inclusions || [],
+      exclusions: eventInfo?.exclusions || [],
+      rules: eventInfo?.rules || []
+    });
+
+    return result;
+  } catch (e: any) {
+    console.error("[Resend Ticket Action Error]", e);
+    return { success: false, error: e.message };
+  }
+}
