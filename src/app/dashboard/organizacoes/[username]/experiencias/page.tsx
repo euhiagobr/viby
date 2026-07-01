@@ -25,7 +25,8 @@ import {
   History,
   Archive,
   FileText,
-  CheckCircle2
+  CheckCircle2,
+  Info
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -50,6 +51,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { deleteExperienceAction, duplicateExperienceAction } from '@/app/actions/experiences';
+import { ExperienceRevenueSimulator } from '@/components/finance/ExperienceRevenueSimulator';
 
 export default function OrganizationExperiencesPage() {
   const { currentOrg, userRole, loading: orgLoading } = useCurrentOrganization();
@@ -60,6 +62,7 @@ export default function OrganizationExperiencesPage() {
   const [search, setSearch] = React.useState("");
   const [isProcessingId, setIsProcessingId] = React.useState<string | null>(null);
   const [expToDelete, setExpToDelete] = React.useState<{id: string, title: string} | null>(null);
+  const [isSimulatorOpen, setIsSimulatorOpen] = React.useState(false);
 
   const experiencesQuery = useMemoFirebase(() => {
     if (!db || !currentOrg) return null;
@@ -153,14 +156,24 @@ export default function OrganizationExperiencesPage() {
           <p className="text-muted-foreground font-medium">Gerencie vivências exclusivas de <strong>{currentOrg?.name}</strong>.</p>
         </div>
         
-        {isAtLeastEditor && (
-          <Button asChild className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg hover:scale-105 transition-transform gap-2 uppercase italic">
-            <Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias/novo`}>
-              <Plus className="w-5 h-5" />
-              Nova Experiência
-            </Link>
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            onClick={() => setIsSimulatorOpen(true)}
+            className="rounded-full h-12 px-6 font-black uppercase italic text-[10px] gap-2 border-secondary text-secondary hover:bg-secondary/5"
+          >
+            <Info className="w-4 h-4" /> Entenda suas taxas
           </Button>
-        )}
+
+          {isAtLeastEditor && (
+            <Button asChild className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg hover:scale-105 transition-transform gap-2 uppercase italic">
+              <Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias/novo`}>
+                <Plus className="w-5 h-5" />
+                Nova Experiência
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="relative max-w-md">
@@ -247,6 +260,12 @@ export default function OrganizationExperiencesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ExperienceRevenueSimulator 
+        isOpen={isSimulatorOpen} 
+        onOpenChange={setIsSimulatorOpen} 
+        organization={currentOrg} 
+      />
     </div>
   );
 }

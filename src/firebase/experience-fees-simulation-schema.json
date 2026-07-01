@@ -1,0 +1,33 @@
+
+{
+  "feature": "Simulador de Taxas da Experiência",
+  "data_sources": {
+    "primary": {
+      "collection": "organizations",
+      "path": "/organizations/{orgId}",
+      "fields": [
+        "financialOverrides.experience.markupBuyerPercent",
+        "financialOverrides.experience.commissionPercent",
+        "financialOverrides.experience.minValue",
+        "financialOverrides.experience.validFrom",
+        "financialOverrides.experience.validTo"
+      ],
+      "description": "Fonte prioritária de taxas customizadas por marca."
+    },
+    "secondary": {
+      "collection": "settings",
+      "document": "fees",
+      "fields": [
+        "experienceBuyerMarkupPercent",
+        "experienceOrganizerBasePercent",
+        "experienceOrganizerMinFee"
+      ],
+      "description": "Fonte global de taxas para o produto experiência."
+    }
+  },
+  "logic_sharing": {
+    "function": "calculateVibyOfficialSplit",
+    "file": "src/lib/financial-utils.ts",
+    "parameters": "facePrice, currency, rates, orgFees, globalFees, null, 'experience'"
+  }
+}
