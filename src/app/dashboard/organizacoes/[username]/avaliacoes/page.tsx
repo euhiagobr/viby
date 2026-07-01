@@ -191,7 +191,6 @@ export default function OrganizationGlobalReviewsPage() {
 
       {metrics ? (
         <>
-          {/* PAINEL DE INSIGHTS */}
           <section className="space-y-6">
              <div className="flex items-center gap-3 px-2">
                 <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><BarChart3 className="w-5 h-5" /></div>
@@ -199,7 +198,6 @@ export default function OrganizationGlobalReviewsPage() {
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                {/* Coluna 1: KPIs & Gênero */}
                 <div className="md:col-span-4 space-y-6">
                    <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
                       <div className="grid grid-cols-2 gap-6">
@@ -237,7 +235,6 @@ export default function OrganizationGlobalReviewsPage() {
                    </Card>
                 </div>
 
-                {/* Coluna 2: Idade & Localização */}
                 <div className="md:col-span-4 space-y-6">
                    <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8 h-full">
                       <div className="space-y-4">
@@ -268,7 +265,6 @@ export default function OrganizationGlobalReviewsPage() {
                    </Card>
                 </div>
 
-                {/* Coluna 3: Perfil & Critérios */}
                 <div className="md:col-span-4 space-y-6">
                    <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8 h-full">
                       <div className="space-y-4">
@@ -302,7 +298,6 @@ export default function OrganizationGlobalReviewsPage() {
 
           <Separator className="border-dashed" />
 
-          {/* LISTA DE REVIEWS */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
              <Card className="lg:col-span-8 border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
                 <CardHeader className="bg-muted/30 border-b p-8 flex flex-row items-center justify-between">

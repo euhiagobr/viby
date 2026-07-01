@@ -52,7 +52,8 @@ export function PublicHeader({ showBack, hideCopa = false, children }: PublicHea
                 alt={siteName} 
                 width={140} 
                 height={40} 
-                className="w-auto h-10 object-contain" 
+                style={{ width: 'auto', height: 'auto' }}
+                className="h-10 w-auto object-contain" 
                 priority 
                 unoptimized 
               />
