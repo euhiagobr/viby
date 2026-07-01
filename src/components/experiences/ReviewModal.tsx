@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -111,7 +112,7 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
         (snap) => setUploadProgress((snap.bytesTransferred / snap.totalBytes) * 100),
         () => { setUploadProgress(null); toast({ variant: "destructive", title: "Erro no upload" }); },
         async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           if (type === 'photo') setForm(prev => ({ ...prev, photos: [...prev.photos, url] }));
           else setForm(prev => ({ ...prev, video: url }));
           setUploadProgress(null);
@@ -133,6 +134,7 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
       const res = await submitExperienceReviewAction({
         registrationId: registration.id,
         experienceId: registration.eventId,
+        organizationId: registration.organizationId,
         userId: user.uid,
         userName: profile?.name || user.displayName || "Membro Viby",
         userAvatar: profile?.avatar || user.photoURL || "",
