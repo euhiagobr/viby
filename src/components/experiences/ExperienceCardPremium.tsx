@@ -110,28 +110,30 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
         </div>
 
         {/* CONTENT */}
-        <div className="py-6 px-2 space-y-3">
-          <div className="flex items-center justify-between gap-4">
-             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">{experience.category || "Experiência"}</span>
-             <div className="flex items-center gap-1.5 max-w-[150px]">
-                <span className="text-[9px] font-bold text-muted-foreground uppercase truncate">{experience.organizer?.name}</span>
-                {(experience.organizer?.verified || experience.organizer?.isVerified) && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white shrink-0" />}
-             </div>
+        <div className="py-6 px-2 space-y-3 flex-1 flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-4">
+               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">{experience.category || "Experiência"}</span>
+               <div className="flex items-center gap-1.5 max-w-[150px]">
+                  <span className="text-[9px] font-bold text-muted-foreground uppercase truncate">{experience.organizer?.name}</span>
+                  {(experience.organizer?.verified || experience.organizer?.isVerified) && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white shrink-0" />}
+               </div>
+            </div>
+
+            <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter text-primary leading-tight line-clamp-2">
+              {experience.title}
+            </h3>
+
+            <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed italic">
+               <RichText content={experience.shortDescription || ""} />
+            </div>
+
+            <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+               <MapPin className="w-3 h-3 text-secondary" /> {experience.city}
+            </div>
           </div>
 
-          <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter text-primary leading-tight line-clamp-2">
-            {experience.title}
-          </h3>
-
-          <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed italic">
-             <RichText content={experience.shortDescription || ""} />
-          </div>
-
-          <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-             <MapPin className="w-3 h-3 text-secondary" /> {experience.city}
-          </div>
-
-          <div className="pt-2 flex items-end justify-between">
+          <div className="pt-4 flex items-end justify-between border-t border-dashed mt-2">
              <div className="flex flex-col">
                 <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">A partir de</p>
                 {loading ? (

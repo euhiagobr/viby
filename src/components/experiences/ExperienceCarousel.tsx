@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react";
@@ -57,7 +58,7 @@ export function ExperienceCarousel({ experiences, ads = [], variant = 'default' 
   if (experiences.length === 0) return null;
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full h-full">
       <Carousel
         opts={{
           align: "start",
@@ -68,10 +69,15 @@ export function ExperienceCarousel({ experiences, ads = [], variant = 'default' 
         <div className="container mx-auto px-6 relative">
           <CarouselContent className="-ml-8 py-10">
             {items.map((item, idx) => (
-              <CarouselItem key={idx} className="pl-8 basis-[85%] sm:basis-[45%] md:basis-[33%] lg:basis-[23.5%]">
+              <CarouselItem key={idx} className="pl-8 basis-[85%] sm:basis-[45%] md:basis-[33%] lg:basis-[23.5%] h-full">
                 {item.type === 'ad' ? (
-                  <div className="h-full min-h-[400px]">
-                    <AdsRenderer location="carousel" index={item.adIndex} googleSlotId="marketplace-carousel" />
+                  <div className="h-full">
+                    <AdsRenderer 
+                      location="carousel" 
+                      index={item.adIndex} 
+                      googleSlotId="marketplace-carousel" 
+                      variant="premium"
+                    />
                   </div>
                 ) : (
                   <ExperienceCardPremium experience={item.data} />

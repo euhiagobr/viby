@@ -12,6 +12,7 @@ interface AdsRendererProps {
   index?: number // Índice do slot de anúncio para alternância
   className?: string
   googleSlotId?: string
+  variant?: 'default' | 'premium'
 }
 
 /**
@@ -22,7 +23,13 @@ interface AdsRendererProps {
  * 3. Ambos ON -> Alternância 50/50 baseada no índice do slot
  * 4. Fallback: Se Viby não tiver campanhas ativas -> Google 100%
  */
-export function AdsRenderer({ location, index = 0, className, googleSlotId = "default-slot" }: AdsRendererProps) {
+export function AdsRenderer({ 
+  location, 
+  index = 0, 
+  className, 
+  googleSlotId = "default-slot",
+  variant = "default" 
+}: AdsRendererProps) {
   const db = useFirestore()
 
   // 1. Buscar Configurações Globais do Google Ads
@@ -69,7 +76,7 @@ export function AdsRenderer({ location, index = 0, className, googleSlotId = "de
   if (provider === "viby" && hasVibyCampaigns) {
     // Seleção de campanha Viby (Round-robin simples baseado no index)
     const selectedAd = vibyAds[index % vibyAds.length]
-    return <AdCard ad={selectedAd} />
+    return <AdCard ad={selectedAd} variant={variant} />
   }
 
   return null

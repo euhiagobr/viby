@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -20,10 +21,11 @@ function VerifiedBadge({ className }: { className?: string }) {
 }
 
 interface AdCardProps {
-  ad: any
+  ad: any;
+  variant?: 'default' | 'premium';
 }
 
-export function AdCard({ ad }: AdCardProps) {
+export function AdCard({ ad, variant = 'default' }: AdCardProps) {
   const router = useRouter()
   const db = useFirestore()
   const auth = useAuth()
@@ -32,6 +34,7 @@ export function AdCard({ ad }: AdCardProps) {
   const hasTrackedImpression = React.useRef(false)
 
   const adId = ad.id || ad.adId;
+  const isPremium = variant === 'premium';
 
   const orgRef = React.useMemo(() => (db && ad.organizationId) ? doc(db, "organizations", ad.organizationId) : null, [db, ad.organizationId])
   const { data: organization } = useDoc<any>(orgRef)
@@ -83,7 +86,6 @@ export function AdCard({ ad }: AdCardProps) {
     } else if (ad.type === 'pagina' && organization) {
       router.push(`/${organization.username}`)
     } else if (ad.type === 'evento' && ad.eventId) {
-      // URL Canônica: /[username]/[slug ou id]
       const eventSlug = ad.eventSlug || ad.eventId;
       const username = organization?.username || 'evento';
       router.push(`/${username}/${eventSlug}`);
@@ -99,17 +101,17 @@ export function AdCard({ ad }: AdCardProps) {
     const dispBanner = organization?.banner || "https://picsum.photos/seed/banner/800/400"
 
     return (
-      <Card ref={cardRef} onClick={handleClick} className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer relative ring-2 ring-secondary/10">
+      <Card ref={cardRef} onClick={handleClick} className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer relative ring-2 ring-secondary/10 h-full flex flex-col">
         <div className="absolute top-0 right-0 z-20">
           <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[9px] uppercase px-3 py-1.5 flex items-center gap-1.5">
             <Megaphone className="w-3 h-3 text-secondary" /> Patrocinado
           </Badge>
         </div>
-        <div className="relative h-32 w-full bg-muted">
+        <div className={cn("relative w-full bg-muted", isPremium ? "aspect-[4/5]" : "h-32")}>
           <Image src={dispBanner} alt="Capa" fill className="object-cover" unoptimized />
           <div className="absolute inset-0 bg-black/20" />
         </div>
-        <CardContent className="px-6 pb-6 relative pt-12 text-center">
+        <CardContent className="px-6 pb-6 relative pt-12 text-center flex-1 flex flex-col justify-between">
           <div className="absolute -top-12 left-1/2 -translate-x-1/2">
              <div className="p-1 bg-background rounded-full shadow-xl ring-4 ring-background">
                 <Avatar className="h-20 w-20">
@@ -145,13 +147,13 @@ export function AdCard({ ad }: AdCardProps) {
   }
 
   return (
-    <Card ref={cardRef} onClick={handleClick} className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2rem] cursor-pointer relative ring-2 ring-secondary/10">
+    <Card ref={cardRef} onClick={handleClick} className="group overflow-hidden border-none shadow-lg bg-card transition-all hover:-translate-y-1 hover:shadow-xl rounded-[2.5rem] cursor-pointer relative ring-2 ring-secondary/10 h-full flex flex-col">
        <div className="absolute top-0 right-0 z-20">
-          <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[9px] uppercase px-3 py-1.5 flex items-center gap-1.5">
+          <Badge className="bg-primary text-white rounded-none rounded-bl-xl font-black text-[8px] uppercase px-3 py-1.5 flex items-center gap-1.5">
             <Megaphone className="w-3 h-3 text-secondary" /> Patrocinado
           </Badge>
         </div>
-        <div className="relative aspect-video w-full bg-muted">
+        <div className={cn("relative w-full bg-muted overflow-hidden shrink-0", isPremium ? "aspect-[16/10]" : "aspect-video")}>
            {ad.adImage ? (
              <Image src={ad.adImage} alt="Anúncio" fill className="object-cover group-hover:scale-105 transition-transform duration-700" unoptimized />
            ) : (
@@ -165,12 +167,12 @@ export function AdCard({ ad }: AdCardProps) {
              </div>
            )}
         </div>
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-6 space-y-4 flex-1 flex flex-col justify-between">
            <div className="space-y-1">
-              <h3 className="font-black text-lg uppercase italic tracking-tighter leading-tight line-clamp-1">{ad.eventTitle}</h3>
+              <h3 className="font-black text-lg uppercase italic tracking-tighter leading-tight line-clamp-2">{ad.eventTitle}</h3>
               {ad.externalUrl && <p className="text-[10px] text-muted-foreground font-medium truncate">{ad.externalUrl.replace(/^https?:\/\//, '')}</p>}
            </div>
-           <Button variant="outline" className="w-full h-10 rounded-xl font-bold uppercase text-[10px] tracking-widest gap-2 border-secondary/20 text-secondary hover:bg-secondary/5">
+           <Button variant="outline" className="w-full h-11 rounded-2xl font-bold uppercase text-[10px] tracking-widest gap-2 border-secondary/20 text-secondary hover:bg-secondary/5">
               {ad.type === 'site' ? "Ver no Site" : "Saiba Mais"} <ExternalLink className="w-3 h-3" />
            </Button>
         </CardContent>
