@@ -85,7 +85,6 @@ export function AppSidebar() {
     { title: "Experiências", url: "/experiencias", icon: Sparkles },
     { title: "Copa 2026", url: "/copa-do-mundo", icon: Trophy },
     { title: t('nav.tickets'), url: "/dashboard/ingressos", icon: Ticket },
-    { title: "Scanner QR", url: "/dashboard/scanner", icon: ScanQrCode },
     { title: t('nav.wallet'), url: "/dashboard/carteira", icon: Wallet },
     { title: t('nav.organizations'), url: "/dashboard/organizacoes", icon: Building2 },
     { title: t('common.notifications'), url: "/dashboard/notificacoes", icon: Bell, badge: unreadNotificationsCount || null },
@@ -98,6 +97,7 @@ export function AppSidebar() {
 
   const orgItems = currentOrg ? [
     { title: "Dashboard da Marca", url: `/dashboard/organizacoes/${currentOrg.username}`, icon: LayoutGrid, exact: true },
+    { title: "Scanner Portaria", url: "/dashboard/scanner", icon: ScanQrCode, roles: ['owner', 'admin', 'editor', 'checkin'] },
     { title: "Eventos da Marca", url: `/dashboard/organizacoes/${currentOrg.username}/events`, icon: Megaphone },
     { title: "Experiências", url: `/dashboard/organizacoes/${currentOrg.username}/experiencias`, icon: Sparkles },
     { title: "Avaliações", url: `/dashboard/organizacoes/${currentOrg.username}/avaliacoes`, icon: Star },

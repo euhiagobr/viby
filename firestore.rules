@@ -180,7 +180,7 @@ service cloud.firestore {
     match /registrations/{regId} {
       allow read: if isAdmin() || isOwner(resource.data.userId) || isOrgMember(resource.data.organizationId);
       allow create: if isSignedIn();
-      allow update: if isAdmin();
+      allow update: if isAdmin() || isOrgMember(resource.data.organizationId);
     }
 
     match /support_tickets/{ticketId} {

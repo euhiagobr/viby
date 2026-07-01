@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -187,7 +186,7 @@ export default function EventoPublicoPage() {
         </div>
         <div className="flex gap-2">
            <Button asChild className="bg-primary text-white font-black rounded-full px-8 h-12 shadow-lg gap-2 uppercase italic">
-              <Link href="/admin/scanner">
+              <Link href="/dashboard/scanner">
                  <ScanQrCode className="w-5 h-5" /> Abrir Scanner
               </Link>
            </Button>
