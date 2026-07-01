@@ -44,7 +44,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { toast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
+import { cn, safeParseDate } from "@/lib/utils"
 import { formatCurrency } from "@/lib/financial-utils"
 import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { processGamificationEvent } from "@/lib/gamification-service"
@@ -175,6 +175,12 @@ export default function ExperienciaPublicoPage() {
       return d.toLocaleString('pt-BR');
     } catch (e) { return "---"; }
   }
+
+  const formatTime = (ts: any) => {
+    const d = safeParseDate(ts);
+    if (!d) return "---";
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
 
   if (expLoading) return <div className="flex justify-center items-center h-[60vh]"><Loader2 className="animate-spin text-secondary" /></div>
 
