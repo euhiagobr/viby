@@ -107,6 +107,12 @@ export async function POST(req: Request) {
                 sold: admin.firestore.FieldValue.increment(item.quantity),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
               });
+
+              // Incrementa o contador global de vendas (salesCount) na experiência pai para o ranking
+              transaction.update(eventRef, {
+                salesCount: admin.firestore.FieldValue.increment(item.quantity),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              });
             } else {
               transaction.update(eventRef, { 
                 ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),

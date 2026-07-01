@@ -99,10 +99,16 @@ export async function generateFreeTickets(data: {
 
         const finalQty = isFree ? 1 : item.quantity;
 
-        // Atualização de Inventário
+        // Atualização de Inventário e Vendas Totais (para Ranking de Mais Reservadas)
         if (item.productType === 'experience' && occRef && occSnap && occSnap.exists) {
            transaction.update(occRef, {
              sold: admin.firestore.FieldValue.increment(finalQty),
+             updatedAt: admin.firestore.FieldValue.serverTimestamp()
+           });
+           
+           // Incrementa o contador global na experiência pai
+           transaction.update(eventRef, {
+             salesCount: admin.firestore.FieldValue.increment(finalQty),
              updatedAt: admin.firestore.FieldValue.serverTimestamp()
            });
         } else {
@@ -188,44 +194,5 @@ export async function generateFreeTickets(data: {
   } catch (error: any) {
     console.error("[Ticket Action Error]", error);
     return { success: false, error: error.message };
-  }
-}
-
-/**
- * Reenvia um ingresso com todos os metadados oficiais, incluindo regras de uso e QR visual.
- */
-export async function resendTicketAction(registrationId: string) {
-  try {
-    const db = getAdminDb();
-    const regSnap = await db.collection("registrations").doc(registrationId).get();
-    if (!regSnap.exists) throw new Error("Ingresso não encontrado.");
-    const reg = regSnap.data()!;
-
-    // Resolvendo coleção baseada no tipo para capturar regras de uso reais
-    const sourceColl = reg.productType === 'experience' ? "experiences" : "events";
-    const eventSnap = await db.collection(sourceColl).doc(reg.eventId).get();
-    const event = eventSnap.exists ? eventSnap.data() : null;
-
-    const dateVal = reg.eventDate?.toDate ? reg.eventDate.toDate() : new Date(reg.eventDate);
-
-    await sendTicketEmail({
-      to: reg.userEmail,
-      userName: reg.userName || "Participante",
-      eventTitle: reg.eventTitle,
-      ticketCode: reg.ticketCode,
-      eventDate: dateVal.toLocaleString('pt-BR'),
-      eventCity: reg.eventCity,
-      voucherUrl: `https://viby.club/dashboard/ingressos/${registrationId}/voucher`,
-      usagePolicy: String(event?.usagePolicy || "").trim(),
-      additionalInfo: String(event?.additionalInfo || "").trim(),
-      description: event?.description || "",
-      inclusions: event?.inclusions || [],
-      exclusions: event?.exclusions || [],
-      rules: event?.rules || []
-    });
-
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
   }
 }

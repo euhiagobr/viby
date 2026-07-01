@@ -110,9 +110,19 @@ export default function ExperienciasClient({ initialExperiences = [], initialCat
     });
   }, [initialExperiences, search, searchCity, selectedCategorySlug]);
 
+  /**
+   * CLASSIFICAÇÃO "AS MAIS RESERVADAS":
+   * 1. Ordenação primária por volume de vendas (salesCount).
+   * 2. Ordenação secundária por nota média de avaliações (averageRating).
+   * 3. Retorna os 12 itens de maior performance.
+   */
   const mostReserved = useMemo(() => {
-    return [...filteredExperiences].sort((a, b) => (b.salesCount || 0) - (a.salesCount || 0)).slice(0, 12);
-  }, [filteredExperiences]);
+    return [...initialExperiences].sort((a, b) => {
+      const salesDiff = (b.salesCount || 0) - (a.salesCount || 0);
+      if (salesDiff !== 0) return salesDiff;
+      return (b.averageRating || 0) - (a.averageRating || 0);
+    }).slice(0, 12);
+  }, [initialExperiences]);
 
   const sortedCategories = useMemo(() => {
     return [...initialCategories].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
