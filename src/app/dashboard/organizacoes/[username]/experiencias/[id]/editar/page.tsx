@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -30,7 +29,8 @@ import {
   History,
   MessageSquare,
   ThumbsUp,
-  Inbox
+  Inbox,
+  CheckCircle2
 } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc, query, collection, where, orderBy, limit } from 'firebase/firestore';
 import Link from 'next/link';
@@ -207,7 +207,7 @@ export default function EditarExperienciaPage() {
   if (expLoading || !formData) return <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/organizacoes/${currentOrg?.username}/experiencias`}><ArrowLeft className="w-5 h-5" /></Link></Button>
@@ -348,7 +348,7 @@ export default function EditarExperienciaPage() {
                  <p className="text-[9px] font-black uppercase text-muted-foreground">Nota Média</p>
                  <div className="flex items-center gap-3">
                     <Star className="w-8 h-8 fill-orange-400 text-orange-400" />
-                    <span className="text-4xl font-black italic tracking-tighter text-primary">{Number(exp.averageRating || 5).toFixed(1)}</span>
+                    <span className="text-4xl font-black italic tracking-tighter text-primary">{Number(exp.averageRating || 5.0).toFixed(1)}</span>
                  </div>
               </Card>
               <Card className="border-none shadow-sm bg-white p-6 flex flex-col items-center justify-center text-center gap-2">
@@ -378,16 +378,19 @@ export default function EditarExperienciaPage() {
                     <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
                  ) : reviews && reviews.length > 0 ? (
                     <div className="divide-y">
-                       {reviews.map(review => (
+                       {reviews.map((review: any) => (
                          <div key={review.id} className="p-8 space-y-4 hover:bg-muted/5 transition-colors">
                             <div className="flex justify-between items-start">
-                               <div className="flex items-center gap-3">
+                               <div className="flex items-center gap-4">
                                   <Avatar className="h-10 w-10 border">
                                      <AvatarImage src={review.userAvatar} />
                                      <AvatarFallback className="font-bold bg-muted">{review.userName?.charAt(0)}</AvatarFallback>
                                   </Avatar>
                                   <div>
-                                     <p className="text-sm font-bold uppercase italic">{review.userName}</p>
+                                     <div className="flex items-center gap-2">
+                                        <h4 className="font-bold text-sm uppercase italic">{review.userName}</h4>
+                                        <CheckCircle2 className="w-3.5 h-3.5 fill-blue-500 text-white" />
+                                     </div>
                                      <p className="text-[9px] font-black text-muted-foreground uppercase">{new Date(review.createdAt?.seconds * 1000 || review.createdAt).toLocaleDateString('pt-BR')}</p>
                                   </div>
                                </div>

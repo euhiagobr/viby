@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -7,8 +6,9 @@ import { collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Star, User, Clock, MessageSquare, ShieldCheck, ThumbsUp, Camera, Video, Inbox, Loader2 } from 'lucide-react';
+import { Star, User, Clock, MessageSquare, ShieldCheck, ThumbsUp, Camera, Video, Inbox, Loader2, CheckCircle2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 interface ExperiencePublicReviewsProps {
@@ -80,9 +80,9 @@ export function ExperiencePublicReviews({ experience }: ExperiencePublicReviewsP
 
            {/* LISTA DE REVIEWS */}
            <div className="lg:col-span-8 space-y-10">
-              {reviews.length > 0 ? (
+              {reviews && reviews.length > 0 ? (
                 <div className="space-y-12">
-                   {reviews.map((review) => (
+                   {reviews.map((review: any) => (
                      <div key={review.id} className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
                         <div className="flex justify-between items-start">
                            <div className="flex items-center gap-4">

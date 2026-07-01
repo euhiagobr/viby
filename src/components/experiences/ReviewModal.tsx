@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -39,6 +38,7 @@ import { useAuth, useUser, useFirebaseApp } from '@/firebase';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 
 interface ReviewModalProps {
   registration: any;
@@ -192,7 +192,7 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
                 <div className="space-y-6">
                    <RatingRow label="Organização" desc="Tudo aconteceu conforme esperado?" value={form.detailedRatings.org} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, org: v}})} />
                    <RatingRow label="Atendimento" desc="Como foi o tratamento da equipe?" value={form.detailedRatings.service} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, service: v}})} />
-                   <RatingRow label="Qualidade" desc="A entrega correspondeu ao prometido?" value={form.detailedRatings.quality} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, quality: v}})} />
+                   <RatingRow label="Qualidade" desc="A experiência entregou o que prometia?" value={form.detailedRatings.quality} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, quality: v}})} />
                    <RatingRow label="Custo-benefício" desc="O preço valeu a experiência?" value={form.detailedRatings.price} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, price: v}})} />
                    <RatingRow label="Ambiente" desc="O local era agradável e adequado?" value={form.detailedRatings.environment} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, environment: v}})} />
                 </div>
