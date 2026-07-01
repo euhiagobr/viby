@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from "react";
@@ -66,11 +65,11 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
   return (
     <Link 
       href={experienceUrl}
-      className="group block relative w-full h-full animate-in fade-in"
+      className="group block h-full animate-in fade-in"
     >
-      <div className="flex flex-col h-full bg-white transition-all duration-500 ease-in-out group-hover:translate-y-[-4px]">
+      <div className="flex flex-col h-full bg-white rounded-[2.5rem] overflow-hidden border border-border/40 shadow-sm transition-all duration-500 ease-in-out group-hover:translate-y-[-4px] group-hover:shadow-2xl">
         {/* IMAGE CONTAINER */}
-        <div className="relative aspect-[4/5] w-full rounded-[2.5rem] overflow-hidden bg-muted shadow-sm group-hover:shadow-2xl transition-all duration-500">
+        <div className="relative aspect-[4/5] w-full overflow-hidden bg-muted">
           {experience.image && (
             <Image 
               src={experience.image} 
@@ -97,9 +96,9 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
             )}
           </div>
 
-          <button className="absolute top-5 right-5 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white hover:text-red-500 transition-all z-10 shadow-lg" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+          <div className="absolute top-5 right-5 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white hover:text-red-500 transition-all z-10 shadow-lg">
              <Heart className="w-5 h-5" />
-          </button>
+          </div>
 
           <div className="absolute bottom-5 left-5 right-5 flex justify-between items-end z-10">
              <div className="flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg border border-white/20">
@@ -110,17 +109,17 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
         </div>
 
         {/* CONTENT */}
-        <div className="py-6 px-2 space-y-3 flex-1 flex flex-col justify-between">
-          <div className="space-y-3">
+        <div className="p-8 space-y-4 flex-1 flex flex-col">
+          <div className="space-y-3 flex-1">
             <div className="flex items-center justify-between gap-4">
-               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">{experience.category || "Experiência"}</span>
+               <span className="text-[9px] font-black uppercase tracking-[0.2em] text-secondary">{experience.category || "Experiência"}</span>
                <div className="flex items-center gap-1.5 max-w-[150px]">
-                  <span className="text-[9px] font-bold text-muted-foreground uppercase truncate">{experience.organizer?.name}</span>
-                  {(experience.organizer?.verified || experience.organizer?.isVerified) && <BadgeCheck className="w-3.5 h-3.5 fill-blue-500 text-white shrink-0" />}
+                  <span className="text-[8px] font-bold text-muted-foreground uppercase truncate">{experience.organizer?.name}</span>
+                  {(experience.organizer?.verified || experience.organizer?.isVerified) && <BadgeCheck className="w-3 h-3 fill-blue-500 text-white shrink-0" />}
                </div>
             </div>
 
-            <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter text-primary leading-tight line-clamp-2">
+            <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary leading-tight line-clamp-2">
               {experience.title}
             </h3>
 
@@ -135,7 +134,7 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
 
           <div className="pt-4 flex items-end justify-between border-t border-dashed mt-2">
              <div className="flex flex-col">
-                <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">A partir de</p>
+                <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">A partir de</p>
                 {loading ? (
                    <div className="h-6 w-20 bg-muted animate-pulse rounded-lg" />
                 ) : minPrice !== null ? (
