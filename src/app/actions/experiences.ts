@@ -62,6 +62,7 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
       averageRating: 5.0,
       reviewCount: 0,
       ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      recommendationStats: { sim: 0, talvez: 0, nao: 0 },
       availability: {
         startDate: "",
         endDate: "",
@@ -190,6 +191,7 @@ export async function duplicateExperienceAction(id: string, userId: string) {
       averageRating: 5.0,
       reviewCount: 0,
       ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      recommendationStats: { sim: 0, talvez: 0, nao: 0 },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
@@ -304,6 +306,7 @@ export async function createExperienceReservationAction(params: {
 
 /**
  * Submete uma avaliação detalhada de experiência.
+ * Agora atualiza estatísticas de recomendação e distribuição de notas.
  */
 export async function submitExperienceReviewAction(params: {
   registrationId: string;
@@ -331,7 +334,7 @@ export async function submitExperienceReviewAction(params: {
   video?: string;
 }) {
   const db = getAdminDb();
-  const { registrationId, experienceId, userId, generalRating } = params;
+  const { registrationId, experienceId, generalRating, recommend } = params;
 
   try {
     return await db.runTransaction(async (transaction) => {
@@ -349,13 +352,14 @@ export async function submitExperienceReviewAction(params: {
       const currentAvg = expData.averageRating || 5.0;
       const currentCount = expData.reviewCount || 0;
       const currentDist = expData.ratingDistribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+      const currentRec = expData.recommendationStats || { sim: 0, talvez: 0, nao: 0 };
 
       // 1. Geração de Badges Automáticas
       const badges = [];
       const dr = params.detailedRatings;
       if (dr.service >= 4.5) badges.push("✨ Excelente atendimento");
       if (dr.price >= 4.5) badges.push("💰 Ótimo custo-benefício");
-      if (params.recommend === 'sim') badges.push("🔥 Muito recomendado");
+      if (recommend === 'sim') badges.push("🔥 Muito recomendado");
       if (dr.environment >= 4.5) badges.push("🌿 Ambiente agradável");
       if (dr.quality >= 4.5) badges.push("🎯 Cumpre o que promete");
       if (generalRating === 5) badges.push("⭐ Experiência premium");
@@ -369,8 +373,15 @@ export async function submitExperienceReviewAction(params: {
       const ratingKey = generalRating.toString();
       newDist[ratingKey] = (newDist[ratingKey] || 0) + 1;
 
-      // 3. Salvar Review
-      const reviewRef = db.collection('experience_reviews').doc(registrationId); // ID único por reserva
+      // 3. Atualizar Recomendações
+      const newRec = { ...currentRec };
+      const recKey = recommend as keyof typeof currentRec;
+      if (newRec[recKey] !== undefined) {
+        newRec[recKey] = (newRec[recKey] || 0) + 1;
+      }
+
+      // 4. Salvar Review
+      const reviewRef = db.collection('experience_reviews').doc(registrationId);
       transaction.set(reviewRef, {
         ...params,
         badges,
@@ -378,15 +389,16 @@ export async function submitExperienceReviewAction(params: {
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // 4. Atualizar Experiência
+      // 5. Atualizar Experiência
       transaction.update(expRef, {
         averageRating: newAvg,
         reviewCount: newCount,
         ratingDistribution: newDist,
+        recommendationStats: newRec,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // 5. Marcar Voucher como avaliado
+      // 6. Marcar Voucher como avaliado
       transaction.update(regRef, {
         ratingSubmitted: true,
         ratingValue: generalRating,

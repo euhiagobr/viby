@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -20,15 +20,25 @@ export function ExperiencePublicReviews({ experience }: ExperiencePublicReviewsP
   
   const reviewsQuery = useMemoFirebase(() => {
     if (!db || !experience.id) return null;
+    // Removido orderBy para evitar erro de índice composto em ambiente de dev/primeiros acessos
     return query(
       collection(db, "experience_reviews"),
       where("experienceId", "==", experience.id),
-      orderBy("createdAt", "desc"),
       limit(50)
     );
   }, [db, experience.id]);
 
-  const { data: reviews, loading } = useCollection<any>(reviewsQuery);
+  const { data: rawReviews, loading } = useCollection<any>(reviewsQuery);
+
+  // Ordenação resiliente em memória
+  const reviews = React.useMemo(() => {
+    if (!rawReviews) return [];
+    return [...rawReviews].sort((a, b) => {
+      const tA = a.createdAt?.seconds || 0;
+      const tB = b.createdAt?.seconds || 0;
+      return tB - tA;
+    });
+  }, [rawReviews]);
 
   const distribution = experience.ratingDistribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   const total = experience.reviewCount || 0;

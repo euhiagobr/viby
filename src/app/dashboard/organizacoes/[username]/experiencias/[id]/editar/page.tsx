@@ -30,7 +30,10 @@ import {
   MessageSquare,
   ThumbsUp,
   Inbox,
-  CheckCircle2
+  CheckCircle2,
+  TrendingUp,
+  BarChart3,
+  Coins
 } from 'lucide-react';
 import { doc, serverTimestamp, updateDoc, query, collection, where, orderBy, limit } from 'firebase/firestore';
 import Link from 'next/link';
@@ -48,6 +51,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { formatCurrency } from '@/lib/financial-utils';
 
 const WEEK_DAYS = [
   { id: 0, label: "Dom" },
@@ -87,9 +91,18 @@ export default function EditarExperienciaPage() {
   // Reviews do Organizador
   const reviewsQuery = useMemoFirebase(() => {
     if (!db || !id) return null;
-    return query(collection(db, "experience_reviews"), where("experienceId", "==", id), orderBy("createdAt", "desc"));
+    return query(collection(db, "experience_reviews"), where("experienceId", "==", id));
   }, [db, id]);
-  const { data: reviews, loading: reviewsLoading } = useCollection<any>(reviewsQuery);
+  const { data: rawReviews, loading: reviewsLoading } = useCollection<any>(reviewsQuery);
+
+  const reviews = React.useMemo(() => {
+    if (!rawReviews) return [];
+    return [...rawReviews].sort((a, b) => {
+      const tA = a.createdAt?.seconds || 0;
+      const tB = b.createdAt?.seconds || 0;
+      return tB - tA;
+    });
+  }, [rawReviews]);
 
   const [saving, setSaving] = React.useState(false);
   const [formData, setFormData] = React.useState<any>(null);
@@ -205,6 +218,30 @@ export default function EditarExperienciaPage() {
   };
 
   if (expLoading || !formData) return <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>;
+
+  const recStats = exp.recommendationStats || { sim: 0, talvez: 0, nao: 0 };
+  const recPercent = exp.reviewCount > 0 ? Math.round((recStats.sim / exp.reviewCount) * 100) : 100;
+
+  const avgCriteria = React.useMemo(() => {
+    if (!reviews || reviews.length === 0) return null;
+    const totals = { org: 0, service: 0, quality: 0, price: 0, environment: 0 };
+    reviews.forEach((r: any) => {
+      const dr = r.detailedRatings || {};
+      totals.org += dr.org || 5;
+      totals.service += dr.service || 5;
+      totals.quality += dr.quality || 5;
+      totals.price += dr.price || 5;
+      totals.environment += dr.environment || 5;
+    });
+    const count = reviews.length;
+    return {
+      org: (totals.org / count).toFixed(1),
+      service: (totals.service / count).toFixed(1),
+      quality: (totals.quality / count).toFixed(1),
+      price: (totals.price / count).toFixed(1),
+      environment: (totals.environment / count).toFixed(1),
+    };
+  }, [reviews]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
@@ -343,29 +380,45 @@ export default function EditarExperienciaPage() {
         </TabsContent>
 
         <TabsContent value="reviews" className="mt-0 space-y-8">
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <Card className="border-none shadow-sm bg-white p-6 flex flex-col items-center justify-center text-center gap-2">
                  <p className="text-[9px] font-black uppercase text-muted-foreground">Nota Média</p>
-                 <div className="flex items-center gap-3">
-                    <Star className="w-8 h-8 fill-orange-400 text-orange-400" />
-                    <span className="text-4xl font-black italic tracking-tighter text-primary">{Number(exp.averageRating || 5.0).toFixed(1)}</span>
+                 <div className="flex items-center gap-2">
+                    <Star className="w-6 h-6 fill-orange-400 text-orange-400" />
+                    <span className="text-3xl font-black italic tracking-tighter text-primary">{Number(exp.averageRating || 5.0).toFixed(1)}</span>
                  </div>
               </Card>
               <Card className="border-none shadow-sm bg-white p-6 flex flex-col items-center justify-center text-center gap-2">
-                 <p className="text-[9px] font-black uppercase text-muted-foreground">Total Avaliações</p>
-                 <div className="flex items-center gap-3">
-                    <MessageSquare className="w-8 h-8 text-secondary" />
-                    <span className="text-4xl font-black italic tracking-tighter text-primary">{exp.reviewCount || 0}</span>
+                 <p className="text-[9px] font-black uppercase text-muted-foreground">Avaliações</p>
+                 <div className="flex items-center gap-2">
+                    <MessageSquare className="w-6 h-6 text-secondary" />
+                    <span className="text-3xl font-black italic tracking-tighter text-primary">{exp.reviewCount || 0}</span>
                  </div>
               </Card>
-              <Card className="border-none shadow-sm bg-secondary text-white p-6 flex flex-col items-center justify-center text-center gap-2">
-                 <p className="text-[9px] font-black uppercase opacity-60">Recomendação</p>
-                 <div className="flex items-center gap-3">
-                    <ThumbsUp className="w-8 h-8 fill-current" />
-                    <span className="text-4xl font-black italic tracking-tighter">98%</span>
+              <Card className="border-none shadow-sm bg-green-50 p-6 flex flex-col items-center justify-center text-center gap-2">
+                 <p className="text-[9px] font-black uppercase text-green-700">Recomendação</p>
+                 <div className="flex items-center gap-2">
+                    <ThumbsUp className="w-6 h-6 text-green-600 fill-current" />
+                    <span className="text-3xl font-black italic tracking-tighter text-green-700">{recPercent}%</span>
                  </div>
+              </Card>
+              <Card className="border-none shadow-sm bg-primary text-white p-6 flex flex-col items-center justify-center text-center gap-2">
+                 <p className="text-[9px] font-black uppercase opacity-60">Status NPS</p>
+                 <div className="text-xl font-black uppercase italic tracking-widest">{recPercent > 80 ? 'Excelente' : recPercent > 50 ? 'Bom' : 'Atenção'}</div>
               </Card>
            </div>
+
+           {avgCriteria && (
+              <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8">
+                 <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+                    <CriteriaBox label="Org." value={avgCriteria.org} />
+                    <CriteriaBox label="Serviço" value={avgCriteria.service} />
+                    <CriteriaBox label="Qualidade" value={avgCriteria.quality} />
+                    <CriteriaBox label="Preço" value={avgCriteria.price} />
+                    <CriteriaBox label="Ambiente" value={avgCriteria.environment} />
+                 </div>
+              </Card>
+           )}
 
            <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
               <CardHeader className="bg-muted/30 border-b p-8">
@@ -394,10 +447,13 @@ export default function EditarExperienciaPage() {
                                      <p className="text-[9px] font-black text-muted-foreground uppercase">{new Date(review.createdAt?.seconds * 1000 || review.createdAt).toLocaleDateString('pt-BR')}</p>
                                   </div>
                                </div>
-                               <div className="flex gap-1">
-                                  {Array.from({length: 5}).map((_, i) => (
-                                    <Star key={i} className={cn("w-3 h-3", i < review.generalRating ? "fill-orange-400 text-orange-400" : "text-muted opacity-20")} />
-                                  ))}
+                               <div className="text-right">
+                                  <div className="flex gap-0.5 justify-end">
+                                     {Array.from({length: 5}).map((_, i) => (
+                                       <Star key={i} className={cn("w-3 h-3", i < review.generalRating ? "fill-orange-400 text-orange-400" : "text-muted opacity-20")} />
+                                     ))}
+                                  </div>
+                                  <p className="text-[8px] font-black uppercase text-secondary mt-1">Recomendaria: {review.recommend?.toUpperCase()}</p>
                                </div>
                             </div>
                             <div className="space-y-2">
@@ -439,4 +495,16 @@ export default function EditarExperienciaPage() {
       </Tabs>
     </div>
   );
+}
+
+function CriteriaBox({ label, value }: { label: string, value: string }) {
+  return (
+    <div className="text-center space-y-1">
+       <p className="text-[8px] font-black uppercase text-muted-foreground opacity-60 tracking-widest">{label}</p>
+       <div className="flex items-center justify-center gap-1">
+          <Star className="w-3 h-3 fill-orange-400 text-orange-400" />
+          <span className="text-sm font-black text-primary">{value}</span>
+       </div>
+    </div>
+  )
 }
