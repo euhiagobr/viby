@@ -47,10 +47,6 @@ interface ExperienciasClientProps {
   initialCategories: any[];
 }
 
-/**
- * @fileOverview Marketplace de Experiências v3.
- * Implementação de URL como Source of Truth (Filtros Dinâmicos via Query Params).
- */
 export default function ExperienciasClient({ initialExperiences = [], initialCategories = [] }: ExperienciasClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -59,7 +55,6 @@ export default function ExperienciasClient({ initialExperiences = [], initialCat
   
   const [mounted, setMounted] = useState(false);
   
-  // ESTADOS DOS FILTROS (Inicializados da URL)
   const [search, setSearch] = useState(searchParams.get("q") || "");
   const [searchCity, setSearchCity] = useState(searchParams.get("cidade") || "");
   const [selectedCategorySlug, setSelectedCategorySlug] = useState(searchParams.get("categoria") || "all");
@@ -73,7 +68,6 @@ export default function ExperienciasClient({ initialExperiences = [], initialCat
     setMounted(true);
   }, []);
 
-  // SINCRONIZAÇÃO: Atualiza a URL sempre que um filtro mudar
   useEffect(() => {
     if (!mounted) return;
 
@@ -92,28 +86,23 @@ export default function ExperienciasClient({ initialExperiences = [], initialCat
     window.history.replaceState(null, "", url);
   }, [search, searchCity, selectedCategorySlug, selectedDate, priceRange, ratingFilter, pathname, mounted, searchParams]);
 
-  // CATEGORIA ATIVA (Objeto)
   const activeCategory = useMemo(() => {
     if (selectedCategorySlug === "all") return null;
     return initialCategories.find(c => slugify(c.name) === selectedCategorySlug);
   }, [selectedCategorySlug, initialCategories]);
 
-  // FILTRAGEM DOS DADOS
   const filteredExperiences = useMemo(() => {
     const searchNorm = normalizeText(search);
     const cityNorm = normalizeText(searchCity);
 
     return initialExperiences.filter(exp => {
-      // 1. Busca textual
       const matchesSearch = !search || 
         normalizeText(exp.title || "").includes(searchNorm) ||
         normalizeText(exp.shortDescription || "").includes(searchNorm);
       
-      // 2. Cidade/Localização
       const eventLoc = normalizeText(`${exp.city || ""} ${exp.state || ""} ${exp.address?.city || ""} ${exp.address?.stateRegion || ""}`);
       const matchesCity = !searchCity || eventLoc.includes(cityNorm);
       
-      // 3. Categoria (via Slug para URL amigável)
       const expSlug = slugify(exp.category || "");
       const matchesCategory = selectedCategorySlug === 'all' || expSlug === selectedCategorySlug;
 
@@ -147,14 +136,11 @@ export default function ExperienciasClient({ initialExperiences = [], initialCat
     if (key === 'avaliacao') setRatingFilter("all");
   };
 
-  if (!mounted) return null;
-
   const hasAnyFilter = search || searchCity || selectedCategorySlug !== 'all' || selectedDate || priceRange !== 'all' || ratingFilter !== 'all';
 
   return (
     <div className="flex flex-col min-h-screen bg-white font-sans selection:bg-secondary/10 selection:text-secondary">
       
-      {/* HERO SECTION */}
       <section className="relative h-[85vh] w-full flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
@@ -244,7 +230,6 @@ export default function ExperienciasClient({ initialExperiences = [], initialCat
         </div>
       </section>
 
-      {/* CATEGORIES SECTION */}
       <section className="py-24 bg-white border-b">
         <div className="container mx-auto px-6 space-y-12">
            <div className="flex flex-col items-center text-center space-y-2">
@@ -265,7 +250,6 @@ export default function ExperienciasClient({ initialExperiences = [], initialCat
         </div>
       </section>
 
-      {/* FILTER BAR */}
       <section className="sticky top-16 z-40 bg-white/95 backdrop-blur-md border-b py-4 shadow-sm">
         <div className="container mx-auto px-6 space-y-4">
            <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide no-wrap">
@@ -331,7 +315,6 @@ export default function ExperienciasClient({ initialExperiences = [], initialCat
         </div>
       </section>
 
-      {/* VITRINES */}
       <main className="flex-1 space-y-24 py-16 bg-white overflow-hidden">
         {hasAnyFilter ? (
           <section className="container mx-auto px-6 space-y-12 animate-in fade-in">

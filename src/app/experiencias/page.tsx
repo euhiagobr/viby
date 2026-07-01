@@ -12,9 +12,6 @@ export const revalidate = 0;
 
 const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
 
-/**
- * Utilitário para converter objetos complexos em tipos primitivos para tráfego seguro.
- */
 function serializeData(data: any): any {
   if (data === null || data === undefined) return null;
   if (typeof data.toDate === 'function') return data.toDate().toISOString();
@@ -34,10 +31,7 @@ function serializeData(data: any): any {
   return data;
 }
 
-/**
- * SEO DINÂMICO: Altera título e descrição com base na categoria da URL
- */
-export async function generateMetadata({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }): Promise<Metadata> {
+export async function generateMetadata({ searchParams }: { searchParams: Promise<any> }): Promise<Metadata> {
   const params = await searchParams;
   const categoriaSlug = params.categoria as string;
   
@@ -60,16 +54,14 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     }
   }
 
-  const url = `https://viby.club/experiencias${categoriaSlug ? `?categoria=${categoriaSlug}` : ''}`;
-
   return {
     title,
     description,
-    alternates: { canonical: url },
+    alternates: { canonical: 'https://viby.club/experiencias' },
     openGraph: {
       title,
       description,
-      url,
+      url: 'https://viby.club/experiencias',
       siteName: 'Viby',
       images: [{ url: VIBY_OG_IMAGE, width: 1200, height: 630 }],
       locale: 'pt_BR',
@@ -87,18 +79,17 @@ async function getInitialData() {
   try {
     const db = getAdminDb();
     
-    // Removido orderBy do servidor para evitar erro de índice ausente. 
-    // A ordenação é feita via JavaScript após o fetch.
-    const [expSnap, catsSnap] = await Promise.all([
-      db.collection('experiences').where('status', '==', 'active').get(),
-      db.collection('categories').where('type', '==', 'experience').get()
-    ]);
+    // Busca experiências com status 'active' ou 'Ativo' para garantir compatibilidade
+    const expSnap = await db.collection('experiences').get();
+    const categoriesSnap = await db.collection('categories').where('type', '==', 'experience').get();
       
-    const experiences = expSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const categories = catsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const allExp = expSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const activeExperiences = allExp.filter((e: any) => e.status === 'active' || e.status === 'Ativo');
+    
+    const categories = categoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     return {
-      experiences: serializeData(experiences),
+      experiences: serializeData(activeExperiences),
       categories: serializeData(categories)
     };
   } catch (e: any) {
@@ -107,7 +98,7 @@ async function getInitialData() {
   }
 }
 
-export default async function ExperienciasLandingPage(props: { searchParams: Promise<any> }) {
+export default async function ExperienciasLandingPage() {
   const { experiences, categories } = await getInitialData();
 
   return (

@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react";
@@ -32,7 +33,6 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
         const now = new Date();
         const todayStr = now.toISOString().split('T')[0];
         
-        // Consulta direta de subcoleção (Não exige index collectionGroup)
         const q = query(
           collection(db, "experiences", experience.id, "slots"),
           where("status", "==", "active"),
@@ -97,7 +97,7 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
             )}
           </div>
 
-          <button className="absolute top-5 right-5 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white hover:text-red-500 transition-all z-10 shadow-lg">
+          <button className="absolute top-5 right-5 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white hover:text-red-500 transition-all z-10 shadow-lg" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
              <Heart className="w-5 h-5" />
           </button>
 
@@ -136,10 +136,12 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
                 <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60 leading-none mb-1">A partir de</p>
                 {loading ? (
                    <div className="h-6 w-20 bg-muted animate-pulse rounded-lg" />
-                ) : (
+                ) : minPrice !== null ? (
                   <div className="text-lg font-black text-primary italic uppercase tracking-tighter">
-                     {minPrice === 0 ? "Grátis" : formatPriceWithOriginal(minPrice || 0, (experience.currency || 'BRL') as CurrencyCode)}
+                     {minPrice === 0 ? "Grátis" : formatPriceWithOriginal(minPrice, (experience.currency || 'BRL') as CurrencyCode)}
                   </div>
+                ) : (
+                  <div className="text-[10px] font-black text-secondary uppercase italic">Consulte horários</div>
                 )}
              </div>
              <Button variant="ghost" size="icon" className="rounded-full bg-muted/50 hover:bg-secondary hover:text-white transition-all">
