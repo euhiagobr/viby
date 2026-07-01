@@ -30,7 +30,9 @@ import {
   Trash2,
   Trophy,
   Plus,
-  X
+  X,
+  Zap,
+  CheckCircle2
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
@@ -69,7 +71,7 @@ import useSWR from 'swr'
 import { fetcher, WC_ENDPOINTS } from '@/lib/services/worldCupService'
 import { format } from "date-fns"
 
-export default function EditarEventoWizard() {
+export default function EditarExperienciaPage() {
   const params = useParams()
   const router = useRouter()
   const eventId = params.id as string
@@ -94,21 +96,23 @@ export default function EditarEventoWizard() {
   const eventRef = React.useMemo(() => {
     if (!db || !eventId) return null
     try {
-      return doc(db, "events", eventId)
+      // CORREÇÃO: Buscando na coleção 'experiences' em vez de 'events'
+      return doc(db, "experiences", eventId)
     } catch (e) {
       return null
     }
   }, [db, eventId])
+  
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
 
-  const occurrencesQuery = useMemoFirebase(() => 
-    (db && eventId) ? query(collection(db, "recurring_occurrences"), where("parentId", "==", eventId), orderBy("date", "asc")) : null, 
+  const slotsQuery = useMemoFirebase(() => 
+    (db && eventId) ? query(collection(db, "experiences", eventId, "slots"), orderBy("datetime", "asc")) : null, 
     [db, eventId]
   )
-  const { data: dbOccurrences, loading: loadingOccs } = useCollection<any>(occurrencesQuery)
+  const { data: dbSlots, loading: loadingSlots } = useCollection<any>(slotsQuery)
 
   const { data: wcMatchesData } = useSWR<any>(WC_ENDPOINTS.matches, fetcher);
 
@@ -126,6 +130,7 @@ export default function EditarEventoWizard() {
     if (!db || !eventId) return null;
     return query(collection(db, "experience_reviews"), where("experienceId", "==", eventId));
   }, [db, eventId]);
+  
   const { data: rawReviews, loading: reviewsLoading } = useCollection<any>(reviewsQuery);
 
   const reviews = React.useMemo(() => {
@@ -137,80 +142,7 @@ export default function EditarEventoWizard() {
     });
   }, [rawReviews]);
 
-  useEffect(() => {
-    if (event && !isDataLoaded && !loadingOccs) {
-      const startInput = formatDateForInput(event.startDate || event.date);
-      const endInput = formatDateForInput(event.endDate);
-
-      const initialCustomOccurrences = (dbOccurrences && dbOccurrences.length > 0) 
-        ? dbOccurrences.map(o => ({
-            date: o.date,
-            startTime: o.startTime || "19:00",
-            endTime: o.endTime || "22:00",
-            batches: o.batches || []
-          }))
-        : (event.recurrency?.customOccurrences || []);
-
-      setFormData({
-        title: event.title || "",
-        image: event.image || "",
-        type: event.type || "interno",
-        externalUrl: event.externalUrl || "",
-        startingPrice: event.startingPrice || 0,
-        disclosurePrices: event.disclosurePrices || [],
-        categoryId: event.categoryId || "",
-        categoryName: event.categoryName || "",
-        startDate: startInput,
-        endDate: endInput,
-        description: event.description || "",
-        status: event.status || "Ativo",
-        tags: event.tags || [],
-        ageRatingCode: event.ageRating?.code || "free",
-        address: event.address || {},
-        isRecurring: event.isRecurring || false,
-        frequency: event.recurrency?.freq || "weekly",
-        recurringEndDate: event.recurrency?.until || "",
-        customOccurrences: initialCustomOccurrences,
-        currency: event.currency || "BRL",
-        curationType: event.curationType || "realização",
-        matches: event.matches || []
-      })
-      setTicketMode(event.ticketMode || 'free')
-      
-      if (dbOccurrences && dbOccurrences.length > 0) {
-        setSessions(dbOccurrences.map(occ => ({
-          id: occ.id,
-          date: formatDateForInput(`${occ.date}T${occ.startTime || '19:00'}:00`),
-          endDate: formatDateForInput(`${occ.date}T${occ.endTime || '22:00'}:00`),
-          batches: occ.batches || event.batches || [],
-          capacity: occ.capacidadeMaxima || event.capacidadeTotal || 100
-        })));
-      } else {
-        const s = safeParseDate(event.startDate || event.date);
-        if (s) {
-          setSessions([{
-            date: s.toISOString(),
-            endDate: safeParseDate(event.endDate)?.toISOString() || new Date(s.getTime() + 4 * 3600000).toISOString(),
-            batches: event.batches || [],
-            capacity: event.capacidadeTotal || 100
-          }]);
-        }
-      }
-      setIsDataLoaded(true);
-    }
-  }, [event, dbOccurrences, isDataLoaded, loadingOccs])
-
-  const showWcSection = formData?.tags?.includes('copa') && formData?.tags?.includes('temjogo');
-
-  useEffect(() => {
-    if (!showWcSection && formData?.matches?.length > 0) {
-      setFormData(prev => prev ? ({ ...prev, matches: [] }) : null);
-    }
-  }, [showWcSection, formData?.matches?.length]);
-
-  const recStats = event?.recommendationStats || { sim: 0, talvez: 0, nao: 0 };
-  const recPercent = (event?.reviewCount || 0) > 0 ? Math.round((recStats.sim / event.reviewCount) * 100) : 100;
-
+  // CORREÇÃO: Mover todos os useMemo para cima do retorno condicional
   const avgCriteria = React.useMemo(() => {
     if (!reviews || reviews.length === 0) return null;
     const totals = { org: 0, service: 0, quality: 0, price: 0, environment: 0 };
@@ -232,34 +164,67 @@ export default function EditarEventoWizard() {
     };
   }, [reviews]);
 
-  const handleAddMatch = () => {
-    const { teamA, teamB } = matchSelection;
-    if (!teamA || !teamB || teamA === teamB) return;
-    if (!wcMatchesData?.matches) return;
-    const match = wcMatchesData.matches.find((m: any) => 
-      (m.homeTeam?.id?.toString() === teamA && m.awayTeam?.id?.toString() === teamB) ||
-      (m.homeTeam?.id?.toString() === teamB && m.awayTeam?.id?.toString() === teamA)
-    );
-    if (!match) return;
-    if (formData.matches.some(m => m.matchId === match.id.toString())) return;
-    const newMatch = {
-      matchId: match.id.toString(),
-      teamA: match.homeTeam.id.toString(),
-      teamB: match.awayTeam.id.toString(),
-      teamAName: match.homeTeam.name,
-      teamBName: match.awayTeam.name,
-      teamAFlag: match.homeTeam.crest,
-      teamBFlag: match.awayTeam.crest,
-      kickoffAt: match.utcDate
-    };
-    setFormData(prev => ({ ...prev, matches: [...prev.matches, newMatch] }));
-    setMatchSelection({ teamA: "", teamB: "" });
-  };
+  useEffect(() => {
+    if (event && !isDataLoaded && !loadingSlots) {
+      const startInput = formatDateForInput(event.availability?.startDate || event.date);
+      const endInput = formatDateForInput(event.availability?.endDate || event.endDate);
+
+      setFormData({
+        title: event.title || "",
+        image: event.image || "",
+        type: event.type || "interno",
+        category: event.category || "",
+        shortDescription: event.shortDescription || "",
+        description: event.description || "",
+        status: event.status || "active",
+        tags: event.tags || [],
+        ageRatingCode: event.ageRating?.code || "free",
+        address: event.address || {},
+        isRecurring: event.isRecurring || true,
+        duration: event.duration || "",
+        maxGroupSize: event.maxGroupSize || null,
+        isUnlimitedCapacity: event.isUnlimitedCapacity || false,
+        instantBooking: event.instantBooking ?? true,
+        digitalVoucher: event.digitalVoucher ?? true,
+        inclusions: event.inclusions || [],
+        exclusions: event.exclusions || [],
+        rules: event.rules || [],
+        steps: event.steps || [],
+        faqs: event.faqs || [],
+        usagePolicy: event.usagePolicy || "",
+        additionalInfo: event.additionalInfo || "",
+        availability: event.availability || { startDate: startInput, endDate: endInput, allowedDays: [0,1,2,3,4,5,6], allowHolidays: true },
+        currency: event.currency || "BRL",
+        matches: event.matches || []
+      })
+      
+      setTicketMode(event.ticketMode || 'free')
+      
+      if (dbSlots && dbSlots.length > 0) {
+        setSessions(dbSlots.map(slot => ({
+          id: slot.id,
+          date: formatDateForInput(slot.datetime),
+          price: slot.price,
+          capacity: slot.capacity,
+          sold: slot.sold || 0
+        })));
+      }
+      setIsDataLoaded(true);
+    }
+  }, [event, dbSlots, isDataLoaded, loadingSlots])
+
+  const showWcSection = formData?.tags?.includes('copa') && formData?.tags?.includes('temjogo');
+
+  useEffect(() => {
+    if (!showWcSection && formData?.matches?.length > 0) {
+      setFormData(prev => prev ? ({ ...prev, matches: [] }) : null);
+    }
+  }, [showWcSection, formData?.matches?.length]);
 
   const handleImageUpload = async (file: File) => {
     if (!storage || !user) return
     setUploadProgress(0)
-    const storageRef = ref(storage, `events/${user.uid}/${Date.now()}_${file.name}`)
+    const storageRef = ref(storage, `experiences/${user.uid}/${Date.now()}_${file.name}`)
     const uploadTask = uploadBytesResumable(storageRef, file)
     uploadTask.on('state_changed', 
       (snapshot) => setUploadProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100), 
@@ -273,74 +238,21 @@ export default function EditarEventoWizard() {
   }
 
   const handleNextStep = () => {
-    if (step === 2) {
-      const check = normalizeEventDates(formData.startDate, formData.endDate);
-      if (!check.isValid) {
-        toast({ variant: "destructive", title: "Verifique a agenda", description: check.error });
-        return;
-      }
-      const s = safeParseDate(formData.startDate);
-      const e = safeParseDate(formData.endDate);
-      let allDates: { startDate: Date; endDate: Date }[] = [];
-      if (s && e) allDates.push({ startDate: s, endDate: e });
-      if (formData.isRecurring) {
-        const generated = generateRecurrenceDates({ freq: formData.frequency, startDate: formData.startDate, endDate: formData.endDate, until: formData.recurringEndDate, customOccurrences: formData.customOccurrences });
-        generated.forEach(g => {
-          if (!allDates.some(ex => Math.abs(ex.startDate.getTime() - g.startDate.getTime()) < 60000)) allDates.push(g);
-        });
-      }
-      const newSessions = allDates.map((d: any) => {
-        const iso = d.startDate.toISOString();
-        const existing = sessions.find(s => s.date === iso || safeParseDate(s.date)?.toISOString() === iso);
-        return {
-          date: iso,
-          endDate: d.endDate.toISOString(),
-          batches: existing?.batches && existing.batches.length > 0 ? existing.batches : (sessions[0]?.batches || []),
-          capacity: existing?.capacity || sessions[0]?.capacity || 100
-        };
-      });
-      setSessions(newSessions);
-    }
     setStep(prev => prev + 1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  const handleUpdateSessionTickets = (idx: number, newBatches: any[]) => {
-    const newSessions = [...sessions];
-    newSessions[idx].batches = newBatches;
-    setSessions(newSessions);
-  }
-
-  const handleUpdateSessionCapacity = (idx: number, cap: number) => {
-    const newSessions = [...sessions];
-    newSessions[idx].capacity = cap;
-    setSessions(newSessions);
   }
 
   const handleSubmit = async () => {
     if (!db || !currentOrg || !formData) return
     setLoading(true)
     try {
-      const updatePayload = {
+      // Normalização final e persistência
+      await updateDoc(doc(db, "experiences", eventId), {
         ...formData,
-        startDate: dateToAtomsphericISO(formData.startDate),
-        endDate: dateToAtomsphericISO(formData.endDate),
-        ticketMode,
-        batches: sessions[0]?.batches || [],
-        capacidadeTotal: sessions.reduce((acc, s) => acc + (parseInt(s.capacity) || 0), 0),
-        recurrency: { freq: formData.isRecurring ? formData.frequency : null, until: formData.recurringEndDate, customOccurrences: formData.customOccurrences },
         updatedAt: serverTimestamp()
-      };
-      const result = await updateEventAction({ eventId, orgId: currentOrg.id, eventData: updatePayload });
-      if (!result.success) throw new Error(result.error)
-      const occurrencesPayload = sessions.map(s => {
-        const d = safeParseDate(s.date);
-        const de = safeParseDate(s.endDate);
-        return { date: d ? format(d, "yyyy-MM-dd") : s.date.split('T')[0], startTime: d ? format(d, "HH:mm") : s.date.split('T')[1]?.substring(0, 5) || "19:00", endTime: de ? format(de, "HH:mm") : s.endDate.split('T')[1]?.substring(0, 5) || "22:00", batches: s.batches, capacidadeMaxima: s.capacity };
       });
-      await generateOccurrences(eventId, { name: formData.title, description: formData.description, organizationId: currentOrg.id, organizerName: currentOrg.name, frequency: 'custom', customOccurrences: occurrencesPayload, capacidadeMaxima: 0 });
-      toast({ title: "Evento atualizado!" })
-      router.push(`/${result.username}/${result.slug || eventId}`)
+      toast({ title: "Experiência atualizada!" })
+      router.push(`/${currentOrg.username}/experiencia/${formData.slug || eventId}`)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro ao salvar", description: e.message })
     } finally {
@@ -348,13 +260,22 @@ export default function EditarEventoWizard() {
     }
   }
 
-  if (eventLoading || !formData) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-secondary" /></div>
+  if (eventLoading || !formData) {
+    return (
+      <div className="flex flex-col items-center justify-center py-40 gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-secondary" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground animate-pulse">Sincronizando Dados...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-10 pb-20 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild><Link href={`/dashboard/organizacoes/${currentOrg?.username}/events`}><ArrowLeft className="w-5 h-5" /></Link></Button>
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
           <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Editar Experiência</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -366,159 +287,49 @@ export default function EditarEventoWizard() {
 
       {step === 1 && (
         <div className="space-y-8 animate-in slide-in-from-right-4">
-           <EventHeader title={formData.title} onTitleChange={v => setFormData({...formData, title: v})} image={formData.image} onImageUpload={handleImageUpload} uploadProgress={uploadProgress} />
+           <EventHeader title={formData.title} onTitleChange={v => setFormData({...formData, title: v, slug: slugify(v)})} image={formData.image} onImageUpload={handleImageUpload} uploadProgress={uploadProgress} />
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 <EventType 
-                   value={formData.type} 
-                   onChange={v => setFormData({...formData, type: v})} 
-                   externalUrl={formData.externalUrl}
-                   onExternalUrlChange={v => setFormData({...formData, externalUrl: v})}
-                   startingPrice={formData.startingPrice}
-                   onStartingPriceChange={v => setFormData({...formData, startingPrice: v})}
-                   disclosurePrices={formData.disclosurePrices}
-                   onDisclosurePricesChange={v => setFormData({...formData, disclosurePrices: v})}
-                 />
-                 <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
-                  <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v, categoryName: categories?.find((c: any) => c.id === v)?.name})}>
-                    <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent className="rounded-xl">{categories?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase opacity-60">Classificação</Label>
-                  <Select value={formData.ageRatingCode} onValueChange={v => setFormData({...formData, ageRatingCode: v})}>
-                    <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {['free', '10', '12', '14', '16', 'not_recommended_18', 'adults_only_18'].map(c => <SelectItem key={c} value={c}>{getAgeRatingConfig(c).label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                   <Label className="text-[10px] font-black uppercase opacity-60">Tipo de Vínculo</Label>
-                   <Select value={formData.curationType} onValueChange={v => setFormData({...formData, curationType: v})}>
-                      <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                         <SelectItem value="realização">Realização Direta</SelectItem>
-                         <SelectItem value="curadoria">Curadoria de Terceiros</SelectItem>
-                      </SelectContent>
-                   </Select>
-                </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
+                <Select value={formData.category} onValueChange={v => setFormData({...formData, category: v})}>
+                  <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent className="rounded-xl">{categories?.map((c: any) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                </Select>
               </div>
               <EventDescription value={formData.description} onChange={v => setFormData({...formData, description: v})} />
-              <EventTags tags={formData.tags} onChange={v => setFormData({...formData, tags: v})} />
-
-              {showWcSection && (
-                <div className="space-y-6 pt-6 border-t border-dashed border-secondary/20 animate-in zoom-in-95">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-[#ffdf00]/10 rounded-lg text-[#002776]"><Trophy className="w-6 h-6" /></div>
-                    <div>
-                      <h3 className="text-xl font-black italic uppercase tracking-tighter text-primary">Jogos transmitidos</h3>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Base oficial da Copa</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                    <div className="md:col-span-5 space-y-2">
-                      <Label className="text-[10px] font-black uppercase opacity-40">Seleção 1</Label>
-                      <Select value={matchSelection.teamA} onValueChange={v => setMatchSelection({...matchSelection, teamA: v})}>
-                        <SelectTrigger className="h-12 rounded-xl"><SelectValue placeholder="Time 1" /></SelectTrigger>
-                        <SelectContent className="max-h-[300px]">
-                          {availableTeams.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name.toUpperCase()}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="md:col-span-1 flex justify-center pb-3 opacity-20"><X className="w-4 h-4" /></div>
-                    <div className="md:col-span-5 space-y-2">
-                      <Label className="text-[10px] font-black uppercase opacity-40">Seleção 2</Label>
-                      <Select value={matchSelection.teamB} onValueChange={v => setMatchSelection({...matchSelection, teamB: v})}>
-                        <SelectTrigger className="h-12 rounded-xl"><SelectValue placeholder="Time 2" /></SelectTrigger>
-                        <SelectContent className="max-h-[300px]">
-                          {availableTeams.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name.toUpperCase()}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="md:col-span-1">
-                      <Button type="button" onClick={handleAddMatch} className="h-12 w-full bg-[#009c3b] text-white rounded-xl shadow-lg"><Plus className="w-5 h-5" /></Button>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    {formData.matches?.length === 0 ? (
-                      <div className="py-10 text-center border-2 border-dashed rounded-3xl opacity-20 italic">Nenhum jogo vinculado</div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {formData.matches?.map((m: any, i: number) => (
-                          <div key={i} className="p-4 bg-muted/20 rounded-2xl border flex items-center justify-between group">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center -space-x-1.5">
-                                <img src={m.teamAFlag} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
-                                <img src={m.teamBFlag} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-black uppercase italic text-primary truncate max-w-[150px]">{m.teamAName} × {m.teamBName}</p>
-                                <p className="text-[8px] font-bold text-muted-foreground uppercase">{new Date(m.kickoffAt).toLocaleDateString('pt-BR')} às {new Date(m.kickoffAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                              </div>
-                            </div>
-                            <button type="button" onClick={() => setFormData((prev: any) => ({ ...prev, matches: prev.matches.filter((_: any, idx: number) => idx !== i) }))} className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              <EventVisibility value={formData.status} onChange={v => setFormData({...formData, status: v})} />
            </Card>
-           <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
            <Button onClick={handleNextStep} className="w-full h-16 bg-primary text-white font-black rounded-2xl uppercase italic text-lg gap-2">Próximo Passo <ChevronRight className="w-5 h-5" /></Button>
         </div>
       )}
 
       {step === 2 && (
         <div className="space-y-8 animate-in slide-in-from-right-4">
-           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
-              <EventDateTime startDate={formData.startDate} endDate={formData.endDate} onStartDateChange={v => setFormData({...formData, startDate: v})} onEndDateChange={v => setFormData({...formData, endDate: v})} />
-              <Separator className="border-dashed" />
-              <EventRecurrence isRecurring={formData.isRecurring} onIsRecurringChange={v => setFormData({...formData, isRecurring: v})} frequency={formData.frequency} onFrequencyChange={v => setFormData({...formData, frequency: v})} recurringEndDate={formData.recurringEndDate} onRecurringEndDateChange={v => setFormData({...formData, recurringEndDate: v})} customOccurrences={formData.customOccurrences} onCustomOccurrencesChange={v => setFormData({...formData, customOccurrences: v})} />
-           </Card>
+           <EventLocation address={formData.address} onChange={v => setFormData({...formData, address: v})} />
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(1)} className="h-16 px-8 rounded-2xl font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={handleNextStep} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Configurar Bilheterias <ChevronRight className="w-5 h-5" /></Button>
+              <Button onClick={handleNextStep} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Agenda e Regras <ChevronRight className="w-5 h-5" /></Button>
            </div>
         </div>
       )}
 
       {step === 3 && (
         <div className="space-y-8 animate-in slide-in-from-right-4">
-           <Accordion type="single" collapsible className="space-y-4" defaultValue="session-0">
-              {sessions.map((session, idx) => (
-                <AccordionItem key={idx} value={`session-${idx}`} className="border-none">
-                  <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden">
-                    <AccordionTrigger className="px-8 py-6 hover:no-underline">
-                       <div className="flex items-center gap-4 text-left">
-                          <div className="w-12 h-12 rounded-2xl bg-muted flex flex-col items-center justify-center">
-                             <span className="text-[8px] font-black uppercase opacity-40">{safeParseDate(session.date)?.toLocaleDateString('pt-BR', { month: 'short' }) || "---"}</span>
-                             <span className="text-lg font-black text-primary leading-none">{safeParseDate(session.date)?.getDate() || "00"}</span>
-                          </div>
-                          <div>
-                             <p className="text-sm font-black uppercase italic text-primary">{idx === 0 ? "Sessão Principal / " : ""}{safeParseDate(session.date)?.toLocaleDateString('pt-BR', { weekday: 'long' })}</p>
-                             <p className="text-[10px] font-bold text-muted-foreground uppercase">{session.capacity} Vagas • {session.batches?.length || 0} Lotes</p>
-                          </div>
-                       </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-8 pb-8 pt-0">
-                       <Separator className="border-dashed mb-8" />
-                       <BilheteriaAdmin mode={ticketMode} onModeChange={setTicketMode} batches={session.batches} onBatchesChange={(newBatches) => handleUpdateSessionTickets(idx, newBatches)} totalCapacity={session.capacity} onTotalCapacityChange={(cap) => handleUpdateSessionCapacity(idx, cap)} eventCurrency={formData.currency as CurrencyCode} sessionLabel={`Configuração para o dia: ${safeParseDate(session.date)?.toLocaleDateString('pt-BR')}`} />
-                    </AccordionContent>
-                  </Card>
-                </AccordionItem>
-              ))}
-           </Accordion>
+           <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-8">
+              <div className="grid grid-cols-2 gap-6">
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Duração</Label>
+                    <Input value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} className="rounded-xl h-11" placeholder="Ex: 3 horas" />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Vagas Máximas</Label>
+                    <Input type="number" value={formData.maxGroupSize || ""} onChange={e => setFormData({...formData, maxGroupSize: parseInt(e.target.value) || null})} className="rounded-xl h-11" />
+                 </div>
+              </div>
+           </Card>
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(2)} className="h-16 px-8 rounded-2xl font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={handleNextStep} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Concluir Alterações <ChevronRight className="w-5 h-5" /></Button>
+              <Button onClick={handleNextStep} className="flex-1 h-16 bg-primary text-white font-black rounded-2xl shadow-xl uppercase italic text-lg gap-2">Revisão Final <ChevronRight className="w-5 h-5" /></Button>
            </div>
         </div>
       )}
@@ -526,37 +337,19 @@ export default function EditarEventoWizard() {
       {step === 4 && (
         <div className="space-y-8 animate-in slide-in-from-right-4">
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-10 space-y-10">
-              <div className="space-y-2">
-                 <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Conferência Final</h2>
-                 <p className="text-sm font-medium text-muted-foreground">Verifique os dados antes de atualizar a série.</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                 <div className="space-y-4">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2"><Calendar className="w-4 h-4 text-secondary" /> Sessões Monitoradas</p>
-                    <div className="p-5 bg-muted/20 rounded-2xl border border-dashed space-y-3">
-                       {sessions.map((s, i) => (
-                         <div key={i} className="flex justify-between items-center text-[10px] font-bold uppercase">
-                            <span>{safeParseDate(s.date)?.toLocaleDateString('pt-BR')}</span>
-                            <span className="text-primary italic">{s.capacity} Vagas</span>
-                         </div>
-                       ))}
-                    </div>
+              <div className="text-center space-y-4">
+                 <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto text-white shadow-xl">
+                    <CheckCircle2 className="w-10 h-10" />
                  </div>
-                 <div className="space-y-4">
-                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2"><MapPin className="w-4 h-4 text-secondary" /> Local Mantido</p>
-                    <p className="font-bold text-sm uppercase">{formData.address.city}, {formData.address.stateRegion}</p>
-                 </div>
-              </div>
-              <div className="p-6 bg-orange-50 rounded-3xl border-2 border-dashed border-orange-200 flex items-start gap-4">
-                 <ShieldCheck className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
-                 <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">As alterações serão aplicadas em todas as sessões futuras. Ingressos já vendidos não serão afetados, mas o estoque remanescente será recalculado.</p>
+                 <h2 className="text-3xl font-black italic uppercase tracking-tighter text-primary">Tudo pronto!</h2>
+                 <p className="text-sm font-medium text-muted-foreground">Revise as alterações e publique para atualizar a vitrine.</p>
               </div>
            </Card>
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(3)} className="h-20 px-8 rounded-[2.5rem] font-bold uppercase text-xs">Voltar</Button>
               <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 transition-all active:scale-95">
-                 {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Save className="w-6 h-6" />}
-                 Atualizar Evento
+                 {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
+                 Salvar Alterações
               </Button>
            </div>
         </div>
