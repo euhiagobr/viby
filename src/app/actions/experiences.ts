@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -61,6 +62,7 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
       createdBy: userId,
       averageRating: 5.0,
       reviewCount: 0,
+      ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
       availability: {
         startDate: "",
         endDate: "",
@@ -188,6 +190,7 @@ export async function duplicateExperienceAction(id: string, userId: string) {
       createdBy: userId,
       averageRating: 5.0,
       reviewCount: 0,
+      ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
@@ -301,18 +304,35 @@ export async function createExperienceReservationAction(params: {
 }
 
 /**
- * Submete uma avaliação de experiência e atualiza a média global.
+ * Submete uma avaliação detalhada de experiência.
  */
 export async function submitExperienceReviewAction(params: {
   registrationId: string;
   experienceId: string;
   userId: string;
   userName: string;
-  rating: number;
-  comment: string;
+  userAvatar?: string;
+  generalRating: number;
+  detailedRatings: {
+    org: number;
+    service: number;
+    quality: number;
+    price: number;
+    environment: number;
+  };
+  recommend: string;
+  match: string;
+  return: string;
+  targets: string[];
+  title: string;
+  likedMost: string;
+  canImprove: string;
+  fullExperience: string;
+  photos: string[];
+  video?: string;
 }) {
   const db = getAdminDb();
-  const { registrationId, experienceId, userId, userName, rating, comment } = params;
+  const { registrationId, experienceId, userId, generalRating } = params;
 
   try {
     return await db.runTransaction(async (transaction) => {
@@ -329,35 +349,48 @@ export async function submitExperienceReviewAction(params: {
       const expData = expSnap.data()!;
       const currentAvg = expData.averageRating || 5.0;
       const currentCount = expData.reviewCount || 0;
+      const currentDist = expData.ratingDistribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 
-      // Cálculo de média ponderada
+      // 1. Geração de Badges Automáticas
+      const badges = [];
+      const dr = params.detailedRatings;
+      if (dr.service >= 4.5) badges.push("✨ Excelente atendimento");
+      if (dr.price >= 4.5) badges.push("💰 Ótimo custo-benefício");
+      if (params.recommend === 'sim') badges.push("🔥 Muito recomendado");
+      if (dr.environment >= 4.5) badges.push("🌿 Ambiente agradável");
+      if (dr.quality >= 4.5) badges.push("🎯 Cumpre o que promete");
+      if (generalRating === 5) badges.push("⭐ Experiência premium");
+      if (dr.org >= 4.5) badges.push("🏆 Organização impecável");
+
+      // 2. Cálculo de Média e Distribuição
       const newCount = currentCount + 1;
-      const newAvg = Number(((currentAvg * currentCount + rating) / newCount).toFixed(1));
+      const newAvg = Number(((currentAvg * currentCount + generalRating) / newCount).toFixed(1));
+      
+      const newDist = { ...currentDist };
+      const ratingKey = generalRating.toString();
+      newDist[ratingKey] = (newDist[ratingKey] || 0) + 1;
 
-      // 1. Salvar Review
-      const reviewRef = db.collection('experience_reviews').doc();
+      // 3. Salvar Review
+      const reviewRef = db.collection('experience_reviews').doc(registrationId); // ID único por reserva
       transaction.set(reviewRef, {
-        id: reviewRef.id,
-        experienceId,
-        userId,
-        userName,
-        rating,
-        comment,
-        registrationId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-
-      // 2. Atualizar Experiência
-      transaction.update(expRef, {
-        averageRating: newAvg,
-        reviewCount: newCount,
+        ...params,
+        badges,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // 3. Marcar Voucher como avaliado
+      // 4. Atualizar Experiência
+      transaction.update(expRef, {
+        averageRating: newAvg,
+        reviewCount: newCount,
+        ratingDistribution: newDist,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 5. Marcar Voucher como avaliado
       transaction.update(regRef, {
         ratingSubmitted: true,
-        ratingValue: rating,
+        ratingValue: generalRating,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 

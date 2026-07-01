@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -24,9 +25,14 @@ import {
   Layout,
   Clock,
   Info,
-  ShieldCheck
+  ShieldCheck,
+  Star,
+  History,
+  MessageSquare,
+  ThumbsUp,
+  Inbox
 } from 'lucide-react';
-import { doc, serverTimestamp, updateDoc, query, collection, where } from 'firebase/firestore';
+import { doc, serverTimestamp, updateDoc, query, collection, where, orderBy, limit } from 'firebase/firestore';
 import Link from 'next/link';
 import { toast } from '@/hooks/use-toast';
 import { saveExperienceAction } from '@/app/actions/experiences';
@@ -40,6 +46,8 @@ import { Separator } from '@/components/ui/separator';
 import { ExperienceSlotsAdmin } from '@/components/experiences/ExperienceSlotsAdmin';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const WEEK_DAYS = [
   { id: 0, label: "Dom" },
@@ -75,6 +83,13 @@ export default function EditarExperienciaPage() {
 
   const expRef = React.useMemo(() => (db && id) ? doc(db, "experiences", id) : null, [db, id]);
   const { data: exp, loading: expLoading } = useDoc<any>(expRef);
+
+  // Reviews do Organizador
+  const reviewsQuery = useMemoFirebase(() => {
+    if (!db || !id) return null;
+    return query(collection(db, "experience_reviews"), where("experienceId", "==", id), orderBy("createdAt", "desc"));
+  }, [db, id]);
+  const { data: reviews, loading: reviewsLoading } = useCollection<any>(reviewsQuery);
 
   const [saving, setSaving] = React.useState(false);
   const [formData, setFormData] = React.useState<any>(null);
@@ -217,6 +232,7 @@ export default function EditarExperienciaPage() {
           <TabsTrigger value="conteudo" className="rounded-lg px-8 font-bold gap-2"><Layout className="w-4 h-4" /> Conteúdo</TabsTrigger>
           <TabsTrigger value="agenda" className="rounded-lg px-8 font-bold gap-2"><Calendar className="w-4 h-4" /> Disponibilidade</TabsTrigger>
           <TabsTrigger value="horarios" className="rounded-lg px-8 font-bold gap-2"><Clock className="w-4 h-4" /> Horários</TabsTrigger>
+          <TabsTrigger value="reviews" className="rounded-lg px-8 font-bold gap-2"><Star className="w-4 h-4" /> Avaliações</TabsTrigger>
           <TabsTrigger value="local" className="rounded-lg px-8 font-bold gap-2"><MapPin className="w-4 h-4" /> Localização</TabsTrigger>
         </TabsList>
 
@@ -320,20 +336,87 @@ export default function EditarExperienciaPage() {
                  <Switch checked={formData.availability.allowHolidays} onCheckedChange={v => setFormData({...formData, availability: {...formData.availability, allowHolidays: v}})} />
               </div>
            </Card>
-
-           <div className="p-4 bg-secondary/5 rounded-2xl border-2 border-dashed border-secondary/20 flex items-start gap-4 animate-in zoom-in-95">
-              <Info className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                 <h4 className="font-black uppercase text-xs italic text-primary">Dica de Disponibilidade</h4>
-                 <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
-                    Defina aqui o período macro de funcionamento. Os horários e preços específicos (sessões) devem ser gerenciados na aba <strong>Horários</strong>.
-                 </p>
-              </div>
-           </div>
         </TabsContent>
 
         <TabsContent value="horarios" className="mt-0">
            <ExperienceSlotsAdmin experienceId={id} />
+        </TabsContent>
+
+        <TabsContent value="reviews" className="mt-0 space-y-8">
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="border-none shadow-sm bg-white p-6 flex flex-col items-center justify-center text-center gap-2">
+                 <p className="text-[9px] font-black uppercase text-muted-foreground">Nota Média</p>
+                 <div className="flex items-center gap-3">
+                    <Star className="w-8 h-8 fill-orange-400 text-orange-400" />
+                    <span className="text-4xl font-black italic tracking-tighter text-primary">{Number(exp.averageRating || 5).toFixed(1)}</span>
+                 </div>
+              </Card>
+              <Card className="border-none shadow-sm bg-white p-6 flex flex-col items-center justify-center text-center gap-2">
+                 <p className="text-[9px] font-black uppercase text-muted-foreground">Total Avaliações</p>
+                 <div className="flex items-center gap-3">
+                    <MessageSquare className="w-8 h-8 text-secondary" />
+                    <span className="text-4xl font-black italic tracking-tighter text-primary">{exp.reviewCount || 0}</span>
+                 </div>
+              </Card>
+              <Card className="border-none shadow-sm bg-secondary text-white p-6 flex flex-col items-center justify-center text-center gap-2">
+                 <p className="text-[9px] font-black uppercase opacity-60">Recomendação</p>
+                 <div className="flex items-center gap-3">
+                    <ThumbsUp className="w-8 h-8 fill-current" />
+                    <span className="text-4xl font-black italic tracking-tighter">98%</span>
+                 </div>
+              </Card>
+           </div>
+
+           <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
+              <CardHeader className="bg-muted/30 border-b p-8">
+                 <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2">
+                    <History className="w-5 h-5 text-secondary" /> Feed de Comentários
+                 </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                 {reviewsLoading ? (
+                    <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-secondary" /></div>
+                 ) : reviews && reviews.length > 0 ? (
+                    <div className="divide-y">
+                       {reviews.map(review => (
+                         <div key={review.id} className="p-8 space-y-4 hover:bg-muted/5 transition-colors">
+                            <div className="flex justify-between items-start">
+                               <div className="flex items-center gap-3">
+                                  <Avatar className="h-10 w-10 border">
+                                     <AvatarImage src={review.userAvatar} />
+                                     <AvatarFallback className="font-bold bg-muted">{review.userName?.charAt(0)}</AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                     <p className="text-sm font-bold uppercase italic">{review.userName}</p>
+                                     <p className="text-[9px] font-black text-muted-foreground uppercase">{new Date(review.createdAt?.seconds * 1000 || review.createdAt).toLocaleDateString('pt-BR')}</p>
+                                  </div>
+                               </div>
+                               <div className="flex gap-1">
+                                  {Array.from({length: 5}).map((_, i) => (
+                                    <Star key={i} className={cn("w-3 h-3", i < review.generalRating ? "fill-orange-400 text-orange-400" : "text-muted opacity-20")} />
+                                  ))}
+                               </div>
+                            </div>
+                            <div className="space-y-2">
+                               <p className="text-sm font-black uppercase text-primary italic">{review.title}</p>
+                               <p className="text-xs text-muted-foreground leading-relaxed">"{review.fullExperience}"</p>
+                            </div>
+                            {review.badges?.length > 0 && (
+                               <div className="flex flex-wrap gap-2">
+                                  {review.badges.map((b: string, i: number) => <Badge key={i} variant="outline" className="text-[7px] font-black uppercase border-secondary/20 text-secondary bg-secondary/5">{b}</Badge>)}
+                               </div>
+                            )}
+                         </div>
+                       ))}
+                    </div>
+                 ) : (
+                    <div className="py-20 text-center opacity-30 italic flex flex-col items-center gap-4">
+                       <Inbox className="w-10 h-10" />
+                       <p className="text-[10px] font-black uppercase tracking-widest">Nenhuma avaliação recebida.</p>
+                    </div>
+                 )}
+              </CardContent>
+           </Card>
         </TabsContent>
 
         <TabsContent value="local" className="mt-0 space-y-8">

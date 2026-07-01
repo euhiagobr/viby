@@ -1,13 +1,13 @@
+
 'use client';
 
 import * as React from 'react';
 import { PublicHeader } from '@/components/layout/PublicHeader';
 import Footer from '@/components/layout/Footer';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
-  Sparkles, 
   Share2, 
   ShieldCheck, 
   Clock, 
@@ -15,15 +15,13 @@ import {
   Info,
   MapPin,
   Navigation,
-  CheckCircle2,
   ShoppingBag,
   Loader2,
   Calendar as CalendarIcon,
-  ChevronRight,
   AlertTriangle,
-  Zap,
-  ArrowRight,
-  Calendar
+  Star,
+  Camera,
+  Users
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RichText } from '@/components/ui/rich-text';
@@ -31,7 +29,7 @@ import { cn, safeParseDate } from '@/lib/utils';
 import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import { useCurrency, CurrencyCode } from '@/contexts/CurrencyContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { Separator } from '@/components/ui/separator';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc } from 'firebase/firestore';
@@ -42,6 +40,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, isSameDay, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ExperiencePublicReviews } from '@/components/experiences/ExperiencePublicReviews';
+import { CommunityGallery } from '@/components/experiences/CommunityGallery';
 
 const LocationMap = dynamic(() => import("@/components/events/LocationMap").then(mod => mod.LocationMap), { 
   ssr: false,
@@ -193,9 +193,15 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                  <p className="text-lg md:text-2xl font-medium text-primary/70 max-w-2xl leading-relaxed uppercase tracking-wide italic">
                   {experience.shortDescription}
                  </p>
-                 {minPrice > 0 && (
-                   <p className="text-xl font-black text-secondary italic uppercase tracking-tighter">A partir de {formatPrice(minPrice, experience.currency || 'BRL')}</p>
-                 )}
+                 <div className="flex items-center gap-6 mt-2">
+                    {minPrice > 0 && (
+                      <p className="text-xl font-black text-secondary italic uppercase tracking-tighter">A partir de {formatPrice(minPrice, experience.currency || 'BRL')}</p>
+                    )}
+                    <div className="flex items-center gap-2 bg-white/80 px-3 py-1.5 rounded-full shadow-sm">
+                       <Star className="w-4 h-4 fill-orange-400 text-orange-400" />
+                       <span className="text-sm font-black text-primary">{Number(experience.averageRating || 5).toFixed(1)} <span className="opacity-40 font-bold">({experience.reviewCount || 0})</span></span>
+                    </div>
+                 </div>
               </div>
             </div>
           </div>
@@ -203,10 +209,8 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
 
         <div className="container mx-auto px-4 py-12 max-w-6xl flex flex-col lg:grid lg:grid-cols-12 gap-12">
           
-          {/* COLUNA PRINCIPAL (ESQUERDA NO DESKTOP) */}
           <div className="lg:col-span-7 flex flex-col gap-16 order-1">
             
-            {/* 1. DETALHES DA EXPERIÊNCIA */}
             <section className="space-y-6 order-1">
               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
                 <Info className="w-4 h-4 text-secondary" /> Detalhes da Experiência
@@ -218,7 +222,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               </Card>
             </section>
 
-            {/* 2. LOCALIZAÇÃO */}
             <section className="space-y-6 order-2">
               <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-secondary" /> Localização
@@ -247,7 +250,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
               </Card>
             </section>
 
-            {/* 4. REGRAS E POLÍTICAS (APARECE DEPOIS DO SELETOR NO MOBILE, E NA COLUNA DA ESQUERDA NO DESKTOP) */}
             {experience.usagePolicy && (
               <section className="space-y-6 order-4">
                 <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
@@ -258,21 +260,8 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                 </Card>
               </section>
             )}
-
-            {/* 5. INFORMAÇÕES ÚTEIS */}
-            {experience.additionalInfo && (
-              <section className="space-y-6 order-5">
-                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground px-2 flex items-center gap-2">
-                  <Info className="w-4 h-4 text-secondary" /> Informações Úteis
-                </h2>
-                <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8 md:p-12">
-                   <RichText content={experience.additionalInfo} className="text-sm md:text-base font-medium text-muted-foreground leading-relaxed" />
-                </Card>
-              </section>
-            )}
           </div>
 
-          {/* 3. COLUNA LATERAL (CALENDÁRIO + ORGANIZADOR) */}
           <aside id="seletor-agenda" className="lg:col-span-5 order-3 lg:row-start-1 lg:row-span-10">
             <div className="lg:sticky lg:top-24 space-y-8">
               <Card className="border-none shadow-2xl rounded-[3rem] bg-white p-8 space-y-8">
@@ -281,11 +270,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                     <div className="space-y-1">
                         <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary">Selecionar Data</h3>
                         <p className="text-[10px] font-bold text-muted-foreground uppercase">Escolha o dia da sua vivência</p>
-                    </div>
-                    <div className="flex gap-2">
-                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-secondary" /><span className="text-[7px] font-black uppercase">Livre</span></div>
-                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-muted-foreground/30" /><span className="text-[7px] font-black uppercase">Cheio</span></div>
-                        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /><span className="text-[7px] font-black uppercase">Indisp.</span></div>
                     </div>
                   </div>
 
@@ -400,7 +384,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                 </div>
               </Card>
 
-              {/* AVISO DE SEGURANÇA */}
               <div className="p-6 bg-secondary/5 rounded-[2.5rem] border border-secondary/10 flex items-start gap-4">
                 <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
                 <p className="text-[9px] text-secondary font-bold uppercase leading-relaxed italic">
@@ -410,6 +393,11 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
             </div>
           </aside>
         </div>
+
+        {/* NOVAS SEÇÕES: GALERIA E REVIEWS */}
+        <CommunityGallery experienceId={experience.id} />
+        <ExperiencePublicReviews experience={experience} />
+
       </main>
 
       <Footer />
