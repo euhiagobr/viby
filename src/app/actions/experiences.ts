@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -302,10 +301,15 @@ export async function deleteExperienceSlotAction(experienceId: string, slotId: s
   }
 }
 
+/**
+ * Processa a exclusão de uma experiência.
+ * REGRA: Se houver vendas, apenas oculta para preservar vouchers. Se não houver, apaga permanentemente.
+ */
 export async function deleteExperienceAction(id: string) {
   const db = getAdminDb();
   try {
-    const reservationsSnap = await db.collection('registrations')
+    // 1. Verificar se existem vendas (incluindo confirmadas e pendentes)
+    const salesSnap = await db.collection('registrations')
       .where('eventId', '==', id)
       .where('productType', '==', 'experience')
       .limit(1)
@@ -313,17 +317,28 @@ export async function deleteExperienceAction(id: string) {
     
     const expRef = db.collection('experiences').doc(id);
 
-    if (!reservationsSnap.empty) {
-      await expRef.update({ status: 'deleted', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    if (!salesSnap.empty) {
+      // Caso 1: Vendas detectadas. Soft Delete.
+      await expRef.update({ 
+        status: 'deleted', 
+        updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+      });
+      revalidatePath('/');
+      return { success: true, mode: 'soft' };
     } else {
+      // Caso 2: Sem vendas. Hard Delete (Limpeza profunda).
       const slotsSnap = await expRef.collection('slots').get();
       const batch = db.batch();
+      
+      // Limpar todos os slots vinculados
       slotsSnap.forEach(s => batch.delete(s.ref));
+      // Apagar o documento principal
       batch.delete(expRef);
+      
       await batch.commit();
+      revalidatePath('/');
+      return { success: true, mode: 'hard' };
     }
-    revalidatePath('/');
-    return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
