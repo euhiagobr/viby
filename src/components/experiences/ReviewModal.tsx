@@ -39,6 +39,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 interface ReviewModalProps {
   registration: any;
@@ -194,7 +195,7 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
                    <RatingRow label="Atendimento" desc="Como foi o tratamento da equipe?" value={form.detailedRatings.service} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, service: v}})} />
                    <RatingRow label="Qualidade" desc="A experiência entregou o que prometia?" value={form.detailedRatings.quality} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, quality: v}})} />
                    <RatingRow label="Custo-benefício" desc="O preço valeu a experiência?" value={form.detailedRatings.price} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, price: v}})} />
-                   <RatingRow label="Ambiente" desc="O local era agradável e adequado?" value={form.detailedRatings.environment} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, environment: v}})} />
+                   <RatingRow label="Ambiente" desc="Como você avalia o ambiente?" value={form.detailedRatings.environment} onChange={v => setForm({...form, detailedRatings: {...form.detailedRatings, environment: v}})} />
                 </div>
              </div>
            )}
@@ -207,7 +208,7 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
                 </div>
                 <div className="space-y-8">
                    <ChoiceRow label="Você recomendaria esta experiência?" value={form.recommend} onChange={v => setForm({...form, recommend: v})} />
-                   <ChoiceRow label="A descrição correspondia ao que encontrou?" value={form.match} onChange={v => setForm({...form, match: v})} options={['Sim', 'Parcialmente', 'Não']} values={['sim', 'parcial', 'nao']} />
+                   <ChoiceRow label="A descrição correspondia ao que você encontrou?" value={form.match} onChange={v => setForm({...form, match: v})} options={['Sim', 'Parcialmente', 'Não']} values={['sim', 'parcial', 'nao']} />
                    <ChoiceRow label="Você voltaria?" value={form.return} onChange={v => setForm({...form, return: v})} />
                 </div>
              </div>
@@ -286,7 +287,7 @@ export function ReviewModal({ registration, isOpen, onOpenChange }: ReviewModalP
                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       {form.photos.map((url, i) => (
                         <div key={i} className="relative aspect-square rounded-2xl overflow-hidden border shadow-sm group">
-                           <img src={url} className="w-full h-full object-cover" />
+                           <img src={url} className="w-full h-full object-cover" alt="Review" />
                            <button onClick={() => setForm({...form, photos: form.photos.filter((_, idx) => idx !== i)})} className="absolute top-2 right-2 p-1 bg-destructive text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"><X className="w-3 h-3" /></button>
                         </div>
                       ))}
@@ -357,7 +358,7 @@ function RatingRow({ label, desc, value, onChange }: any) {
        </div>
        <div className="flex gap-1 shrink-0">
           {[1, 2, 3, 4, 5].map(v => (
-            <button key={v} onClick={() => onChange(v)} className="transition-transform active:scale-90">
+            <button key={v} type="button" onClick={() => onChange(v)} className="transition-transform active:scale-90">
                <Star className={cn("w-5 h-5", value >= v ? "fill-orange-400 text-orange-400" : "text-muted opacity-20")} />
             </button>
           ))}
