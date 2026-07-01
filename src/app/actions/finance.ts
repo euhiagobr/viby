@@ -1,3 +1,4 @@
+
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -28,7 +29,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       const isOrgManager = memberSnap.exists && ['owner', 'admin', 'editor'].includes(memberSnap.data()?.role);
 
       if (!isAdmin && !isOrgManager) throw new Error("Acesso negado.");
-      if (regData.status === 'cancelled' || regData.status === 'refunded') throw new Error("Já estornado.");
+      if (regData.status === 'cancelled' || regData.status === 'refunded' || regData.paymentStatus === 'Estornado' || regData.paymentStatus === 'Cancelado') throw new Error("Já estornado ou cancelado.");
       if (regData.checkedIn) throw new Error("Ingresso já utilizado.");
 
       const occurrenceId = regData.occurrenceId;
@@ -76,6 +77,7 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       if (totalPaid <= 0) {
         transaction.update(regRef, {
           status: 'cancelled',
+          paymentStatus: 'Cancelado',
           cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
           cancelledBy: executorUid,
           cancelReason: reason

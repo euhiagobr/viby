@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -23,7 +24,7 @@ import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { resendTicketAction } from "@/app/actions/tickets"
-import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+import { useCurrency, CurrencyCode } from "@/contexts/CurrencyCode"
 import { ReviewModal } from "@/components/experiences/ReviewModal"
 
 export default function MeusIngressosPage() {
@@ -93,16 +94,13 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
   const [isSendingEmail, setIsSendingEmail] = React.useState(false)
   const [isReviewOpen, setIsReviewOpen] = React.useState(false)
 
-  const isCancelled = registration.status === 'cancelled' || 
-                      registration.status === 'refunded' || 
-                      registration.paymentStatus === 'Estornado' || 
-                      registration.paymentStatus === 'refunded_wallet';
-  
+  const isRefunded = registration.status === 'refunded' || registration.paymentStatus === 'Estornado' || registration.paymentStatus === 'refunded_wallet';
+  const isCancelled = registration.status === 'cancelled' || registration.paymentStatus === 'Cancelado';
   const isCheckedIn = registration.checkedIn === true;
   const isPending = registration.paymentStatus === 'Pendente';
 
   const canReview = React.useMemo(() => {
-    if (isCancelled || registration.ratingSubmitted) return false;
+    if (isRefunded || isCancelled || registration.ratingSubmitted) return false;
     if (registration.productType !== 'experience') return false;
     
     // MODO TESTE: Administradores podem avaliar a qualquer momento
@@ -115,10 +113,10 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
     const now = new Date();
     const diff = now.getTime() - checkinDate.getTime();
     return diff >= 24 * 60 * 60 * 1000;
-  }, [isCheckedIn, isCancelled, registration, isAdmin]);
+  }, [isCheckedIn, isRefunded, isCancelled, registration, isAdmin]);
 
   const handleResend = async () => {
-    if (isCancelled || isSendingEmail) return;
+    if (isRefunded || isCancelled || isSendingEmail) return;
     setIsSendingEmail(true);
     try {
       const result = await resendTicketAction(registration.id);
@@ -138,25 +136,26 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
   return (
     <Card className={cn(
       "overflow-hidden border-none shadow-sm transition-all rounded-[1.5rem] bg-white flex flex-col sm:flex-row group",
-      isCancelled && "opacity-60 grayscale-[0.5] bg-muted/20"
+      (isRefunded || isCancelled) && "opacity-60 grayscale-[0.5] bg-muted/20"
     )}>
       <div className="relative w-full sm:w-44 h-40 sm:h-auto bg-muted">
         <Image 
           src={registration.eventImage || "https://picsum.photos/seed/event/600/400"} 
           alt="Evento" 
           fill 
-          className="object-cover" 
+          className="object-cover transition-transform group-hover:scale-105" 
           unoptimized 
         />
         <div className="absolute bottom-3 left-3">
            <Badge className={cn(
              "border-none text-[10px] font-black uppercase px-3 shadow-md",
-             isCancelled ? "bg-red-500 text-white" : 
+             isRefunded ? "bg-red-500 text-white" : 
+             isCancelled ? "bg-slate-600 text-white" :
              isCheckedIn ? "bg-primary text-white" :
              isPending ? "bg-orange-50 text-orange-600" :
              "bg-green-600 text-white"
            )}>
-             {isCancelled ? "Estornado" : isCheckedIn ? "Utilizado" : isPending ? "Pendente" : "Confirmado"}
+             {isRefunded ? "Estornado" : isCancelled ? "Cancelado" : isCheckedIn ? "Utilizado" : isPending ? "Pendente" : "Confirmado"}
            </Badge>
         </div>
       </div>
@@ -166,7 +165,7 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
           <div className="flex justify-between items-start">
             <h3 className={cn(
               "font-black text-lg leading-tight uppercase italic text-primary leading-tight line-clamp-2",
-              !isCancelled && "group-hover:text-secondary"
+              !(isRefunded || isCancelled) && "group-hover:text-secondary"
             )}>
               {registration.eventTitle}
             </h3>
@@ -191,8 +190,8 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
 
         <div className="flex items-center justify-between pt-4 border-t border-dashed border-border/60">
           <div className="text-sm">
-            {isCancelled ? (
-              <span className="text-muted-foreground font-bold uppercase text-[10px]">Valor Devolvido</span>
+            {(isRefunded || isCancelled) ? (
+              <span className="text-muted-foreground font-bold uppercase text-[10px]">Reserva Invalida</span>
             ) : (
               formatPriceWithOriginal(registration.price || 0, (registration.currency || 'BRL') as CurrencyCode)
             )}
@@ -203,16 +202,16 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
                 <Star className="w-3 h-3 mr-1.5 fill-current" /> Avaliar Experiência
               </Button>
             )}
-            {!isCancelled && !isPending && (
+            {!(isRefunded || isCancelled) && !isPending && (
               <Button size="sm" variant="outline" onClick={handleResend} disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
                 {isSendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
               </Button>
             )}
             <Button size="sm" className={cn(
               "h-9 px-4 text-[10px] font-black uppercase rounded-xl",
-              isCancelled ? "bg-muted text-muted-foreground" : "bg-primary text-white"
-            )} asChild={!isCancelled}>
-              {isCancelled ? (
+              (isRefunded || isCancelled) ? "bg-muted text-muted-foreground" : "bg-primary text-white"
+            )} asChild={!(isRefunded || isCancelled)}>
+              {(isRefunded || isCancelled) ? (
                 <span className="flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5" /> Inválido</span>
               ) : (
                 <Link href={`/dashboard/ingressos/${registration.id}/voucher`}>

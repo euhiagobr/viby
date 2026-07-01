@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -106,10 +107,10 @@ export default function ExperienciaPublicoPage() {
   const stats = React.useMemo(() => {
     if (!registrations) return { total: 0, present: 0, pendingRefunds: 0, refunded: 0 };
     
-    const valid = registrations.filter((r: any) => r.status !== 'refunded' && r.status !== 'cancelled' && r.paymentStatus !== 'Estornado');
+    const valid = registrations.filter((r: any) => r.paymentStatus !== 'Estornado' && r.paymentStatus !== 'Cancelado' && r.paymentStatus !== 'refunded_wallet');
     const present = valid.filter((r: any) => r.checkedIn).length;
     const pendingRefunds = registrations.filter((r: any) => r.refundStatus === 'requested').length;
-    const refunded = registrations.filter((r: any) => r.status === 'refunded' || r.paymentStatus === 'Estornado' || r.status === 'cancelled').length;
+    const refunded = registrations.filter((r: any) => r.status === 'refunded' || r.paymentStatus === 'Estornado' || r.status === 'cancelled' || r.paymentStatus === 'Cancelado').length;
     
     return { total: valid.length, present, pendingRefunds, refunded };
   }, [registrations]);
@@ -123,7 +124,7 @@ export default function ExperienciaPublicoPage() {
     } else if (activeTab === 'present') {
       list = list.filter(r => r.checkedIn);
     } else if (activeTab === 'refunded') {
-      list = list.filter(r => r.status === 'refunded' || r.paymentStatus === 'Estornado' || r.status === 'cancelled');
+      list = list.filter(r => r.status === 'refunded' || r.paymentStatus === 'Estornado' || r.status === 'cancelled' || r.paymentStatus === 'Cancelado' || r.paymentStatus === 'refunded_wallet');
     }
 
     return list
@@ -199,9 +200,9 @@ export default function ExperienciaPublicoPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-none shadow-sm bg-white"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Total Vendidos</CardTitle></CardHeader><CardContent><div className="text-3xl font-black">{stats.total}</div></CardContent></Card>
+        <Card className="border-none shadow-sm bg-white"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Total Ativos</CardTitle></CardHeader><CardContent><div className="text-3xl font-black">{stats.total}</div></CardContent></Card>
         <Card className="border-none shadow-sm border-l-4 border-green-500 bg-white"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Presentes (Check-in)</CardTitle></CardHeader><CardContent><div className="text-3xl font-black text-green-600">{stats.present}</div></CardContent></Card>
-        <Card className="border-none shadow-sm border-l-4 border-red-500 bg-white"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Cancelados / Estornos</CardTitle></CardHeader><CardContent><div className="text-3xl font-black text-red-500">{stats.refunded}</div></CardContent></Card>
+        <Card className="border-none shadow-sm border-l-4 border-red-500 bg-white"><CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Invalidados / Saídas</CardTitle></CardHeader><CardContent><div className="text-3xl font-black text-red-500">{stats.refunded}</div></CardContent></Card>
         <Card className={cn("border-none shadow-sm border-l-4 transition-all bg-white", stats.pendingRefunds > 0 ? "border-orange-500 bg-orange-50" : "border-muted")}>
            <CardHeader className="pb-2"><CardTitle className="text-[10px] font-black uppercase opacity-40">Aguardando Estorno</CardTitle></CardHeader>
            <CardContent><div className={cn("text-3xl font-black", stats.pendingRefunds > 0 ? "text-orange-600" : "text-muted-foreground/30")}>{stats.pendingRefunds}</div></CardContent>
@@ -215,7 +216,7 @@ export default function ExperienciaPublicoPage() {
                 <TabsList className="bg-muted/50 p-1 rounded-xl h-10">
                    <TabsTrigger value="all" className="rounded-lg font-bold text-[10px] uppercase px-4">Todos</TabsTrigger>
                    <TabsTrigger value="present" className="rounded-lg font-bold text-[10px] uppercase px-4">Presentes</TabsTrigger>
-                   <TabsTrigger value="refunded" className="rounded-lg font-bold text-[10px] uppercase px-4">Histórico</TabsTrigger>
+                   <TabsTrigger value="refunded" className="rounded-lg font-bold text-[10px] uppercase px-4">Invalidados</TabsTrigger>
                    <TabsTrigger value="requests" className="rounded-lg font-bold text-[10px] uppercase px-4 gap-2">
                      Solicitados {stats.pendingRefunds > 0 && <Badge className="h-4 px-1.5 bg-orange-500 text-white border-none text-[8px]">{stats.pendingRefunds}</Badge>}
                    </TabsTrigger>
@@ -243,15 +244,16 @@ export default function ExperienciaPublicoPage() {
                 <TableRow><TableCell colSpan={5} className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-secondary" /></TableCell></TableRow>
               ) : filteredRegistrations.length > 0 ? (
                 filteredRegistrations.map((reg) => {
-                  const isRefunded = reg.status === 'refunded' || reg.paymentStatus === 'Estornado' || reg.status === 'cancelled' || reg.paymentStatus === 'refunded_wallet';
+                  const isRefunded = reg.paymentStatus === 'Estornado' || reg.paymentStatus === 'refunded_wallet' || reg.status === 'refunded';
+                  const isCancelled = reg.paymentStatus === 'Cancelado' || reg.status === 'cancelled';
                   const isRequest = reg.refundStatus === 'requested';
                   const isCheckedIn = reg.checkedIn === true;
                   
                   return (
-                    <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", isCheckedIn && "bg-green-50/20", isRefunded && "opacity-50 grayscale")}>
+                    <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", isCheckedIn && "bg-green-50/20", (isRefunded || isCancelled) && "opacity-50 grayscale")}>
                       <TableCell className="px-8">
                         <div className="flex flex-col">
-                          <span className={cn("font-bold text-sm", isRefunded && "line-through")}>{reg.userName}</span>
+                          <span className={cn("font-bold text-sm", (isRefunded || isCancelled) && "line-through")}>{reg.userName}</span>
                           <span className="text-[9px] font-mono text-secondary uppercase">{reg.ticketCode}</span>
                         </div>
                       </TableCell>
@@ -267,24 +269,29 @@ export default function ExperienciaPublicoPage() {
                              <Badge className="bg-red-500 text-white border-none text-[8px] font-black uppercase h-5 px-2">Estornado</Badge>
                              <RefundExecutorInfo executorId={reg.refundExecutorId || reg.cancelledBy} role={reg.refundedBy || reg.cancelledByRole} />
                           </div>
+                        ) : isCancelled ? (
+                           <div className="flex flex-col items-center gap-1">
+                             <Badge className="bg-slate-600 text-white border-none text-[8px] font-black uppercase h-5 px-2">Cancelado</Badge>
+                             <RefundExecutorInfo executorId={reg.cancelledBy} role={reg.cancelledByRole} />
+                          </div>
                         ) : isCheckedIn ? (
                           <div className="flex flex-col items-center gap-1 text-green-600">
                             <Badge className="bg-green-600 text-white border-none text-[8px] font-black uppercase h-5 px-2">Presente</Badge>
-                            <span className="text-[8px] font-bold uppercase">{formatTimestamp(reg.checkedInAt)}</span>
+                            <span className="text-[8px] font-bold uppercase">{formatTime(reg.checkedInAt)}</span>
                           </div>
                         ) : isRequest ? (
-                          <Badge className="bg-orange-500 text-white border-none text-[8px] font-black uppercase h-5 px-2 animate-pulse">Reembolso Solicitado</Badge>
+                          <Badge className="bg-orange-500 text-white border-none text-[8px] font-black uppercase h-5 px-2 animate-pulse">Solicitado</Badge>
                         ) : (
                           <Badge variant="outline" className="text-[8px] font-black uppercase h-5 px-2 border-blue-200 text-blue-600 bg-blue-50">Confirmado</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-black text-xs">
-                         <span className={cn(isRefunded && "line-through opacity-40")}>
+                         <span className={cn((isRefunded || isCancelled) && "line-through opacity-40")}>
                            {formatCurrency(reg.producerNetAmount || 0)}
                          </span>
                       </TableCell>
                       <TableCell className="px-8 text-right">
-                        {!isRefunded && (
+                        {!(isRefunded || isCancelled) && (
                           <div className="flex items-center justify-end gap-2">
                              {!reg.checkedIn && !isRequest && canAction && (
                                <Button size="sm" variant="outline" className="h-8 rounded-lg text-[9px] font-black uppercase gap-1.5 border-secondary text-secondary hover:bg-secondary/5" onClick={() => handleManualCheckIn(reg)} disabled={isActionLoading === reg.id}>
@@ -293,13 +300,13 @@ export default function ExperienciaPublicoPage() {
                                </Button>
                              )}
                              {canRefund && !reg.checkedIn && (
-                               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/30 hover:text-destructive hover:bg-red-50" onClick={() => setTicketToRefund(reg)} title="Estornar Ingresso">
+                               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/30 hover:text-destructive hover:bg-red-50" onClick={() => setTicketToRefund(reg)} title="Estornar/Cancelar Ingresso">
                                   <RotateCcw className="w-4 h-4" />
                                </Button>
                              )}
                           </div>
                         )}
-                        {isRefunded && (
+                        {(isRefunded || isCancelled) && (
                            <div className="flex justify-end pr-2">
                               <Undo2 className="w-4 h-4 text-muted-foreground opacity-30" />
                            </div>

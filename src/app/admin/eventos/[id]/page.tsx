@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { useParams } from "next/navigation"
-import { useFirestore, useDoc, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
+import { useDoc, useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { 
   doc, 
   collection, 
@@ -50,7 +51,6 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
 
   const registrationsQuery = useMemoFirebase(() => {
     if (!db || !eventId) return null
-    // Removido orderBy aqui para evitar que documentos antigos sem o campo 'timestamp' sejam filtrados pelo Firestore
     return query(
       collection(db, "registrations"),
       where("eventId", "==", eventId)
@@ -62,7 +62,6 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
   const filteredRegistrations = React.useMemo(() => {
     if (!registrations) return []
     
-    // Ordenação manual em memória para resiliência (timestamp ou createdAt ou 0)
     const sorted = [...registrations].sort((a, b) => {
       const tA = a.timestamp?.seconds || a.createdAt?.seconds || (a.timestamp ? new Date(a.timestamp).getTime() : 0);
       const tB = b.timestamp?.seconds || b.createdAt?.seconds || (b.timestamp ? new Date(b.timestamp).getTime() : 0);
@@ -120,14 +119,15 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
           <TableBody>
             {filteredRegistrations.length > 0 ? (
               filteredRegistrations.map((reg) => {
-                const isRefunded = reg.status === 'refunded' || reg.paymentStatus === 'Estornado' || reg.status === 'cancelled' || reg.paymentStatus === 'refunded_wallet';
+                const isRefunded = reg.paymentStatus === 'Estornado' || reg.paymentStatus === 'refunded_wallet' || reg.status === 'refunded';
+                const isCancelled = reg.paymentStatus === 'Cancelado' || reg.status === 'cancelled';
                 const isCheckedIn = reg.checkedIn === true;
 
                 return (
-                  <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", isRefunded && "opacity-50 grayscale bg-red-50/5")}>
+                  <TableRow key={reg.id} className={cn("hover:bg-muted/10 transition-colors", (isRefunded || isCancelled) && "opacity-50 grayscale bg-red-50/5")}>
                     <TableCell className="px-8">
                       <div className="flex flex-col">
-                        <span className={cn("font-bold text-sm", isRefunded && "line-through")}>{reg.userName}</span>
+                        <span className={cn("font-bold text-sm", (isRefunded || isCancelled) && "line-through")}>{reg.userName}</span>
                         <span className="text-[10px] font-mono text-secondary uppercase">{reg.ticketCode}</span>
                       </div>
                     </TableCell>
@@ -140,16 +140,16 @@ const EventTicketsSection = ({ eventId }: { eventId: string }) => {
                     <TableCell className="text-center">
                       <Badge className={cn(
                         "text-[9px] font-black uppercase h-5 px-2",
-                        isRefunded ? "bg-red-500 text-white" : isCheckedIn ? "bg-green-600 text-white" : "bg-blue-500 text-white"
+                        isRefunded ? "bg-red-500 text-white" : isCancelled ? "bg-slate-600 text-white" : isCheckedIn ? "bg-green-600 text-white" : "bg-blue-500 text-white"
                       )}>
-                        {isRefunded ? 'Estornado' : isCheckedIn ? 'Utilizado' : 'Ativo'}
+                        {isRefunded ? 'Estornado' : isCancelled ? 'Cancelado' : isCheckedIn ? 'Utilizado' : 'Ativo'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-black text-xs text-primary">
                       {formatCurrency(reg.price || 0)}
                     </TableCell>
                     <TableCell className="text-right px-8">
-                      {!isRefunded && !isCheckedIn && (
+                      {!(isRefunded || isCancelled) && !isCheckedIn && (
                         <Button 
                           variant="ghost" 
                           size="icon" 
