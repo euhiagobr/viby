@@ -71,18 +71,19 @@
         "description": { "type": "string" },
         "image": { "type": "string" },
         "gallery": { "type": "array", "items": { "type": "string" } },
-        "duration": { "type": "string" },
+        "duration": { "type": "object", "properties": { "value": { "type": "number" }, "unit": { "type": "string" } } },
         "maxGroupSize": { "type": "number" },
-        "isUnlimitedCapacity": { "type": "boolean" },
-        "instantBooking": { "type": "boolean" },
-        "digitalVoucher": { "type": "boolean" },
-        "inclusions": { "type": "array", "items": { "type": "string" } },
-        "exclusions": { "type": "array", "items": { "type": "string" } },
+        "confirmationType": { "type": "string", "enum": ["immediate", "manual"] },
+        "voucherType": { "type": "string", "enum": ["qrcode", "digital", "print", "app"] },
+        "characteristics": { "type": "array", "items": { "type": "string" } },
+        "inclusions": { "type": "array", "items": { "type": "object" } },
+        "exclusions": { "type": "array", "items": { "type": "object" } },
         "rules": { "type": "array", "items": { "type": "object" } },
-        "steps": { "type": "array", "items": { "type": "object" } },
         "faqs": { "type": "array", "items": { "type": "object" } },
         "usagePolicy": { "type": "string" },
-        "additionalInfo": { "type": "string" }
+        "additionalInfo": { "type": "string" },
+        "organizationId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "draft", "paused"] }
       }
     },
     "RecurringOccurrence": {

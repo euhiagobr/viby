@@ -1,3 +1,4 @@
+
 'use client';
 
 /**
@@ -73,4 +74,22 @@ export const EXPERIENCE_INCLUSIONS: CatalogItem[] = [
   { id: 'insurance', label: 'Seguro Viagem', icon: ShieldCheck },
   { id: 'gift', label: 'Brinde / Kit', icon: Gift },
   { id: 'equipment', label: 'Equipamentos', icon: Zap },
+];
+
+export const FAQ_PRESETS = [
+  "É necessário fazer reserva antecipada?",
+  "Posso cancelar ou remarcar?",
+  "Como recebo meu voucher?",
+  "Crianças podem participar?",
+  "O local é acessível?",
+  "Aceita animais de estimação?",
+  "Existe estacionamento?",
+  "A experiência acontece mesmo com chuva?",
+  "Há opções para vegetarianos ou veganos?",
+  "Posso comprar para outra pessoa?",
+  "Existe limite de participantes?",
+  "O que devo levar?",
+  "Qual é a idade mínima recomendada?",
+  "O local aceita cartão e Pix?",
+  "É permitido tirar fotos ou gravar vídeos?"
 ];

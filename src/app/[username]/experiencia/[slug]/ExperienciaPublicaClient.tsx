@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -12,15 +13,14 @@ import {
   BadgeCheck,
   MapPin,
   Navigation,
-  Loader2,
   Star,
   Users,
   CheckCircle2,
   XCircle,
   ArrowRight,
   Info,
-  ChevronRight,
-  Zap
+  Zap,
+  HelpCircle
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RichText } from '@/components/ui/rich-text';
@@ -66,29 +66,9 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
       const id = typeof rule === 'string' ? rule : rule.id;
       const catalog = EXPERIENCE_RULES.find(r => r.id === id);
       if (catalog) return { ...catalog };
-      return typeof rule === 'string' ? { label: rule } : rule;
+      return typeof rule === 'string' ? { label: rule, icon: 'info' } : rule;
     });
   }, [experience.rules]);
-
-  // Normalização de Inclusões (Garante campo .label)
-  const inclusions = React.useMemo(() => {
-    return (experience.inclusions || []).map((inc: any) => {
-      const id = typeof inc === 'string' ? inc : inc.id;
-      const catalog = EXPERIENCE_INCLUSIONS.find(i => i.id === id);
-      if (catalog) return { ...catalog };
-      return typeof inc === 'string' ? { label: inc } : inc;
-    });
-  }, [experience.inclusions]);
-
-  // Normalização de Exclusões
-  const exclusions = React.useMemo(() => {
-    return (experience.exclusions || []).map((exc: any) => {
-      const id = typeof exc === 'string' ? exc : exc.id;
-      const catalog = EXPERIENCE_INCLUSIONS.find(i => i.id === id);
-      if (catalog) return { ...catalog };
-      return typeof exc === 'string' ? { label: exc } : exc;
-    });
-  }, [experience.exclusions]);
 
   const lat = experience.latitude || experience.address?.latitude || -23.55052;
   const lng = experience.longitude || experience.address?.longitude || -46.633308;
@@ -127,7 +107,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
         </section>
 
         <div className="container mx-auto px-4 pt-12 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-16">
-          
           <div className="lg:col-span-8 space-y-20">
             
             {/* 2. HEADER INFO */}
@@ -150,7 +129,7 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
 
                {/* Highlights */}
                <div className="flex flex-wrap gap-4 pt-4">
-                  {experience.duration && <Highlight icon={Clock} label={experience.duration} />}
+                  {experience.duration?.value && <Highlight icon={Clock} label={`${experience.duration.value} ${experience.duration.unit}`} />}
                   {experience.maxGroupSize && <Highlight icon={Users} label={`Até ${experience.maxGroupSize} pessoas`} />}
                   {experience.confirmationType === 'immediate' && <Highlight icon={Zap} label="Reserva Imediata" />}
                   {experience.digitalVoucher && <Highlight icon={BadgeCheck} label="Voucher Digital" />}
@@ -176,19 +155,18 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground flex items-center gap-2">
                  <Info className="w-4 h-4 text-secondary" /> Sobre esta experiência
                </h2>
-               <div className="prose prose-slate max-w-none prose-p:text-xl prose-p:font-medium prose-p:text-foreground/70 prose-p:leading-relaxed">
-                  <RichText content={experience.description} />
+               <div className="prose prose-slate max-w-none">
+                  <RichText content={experience.description} className="text-xl font-medium text-foreground/70 leading-relaxed" />
                </div>
             </section>
 
-            {/* INCLUSIONS */}
-            {(inclusions.length > 0 || exclusions.length > 0) && (
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                 {inclusions.length > 0 && (
+            {/* INCLUSIONS & EXCLUSIONS */}
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                 {experience.inclusions?.length > 0 && (
                    <div className="space-y-6">
                       <h3 className="font-black uppercase italic tracking-tighter text-xl text-primary">O que está incluso</h3>
                       <ul className="space-y-4">
-                         {inclusions.map((item: any, i: number) => (
+                         {experience.inclusions.map((item: any, i: number) => (
                            <li key={i} className="flex items-center gap-3 text-lg font-medium text-foreground/70">
                               <CheckCircle2 className="w-6 h-6 text-green-500 shrink-0" /> {item.label}
                            </li>
@@ -196,11 +174,11 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                       </ul>
                    </div>
                  )}
-                 {exclusions.length > 0 && (
+                 {experience.exclusions?.length > 0 && (
                    <div className="space-y-6">
                       <h3 className="font-black uppercase italic tracking-tighter text-xl text-primary">O que não está incluso</h3>
                       <ul className="space-y-4">
-                         {exclusions.map((item: any, i: number) => (
+                         {experience.exclusions.map((item: any, i: number) => (
                            <li key={i} className="flex items-center gap-3 text-lg font-medium text-muted-foreground/60">
                               <XCircle className="w-6 h-6 text-destructive shrink-0 opacity-40" /> {item.label}
                            </li>
@@ -208,6 +186,29 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                       </ul>
                    </div>
                  )}
+            </section>
+
+            {/* RULES */}
+            {rules.length > 0 && (
+              <section className="space-y-8">
+                 <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground px-2">Regras e Políticas</h2>
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {rules.map((rule: any, i: number) => {
+                      const Icon = rule.icon;
+                      return (
+                        <Card key={i} className="border-none shadow-sm bg-muted/30 p-6 flex flex-col items-center text-center gap-3 rounded-3xl group hover:bg-white transition-all">
+                           {Icon && (
+                             typeof Icon === 'string' ? (
+                               <span className="text-2xl">{Icon}</span>
+                             ) : (
+                               <Icon className="w-6 h-6 text-primary group-hover:text-secondary transition-colors" />
+                             )
+                           )}
+                           <span className="text-[10px] font-black uppercase text-primary leading-tight">{rule.label}</span>
+                        </Card>
+                      );
+                    })}
+                 </div>
               </section>
             )}
 
@@ -235,34 +236,28 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                </div>
             </section>
 
-            {/* RULES */}
-            {rules.length > 0 && (
+            {/* FAQ */}
+            {experience.faqs?.length > 0 && (
               <section className="space-y-8">
-                 <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground px-2">Regras e Políticas</h2>
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {rules.map((rule: any, i: number) => {
-                      const Icon = rule.icon;
-                      return (
-                        <Card key={i} className="border-none shadow-sm bg-muted/30 p-6 flex flex-col items-center text-center gap-3 rounded-3xl group hover:bg-white transition-all">
-                           {Icon && (
-                             typeof Icon === 'string' ? (
-                               <span className="text-3xl">{Icon}</span>
-                             ) : (
-                               <Icon className="w-6 h-6 text-primary group-hover:text-secondary transition-colors" />
-                             )
-                           )}
-                           <span className="text-[10px] font-black uppercase text-primary leading-tight">{rule.label}</span>
-                        </Card>
-                      );
-                    })}
+                 <div className="flex items-center gap-3 px-2">
+                    <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><HelpCircle className="w-6 h-6" /></div>
+                    <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Dúvidas Frequentes</h2>
                  </div>
+                 <Accordion type="single" collapsible className="w-full space-y-4">
+                    {experience.faqs.map((faq: any, i: number) => (
+                      <AccordionItem key={i} value={`faq-${i}`} className="border-none">
+                         <Card className="border-none shadow-sm bg-muted/10 rounded-[1.5rem] overflow-hidden">
+                            <AccordionTrigger className="px-8 py-6 hover:no-underline font-black uppercase italic text-primary text-left leading-tight">
+                              {faq.q}
+                            </AccordionTrigger>
+                            <AccordionContent className="px-8 pb-6 text-base font-medium text-muted-foreground leading-relaxed">
+                              {faq.a}
+                            </AccordionContent>
+                         </Card>
+                      </AccordionItem>
+                    ))}
+                 </Accordion>
               </section>
-            )}
-
-            {experience.usagePolicy && (
-               <div className="p-8 bg-white border rounded-[2rem] text-sm text-muted-foreground leading-relaxed">
-                  <RichText content={experience.usagePolicy} />
-               </div>
             )}
 
           </div>
@@ -271,7 +266,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
              <div className="sticky top-24 space-y-8">
                 <ExperienceBookingCard experience={experience} />
                 
-                {/* ORGANIZER CARD */}
                 <Card className="border-none shadow-sm rounded-[2.5rem] bg-white p-8 space-y-6">
                    <div className="flex items-center gap-4">
                       <Avatar className="h-16 w-16 border-4 border-muted shadow-sm">
@@ -294,33 +288,8 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
           </aside>
         </div>
 
-        {/* REVIEWS & COMMUNITY */}
         <CommunityGallery experienceId={experience.id} />
         <ExperiencePublicReviews experience={experience} />
-
-        {/* FAQ */}
-        {experience.faqs?.length > 0 && (
-          <section className="container mx-auto px-4 max-w-4xl py-24">
-             <div className="text-center space-y-2 mb-12">
-                <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Dúvidas Frequentes</h2>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tudo o que você precisa saber</p>
-             </div>
-             <Accordion type="single" collapsible className="space-y-4">
-                {experience.faqs.map((faq: any, i: number) => (
-                  <AccordionItem key={i} value={`faq-${i}`} className="border-none">
-                     <Card className="border-none shadow-sm bg-muted/10 rounded-2xl overflow-hidden">
-                        <AccordionTrigger className="px-8 py-6 hover:no-underline font-black uppercase italic tracking-tighter text-primary">
-                          {faq.q}
-                        </AccordionTrigger>
-                        <AccordionContent className="px-8 pb-6 text-base font-medium text-muted-foreground leading-relaxed font-medium">
-                          {faq.a}
-                        </AccordionContent>
-                     </Card>
-                  </AccordionItem>
-                ))}
-             </Accordion>
-          </section>
-        )}
       </main>
       <Footer />
     </div>
