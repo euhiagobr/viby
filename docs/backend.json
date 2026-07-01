@@ -59,6 +59,32 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
+    "Experience": {
+      "title": "Experiência",
+      "description": "Atividade ou passeio reservável no marketplace.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "category": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" },
+        "gallery": { "type": "array", "items": { "type": "string" } },
+        "duration": { "type": "string" },
+        "maxGroupSize": { "type": "number" },
+        "isUnlimitedCapacity": { "type": "boolean" },
+        "instantBooking": { "type": "boolean" },
+        "digitalVoucher": { "type": "boolean" },
+        "inclusions": { "type": "array", "items": { "type": "string" } },
+        "exclusions": { "type": "array", "items": { "type": "string" } },
+        "rules": { "type": "array", "items": { "type": "object" } },
+        "steps": { "type": "array", "items": { "type": "object" } },
+        "faqs": { "type": "array", "items": { "type": "object" } },
+        "usagePolicy": { "type": "string" },
+        "additionalInfo": { "type": "string" }
+      }
+    },
     "RecurringOccurrence": {
       "title": "Ocorrência de Evento",
       "description": "Sessão individual de um evento recorrente.",
@@ -122,6 +148,10 @@
     "/cityPages/{cityId}": {
       "schema": "CityPage",
       "description": "Armazenamento de capas e metadados de cidades."
+    },
+    "/experiences/{expId}": {
+      "schema": "Experience",
+      "description": "Repositório de vivências e atrações."
     },
     "/recurring_occurrences/{occId}": {
       "schema": "RecurringOccurrence",

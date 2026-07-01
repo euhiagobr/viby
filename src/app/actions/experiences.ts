@@ -76,6 +76,17 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
         country: "Brasil",
         countryCode: "BR"
       },
+      // Novos campos operacionais
+      duration: "",
+      maxGroupSize: null,
+      isUnlimitedCapacity: false,
+      instantBooking: true,
+      digitalVoucher: true,
+      inclusions: [],
+      exclusions: [],
+      rules: [],
+      steps: [],
+      faqs: [],
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
