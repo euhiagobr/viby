@@ -20,16 +20,13 @@ import {
   Star,
   Users,
   Check,
-  ChevronRight,
-  ShieldAlert,
-  Camera,
-  MessageCircle,
-  HelpCircle,
   X,
+  Camera,
   Plus,
   Zap,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  ShieldAlert
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { RichText } from '@/components/ui/rich-text';
@@ -185,15 +182,13 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
   const lat = address.latitude || experience.latitude || -23.55052;
   const lng = address.longitude || experience.longitude || -46.633308;
 
-  // Itens Inclusos e Regras (Fallbacks para visualização editorial)
-  const inclusions = experience.inclusions || ["Guia Especializado", "Seguro Aventura", "Equipamentos de Segurança", "Kit de Boas-vindas"];
-  const exclusions = experience.exclusions || ["Alimentação", "Transporte até o local", "Gastos Pessoais"];
-  const rules = experience.rules || [
-    { label: "Não permitido fumar", icon: ShieldAlert },
-    { label: "Aceita pets", icon: Check },
-    { label: "Acessível", icon: ShieldCheck },
-    { label: "Fotografias liberadas", icon: Camera }
-  ];
+  const hasInclusions = experience.inclusions && experience.inclusions.length > 0;
+  const hasExclusions = experience.exclusions && experience.exclusions.length > 0;
+  const hasRules = experience.rules && experience.rules.length > 0;
+  const hasSteps = experience.steps && experience.steps.length > 0;
+  const hasFaqs = experience.faqs && experience.faqs.length > 0;
+
+  const organizerJoinedDate = safeParseDate(experience.organizer?.createdAt);
 
   return (
     <div className="min-h-screen bg-white flex flex-col selection:bg-secondary/10 selection:text-secondary">
@@ -207,19 +202,23 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                 <Image src={experience.image} alt={experience.title} fill className="object-cover transition-transform duration-1000 group-hover:scale-[1.02]" priority unoptimized />
              </div>
              <div className="hidden md:grid grid-cols-2 grid-rows-2 col-span-2 gap-2 h-full">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="relative bg-muted overflow-hidden">
-                     <Image src={experience.gallery?.[i] || experience.image} alt="" fill className="object-cover transition-transform duration-700 hover:scale-110" unoptimized />
-                  </div>
-                ))}
+                {Array.from({ length: 4 }).map((_, i) => {
+                  const url = experience.gallery?.[i];
+                  if (!url) return <div key={i} className="bg-muted/30" />;
+                  return (
+                    <div key={i} className="relative bg-muted overflow-hidden">
+                       <Image src={url} alt="" fill className="object-cover transition-transform duration-700 hover:scale-110" unoptimized />
+                    </div>
+                  );
+                })}
              </div>
              {experience.gallery?.length > 4 && (
-               <Button 
+               <button 
                 onClick={() => setIsGalleryOpen(true)}
-                className="absolute bottom-8 right-8 bg-white/90 backdrop-blur-md text-primary font-black uppercase italic text-xs h-12 px-8 rounded-2xl shadow-2xl hover:bg-white border-none"
+                className="absolute bottom-8 right-8 bg-white/90 backdrop-blur-md text-primary font-black uppercase italic text-xs h-12 px-8 rounded-2xl shadow-2xl hover:bg-white border-none z-10"
                >
-                 <Camera className="w-4 h-4 mr-2" /> +{experience.gallery.length - 4} Fotos
-               </Button>
+                 <Camera className="w-4 h-4 mr-2 inline-block" /> +{experience.gallery.length - 4} Fotos
+               </button>
              )}
           </div>
         </section>
@@ -234,10 +233,12 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                <div className="space-y-4">
                   <div className="flex flex-wrap items-center gap-3">
                      <Badge className="bg-secondary text-white border-none font-black uppercase text-[10px] tracking-widest px-4 h-6">{experience.category || "Experiência"}</Badge>
-                     <div className="flex items-center gap-1.5 bg-muted/50 px-3 py-1 rounded-full">
-                        <Star className="w-3.5 h-3.5 fill-orange-400 text-orange-400" />
-                        <span className="text-sm font-black">{Number(experience.averageRating || 5).toFixed(1)} <span className="opacity-40 font-bold">({experience.reviewCount || 0} avaliações)</span></span>
-                     </div>
+                     {experience.reviewCount > 0 && (
+                       <div className="flex items-center gap-1.5 bg-muted/50 px-3 py-1 rounded-full">
+                          <Star className="w-3.5 h-3.5 fill-orange-400 text-orange-400" />
+                          <span className="text-sm font-black">{Number(experience.averageRating || 5).toFixed(1)} <span className="opacity-40 font-bold">({experience.reviewCount} avaliações)</span></span>
+                       </div>
+                     )}
                   </div>
                   <h1 className="text-4xl md:text-7xl font-black text-primary uppercase italic tracking-tighter leading-[0.85]">{experience.title}</h1>
                   <div className="flex items-center gap-2 text-muted-foreground font-bold text-lg uppercase tracking-tight">
@@ -245,12 +246,12 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                   </div>
                </div>
 
-               {/* Destaques Rápidos */}
+               {/* Destaques Rápidos Dinâmicos */}
                <div className="flex flex-wrap gap-4 pt-4">
-                  <Highlight icon={Clock} label="3 Horas" />
-                  <Highlight icon={Users} label="Até 12 pessoas" />
-                  <Highlight icon={Zap} label="Reserva Imediata" />
-                  <Highlight icon={ShieldCheck} label="Voucher Digital" />
+                  {experience.duration && <Highlight icon={Clock} label={experience.duration} />}
+                  {experience.maxGroupSize && <Highlight icon={Users} label={`Até ${experience.maxGroupSize} pessoas`} />}
+                  {experience.instantBooking && <Highlight icon={Zap} label="Reserva Imediata" />}
+                  {experience.digitalVoucher && <Highlight icon={ShieldCheck} label="Voucher Digital" />}
                </div>
             </section>
 
@@ -267,42 +268,49 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
             </section>
 
             {/* 6 & 7. INCLUSÕES E EXCLUSÕES */}
-            <section className="grid grid-cols-1 md:grid-cols-2 gap-12">
-               <div className="space-y-6">
-                  <h3 className="font-black uppercase italic tracking-tighter text-xl text-primary">O que está incluso</h3>
-                  <ul className="space-y-4">
-                     {inclusions.map((item, i) => (
-                       <li key={i} className="flex items-center gap-3 text-lg font-medium text-foreground/70">
-                          <CheckCircle2 className="w-6 h-6 text-green-500 shrink-0" /> {item}
-                       </li>
-                     ))}
-                  </ul>
-               </div>
-               <div className="space-y-6">
-                  <h3 className="font-black uppercase italic tracking-tighter text-xl text-primary">O que não está incluso</h3>
-                  <ul className="space-y-4">
-                     {exclusions.map((item, i) => (
-                       <li key={i} className="flex items-center gap-3 text-lg font-medium text-muted-foreground/60">
-                          <X className="w-6 h-6 text-destructive shrink-0 opacity-40" /> {item}
-                       </li>
-                     ))}
-                  </ul>
-               </div>
-            </section>
+            {(hasInclusions || hasExclusions) && (
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                 {hasInclusions && (
+                   <div className="space-y-6">
+                      <h3 className="font-black uppercase italic tracking-tighter text-xl text-primary">O que está incluso</h3>
+                      <ul className="space-y-4">
+                         {experience.inclusions.map((item: string, i: number) => (
+                           <li key={i} className="flex items-center gap-3 text-lg font-medium text-foreground/70">
+                              <CheckCircle2 className="w-6 h-6 text-green-500 shrink-0" /> {item}
+                           </li>
+                         ))}
+                      </ul>
+                   </div>
+                 )}
+                 {hasExclusions && (
+                   <div className="space-y-6">
+                      <h3 className="font-black uppercase italic tracking-tighter text-xl text-primary">O que não está incluso</h3>
+                      <ul className="space-y-4">
+                         {experience.exclusions.map((item: string, i: number) => (
+                           <li key={i} className="flex items-center gap-3 text-lg font-medium text-muted-foreground/60">
+                              <X className="w-6 h-6 text-destructive shrink-0 opacity-40" /> {item}
+                           </li>
+                         ))}
+                      </ul>
+                   </div>
+                 )}
+              </section>
+            )}
 
             {/* 8. COMO FUNCIONA (TIMELINE) */}
-            <section className="space-y-12 py-10 bg-muted/20 rounded-[3rem] p-12 border">
-               <div className="text-center space-y-2">
-                  <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Como funciona</h2>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sua jornada do início ao fim</p>
-               </div>
-               <div className="relative flex flex-col md:flex-row justify-between items-start gap-12 md:gap-4 before:hidden md:before:block before:absolute before:top-8 before:left-0 before:right-0 before:h-0.5 before:bg-border before:border-dashed">
-                  <TimelineStep num="01" label="Reserva" desc="Garanta sua vaga pelo site" />
-                  <TimelineStep num="02" label="Confirmação" desc="Voucher imediato no seu e-mail" />
-                  <TimelineStep num="03" label="Chegada" desc="Apresente o QR Code no local" />
-                  <TimelineStep num="04" label="Experiência" desc="Viva momentos inesquecíveis" />
-               </div>
-            </section>
+            {hasSteps && (
+              <section className="space-y-12 py-10 bg-muted/20 rounded-[3rem] p-12 border">
+                 <div className="text-center space-y-2">
+                    <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Como funciona</h2>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sua jornada do início ao fim</p>
+                 </div>
+                 <div className="relative flex flex-col md:flex-row justify-between items-start gap-12 md:gap-4 before:hidden md:before:block before:absolute before:top-8 before:left-0 before:right-0 before:h-0.5 before:bg-border before:border-dashed">
+                    {experience.steps.map((step: any, i: number) => (
+                      <TimelineStep key={i} num={String(i + 1).padStart(2, '0')} label={step.label} desc={step.desc} />
+                    ))}
+                 </div>
+              </section>
+            )}
 
             {/* 9. LOCALIZAÇÃO */}
             <section className="space-y-8">
@@ -317,12 +325,12 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                      <div className="space-y-1">
                         <h4 className="font-black text-2xl uppercase italic tracking-tighter text-primary">{address.venueName || experience.city}</h4>
                         <p className="text-sm font-medium text-muted-foreground uppercase leading-relaxed">
-                           {address.addressLine1}, {address.streetNumber}<br/>
-                           {address.neighborhood}, {address.city} - {address.stateRegion}
+                           {address.addressLine1}{address.streetNumber ? `, ${address.streetNumber}` : ""}<br/>
+                           {address.neighborhood ? `${address.neighborhood}, ` : ""}{experience.city} - {experience.state}
                         </p>
                      </div>
                      <Button asChild className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic gap-2 hover:scale-105 transition-transform">
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.addressLine1 + ' ' + address.city)}`} target="_blank">
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((address.addressLine1 || "") + ' ' + experience.city)}`} target="_blank">
                            <Navigation className="w-4 h-4" /> Abrir no Maps
                         </a>
                      </Button>
@@ -331,20 +339,24 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
             </section>
 
             {/* 10. REGRAS (CARDS) */}
-            <section className="space-y-8">
-               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground px-2">Regras e Políticas</h2>
-               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {rules.map((rule, i) => (
-                    <Card key={i} className="border-none shadow-sm bg-muted/30 p-6 flex flex-col items-center text-center gap-3 rounded-3xl">
-                       <rule.icon className="w-6 h-6 text-secondary" />
-                       <span className="text-[10px] font-black uppercase text-primary leading-tight">{rule.label}</span>
-                    </Card>
-                  ))}
-               </div>
+            {hasRules && (
+              <section className="space-y-8">
+                 <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground px-2">Regras e Políticas</h2>
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {experience.rules.map((rule: any, i: number) => (
+                      <Card key={i} className="border-none shadow-sm bg-muted/30 p-6 flex flex-col items-center text-center gap-3 rounded-3xl">
+                         <span className="text-[10px] font-black uppercase text-primary leading-tight">{rule.label}</span>
+                      </Card>
+                    ))}
+                 </div>
+              </section>
+            )}
+
+            {experience.usagePolicy && (
                <div className="p-8 bg-white border rounded-[2rem] text-sm text-muted-foreground leading-relaxed">
-                  <RichText content={experience.usagePolicy || "Consulte as políticas de cancelamento e no-show antes da reserva."} />
+                  <RichText content={experience.usagePolicy} />
                </div>
-            </section>
+            )}
 
           </div>
 
@@ -409,12 +421,6 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                       >
                          {loadingSlots ? <Loader2 className="animate-spin" /> : <><ShoppingBag className="w-5 h-5 mr-2" /> Reservar agora</>}
                       </Button>
-
-                      <div className="space-y-3 pt-4 border-t border-dashed">
-                         <TrustLine label="Compra Segura 256-bit" />
-                         <TrustLine label="Confirmação Imediata" />
-                         <TrustLine label="Atendimento Viby Club" />
-                      </div>
                    </div>
                 </Card>
 
@@ -428,18 +434,20 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
                       <div>
                          <div className="flex items-center gap-1.5">
                             <h4 className="font-black text-lg uppercase italic text-primary leading-none">{experience.organizer?.name}</h4>
-                            <BadgeCheck className="w-4 h-4 text-blue-500" />
+                            {(experience.organizer?.verified || experience.organizer?.isVerified) && <BadgeCheck className="w-4 h-4 text-blue-500" />}
                          </div>
-                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Membro desde 2024</p>
+                         {organizerJoinedDate && (
+                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Membro desde {organizerJoinedDate.getFullYear()}</p>
+                         )}
                       </div>
                    </div>
                    <div className="grid grid-cols-2 gap-4 py-4 border-y border-dashed">
                       <div className="text-center">
-                         <p className="text-xl font-black text-primary italic">12</p>
-                         <p className="text-[8px] font-black uppercase opacity-40">Vivências</p>
+                         <p className="text-xl font-black text-primary italic">{experience.organizer?.experienceCount || 1}</p>
+                         <p className="text-[8px] font-black uppercase opacity-40">Experiências</p>
                       </div>
                       <div className="text-center">
-                         <p className="text-xl font-black text-primary italic">4.9</p>
+                         <p className="text-xl font-black text-primary italic">{Number(experience.organizer?.averageRating || 5.0).toFixed(1)}</p>
                          <p className="text-[8px] font-black uppercase opacity-40">Nota Média</p>
                       </div>
                    </div>
@@ -456,17 +464,19 @@ export default function ExperienciaPublicaClient({ experience }: ExperienciaPubl
         <ExperiencePublicReviews experience={experience} />
 
         {/* 15. FAQ */}
-        <section className="container mx-auto px-4 max-w-4xl py-24">
-           <div className="text-center space-y-2 mb-12">
-              <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Dúvidas Frequentes</h2>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tudo o que você precisa saber</p>
-           </div>
-           <Accordion type="single" collapsible className="space-y-4">
-              <FaqItem q="Como recebo meu voucher?" a="Assim que o pagamento for confirmado, o voucher com QR Code aparecerá na sua conta e será enviado para o seu e-mail." />
-              <FaqItem q="Posso reagendar a data?" a="O reagendamento é permitido até 48h antes da experiência, conforme disponibilidade de horários." />
-              <FaqItem q="O que acontece em caso de chuva?" a="Para experiências ao ar livre, o organizador entrará em contato para reagendar ou estornar o valor integral." />
-           </Accordion>
-        </section>
+        {hasFaqs && (
+          <section className="container mx-auto px-4 max-w-4xl py-24">
+             <div className="text-center space-y-2 mb-12">
+                <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Dúvidas Frequentes</h2>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tudo o que você precisa saber</p>
+             </div>
+             <Accordion type="single" collapsible className="space-y-4">
+                {experience.faqs.map((faq: any, i: number) => (
+                  <FaqItem key={i} q={faq.q} a={faq.a} />
+                ))}
+             </Accordion>
+          </section>
+        )}
 
         {/* 16. FINAL CTA */}
         <section className="container mx-auto px-4 py-32 text-center">
@@ -531,15 +541,6 @@ function TimelineStep({ num, label, desc }: any) {
           <p className="font-black uppercase italic text-primary">{label}</p>
           <p className="text-[10px] font-bold text-muted-foreground uppercase leading-relaxed max-w-[150px]">{desc}</p>
        </div>
-    </div>
-  )
-}
-
-function TrustLine({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2 text-green-600">
-       <CheckCircle2 className="w-3.5 h-3.5" />
-       <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
     </div>
   )
 }
