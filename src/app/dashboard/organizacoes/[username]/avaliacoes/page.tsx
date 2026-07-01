@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -27,7 +26,8 @@ import {
   Globe,
   Calendar,
   Zap,
-  Target
+  Target,
+  Clock
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
@@ -43,8 +43,7 @@ import {
   Bar, 
   XAxis, 
   YAxis, 
-  Tooltip as ChartTooltip,
-  Cell as RechartsCell
+  Tooltip as ChartTooltip
 } from 'recharts';
 
 export default function OrganizationGlobalReviewsPage() {
