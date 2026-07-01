@@ -29,7 +29,7 @@ import { ReviewModal } from "@/components/experiences/ReviewModal"
 export default function MeusIngressosPage() {
   const db = useFirestore()
   const auth = useAuth()
-  const { user } = useUser(auth)
+  const { user, profile } = useUser(auth)
 
   const registrationsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
@@ -48,6 +48,8 @@ export default function MeusIngressosPage() {
       </div>
     )
   }
+
+  const isAdmin = profile?.role === 'admin';
 
   const myOwned = (registrations || []).sort((a, b) => {
     const timeA = a.timestamp?.seconds || a.createdAt?.seconds || 0;
@@ -78,7 +80,7 @@ export default function MeusIngressosPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {myOwned.map((reg) => (
-            <TicketListItem key={reg.id} registration={reg} />
+            <TicketListItem key={reg.id} registration={reg} isAdmin={isAdmin} />
           ))}
         </div>
       )}
@@ -86,7 +88,7 @@ export default function MeusIngressosPage() {
   )
 }
 
-function TicketListItem({ registration }: { registration: any }) {
+function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin: boolean }) {
   const { formatPriceWithOriginal } = useCurrency()
   const [isSendingEmail, setIsSendingEmail] = React.useState(false)
   const [isReviewOpen, setIsReviewOpen] = React.useState(false)
@@ -100,15 +102,20 @@ function TicketListItem({ registration }: { registration: any }) {
   const isPending = registration.paymentStatus === 'Pendente';
 
   const canReview = React.useMemo(() => {
-    if (!isCheckedIn || isCancelled || registration.ratingSubmitted) return false;
+    if (isCancelled || registration.ratingSubmitted) return false;
     if (registration.productType !== 'experience') return false;
     
-    // Regra das 24h
+    // MODO TESTE: Administradores podem avaliar a qualquer momento
+    if (isAdmin) return true;
+
+    if (!isCheckedIn) return false;
+
+    // Regra das 24h para usuários comuns
     const checkinDate = registration.checkedInAt?.toDate ? registration.checkedInAt.toDate() : new Date(registration.checkedInAt);
     const now = new Date();
     const diff = now.getTime() - checkinDate.getTime();
     return diff >= 24 * 60 * 60 * 1000;
-  }, [isCheckedIn, isCancelled, registration]);
+  }, [isCheckedIn, isCancelled, registration, isAdmin]);
 
   const handleResend = async () => {
     if (isCancelled || isSendingEmail) return;
@@ -146,7 +153,7 @@ function TicketListItem({ registration }: { registration: any }) {
              "border-none text-[10px] font-black uppercase px-3 shadow-md",
              isCancelled ? "bg-red-500 text-white" : 
              isCheckedIn ? "bg-primary text-white" :
-             isPending ? "bg-orange-500 text-white" :
+             isPending ? "bg-orange-50 text-orange-600" :
              "bg-green-600 text-white"
            )}>
              {isCancelled ? "Estornado" : isCheckedIn ? "Utilizado" : isPending ? "Pendente" : "Confirmado"}
@@ -158,7 +165,7 @@ function TicketListItem({ registration }: { registration: any }) {
         <div className="space-y-3">
           <div className="flex justify-between items-start">
             <h3 className={cn(
-              "font-black text-lg leading-tight uppercase italic tracking-tighter transition-colors",
+              "font-black text-lg leading-tight uppercase italic text-primary leading-tight line-clamp-2",
               !isCancelled && "group-hover:text-secondary"
             )}>
               {registration.eventTitle}
