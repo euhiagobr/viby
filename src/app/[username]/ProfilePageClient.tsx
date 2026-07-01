@@ -189,10 +189,11 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   const orgExperiencesQuery = useMemoFirebase(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return null;
+    // Resolução robusta de status para experiências da marca
     return query(
       collection(db, "experiences"),
       where("organizationId", "==", profileData.id),
-      where("status", "==", "active")
+      where("status", "in", ["active", "Ativo"])
     );
   }, [db, profileData?.id, profileType]);
 
@@ -418,7 +419,7 @@ export default function ProfilePageClient({ username }: { username: string }) {
                   <TabsContent value="experiences" className="animate-in fade-in duration-500">
                     <div className="space-y-8">
                        <div className="space-y-1 px-2">
-                          <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Experiências & Marketplace</h2>
+                          <h2 className="text-3xl font-black uppercase italic tracking-tighter text-primary">Experiências</h2>
                           <p className="text-muted-foreground font-medium">Experiências exclusivas com agendamento.</p>
                        </div>
 
