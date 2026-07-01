@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -224,7 +225,7 @@ export default function OrganizationExperiencesPage() {
       </Tabs>
 
       <AlertDialog open={!!expToDelete} onOpenChange={(v) => !v && setExpToDelete(null)}>
-        <AlertDialogContent className="rounded-[2.5rem]">
+        <AlertDialogContent className="rounded-[2rem]">
           <AlertDialogHeader>
             <div className="flex items-center gap-3 mb-2">
                <div className="p-2 bg-destructive/10 rounded-lg text-destructive"><Trash2 className="w-6 h-6" /></div>

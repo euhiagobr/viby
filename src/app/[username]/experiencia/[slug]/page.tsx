@@ -3,7 +3,7 @@ import * as React from 'react';
 import { Metadata } from 'next';
 import { getAdminDb } from '@/lib/firebase/admin';
 import ExperienciaPublicaClient from './ExperienciaPublicaClient';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -22,6 +22,11 @@ async function getExperienceData(usernameParam: string, slugParam: string) {
     const doc = q.docs[0];
     const data = doc.data();
     
+    // TRAVA DE VISIBILIDADE: Bloqueia acesso a rascunhos ou deletados via URL pública
+    if (!['active', 'Ativo'].includes(data.status)) {
+      return null;
+    }
+    
     return {
       id: doc.id,
       ...data,
@@ -37,7 +42,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   const { username, slug } = await params;
   const exp: any = await getExperienceData(username, slug);
   
-  if (!exp || exp.status === 'draft') return { title: 'Experiência não encontrada | Viby', robots: { index: false } };
+  if (!exp) return { title: 'Experiência não encontrada | Viby', robots: { index: false } };
 
   const title = `${exp.title} | ${exp.organizer?.name} | Viby`;
   const description = exp.shortDescription || exp.description?.substring(0, 160);
@@ -70,7 +75,7 @@ export default async function PublicExperiencePage({ params }: { params: Promise
   const { username, slug } = await params;
   const exp = await getExperienceData(username, slug);
 
-  if (!exp || (exp.status === 'draft')) notFound();
+  if (!exp) notFound();
 
   const jsonLd = {
     "@context": "https://schema.org",
