@@ -115,7 +115,6 @@ export async function sendTicketEmail(data: {
   voucherUrl: string;
   usagePolicy?: string;
   additionalInfo?: string;
-  // Novos campos estruturados da Experience
   description?: string;
   inclusions?: any[];
   exclusions?: any[];
@@ -125,7 +124,6 @@ export async function sendTicketEmail(data: {
   const db = getAdminDb();
   
   const usagePolicy = String(data.usagePolicy || "").trim();
-  const additionalInfo = String(data.additionalInfo || "").trim();
   const description = String(data.description || "").replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').trim();
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${data.ticketCode}`;
@@ -192,15 +190,6 @@ export async function sendTicketEmail(data: {
         <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Instruções Adicionais:</h4>
         <div style="font-size: 13px; line-height: 1.6; color: #334155; background: #fefce8; padding: 15px; border-radius: 12px; border: 1px solid #fef08a;">
           ${usagePolicy.replace(/\n/g, '<br>')}
-        </div>
-      </div>
-    ` : ''}
-
-    ${additionalInfo ? `
-      <div style="margin-bottom: 25px;">
-        <h4 style="font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 8px;">Informações Úteis:</h4>
-        <div style="font-size: 13px; line-height: 1.6; color: #334155;">
-          ${additionalInfo.replace(/\n/g, '<br>')}
         </div>
       </div>
     ` : ''}
@@ -641,7 +630,7 @@ export async function sendSupportTicketClosedEmail(data: { to: string; userName:
       from: `"${branding.siteName} Suporte" <${smtpUser}>`,
       to: data.to,
       subject: `✅ Atendimento Concluído: Ticket #${data.ticketNumber}`,
-      html: getEmailTemplate(branding, content)
+      html: htmlContent
     });
 
     return { success: true };
