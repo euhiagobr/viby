@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -65,7 +64,6 @@ export default function CadastroPage() {
                 alt={siteName} 
                 width={120} 
                 height={40} 
-                style={{ height: 'auto' }}
                 className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" 
                 priority 
                 unoptimized 

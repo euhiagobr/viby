@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -52,8 +51,7 @@ export function PublicHeader({ showBack, hideCopa = false, children }: PublicHea
                 alt={siteName} 
                 width={140} 
                 height={40} 
-                style={{ width: 'auto', height: 'auto' }}
-                className="h-10 w-auto object-contain" 
+                className="h-8 sm:h-10 w-auto object-contain" 
                 priority 
                 unoptimized 
               />

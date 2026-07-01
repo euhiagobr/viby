@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -19,6 +18,7 @@ import { Separator } from "@/components/ui/separator"
 import { useTranslation } from "@/i18n/i18n-context"
 import { PublicHeader } from "@/components/layout/PublicHeader"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import Image from "next/image"
 
 function LoginContent() {
   const { t } = useTranslation()
@@ -32,6 +32,10 @@ function LoginContent() {
   const auth = useAuth()
   const db = useFirestore()
   const { user, profile, loading: authLoading, isInitialized } = useUser(auth)
+
+  const settingsRef = React.useMemo(() => (db ? doc(db, "settings", "site") : null), [db]);
+  const { data: settings } = useDoc<any>(settingsRef);
+  const siteName = settings?.siteName || "Viby";
 
   // PROTEÇÃO DE ROTA E ONBOARDING
   useEffect(() => {
@@ -107,7 +111,35 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
-      <PublicHeader showBack />
+      <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 group">
+            {settings?.logoUrl ? (
+              <Image 
+                src={settings.logoUrl} 
+                alt={siteName} 
+                width={120} 
+                height={40} 
+                className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" 
+                priority 
+                unoptimized 
+              />
+            ) : (
+              <>
+                <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg transition-transform group-hover:scale-105">
+                  <span className="text-white font-black text-lg">V</span>
+                </div>
+                <span className="text-xl font-bold tracking-tight italic uppercase text-primary ml-1">{siteName}</span>
+              </>
+            )}
+          </Link>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" asChild className="font-bold text-[10px] uppercase tracking-widest">
+              <Link href="/"><ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Início</Link>
+            </Button>
+          </div>
+        </div>
+      </nav>
 
       <main className="flex-1 flex items-center justify-center p-6 md:p-12 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-secondary/5 rounded-full blur-[120px] -ml-64 -mt-64" />

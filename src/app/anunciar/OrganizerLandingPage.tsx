@@ -76,7 +76,7 @@ const FAQS = [
   { q: "Preciso ter CNPJ para vender?", a: "Não. A Viby permite que tanto pessoas físicas (CPF) quanto jurídicas (CNPJ) criem eventos e vendam ingressos." },
   { q: "Como recebo os pagamentos?", a: "Utilizamos o Stripe Connect, um dos processadores de pagamento mais seguros do mundo. O valor líquido das suas vendas é transferido para sua conta bancária conforme o ciclo financeiro escolhido." },
   { q: "Posso criar eventos gratuitos?", a: "Com certeza! A Viby é ideal para gerir listas de presença e convites em eventos sem custo de entrada." },
-  { q: "Posso vender diferentes tipos de ingressos?", a: "Sim. Você pode configurar lotes, ingressos VIP, meia-entrada, promocionais e muito mais." }
+  { q: "Preciso vender diferentes tipos de ingressos?", a: "Sim. Você pode configurar lotes, ingressos VIP, meia-entrada, promocionais e muito mais." }
 ];
 
 export default function OrganizerLandingPage() {
@@ -128,7 +128,15 @@ export default function OrganizerLandingPage() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
             {settings?.logoUrl ? (
-              <Image src={settings.logoUrl} alt={siteName} width={120} height={40} className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" priority unoptimized />
+              <Image 
+                src={settings.logoUrl} 
+                alt={siteName} 
+                width={120} 
+                height={40} 
+                className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" 
+                priority 
+                unoptimized 
+              />
             ) : (
               <>
                 <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center shadow-lg">

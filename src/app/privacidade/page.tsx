@@ -61,7 +61,6 @@ export default async function PoliticaPrivacidadePage() {
                 alt={siteName} 
                 width={120} 
                 height={40} 
-                style={{ height: 'auto' }}
                 className="h-8 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" 
                 priority 
                 unoptimized 
@@ -115,7 +114,7 @@ export default async function PoliticaPrivacidadePage() {
                <p>Adotamos medidas técnicas e organizacionais para proteção das informações. Apesar dos esforços, nenhum sistema é completamente imune a falhas ou ataques cibernéticos.</p>
 
                <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary mt-10">7. Direito do Usuário</h3>
-               <p>O usuário poderá solicitar: acesso, atualização, correção ou exclusão de seus dados, bem como a revogação de consentimentos, respeitando obrigações legais e prevenções a fraude.</p>
+               <p>O usuário poderá solicitar: acesso, atualização, correção ou exclusão de seus data, bem como a revogação de consentimentos, respeitando obrigações legais e prevenções a fraude.</p>
 
                <h3 className="text-xl font-black uppercase italic tracking-tighter text-primary mt-10">8. Retenção de Dados</h3>
                <p>Os dados são mantidos enquanto a conta estiver ativa, houver necessidade operacional ou existirem obrigações legais e auditorias pendentes.</p>
