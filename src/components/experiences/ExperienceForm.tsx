@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -41,6 +40,7 @@ import { EXPERIENCE_CHARACTERISTICS, EXPERIENCE_RULES, EXPERIENCE_INCLUSIONS, FA
 import { ExperienceSlotsAdmin } from './ExperienceSlotsAdmin';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 interface ExperienceFormProps {
   initialData: any;
@@ -69,6 +69,22 @@ export function ExperienceForm({ initialData, onSave, onPublish, isEditing, cate
 
   const handleBack = () => setStep(prev => prev - 1);
 
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      if (onPublish && !isEditing) {
+        await onPublish(formData);
+      } else {
+        await onSave(formData);
+        toast({ title: "Alterações salvas!" });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro ao salvar", description: e.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-10">
       {/* STEP 1: ESSENCIAL */}
@@ -85,7 +101,9 @@ export function ExperienceForm({ initialData, onSave, onPublish, isEditing, cate
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase opacity-60">Categoria</Label>
                 <Select value={formData.category} onValueChange={v => setFormData({...formData, category: v})}>
-                  <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectTrigger className="rounded-xl h-11">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     {categories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
                   </SelectContent>
@@ -127,7 +145,7 @@ export function ExperienceForm({ initialData, onSave, onPublish, isEditing, cate
                        <Input type="number" value={formData.duration?.value || ""} onChange={e => setFormData({...formData, duration: {...formData.duration, value: e.target.value}})} className="rounded-xl h-11 flex-1" />
                        <Select value={formData.duration?.unit || "horas"} onValueChange={v => setFormData({...formData, duration: {...formData.duration, unit: v}})}>
                           <SelectTrigger className="w-32 h-11 rounded-xl"><SelectValue /></SelectTrigger>
-                          <SelectContent><SelectItem value="minutos">Minutos</SelectItem><SelectItem value="horas">Horas</SelectItem><SelectItem value="dias">Dias</SelectItem></SelectContent>
+                          <SelectContent className="rounded-xl"><SelectItem value="minutos">Minutos</SelectItem><SelectItem value="horas">Horas</SelectItem><SelectItem value="dias">Dias</SelectItem></SelectContent>
                        </Select>
                     </div>
                  </div>
@@ -165,8 +183,8 @@ export function ExperienceForm({ initialData, onSave, onPublish, isEditing, cate
            </Card>
 
            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <ListManager title="O que está incluso" icon={CheckCircle2} items={formData.inclusions} onUpdate={items => setFormData({...formData, inclusions: items})} color="green" />
-              <ListManager title="O que não está incluso" icon={XCircle} items={formData.exclusions} onUpdate={items => setFormData({...formData, exclusions: items})} color="red" />
+              <ListManager title="O que está incluso" icon={CheckCircle2} items={formData.inclusions || []} onUpdate={items => setFormData({...formData, inclusions: items})} color="green" />
+              <ListManager title="O que não está incluso" icon={XCircle} items={formData.exclusions || []} onUpdate={items => setFormData({...formData, exclusions: items})} color="red" />
            </div>
 
            <Card className="border-none shadow-sm rounded-[2rem] bg-white p-8 space-y-6">
@@ -256,7 +274,12 @@ export function ExperienceForm({ initialData, onSave, onPublish, isEditing, cate
            <ExperienceSlotsAdmin experienceId={formData.id} />
            <div className="flex gap-4 pt-10">
               <Button variant="ghost" onClick={handleBack} className="h-20 px-8 rounded-[2.5rem] font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={handlePublish ? () => handlePublish(formData) : handleSave} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2">
+              <Button 
+                onClick={handleSave} 
+                disabled={loading}
+                className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2"
+              >
+                 {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Save className="w-6 h-6 mr-2" />}
                  {isEditing ? "Salvar Alterações" : "Publicar Experiência"}
               </Button>
            </div>
@@ -280,7 +303,7 @@ function ListManager({ title, icon: Icon, items, onUpdate, color }: any) {
           <Button type="button" onClick={handleAdd} size="icon" className="shrink-0 bg-primary text-white rounded-xl"><Plus className="w-4 h-4" /></Button>
        </div>
        <div className="space-y-2">
-          {items.map((item: any, i: number) => (
+          {(items || []).map((item: any, i: number) => (
             <div key={i} className="flex items-center justify-between p-3 bg-muted/30 rounded-xl group">
                <span className="text-xs font-bold uppercase text-primary/70">{item.label}</span>
                <button type="button" onClick={() => onUpdate(items.filter((_, idx) => idx !== i))} className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-3.5 h-3.5" /></button>
