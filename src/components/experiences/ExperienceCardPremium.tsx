@@ -58,8 +58,8 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
     fetchPriceAndStatus();
   }, [db, experience.id]);
 
-  const rating = React.useMemo(() => (4.7 + Math.random() * 0.3).toFixed(1), []);
-  const reviewCount = React.useMemo(() => Math.floor(Math.random() * 200) + 20, []);
+  const rating = experience.averageRating || 5.0;
+  const reviewCount = experience.reviewCount || 0;
 
   const experienceUrl = `/${experience.organizer?.username || 'experiencia'}/experiencia/${experience.slug || experience.id}`;
 
@@ -104,7 +104,7 @@ export function ExperienceCardPremium({ experience }: ExperienceCardPremiumProps
           <div className="absolute bottom-5 left-5 right-5 flex justify-between items-end z-10">
              <div className="flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg border border-white/20">
                 <Star className="w-3 h-3 fill-orange-400 text-orange-400" />
-                <span className="text-[10px] font-black text-primary">{rating} <span className="opacity-40 font-bold">({reviewCount})</span></span>
+                <span className="text-[10px] font-black text-primary">{Number(rating).toFixed(1)} <span className="opacity-40 font-bold">({reviewCount})</span></span>
              </div>
           </div>
         </div>

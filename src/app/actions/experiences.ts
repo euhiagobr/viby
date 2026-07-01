@@ -59,6 +59,8 @@ export async function getOrCreateExperienceDraftAction(userId: string, orgId: st
       status: 'draft',
       organizationId: orgId,
       createdBy: userId,
+      averageRating: 5.0,
+      reviewCount: 0,
       availability: {
         startDate: "",
         endDate: "",
@@ -184,6 +186,8 @@ export async function duplicateExperienceAction(id: string, userId: string) {
       slug: `${sourceData.slug}-copia-${Date.now().toString().slice(-4)}`,
       status: 'draft',
       createdBy: userId,
+      averageRating: 5.0,
+      reviewCount: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
@@ -250,14 +254,12 @@ export async function createExperienceReservationAction(params: {
     return await db.runTransaction(async (transaction) => {
       const slotRef = db.collection('experiences').doc(experienceId).collection('slots').doc(slotId);
       
-      // TODAS AS LEITURAS DEVEM OCORRER NO INÍCIO
       const slotSnap = await transaction.get(slotRef);
       if (!slotSnap.exists) throw new Error("Horário não localizado.");
       const slot = slotSnap.data()!;
       if (slot.status !== 'active') throw new Error("Este horário não está mais disponível.");
 
       const now = new Date();
-      // LEITURA DE QUERY: Usando transaction.get(query) para conformidade total
       const activeReservationsQuery = db.collection('experience_reservations')
         .where('slotId', '==', slotId)
         .where('status', '==', 'reserved')
@@ -273,7 +275,6 @@ export async function createExperienceReservationAction(params: {
         throw new Error("Desculpe, este horário acabou de esgotar ou está sendo reservado por outros usuários.");
       }
 
-      // AGORA AS ESCRITAS
       const reservationRef = db.collection('experience_reservations').doc();
       const expiresAt = new Date(now.getTime() + 10 * 60 * 1000); 
 
@@ -295,6 +296,75 @@ export async function createExperienceReservationAction(params: {
     });
   } catch (e: any) {
     console.error("[Reservation Action] Failure:", e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Submete uma avaliação de experiência e atualiza a média global.
+ */
+export async function submitExperienceReviewAction(params: {
+  registrationId: string;
+  experienceId: string;
+  userId: string;
+  userName: string;
+  rating: number;
+  comment: string;
+}) {
+  const db = getAdminDb();
+  const { registrationId, experienceId, userId, userName, rating, comment } = params;
+
+  try {
+    return await db.runTransaction(async (transaction) => {
+      const regRef = db.collection('registrations').doc(registrationId);
+      const regSnap = await transaction.get(regRef);
+
+      if (!regSnap.exists) throw new Error("Voucher não encontrado.");
+      if (regSnap.data()?.ratingSubmitted) throw new Error("Este voucher já foi avaliado.");
+
+      const expRef = db.collection('experiences').doc(experienceId);
+      const expSnap = await transaction.get(expRef);
+      if (!expSnap.exists) throw new Error("Experiência não encontrada.");
+
+      const expData = expSnap.data()!;
+      const currentAvg = expData.averageRating || 5.0;
+      const currentCount = expData.reviewCount || 0;
+
+      // Cálculo de média ponderada
+      const newCount = currentCount + 1;
+      const newAvg = Number(((currentAvg * currentCount + rating) / newCount).toFixed(1));
+
+      // 1. Salvar Review
+      const reviewRef = db.collection('experience_reviews').doc();
+      transaction.set(reviewRef, {
+        id: reviewRef.id,
+        experienceId,
+        userId,
+        userName,
+        rating,
+        comment,
+        registrationId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 2. Atualizar Experiência
+      transaction.update(expRef, {
+        averageRating: newAvg,
+        reviewCount: newCount,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      // 3. Marcar Voucher como avaliado
+      transaction.update(regRef, {
+        ratingSubmitted: true,
+        ratingValue: rating,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      return { success: true };
+    });
+  } catch (e: any) {
+    console.error("[Review Action] Error:", e.message);
     return { success: false, error: e.message };
   }
 }

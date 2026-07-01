@@ -121,7 +121,6 @@ export async function sendTicketEmail(data: {
   const usagePolicy = String(data.usagePolicy || "").trim();
   const additionalInfo = String(data.additionalInfo || "").trim();
 
-  // QR Code Dinâmico via API Externa para exibição direta no E-mail
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${data.ticketCode}`;
 
   const content = `
@@ -204,6 +203,67 @@ export async function sendTicketEmail(data: {
       status: 'falha',
       error: e.message
     });
+    return { success: false, error: e.message }; 
+  }
+}
+
+export async function sendReviewInviteEmail(data: {
+  to: string;
+  userName: string;
+  experienceTitle: string;
+  reviewUrl: string;
+}) {
+  const branding = await getBranding();
+  const db = getAdminDb();
+  
+  const content = `
+    <h2 style="color: #2C52EE; font-style: italic; text-transform: uppercase; font-weight: 900; text-align: center;">O que você achou?</h2>
+    <p style="text-align: center;">Olá, <strong>${data.userName}</strong>. Percebemos que você viveu uma experiência incrível recentemente.</p>
+    
+    <div style="background: #f8fafc; padding: 30px; border-radius: 20px; border: 2px dashed #e2e8f0; margin: 25px 0; text-align: center;">
+      <p style="margin: 0; font-size: 20px; font-weight: 900; color: #1e293b;">${data.experienceTitle.toUpperCase()}</p>
+      <p style="margin: 8px 0; font-size: 14px; color: #64748b;">Sua opinião é muito importante para nós e para a comunidade.</p>
+      
+      <div style="margin: 25px 0; display: inline-block;">
+        <span style="font-size: 40px;">⭐⭐⭐⭐⭐</span>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 30px;">
+      <a href="${data.reviewUrl}" style="background-color: #2C52EE; color: white; padding: 15px 30px; text-decoration: none; border-radius: 12px; font-weight: 900; text-transform: uppercase; font-style: italic; display: inline-block;">Avaliar agora</a>
+    </div>
+    
+    <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 30px;">
+      Ao avaliar, você ajuda outros membros do clube a descobrirem as melhores vivências.
+    </p>
+  `;
+
+  const htmlContent = getEmailTemplate(branding, content);
+
+  try {
+    const transporter = await getTransporter();
+    const emailSettingsSnap = await db.collection('settings').doc('email').get();
+    const smtpUser = emailSettingsSnap.data()?.smtpUser;
+
+    await transporter.sendMail({
+      from: `"${branding.siteName} Feedback" <${smtpUser}>`,
+      to: data.to,
+      subject: `⭐ Como foi sua experiência em: ${data.experienceTitle}?`,
+      html: htmlContent
+    });
+
+    await logSentEmail({
+      recipientEmail: data.to,
+      recipientName: data.userName,
+      subject: `⭐ Como foi sua experiência em: ${data.experienceTitle}?`,
+      content: htmlContent,
+      type: "review_invite",
+      sender: "Viby Feedback",
+      status: 'enviado'
+    });
+
+    return { success: true };
+  } catch (e: any) { 
     return { success: false, error: e.message }; 
   }
 }

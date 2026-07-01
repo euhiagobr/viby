@@ -1,0 +1,33 @@
+{
+  "collections": {
+    "experience_reviews": {
+      "description": "Repositório de avaliações e feedbacks de usuários sobre experiências.",
+      "fields": {
+        "id": "string (auto-id)",
+        "experienceId": "string (ref:experiences)",
+        "userId": "string (ref:users)",
+        "userName": "string",
+        "rating": "number (1-5)",
+        "comment": "string",
+        "registrationId": "string (ref:registrations)",
+        "createdAt": "timestamp"
+      }
+    },
+    "experiences": {
+      "new_fields": {
+        "averageRating": "number (Média das notas, default: 5.0)",
+        "reviewCount": "number (Total de avaliações, default: 0)"
+      }
+    },
+    "registrations": {
+      "new_fields": {
+        "checkedIn": "boolean",
+        "checkedInAt": "timestamp",
+        "reviewInviteSent": "boolean (default: false)",
+        "reviewInviteSentAt": "timestamp",
+        "ratingSubmitted": "boolean (default: false)",
+        "ratingValue": "number"
+      }
+    }
+  }
+}

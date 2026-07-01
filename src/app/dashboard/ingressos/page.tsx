@@ -15,7 +15,8 @@ import {
   Mail, 
   XCircle,
   RotateCcw,
-  Clock
+  Clock,
+  Star
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -23,6 +24,7 @@ import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { resendTicketAction } from "@/app/actions/tickets"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
+import { ReviewModal } from "@/components/experiences/ReviewModal"
 
 export default function MeusIngressosPage() {
   const db = useFirestore()
@@ -87,6 +89,7 @@ export default function MeusIngressosPage() {
 function TicketListItem({ registration }: { registration: any }) {
   const { formatPriceWithOriginal } = useCurrency()
   const [isSendingEmail, setIsSendingEmail] = React.useState(false)
+  const [isReviewOpen, setIsReviewOpen] = React.useState(false)
 
   const isCancelled = registration.status === 'cancelled' || 
                       registration.status === 'refunded' || 
@@ -95,6 +98,17 @@ function TicketListItem({ registration }: { registration: any }) {
   
   const isCheckedIn = registration.checkedIn === true;
   const isPending = registration.paymentStatus === 'Pendente';
+
+  const canReview = React.useMemo(() => {
+    if (!isCheckedIn || isCancelled || registration.ratingSubmitted) return false;
+    if (registration.productType !== 'experience') return false;
+    
+    // Regra das 24h
+    const checkinDate = registration.checkedInAt?.toDate ? registration.checkedInAt.toDate() : new Date(registration.checkedInAt);
+    const now = new Date();
+    const diff = now.getTime() - checkinDate.getTime();
+    return diff >= 24 * 60 * 60 * 1000;
+  }, [isCheckedIn, isCancelled, registration]);
 
   const handleResend = async () => {
     if (isCancelled || isSendingEmail) return;
@@ -142,12 +156,20 @@ function TicketListItem({ registration }: { registration: any }) {
       
       <CardContent className="p-6 flex-1 flex flex-col justify-between gap-4">
         <div className="space-y-3">
-          <h3 className={cn(
-            "font-black text-lg leading-tight uppercase italic tracking-tighter transition-colors",
-            !isCancelled && "group-hover:text-secondary"
-          )}>
-            {registration.eventTitle}
-          </h3>
+          <div className="flex justify-between items-start">
+            <h3 className={cn(
+              "font-black text-lg leading-tight uppercase italic tracking-tighter transition-colors",
+              !isCancelled && "group-hover:text-secondary"
+            )}>
+              {registration.eventTitle}
+            </h3>
+            {registration.ratingSubmitted && (
+               <div className="flex items-center gap-1 text-orange-400">
+                  <Star className="w-3.5 h-3.5 fill-current" />
+                  <span className="text-[10px] font-black">{registration.ratingValue}.0</span>
+               </div>
+            )}
+          </div>
           <div className="flex items-center gap-3 text-[10px] font-black uppercase text-muted-foreground tracking-tight">
              <div className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-secondary" />
@@ -169,6 +191,11 @@ function TicketListItem({ registration }: { registration: any }) {
             )}
           </div>
           <div className="flex gap-2">
+            {canReview && (
+              <Button size="sm" onClick={() => setIsReviewOpen(true)} className="h-9 px-4 bg-orange-500 text-white font-black uppercase italic text-[9px] rounded-xl shadow-lg">
+                <Star className="w-3 h-3 mr-1.5 fill-current" /> Avaliar Experiência
+              </Button>
+            )}
             {!isCancelled && !isPending && (
               <Button size="sm" variant="outline" onClick={handleResend} disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
                 {isSendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
@@ -189,6 +216,12 @@ function TicketListItem({ registration }: { registration: any }) {
           </div>
         </div>
       </CardContent>
+
+      <ReviewModal 
+        isOpen={isReviewOpen} 
+        onOpenChange={setIsReviewOpen} 
+        registration={registration} 
+      />
     </Card>
   )
 }
