@@ -47,10 +47,11 @@ async function getEventData(usernameParam: string, slugParam: string) {
     let eventDoc = null;
 
     // 1. Tentar localizar por slug textual
+    // Permitimos Ativo e Privado para acesso direto via link
     const slugLower = rawSlugOrId.toLowerCase();
     const queryBySlug = await db.collection("events")
       .where("slug", "==", slugLower)
-      .where("status", "==", "Ativo")
+      .where("status", "in", ["Ativo", "Privado"])
       .limit(1).get();
     
     if (!queryBySlug.empty) {
@@ -58,7 +59,7 @@ async function getEventData(usernameParam: string, slugParam: string) {
     } else {
       // 2. Fallback: Buscar por ID direto
       const eventByIdSnap = await db.collection("events").doc(rawSlugOrId).get();
-      if (eventByIdSnap.exists && eventByIdSnap.data()?.status === "Ativo") {
+      if (eventByIdSnap.exists && ["Ativo", "Privado"].includes(eventByIdSnap.data()?.status)) {
         eventDoc = { id: eventByIdSnap.id, ...eventByIdSnap.data() };
       }
     }
@@ -155,7 +156,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
       description,
       images: [{ url: image, width: 1200, height: 630 }],
     },
-    robots: { index: true, follow: true }
+    robots: { index: event.status === 'Ativo', follow: true }
   };
 }
 

@@ -133,7 +133,7 @@ export async function publishEventAction(eventId: string, finalData: any) {
       title,
       city,
       date: eventDate, 
-      status: 'Ativo',
+      status: finalData.status || 'Ativo',
       slug: baseSlug,
       citySlug,
       regionSlug,
@@ -191,7 +191,7 @@ export async function updateEventAction(params: {
         avatar: org?.avatar || oldData.organizer?.avatar
       },
       date: eventDate, 
-      status: 'Ativo',
+      status: eventData.status || oldData.status || 'Ativo',
       slug,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
