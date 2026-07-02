@@ -357,7 +357,7 @@ export default function AdminApiTokensPage() {
                  <Info className="w-4 h-4 text-secondary" />
                  <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Segurança Ativa</h4>
               </div>
-              <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
+              <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed uppercase">
                  O sistema não armazena tokens em texto puro. O hash gerado é irreversível e verificado em tempo real no servidor (D+0). 
                  A revogação desconecta a integração instantaneamente sem afetar outras chaves.
               </p>

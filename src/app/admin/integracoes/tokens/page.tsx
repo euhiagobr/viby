@@ -25,7 +25,8 @@ import {
   ChevronRight,
   ShieldCheck,
   AlertTriangle,
-  Info
+  Info,
+  Inbox
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +58,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
