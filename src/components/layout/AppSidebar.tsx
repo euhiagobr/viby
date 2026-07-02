@@ -117,7 +117,8 @@ export function AppSidebar() {
               alt={siteName} 
               width={140} 
               height={32} 
-              className="h-8 w-auto object-contain" 
+              style={{ width: 'auto', height: '32px' }}
+              className="object-contain" 
               priority 
               unoptimized 
             />

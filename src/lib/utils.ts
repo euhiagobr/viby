@@ -34,9 +34,11 @@ export function safeParseDate(val: any): Date | null {
  * Converte objetos complexos (como Timestamps) em valores primitivos puros (POJOs) 
  * para envio seguro entre Client e Server no Next.js 15.
  * Força a conversão recursiva de qualquer objeto que possa ter métodos internos.
+ * Tambem converte 'undefined' em 'null' para evitar erros no Firestore.
  */
 export function serializeForServer(data: any): any {
-  if (data === null || data === undefined) return data;
+  if (data === undefined) return null;
+  if (data === null) return null;
   
   // Caso seja um número, string ou boolean, retorna direto
   if (typeof data !== 'object') return data;
@@ -65,7 +67,8 @@ export function serializeForServer(data: any): any {
   const result: any = {};
   for (const key in data) {
     if (Object.prototype.hasOwnProperty.call(data, key)) {
-      result[key] = serializeForServer(data[key]);
+      const val = data[key];
+      result[key] = serializeForServer(val);
     }
   }
   return result;
