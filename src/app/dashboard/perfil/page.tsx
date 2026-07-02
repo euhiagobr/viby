@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -16,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { maskCPF } from "@/lib/crypto-utils"
 import { getUserCPF } from "@/app/actions/user"
 import { calculateUserCouponPoints, getNextPointThreshold } from "@/lib/coupon-utils"
+import { formatCurrency } from "@/lib/financial-utils"
 
 export default function PerfilPage() {
   const auth = useAuth()
@@ -51,92 +51,142 @@ export default function PerfilPage() {
   const progress = nextGoal ? ((userCoupon.uses || 0) / nextGoal.tickets) * 100 : 100;
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto pb-20">
+    <div className="space-y-8 max-w-4xl mx-auto pb-20 animate-in fade-in duration-500">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Meu Perfil</h1>
-          <p className="text-muted-foreground">Gerencie suas informações e acompanhe seus benefícios.</p>
+          <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary">Meu Perfil</h1>
+          <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Gerencie suas informações e acompanhe seus benefícios.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild className="rounded-full font-bold">
-            <Link href="/dashboard/perfil/editar"><Edit className="w-4 h-4 mr-2" /> Editar</Link>
+          <Button variant="outline" asChild className="rounded-full h-11 px-6 font-bold gap-2 border-secondary/20 text-secondary">
+            <Link href="/dashboard/perfil/editar"><Edit className="w-4 h-4" /> Editar Perfil</Link>
           </Button>
-          <Button asChild className="bg-secondary text-white rounded-full px-6 font-bold">
-             <Link href={`/${profile.username}`} target="_blank">Ver Público</Link>
+          <Button asChild className="bg-primary text-white rounded-full px-8 h-11 font-black uppercase italic shadow-lg">
+             <Link href={`/${profile?.username}`} target="_blank">Ver Perfil Público</Link>
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1 space-y-6">
-           <Card className="border-none shadow-sm overflow-hidden text-center">
-              <div className="h-20 bg-muted/30" />
-              <CardContent className="pt-0 -mt-10 space-y-4">
-                 <Avatar className="h-20 w-20 mx-auto border-4 border-background">
-                    <AvatarImage src={profile.avatar} />
-                    <AvatarFallback className="font-black">{profile.name?.charAt(0)}</AvatarFallback>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="lg:col-span-4 space-y-6">
+           <Card className="border-none shadow-sm overflow-hidden text-center bg-white rounded-[2.5rem]">
+              <div className="h-24 bg-muted/30 relative overflow-hidden">
+                 <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 to-primary/5" />
+              </div>
+              <CardContent className="pt-0 -mt-12 space-y-6 pb-8 relative z-10">
+                 <Avatar className="h-24 w-24 mx-auto border-8 border-background shadow-2xl">
+                    <AvatarImage src={profile?.avatar} className="object-cover" />
+                    <AvatarFallback className="font-black text-2xl bg-muted">{profile?.name?.charAt(0)}</AvatarFallback>
                  </Avatar>
                  <div>
-                    <h2 className="font-bold text-lg">{profile.name}</h2>
-                    <p className="text-xs text-muted-foreground">@{profile.username}</p>
+                    <h2 className="font-black text-xl uppercase italic tracking-tighter text-primary">{profile?.name}</h2>
+                    <p className="text-[10px] font-black text-secondary uppercase tracking-widest mt-1">@{profile?.username}</p>
+                 </div>
+                 <div className="flex justify-center gap-2">
+                    <Badge variant="outline" className="text-[8px] font-black uppercase h-5">{profile?.plan || 'free'}</Badge>
+                    <Badge className="bg-green-600 text-white border-none text-[8px] font-black uppercase h-5">{profile?.status || 'Ativo'}</Badge>
                  </div>
               </CardContent>
            </Card>
 
            {userCoupon && (
-             <Card className="border-none shadow-xl bg-primary text-white overflow-hidden relative group">
+             <Card className="border-none shadow-xl bg-primary text-white overflow-hidden rounded-[2.5rem] relative group">
                 <CardHeader className="pb-2">
                    <div className="flex justify-between items-start">
-                      <Badge className="bg-secondary text-white border-none text-[8px] font-black uppercase px-2 h-5">Meu Cupom</Badge>
+                      <Badge className="bg-secondary text-white border-none text-[8px] font-black uppercase px-3 h-5 shadow-lg">Meu Cupom Exclusivo</Badge>
                       <TicketPercent className="w-5 h-5 opacity-20" />
                    </div>
                 </CardHeader>
-                <CardContent className="space-y-6 relative z-10">
-                   <div className="text-center py-4 bg-white/10 rounded-2xl border border-white/10">
-                      <p className="text-3xl font-black italic tracking-widest">{userCoupon.code}</p>
-                      <p className="text-[10px] font-bold opacity-60 uppercase">Desconto: {formatCurrency(userCoupon.discountValue)}</p>
+                <CardContent className="p-8 space-y-8 relative z-10">
+                   <div className="text-center py-6 bg-white/10 rounded-3xl border border-white/10 shadow-inner">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Seu Código</p>
+                      <p className="text-4xl font-black italic tracking-widest">{userCoupon.code}</p>
+                      <div className="mt-4 inline-flex items-center gap-2 bg-secondary/20 text-secondary px-3 py-1 rounded-full text-[9px] font-black uppercase">
+                         <Zap className="w-3 h-3 fill-current" /> {formatCurrency(userCoupon.discountValue)} OFF
+                      </div>
                    </div>
                    <div className="space-y-4">
                       <div className="flex justify-between items-end">
-                         <div className="space-y-0.5">
-                            <p className="text-[8px] font-black uppercase opacity-40">Pontuação</p>
-                            <p className="text-2xl font-black italic text-secondary">{points} PTS</p>
+                         <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase opacity-40">Pontuação Cultural</p>
+                            <p className="text-3xl font-black italic text-secondary tracking-tighter">{points} <span className="text-xs">PTS</span></p>
                          </div>
                          <div className="text-right">
-                            <p className="text-[8px] font-black uppercase opacity-40">Vendas</p>
-                            <p className="font-black text-sm">{userCoupon.uses || 0}</p>
+                            <p className="text-[10px] font-black uppercase opacity-40">Ingressos Vendidos</p>
+                            <p className="font-black text-lg">{userCoupon.uses || 0}</p>
                          </div>
                       </div>
                       <div className="space-y-2">
-                         <div className="flex justify-between text-[8px] font-black uppercase">
-                            <span>Progresso</span>
-                            <span>{userCoupon.uses || 0} / {nextGoal?.tickets || 'MAX'}</span>
+                         <div className="flex justify-between text-[8px] font-black uppercase tracking-widest opacity-60">
+                            <span>Progresso para Bônus</span>
+                            <span>{userCoupon.uses || 0} / {nextGoal?.tickets || 'MÁX'}</span>
                          </div>
-                         <Progress value={progress} className="h-1.5 bg-white/10" />
+                         <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-secondary transition-all duration-1000 shadow-[0_0_10px_rgba(44,82,238,0.5)]" style={{ width: `${progress}%` }} />
+                         </div>
+                         {nextGoal && (
+                           <p className="text-[8px] font-bold text-center opacity-40 uppercase tracking-widest">
+                              Próxima Recompensa: {nextGoal.points} Pontos
+                           </p>
+                         )}
                       </div>
                    </div>
                 </CardContent>
-                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-secondary/10 rounded-full blur-3xl" />
+                <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-secondary/10 rounded-full blur-3xl group-hover:scale-110 transition-transform" />
              </Card>
            )}
         </div>
 
-        <div className="lg:col-span-2 space-y-6">
-           <Card className="border-none shadow-sm">
-              <CardHeader><CardTitle className="text-lg">Bio</CardTitle></CardHeader>
-              <CardContent><p className="text-sm text-muted-foreground italic leading-relaxed">{profile.bio || "Sem biografia."}</p></CardContent>
+        <div className="lg:col-span-8 space-y-6">
+           <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+              <CardHeader className="bg-muted/30 p-8 border-b">
+                 <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2">
+                    <UserIcon className="w-5 h-5 text-secondary" /> Manifesto Pessoal
+                 </CardTitle>
+              </CardHeader>
+              <CardContent className="p-8">
+                 <p className="text-base text-muted-foreground font-medium leading-relaxed italic">
+                    {profile?.bio || "Este membro ainda não escreveu sua apresentação no clube."}
+                 </p>
+              </CardContent>
            </Card>
            
-           <Card className="border-none shadow-sm">
-              <CardHeader><CardTitle className="text-lg">Dados e Segurança</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                 <div className="flex items-center justify-between p-4 bg-muted/20 rounded-xl border">
-                    <div className="flex items-center gap-3">
-                       <Fingerprint className="w-5 h-5 text-muted-foreground" />
-                       <span className="text-sm font-bold font-mono">{showCPF ? fullCPF : maskCPF(fullCPF || profile.cpfMasked)}</span>
+           <Card className="border-none shadow-sm rounded-[2.5rem] bg-white overflow-hidden">
+              <CardHeader className="bg-muted/30 p-8 border-b">
+                 <CardTitle className="text-lg font-black uppercase italic tracking-tighter flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-secondary" /> Segurança e Identidade
+                 </CardTitle>
+              </CardHeader>
+              <CardContent className="p-8 space-y-6">
+                 <div className="space-y-4">
+                    <div className="flex items-center justify-between p-5 bg-muted/20 rounded-2xl border-2 border-dashed border-border/50">
+                       <div className="flex items-center gap-4">
+                          <div className="p-3 bg-white rounded-xl shadow-sm text-secondary">
+                             <Fingerprint className="w-6 h-6" />
+                          </div>
+                          <div className="space-y-0.5">
+                             <p className="text-[9px] font-black uppercase text-muted-foreground opacity-60">Documento CPF</p>
+                             <p className="text-lg font-black text-primary font-mono tracking-widest">
+                                {showCPF ? fullCPF : maskCPF(fullCPF || profile?.cpfMasked)}
+                             </p>
+                          </div>
+                       </div>
+                       <Button variant="ghost" size="sm" onClick={() => setShowCPF(!showCPF)} className="rounded-xl h-10 px-4 font-black text-[10px] uppercase gap-2 hover:bg-white">
+                          {loadingCPF ? <Loader2 className="w-4 h-4 animate-spin" /> : showCPF ? <><EyeOff className="w-4 h-4" /> Ocultar</> : <><Eye className="w-4 h-4" /> Revelar</>}
+                       </Button>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setShowCPF(!showCPF)} className="text-[10px] uppercase font-black">
-                       {showCPF ? <EyeOff className="w-3.5 h-3.5 mr-1" /> : <Eye className="w-3.5 h-3.5 mr-1" />} {showCPF ? "Ocultar" : "Revelar"}
+
+                    <div className="flex items-center gap-6 p-5 bg-muted/10 rounded-2xl text-[10px] font-bold uppercase tracking-tight">
+                       <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-secondary opacity-40" /> {profile?.email}</div>
+                       <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-secondary opacity-40" /> Membro desde {new Date(profile?.createdAt?.seconds * 1000 || profile?.createdAt).toLocaleDateString('pt-BR')}</div>
+                    </div>
+                 </div>
+
+                 <Separator className="border-dashed" />
+                 
+                 <div className="flex justify-end gap-3">
+                    <Button variant="outline" asChild className="rounded-xl h-10 px-6 font-black uppercase text-[10px] gap-2 border-secondary/20 text-secondary">
+                       <Link href="/dashboard/perfil/configuracoes"><Settings className="w-4 h-4" /> Configurações de Conta</Link>
                     </Button>
                  </div>
               </CardContent>

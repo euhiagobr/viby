@@ -1,8 +1,7 @@
-
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
 import { 
   collection, 
   query, 
@@ -32,24 +31,21 @@ import {
   Loader2, 
   Search, 
   Users, 
-  User as UserIcon,
   Trash2,
   Edit,
   Save,
   BadgeCheck,
-  CheckCircle2,
-  ShieldCheck,
-  Lock,
   ShieldBan,
   AtSign,
-  AlertTriangle,
   Fingerprint,
-  Mail,
   TicketPercent,
   Building2,
   Calendar,
   Zap,
-  TrendingUp
+  Clock,
+  Inbox,
+  AlertTriangle,
+  Lock
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -58,14 +54,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { cn, validateCPF } from "@/lib/utils"
-import { sendVerificationStatusEmail } from "@/app/actions/email"
 import { useAdminPermissions } from "@/hooks/use-admin-permissions"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { updateUserCPF } from "@/app/actions/user"
 import { upsertUserCoupon, deleteUserCoupon } from "@/app/actions/user-coupons"
-import { calculateUserCouponPoints } from "@/lib/coupon-utils"
+import { calculateUserCouponPoints, getNextPointThreshold } from "@/lib/coupon-utils"
+import { formatCurrency } from "@/lib/financial-utils"
 
 export default function AdminUsuariosPage() {
   const db = useFirestore()
@@ -118,7 +113,8 @@ export default function AdminUsuariosPage() {
   // Busca dados do cupom quando abre edição
   React.useEffect(() => {
     if (editingUser?.id && isEditUserOpen && db) {
-      getDocs(query(collection(db, "user_coupons"), where("userId", "==", editingUser.id), limit(1))).then(snap => {
+      const q = query(collection(db, "user_coupons"), where("userId", "==", editingUser.id), limit(1));
+      getDocs(q).then(snap => {
         if (!snap.empty) {
           const data = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
           setCouponData(data);
@@ -227,7 +223,7 @@ export default function AdminUsuariosPage() {
   }
 
   return (
-    <div className="space-y-8 pb-20">
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-black tracking-tight uppercase italic text-primary flex items-center gap-3">
           <Users className="w-8 h-8 text-secondary" /> Gestão de Usuários
@@ -321,12 +317,66 @@ export default function AdminUsuariosPage() {
                  {/* DADOS BÁSICOS */}
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Nome Completo</Label>
                        <Input value={editingUser?.name || ""} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="rounded-xl h-11" required />
                     </div>
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
+                       <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Username (@)</Label>
                        <Input value={editingUser?.username || ""} readOnly className="rounded-xl h-11 bg-muted/50 cursor-not-allowed font-bold" />
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 ml-1">E-mail de Cadastro</Label>
+                       <Input value={editingUser?.email || ""} readOnly className="rounded-xl h-11 bg-muted/50 cursor-not-allowed font-bold" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2 ml-1">
+                          <Fingerprint className="w-3.5 h-3.5 text-secondary" /> CPF (Protegido)
+                       </Label>
+                       <Input 
+                          value={tempCPF} 
+                          onChange={e => setTempCPF(e.target.value.replace(/\D/g, "").substring(0, 11))}
+                          readOnly={!isSuperAdmin}
+                          className={cn("rounded-xl h-11 font-mono", !isSuperAdmin && "bg-muted/50 cursor-not-allowed")}
+                       />
+                       {!isSuperAdmin && <p className="text-[8px] font-bold text-muted-foreground uppercase opacity-40 ml-1">Somente Super Admin pode alterar CPF.</p>}
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Plano</Label>
+                       <Select value={editingUser?.plan || "free"} onValueChange={v => setEditingUser({...editingUser, plan: v})}>
+                          <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                             <SelectItem value="free">FREE</SelectItem>
+                             <SelectItem value="pro">PRO</SelectItem>
+                             <SelectItem value="top">TOP</SelectItem>
+                          </SelectContent>
+                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Cargo Administrativo</Label>
+                       <Select value={editingUser?.role || "user"} onValueChange={v => setEditingUser({...editingUser, role: v})}>
+                          <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                             <SelectItem value="user">USUÁRIO COMUM</SelectItem>
+                             <SelectItem value="admin">ADMINISTRADOR</SelectItem>
+                          </SelectContent>
+                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Status</Label>
+                       <Select value={editingUser?.status || "Ativo"} onValueChange={v => setEditingUser({...editingUser, status: v})}>
+                          <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                             <SelectItem value="Ativo">ATIVO</SelectItem>
+                             <SelectItem value="Bloqueado">BLOQUEADO</SelectItem>
+                             <SelectItem value="Desativado">DESATIVADO</SelectItem>
+                          </SelectContent>
+                       </Select>
                     </div>
                  </div>
 
@@ -399,7 +449,7 @@ export default function AdminUsuariosPage() {
                  <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200 flex items-start gap-4">
                     <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
                     <p className="text-[10px] text-orange-700 font-bold uppercase leading-relaxed">
-                       Cuidado: Alterações em cupons e permissões impactam diretamente o faturamento e a validade de compras externas.
+                       Atenção: Todas as alterações feitas aqui são registradas em logs de auditoria comercial e fiscal.
                     </p>
                  </div>
               </ScrollArea>
