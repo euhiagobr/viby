@@ -2,8 +2,6 @@
   "singleton": "true",
   "environment": "node_server",
   "persistence": "global_object_caching",
-  "firestore_settings": {
-    "ignoreUndefinedProperties": true
-  },
-  "initialization_point": "src/lib/firebase/admin.ts"
+  "initialization_point": "src/lib/firebase/admin.ts",
+  "settings_status": "settings_call_removed_to_prevent_duplicate_init_error"
 }
