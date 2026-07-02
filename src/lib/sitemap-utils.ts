@@ -18,7 +18,7 @@ export const RESERVED_ROUTES = [
   'financeiro', 'usuarios', 'paginas', 'denuncias', 'logs', 'emails', 
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
   'projeto', 'auth', 'para-organizadores', 'search', 'settings', 'viby', 'marca',
-  'o-que-fazer-em', 'eventos', 'evento', 'perfil', 'experiencias'
+  'o-que-fazer-em', 'eventos', 'evento', 'perfil', 'experiencias', 'empresas'
 ];
 
 export function isValidUsername(username: string | undefined): boolean {

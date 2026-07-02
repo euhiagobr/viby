@@ -1,0 +1,17 @@
+
+{
+  "feature": "Diretório Local de Empresas",
+  "routing": {
+    "path": "/empresas/[city]",
+    "resolution": "Busca em organizations onde status == 'Ativo'",
+    "filtering": "Filtro em memória via slugifyLocation(org.city) para garantir precisão e suporte a nomes amigáveis na URL"
+  },
+  "constraints": {
+    "reserved_word": "empresas",
+    "usage": "Impedir que qualquer usuário ou marca use @empresas como username para evitar colisão com a rota principal do diretório"
+  },
+  "ui_components": {
+    "categories": "Extraídas dinamicamente do campo 'type' das organizações presentes nos resultados da cidade",
+    "ordering": "Prioridade: Verificadas (verified: true) -> Ordem Alfabética"
+  }
+}

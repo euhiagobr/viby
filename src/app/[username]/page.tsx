@@ -14,7 +14,7 @@ const RESERVED_ROUTES = [
   'configuracoes', 'equipe', 'notificacoes', 'scanner', 'presenca', 'ingressos',
   'projeto', 'auth', 'para-organizadores', 'search', 'settings',
   'favicon.ico', 'robots.txt', 'sitemap.xml', 'manifest.webmanifest', 'og',
-  'experiencias-lgbtqiapn', 'copa-do-mundo', 'o-que-fazer-em', 'evento', 'eventos', 'experiencias'
+  'experiencias-lgbtqiapn', 'copa-do-mundo', 'o-que-fazer-em', 'evento', 'eventos', 'experiencias', 'empresas'
 ];
 
 const VIBY_DEFAULT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
