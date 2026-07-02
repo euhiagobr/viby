@@ -1,30 +1,64 @@
+
 import { NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { hashCPF, maskCPF } from '@/lib/crypto-utils';
-import { safeParseDate } from '@/lib/utils';
+import crypto from 'crypto';
+import * as admin from 'firebase-admin';
 
 /**
  * @fileOverview API Privada de Integração para busca de ingressos.
- * Regras: Autenticação Bearer, Validação de CPF (Hash), Filtro por Evento e Status de Pagamento.
+ * Autenticação via DB-backed API Tokens.
  */
 
-const INTEGRATION_TOKEN = process.env.INTEGRATION_TOKEN || 'viby_internal_dev_token';
 const AUTHORIZED_DOMAINS = process.env.AUTHORIZED_DOMAINS?.split(',') || [];
 
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 export async function POST(req: Request) {
+  const db = getAdminDb();
+
   // 1. Validação de CORS (Origem)
   const origin = req.headers.get('origin');
   if (process.env.NODE_ENV === 'production' && origin && !AUTHORIZED_DOMAINS.includes(origin)) {
     return new Response(null, { status: 403 });
   }
 
-  // 2. Autenticação Bearer Token
+  // 2. Autenticação via Token em Banco
   const authHeader = req.headers.get('authorization');
-  if (!authHeader || authHeader !== `Bearer ${INTEGRATION_TOKEN}`) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return NextResponse.json({ success: false, error: "Unauthorized: Missing token" }, { status: 401 });
   }
 
+  const token = authHeader.split(' ')[1];
+  const hashedToken = hashToken(token);
+
   try {
+    const tokenQuery = await db.collection('api_tokens')
+      .where('hash', '==', hashedToken)
+      .where('status', '==', 'active')
+      .limit(1)
+      .get();
+
+    if (tokenQuery.empty) {
+      return NextResponse.json({ success: false, error: "Unauthorized: Invalid or revoked token" }, { status: 401 });
+    }
+
+    const tokenDoc = tokenQuery.docs[0];
+    const tokenData = tokenDoc.data();
+
+    // Verificação de Permissões
+    if (!tokenData.permissions?.['tickets.find']) {
+      return NextResponse.json({ success: false, error: "Forbidden: Missing permissions" }, { status: 403 });
+    }
+
+    // Registro de Uso
+    await tokenDoc.ref.update({
+      requestCount: admin.firestore.FieldValue.increment(1),
+      lastUsedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
     const { eventId, cpf } = await req.json();
 
     // 3. Validação de Payload
@@ -37,17 +71,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Invalid CPF format" }, { status: 400 });
     }
 
-    const db = getAdminDb();
     const hashedCpf = hashCPF(cleanCpf);
 
-    // 4. Localizar Usuário pelo CPF Hash (Privacidade)
+    // 4. Localizar Usuário pelo CPF Hash
     const usersSnap = await db.collection("users")
       .where("cpfHash", "==", hashedCpf)
       .limit(1)
       .get();
 
     if (usersSnap.empty) {
-      console.log(`[Integration API] User not found for hashed CPF suffix: ${hashedCpf.slice(-6)}`);
       return NextResponse.json({ success: false }, { status: 404 });
     }
 
@@ -64,14 +96,13 @@ export async function POST(req: Request) {
       .get();
 
     if (registrationsSnap.empty) {
-      console.log(`[Integration API] Ticket not found for User ${userId} at Event ${eventId}`);
       return NextResponse.json({ success: false }, { status: 404 });
     }
 
     const reg = registrationsSnap.docs[0].data();
     const regId = registrationsSnap.docs[0].id;
 
-    // 6. Buscar Detalhes do Evento (ou Experiência)
+    // 6. Buscar Detalhes do Evento
     let eventData: any = null;
     const eventDoc = await db.collection("events").doc(eventId).get();
     
@@ -82,7 +113,6 @@ export async function POST(req: Request) {
       if (expDoc.exists) eventData = expDoc.data();
     }
 
-    // 7. Construção do Objeto de Resposta Protegido
     const ticketResponse = {
       id: regId,
       eventId: reg.eventId,

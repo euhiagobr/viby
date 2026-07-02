@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -46,7 +47,9 @@ import {
   Coins,
   Wallet,
   User,
-  Star
+  Star,
+  Code2,
+  Cpu
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -152,6 +155,15 @@ export default function AdminLayout({
         { title: 'Taxas Atração', url: '/admin/taxas-atracao', icon: Calculator, permission: 'marketing.view' as any },
         { title: 'Cupons Globais', url: '/admin/cupons', icon: TicketPercent, permission: 'marketing.coupons' as any },
         { title: 'Campanhas', url: '/admin/campanhas', icon: Zap, permission: 'marketing.campaigns' as any },
+      ]
+    },
+    {
+      id: 'integrações',
+      title: 'Integrações',
+      icon: Code2,
+      items: [
+        { title: 'Tokens de API', url: '/admin/integracoes/tokens', icon: Key, permission: 'settings.edit' as any },
+        { title: 'Webhooks (Soon)', url: '#', icon: RefreshCw, permission: 'settings.view' as any },
       ]
     },
     {

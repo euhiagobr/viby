@@ -1,0 +1,34 @@
+
+{
+  "collection": "api_tokens",
+  "description": "Armazenamento seguro de hashes de tokens para acesso à API de integrações.",
+  "fields": {
+    "id": "string (auto-id)",
+    "name": "string (Nome da integração)",
+    "description": "string (Opcional)",
+    "hash": "string (SHA-256 do token completo - única fonte de verdade para autenticação)",
+    "prefix": "string (fixed: viby_live_)",
+    "suffix": "string (últimos 4 caracteres para identificação visual)",
+    "status": "active | revoked",
+    "requestCount": "number (Contador incremental de requisições)",
+    "lastUsedAt": "timestamp",
+    "permissions": {
+      "type": "map",
+      "fields": {
+        "tickets.find": "boolean"
+      }
+    },
+    "createdAt": "timestamp",
+    "createdBy": "string (UID do administrador)"
+  },
+  "security_rules": "Leitura restrita a administradores. Escrita apenas via Server Action (admin).",
+  "indexes": [
+    {
+      "collectionId": "api_tokens",
+      "fields": [
+        { "fieldPath": "hash", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ]
+}
