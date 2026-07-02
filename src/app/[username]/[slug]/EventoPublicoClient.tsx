@@ -68,6 +68,12 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
   const { data: realTimeEvent, loading: eventLoading } = useDoc<any>(eventRef)
   const event = realTimeEvent || initialData;
 
+  const feesRef = React.useMemo(() => (db ? doc(db, 'settings', 'fees') : null), [db]);
+  const { data: globalFees } = useDoc<any>(feesRef);
+
+  const promosRef = React.useMemo(() => (db ? doc(db, 'settings', 'promotions') : null), [db]);
+  const { data: promotions } = useDoc<any>(promosRef);
+
   React.useEffect(() => {
     setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 60000);

@@ -20,7 +20,6 @@ import {
   CheckCircle2, 
   Coins, 
   Zap,
-  Building2,
   TrendingUp,
   Percent
 } from 'lucide-react';
@@ -91,7 +90,7 @@ export function ExperienceRevenueSimulator({ isOpen, onOpenChange, organization 
             <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Simular Ganhos</DialogTitle>
           </div>
           <DialogDescription className="font-bold text-[10px] uppercase text-muted-foreground tracking-widest">
-            Entenda como suas taxas de experiência são aplicadas
+            Entenda o repasse líquido da sua experiência
           </DialogDescription>
         </DialogHeader>
 
@@ -147,7 +146,7 @@ export function ExperienceRevenueSimulator({ isOpen, onOpenChange, organization 
                    <span className="text-primary">{formatPrice(results.totalGross, currency as CurrencyCode)}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs font-bold uppercase text-red-500">
-                   <span className="flex items-center gap-1.5"><TrendingUp className="w-3 h-3" /> Taxa Descontada</span>
+                   <span className="flex items-center gap-1.5"><TrendingUp className="w-3 h-3" /> Sua Taxa (Descontada)</span>
                    <span className="font-black">-{formatPrice(results.totalOrganizerFee, currency as CurrencyCode)}</span>
                 </div>
              </div>
@@ -165,7 +164,7 @@ export function ExperienceRevenueSimulator({ isOpen, onOpenChange, organization 
 
           <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
             <Zap className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-            <p className="text-[9px] text-secondary font-bold leading-relaxed uppercase italic">
+            <p className="text-[9px] text-secondary font-bold leading-relaxed uppercase italic text-center">
               As taxas são descontadas automaticamente no momento da confirmação do pagamento. O valor "Você recebe" já está livre de comissões e impostos da plataforma.
             </p>
           </div>
