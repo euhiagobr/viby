@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -7,15 +8,105 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, Mail, Calendar, Hash, Globe, ExternalLink, Edit, MapPin, Instagram, Fingerprint, Settings, Eye, EyeOff, TicketPercent, Zap, TrendingUp } from "lucide-react"
+import { 
+  Loader2, 
+  Calendar, 
+  Edit, 
+  Fingerprint, 
+  Settings, 
+  Eye, 
+  EyeOff, 
+  TicketPercent, 
+  Zap, 
+  ShieldCheck,
+  User as UserIcon,
+  Mail,
+  Building2,
+  Trophy
+} from "lucide-react"
 import { Separator } from "@/components/ui/separator"
-import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { maskCPF } from "@/lib/crypto-utils"
 import { getUserCPF } from "@/app/actions/user"
 import { calculateUserCouponPoints, getNextPointThreshold } from "@/lib/coupon-utils"
 import { formatCurrency } from "@/lib/financial-utils"
+
+/**
+ * Componente interno para exibir o Card de Cupom com carregamento de dados do Evento.
+ */
+function UserCouponCard({ coupon, userId }: { coupon: any, userId: string }) {
+  const db = useFirestore();
+  const eventRef = React.useMemo(() => (db && coupon?.eventId) ? doc(db, "events", coupon.eventId) : null, [db, coupon?.eventId]);
+  const { data: event, loading: eventLoading } = useDoc<any>(eventRef);
+
+  const points = calculateUserCouponPoints(coupon.uses || 0);
+  const nextGoal = getNextPointThreshold(coupon.uses || 0);
+  const progress = nextGoal ? ((coupon.uses || 0) / nextGoal.tickets) * 100 : 100;
+
+  return (
+    <Card className="border-none shadow-xl bg-primary text-white overflow-hidden rounded-[2.5rem] relative group animate-in zoom-in-95 duration-500">
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-start">
+          <Badge className="bg-secondary text-white border-none text-[8px] font-black uppercase px-3 h-5 shadow-lg">Meu Cupom Exclusivo</Badge>
+          <TicketPercent className="w-5 h-5 opacity-20" />
+        </div>
+      </CardHeader>
+      <CardContent className="p-8 space-y-8 relative z-10">
+        <div className="text-center py-6 bg-white/10 rounded-3xl border border-white/10 shadow-inner">
+          <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Seu Código</p>
+          <p className="text-4xl font-black italic tracking-widest">{coupon.code}</p>
+          <div className="mt-4 inline-flex items-center gap-2 bg-secondary/20 text-secondary px-3 py-1 rounded-full text-[9px] font-black uppercase">
+            <Zap className="w-3 h-3 fill-current" /> {formatCurrency(coupon.discountValue)} OFF
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="space-y-1">
+            <p className="text-[8px] font-black uppercase text-muted-foreground opacity-40">Evento Vinculado</p>
+            {eventLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin opacity-20" />
+            ) : (
+              <p className="text-xs font-bold uppercase italic truncate text-secondary">
+                {event?.title || "Evento não localizado"}
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-[8px] font-black uppercase opacity-40">Ingressos Vendidos</p>
+              <p className="text-xl font-black">{coupon.uses || 0}</p>
+            </div>
+            <div className="space-y-1 text-right">
+              <p className="text-[8px] font-black uppercase opacity-40">Pontuação Atual</p>
+              <p className="text-xl font-black text-secondary">{points} <span className="text-[10px]">PTS</span></p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between text-[8px] font-black uppercase tracking-widest opacity-60">
+              <span>Progresso para Bônus</span>
+              <span>{coupon.uses || 0} / {nextGoal?.tickets || 'MÁX'}</span>
+            </div>
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-secondary transition-all duration-1000 shadow-[0_0_10px_rgba(44,82,238,0.5)]" 
+                style={{ width: `${progress}%` }} 
+              />
+            </div>
+            {nextGoal && (
+              <p className="text-[8px] font-bold text-center opacity-40 uppercase tracking-widest">
+                Próxima Recompensa: {nextGoal.points} Pontos
+              </p>
+            )}
+          </div>
+        </div>
+      </CardContent>
+      <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-secondary/10 rounded-full blur-3xl group-hover:scale-110 transition-transform" />
+    </Card>
+  );
+}
 
 export default function PerfilPage() {
   const auth = useAuth()
@@ -45,10 +136,6 @@ export default function PerfilPage() {
   if (authLoading || profileLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
   }
-
-  const points = userCoupon ? calculateUserCouponPoints(userCoupon.uses || 0) : 0;
-  const nextGoal = userCoupon ? getNextPointThreshold(userCoupon.uses || 0) : null;
-  const progress = nextGoal ? ((userCoupon.uses || 0) / nextGoal.tickets) * 100 : 100;
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto pb-20 animate-in fade-in duration-500">
@@ -89,52 +176,7 @@ export default function PerfilPage() {
               </CardContent>
            </Card>
 
-           {userCoupon && (
-             <Card className="border-none shadow-xl bg-primary text-white overflow-hidden rounded-[2.5rem] relative group">
-                <CardHeader className="pb-2">
-                   <div className="flex justify-between items-start">
-                      <Badge className="bg-secondary text-white border-none text-[8px] font-black uppercase px-3 h-5 shadow-lg">Meu Cupom Exclusivo</Badge>
-                      <TicketPercent className="w-5 h-5 opacity-20" />
-                   </div>
-                </CardHeader>
-                <CardContent className="p-8 space-y-8 relative z-10">
-                   <div className="text-center py-6 bg-white/10 rounded-3xl border border-white/10 shadow-inner">
-                      <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-1">Seu Código</p>
-                      <p className="text-4xl font-black italic tracking-widest">{userCoupon.code}</p>
-                      <div className="mt-4 inline-flex items-center gap-2 bg-secondary/20 text-secondary px-3 py-1 rounded-full text-[9px] font-black uppercase">
-                         <Zap className="w-3 h-3 fill-current" /> {formatCurrency(userCoupon.discountValue)} OFF
-                      </div>
-                   </div>
-                   <div className="space-y-4">
-                      <div className="flex justify-between items-end">
-                         <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase opacity-40">Pontuação Cultural</p>
-                            <p className="text-3xl font-black italic text-secondary tracking-tighter">{points} <span className="text-xs">PTS</span></p>
-                         </div>
-                         <div className="text-right">
-                            <p className="text-[10px] font-black uppercase opacity-40">Ingressos Vendidos</p>
-                            <p className="font-black text-lg">{userCoupon.uses || 0}</p>
-                         </div>
-                      </div>
-                      <div className="space-y-2">
-                         <div className="flex justify-between text-[8px] font-black uppercase tracking-widest opacity-60">
-                            <span>Progresso para Bônus</span>
-                            <span>{userCoupon.uses || 0} / {nextGoal?.tickets || 'MÁX'}</span>
-                         </div>
-                         <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div className="h-full bg-secondary transition-all duration-1000 shadow-[0_0_10px_rgba(44,82,238,0.5)]" style={{ width: `${progress}%` }} />
-                         </div>
-                         {nextGoal && (
-                           <p className="text-[8px] font-bold text-center opacity-40 uppercase tracking-widest">
-                              Próxima Recompensa: {nextGoal.points} Pontos
-                           </p>
-                         )}
-                      </div>
-                   </div>
-                </CardContent>
-                <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-secondary/10 rounded-full blur-3xl group-hover:scale-110 transition-transform" />
-             </Card>
-           )}
+           {userCoupon && <UserCouponCard coupon={userCoupon} userId={user?.uid!} />}
         </div>
 
         <div className="lg:col-span-8 space-y-6">
