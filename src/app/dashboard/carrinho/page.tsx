@@ -26,7 +26,8 @@ import {
   TicketPercent,
   CheckCircle2,
   X,
-  UserCheck
+  UserCheck,
+  Tag
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -111,7 +112,7 @@ export default function CarrinhoPage() {
           const eSnap = await getDoc(doc(db, coll, item.eventId));
           if (eSnap.exists()) {
             const eData = eSnap.data();
-            if (eData.status !== 'Excluído') {
+            if (eData.status !== 'Excluído' && eData.status !== 'Oculto') {
               updatedItems.push(item);
             } else {
               hadChanges = true;
@@ -184,8 +185,7 @@ export default function CarrinhoPage() {
           toast({ variant: "destructive", title: "Restrição de Evento", description: "Este cupom exclusivo é válido apenas para outro evento." });
           return;
         }
-        // Força o tipo 'fixed' para cupons de usuário
-        setAppliedCoupon({ ...uCoupon, discountType: 'fixed', isUserCoupon: true });
+        setAppliedCoupon({ ...uCoupon, isUserCoupon: true });
         toast({ title: "Cupom exclusivo aplicado!" });
         return;
       }
@@ -234,31 +234,34 @@ export default function CarrinhoPage() {
       
       const org = orgsData?.[item.organizationId];
       if (org && globalFees) {
-        // Lógica de Cupom: Aplica em apenas 1 unidade do item correspondente
+        let discValPerUnit = 0;
+        const couponVal = Number(appliedCoupon?.discountValue) || 0;
+
         if (appliedCoupon && appliedCoupon.eventId === item.eventId) {
-          let discVal = 0;
-          const couponVal = Number(appliedCoupon.discountValue) || 0;
-
           if (appliedCoupon.discountType === 'percentage') {
-            discVal = Number((item.price * (couponVal / 100)).toFixed(2));
+            discValPerUnit = Number((item.price * (couponVal / 100)).toFixed(2));
           } else if (appliedCoupon.discountType === 'fixed') {
-            discVal = Math.min(item.price, couponVal);
+            discValPerUnit = Math.min(item.price, couponVal);
           } else if (appliedCoupon.discountType === 'free_ticket') {
-            discVal = item.price;
+            discValPerUnit = item.price;
           }
-          
-          discount += discVal; 
-          const discountedUnitPrice = Math.max(0, item.price - discVal);
-
-          const resDiscounted = calculateVibyOfficialSplit(discountedUnitPrice, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, (item.productType as ProductType) || 'event');
-          const resFull = calculateVibyOfficialSplit(item.price, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, (item.productType as ProductType) || 'event');
-          
-          fees += (resDiscounted?.buyerFee || 0);
-          fees += (resFull?.buyerFee || 0) * (item.quantity - 1);
-        } else {
-          const res = calculateVibyOfficialSplit(item.price, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, (item.productType as ProductType) || 'event');
-          fees += (res?.buyerFee || 0) * (item.quantity || 0);
         }
+        
+        // O desconto é por UNIDADE
+        discount += discValPerUnit * item.quantity; 
+        const discountedUnitPrice = Math.max(0, item.price - discValPerUnit);
+
+        const res = calculateVibyOfficialSplit(
+          discountedUnitPrice, 
+          primaryCurrency as CurrencyCode, 
+          rates, 
+          org, 
+          globalFees, 
+          promotions, 
+          (item.productType as ProductType) || 'event'
+        );
+        
+        fees += (res?.buyerFee || 0) * item.quantity;
       }
     });
 
@@ -309,6 +312,21 @@ export default function CarrinhoPage() {
              <div className="space-y-6">
                 {items.map((item) => {
                   const isCouponTarget = appliedCoupon && appliedCoupon.eventId === item.eventId;
+                  const couponVal = Number(appliedCoupon?.discountValue) || 0;
+                  
+                  let itemDiscountUnit = 0;
+                  if (isCouponTarget) {
+                    if (appliedCoupon.discountType === 'percentage') {
+                      itemDiscountUnit = Number((item.price * (couponVal / 100)).toFixed(2));
+                    } else if (appliedCoupon.discountType === 'fixed') {
+                      itemDiscountUnit = Math.min(item.price, couponVal);
+                    } else if (appliedCoupon.discountType === 'free_ticket') {
+                      itemDiscountUnit = item.price;
+                    }
+                  }
+
+                  const discountedPrice = Math.max(0, item.price - itemDiscountUnit);
+
                   return (
                     <Card key={item.id} className={cn(
                       "border-none shadow-sm rounded-[2rem] overflow-hidden bg-white transition-opacity",
@@ -332,22 +350,25 @@ export default function CarrinhoPage() {
                                 <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></Button>
                             </div>
                             <div className="flex items-center justify-between mt-4">
-                                <div className="flex items-center gap-3 bg-muted p-1 rounded-xl">
+                                <div className="flex items-center gap-3 bg-muted p-1.5 rounded-xl border">
                                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity - 1)}>-</Button>
-                                  <span className="font-bold text-sm">{item.quantity}</span>
+                                  <span className="font-bold text-sm w-6 text-center">{item.quantity}</span>
                                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}>+</Button>
                                 </div>
                                 <div className="text-right">
-                                   {isCouponTarget ? (
+                                   {isCouponTarget && itemDiscountUnit > 0 ? (
                                      <div className="flex flex-col">
                                         <div className="flex items-center gap-2 justify-end">
-                                           <span className="text-[10px] line-through opacity-30 font-black">{formatPrice(item.price, (item.currency || 'BRL') as CurrencyCode)}</span>
-                                           <span className="text-sm font-black text-green-600 italic">Cupom Ativo</span>
+                                           <span className="text-[10px] line-through opacity-30 font-black">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</span>
+                                           <Badge variant="outline" className="text-[8px] font-black uppercase text-green-600 border-green-200">
+                                              -{formatPrice(itemDiscountUnit * item.quantity, (item.currency || 'BRL') as CurrencyCode)}
+                                           </Badge>
                                         </div>
-                                        <p className="font-black text-lg">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</p>
+                                        <p className="font-black text-xl text-primary">{formatPrice(discountedPrice * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</p>
+                                        <p className="text-[8px] font-bold text-muted-foreground uppercase">Valor total da sessão</p>
                                      </div>
                                    ) : (
-                                     <p className="font-black text-lg">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</p>
+                                     <p className="font-black text-xl">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</p>
                                    )}
                                 </div>
                             </div>
@@ -426,7 +447,7 @@ export default function CarrinhoPage() {
                    </div>
                    {cartTotals.discount > 0 && (
                      <div className="flex justify-between text-xs font-black text-green-600 uppercase">
-                        <span>Desconto</span>
+                        <span>Desconto Total</span>
                         <span>-{formatPrice(cartTotals.discount, cartTotals.currency as CurrencyCode)}</span>
                      </div>
                    )}

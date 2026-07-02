@@ -136,6 +136,7 @@ export async function generateFreeTickets(data: {
           const regRef = db.collection("registrations").doc();
 
           transaction.set(regRef, {
+            ...item,
             ticketCode,
             userId,
             userName,
@@ -153,7 +154,8 @@ export async function generateFreeTickets(data: {
             batchName: item.batchName,
             occurrenceId: item.occurrenceId || null,
             productType: item.productType || 'event',
-            price: 0,
+            // Fix: Usar o preço unitário já calculado no checkout, não forçar 0 se for saldo.
+            price: item.price,
             paymentStatus: "Disponível",
             status: "active",
             checkedIn: false,

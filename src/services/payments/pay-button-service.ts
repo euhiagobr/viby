@@ -57,66 +57,39 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
   }
 
   // Preparar Snapshot de Itens para a Ordem (Incluindo Cupons de Usuário)
-  const orderItems = items.flatMap(item => {
+  const orderItems = items.map(item => {
     const productType = (item.productType as ProductType) || 'event';
     const org = orgsSnapMap[item.organizationId];
 
-    let discVal = 0;
+    let discValPerUnit = 0;
     const couponVal = Number(coupon?.discountValue) || 0;
 
+    // A aplicação do cupom deve ser por unidade (ticket)
     if (coupon && coupon.eventId === item.eventId) {
       if (coupon.discountType === 'percentage') {
-        discVal = Number((item.price * (couponVal / 100)).toFixed(2));
+        discValPerUnit = Number((item.price * (couponVal / 100)).toFixed(2));
       } else if (coupon.discountType === 'fixed') {
-        discVal = Math.min(item.price, couponVal);
+        // Desconto fixo por unidade
+        discValPerUnit = Math.min(item.price, couponVal);
       } else if (coupon.discountType === 'free_ticket') {
-        discVal = item.price;
+        discValPerUnit = item.price;
       }
     }
 
-    const discountedPrice = Math.max(0, item.price - discVal);
-    const breakdownDiscounted = calculateFinancialBreakdown(discountedPrice, globalFees, promotions, org, eventCurrency, rates, productType);
-    const breakdownFull = calculateFinancialBreakdown(item.price, globalFees, promotions, org, eventCurrency, rates, productType);
+    const discountedPricePerUnit = Math.max(0, item.price - discValPerUnit);
+    const breakdown = calculateFinancialBreakdown(discountedPricePerUnit, globalFees, promotions, org, eventCurrency, rates, productType);
 
-    const splitItems = [];
-    // Unidade com desconto
-    if (discVal > 0) {
-      splitItems.push({
-        ...item,
-        id: `${item.id}_disc`,
-        quantity: 1,
-        price: discountedPrice,
-        originalPrice: item.price,
-        discountAmount: discVal,
-        couponCode: coupon?.code,
-        userCouponId: coupon?.isUserCoupon ? coupon.id : null,
-        producerNetAmount: breakdownDiscounted.producerNetAmount,
-        administrativeFeeAmount: breakdownDiscounted.administrativeFeeAmount,
-        financials: breakdownDiscounted
-      });
-
-      if (item.quantity > 1) {
-        splitItems.push({
-          ...item,
-          id: `${item.id}_full`,
-          quantity: item.quantity - 1,
-          price: item.price,
-          originalPrice: item.price,
-          producerNetAmount: breakdownFull.producerNetAmount,
-          administrativeFeeAmount: breakdownFull.administrativeFeeAmount,
-          financials: breakdownFull
-        });
-      }
-    } else {
-      splitItems.push({
-        ...item,
-        producerNetAmount: breakdownFull.producerNetAmount,
-        administrativeFeeAmount: breakdownFull.administrativeFeeAmount,
-        financials: breakdownFull 
-      });
-    }
-    
-    return splitItems;
+    return {
+      ...item,
+      price: discountedPricePerUnit,
+      originalPrice: item.price,
+      discountAmount: discValPerUnit, // Este campo agora representa o desconto por UNIDADE
+      couponCode: coupon?.code || null,
+      userCouponId: coupon?.isUserCoupon ? coupon.id : null,
+      producerNetAmount: breakdown.producerNetAmount,
+      administrativeFeeAmount: breakdown.administrativeFeeAmount,
+      financials: breakdown
+    };
   });
 
   const orderData = {
@@ -139,7 +112,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       userId: user.uid || user.id,
       userName: profile?.name || user.displayName || "Comprador",
       userEmail: user.email!,
-      items: orderItems.map(i => ({ ...i, price: 0 }))
+      items: orderItems
     });
     if (!result.success) throw new Error(result.error);
     return { type: 'free', success: true };
@@ -152,6 +125,7 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
         name: `${item.eventTitle} - ${item.ticketTypeName}`,
         description: item.couponCode ? `Cupom: ${item.couponCode}` : "",
       },
+      // O preço unitário enviado ao Stripe já contempla o desconto e a taxa Viby
       unit_amount: toCents(item.price + item.administrativeFeeAmount),
     },
     quantity: item.quantity,
