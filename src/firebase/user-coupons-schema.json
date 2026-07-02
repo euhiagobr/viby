@@ -1,0 +1,25 @@
+
+{
+  "collection": "user_coupons",
+  "description": "Vínculo de cupons exclusivos a usuários específicos. O ID do documento é o UID do usuário (relação 1:1).",
+  "fields": {
+    "userId": "string (UID do dono do cupom)",
+    "code": "string (Username em maiúsculas)",
+    "eventId": "string (ID do evento onde o cupom é válido)",
+    "discountValue": "number (Valor fixo em R$)",
+    "status": "active | inactive",
+    "uses": "number (Contador total de ingressos vendidos com este cupom)",
+    "lastUsedAt": "timestamp",
+    "createdAt": "timestamp",
+    "updatedAt": "timestamp"
+  },
+  "indexes": [
+    {
+      "collectionId": "user_coupons",
+      "fields": [
+        { "fieldPath": "code", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ]
+}

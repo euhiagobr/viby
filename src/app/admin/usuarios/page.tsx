@@ -1,15 +1,14 @@
+
 "use client"
 
 import * as React from "react"
-import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser, useDoc } from "@/firebase"
 import { 
   collection, 
   query, 
   orderBy, 
   doc, 
   updateDoc, 
-  getDoc, 
-  writeBatch,
   serverTimestamp,
   deleteField,
   where,
@@ -45,12 +44,17 @@ import {
   AtSign,
   AlertTriangle,
   Fingerprint,
-  Mail
+  Mail,
+  TicketPercent,
+  Building2,
+  Calendar,
+  Zap,
+  TrendingUp
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/hooks/use-toast"
 import { cn, validateCPF } from "@/lib/utils"
@@ -60,6 +64,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { updateUserCPF } from "@/app/actions/user"
+import { upsertUserCoupon, deleteUserCoupon } from "@/app/actions/user-coupons"
+import { calculateUserCouponPoints } from "@/lib/coupon-utils"
 
 export default function AdminUsuariosPage() {
   const db = useFirestore()
@@ -74,7 +80,14 @@ export default function AdminUsuariosPage() {
   const [isSaving, setIsSaving] = React.useState(false)
   const [tempCPF, setTempCPF] = React.useState("")
 
-  // Estabilização do ID para evitar loops
+  // Estados para o Cupom
+  const [hasCoupon, setHasCoupon] = React.useState(false)
+  const [couponData, setCouponData] = React.useState<any>(null)
+  const [selectedOrgId, setSelectedOrgId] = React.useState("")
+  const [selectedEventId, setSelectedEventId] = React.useState("")
+  const [discountValue, setDiscountValue] = React.useState("0.00")
+  const [manualEventId, setManualEventId] = React.useState("")
+
   const adminUid = adminProfile?.uid;
 
   const usersQuery = useMemoFirebase(() => 
@@ -82,6 +95,16 @@ export default function AdminUsuariosPage() {
     [db, adminUid]
   )
   const { data: users, loading: loadingUsers } = useCollection<any>(usersQuery)
+
+  // Consultas Auxiliares para o Cupom
+  const orgsQuery = useMemoFirebase(() => (db && isEditUserOpen) ? query(collection(db, "organizations"), orderBy("name", "asc")) : null, [db, isEditUserOpen]);
+  const { data: organizations } = useCollection<any>(orgsQuery);
+
+  const eventsQuery = useMemoFirebase(() => 
+    (db && selectedOrgId) ? query(collection(db, "events"), where("organizationId", "==", selectedOrgId), where("status", "==", "Ativo")) : null, 
+    [db, selectedOrgId]
+  );
+  const { data: events } = useCollection<any>(eventsQuery);
 
   const filteredUsers = React.useMemo(() => {
     if (!users) return []
@@ -92,6 +115,28 @@ export default function AdminUsuariosPage() {
     )
   }, [users, search])
 
+  // Busca dados do cupom quando abre edição
+  React.useEffect(() => {
+    if (editingUser?.id && isEditUserOpen && db) {
+      getDocs(query(collection(db, "user_coupons"), where("userId", "==", editingUser.id), limit(1))).then(snap => {
+        if (!snap.empty) {
+          const data = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
+          setCouponData(data);
+          setHasCoupon(data.status === 'active');
+          setDiscountValue(data.discountValue?.toString() || "0.00");
+          setManualEventId(data.eventId || "");
+          setSelectedEventId(data.eventId || "");
+        } else {
+          setCouponData(null);
+          setHasCoupon(false);
+          setDiscountValue("0.00");
+          setManualEventId("");
+          setSelectedEventId("");
+        }
+      });
+    }
+  }, [editingUser?.id, isEditUserOpen, db]);
+
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!db || !editingUser || isSaving) return
@@ -100,53 +145,48 @@ export default function AdminUsuariosPage() {
     const oldUsername = originalUser?.username?.toLowerCase().trim();
     const usernameChanged = oldUsername && newUsername && oldUsername !== newUsername;
 
-    const cpfChanged = isSuperAdmin && tempCPF && tempCPF !== (originalUser?.cpfMasked || originalUser?.cpf);
-
     setIsSaving(true)
     try {
-      if (cpfChanged) {
+      // 1. Processar CPF se Super Admin alterou
+      if (isSuperAdmin && tempCPF && tempCPF !== (originalUser?.cpfMasked || originalUser?.cpf)) {
         const cleanCPF = tempCPF.replace(/\D/g, "");
         if (!validateCPF(cleanCPF)) throw new Error("CPF informado é inválido.");
         const cpfRes = await updateUserCPF(editingUser.id, cleanCPF);
         if (!cpfRes.success) throw new Error(cpfRes.error);
       }
 
+      // 2. Processar Cupom de Desconto
+      if (hasCoupon) {
+        const targetEvent = manualEventId || selectedEventId;
+        if (!targetEvent) throw new Error("Informe o evento do cupom.");
+        
+        await upsertUserCoupon({
+          userId: editingUser.id,
+          username: editingUser.username,
+          eventId: targetEvent,
+          discountValue: parseFloat(discountValue),
+          active: hasCoupon
+        });
+      } else if (originalUser?.hasUserCoupon) {
+        await deleteUserCoupon(editingUser.id);
+      }
+
+      // 3. Atualizar Dados do Usuário
       await runTransaction(db, async (transaction) => {
         if (usernameChanged) {
           const newIdxRef = doc(db, "usernames", newUsername);
           const newIdxSnap = await transaction.get(newIdxRef);
-          
-          if (newIdxSnap.exists()) {
-            throw new Error("Este @username já está sendo usado por outra conta.");
-          }
+          if (newIdxSnap.exists()) throw new Error("Este @username já está sendo usado.");
 
-          if (oldUsername) {
-            transaction.delete(doc(db, "usernames", oldUsername));
-          }
-          transaction.set(newIdxRef, { 
-            uid: editingUser.id, 
-            type: 'user',
-            email: editingUser.email,
-            username: newUsername
-          });
+          if (oldUsername) transaction.delete(doc(db, "usernames", oldUsername));
+          transaction.set(newIdxRef, { uid: editingUser.id, type: 'user', email: editingUser.email, username: newUsername });
         }
 
         const { id, cpf, cpfHash, cpfMasked, ...data } = editingUser;
         transaction.update(doc(db, "users", id), { ...data, updatedAt: serverTimestamp() });
       });
       
-      if (editingUser.isVerified !== originalUser?.isVerified) {
-        sendVerificationStatusEmail({
-           to: editingUser.email,
-           userName: editingUser.name || editingUser.displayName || "Usuário",
-           targetName: editingUser.name || `@${editingUser.username}`,
-           targetUsername: editingUser.username,
-           type: 'user',
-           status: editingUser.isVerified ? 'approved' : 'removed'
-        }).catch(err => console.warn("Falha ao enviar e-mail de verificação para o usuário", err));
-      }
-
-      toast({ title: "Usuário atualizado!", description: "Os dados foram sincronizados com sucesso." })
+      toast({ title: "Usuário atualizado!" })
       setIsEditUserOpen(false)
     } catch (e: any) { 
       toast({ variant: "destructive", title: "Erro ao salvar", description: e.message }) 
@@ -156,15 +196,12 @@ export default function AdminUsuariosPage() {
   }
 
   const handleDeleteUser = async (id: string, username: string) => {
-    if (!db || !confirm(`Tem certeza que deseja excluir permanentemente o usuário @${username}?`)) return
-    
+    if (!db || !confirm(`Tem certeza que deseja excluir @${username}?`)) return
     setIsSaving(true)
     try {
       const batch = writeBatch(db)
       batch.delete(doc(db, "users", id))
-      if (username) {
-        batch.delete(doc(db, "usernames", username.toLowerCase()))
-      }
+      if (username) batch.delete(doc(db, "usernames", username.toLowerCase()))
       await batch.commit()
       toast({ title: "Usuário removido" })
     } catch (e) {
@@ -176,20 +213,14 @@ export default function AdminUsuariosPage() {
 
   const handleToggleBlock = async (id: string, currentStatus: string) => {
     if (!db) return
-    const isBlocked = currentStatus === 'Bloqueado'
-    const newStatus = isBlocked ? 'Ativo' : 'Bloqueado'
-    
+    const newStatus = currentStatus === 'Bloqueado' ? 'Ativo' : 'Bloqueado'
     try {
-      const batch = writeBatch(db);
-      batch.update(doc(db, "users", id), {
+      await updateDoc(doc(db, "users", id), {
         status: newStatus,
         updatedAt: serverTimestamp(),
-        moderatedAt: serverTimestamp(),
-        moderatedBy: "Admin",
         blockReason: newStatus === 'Bloqueado' ? "Titular da conta bloqueado por moderação." : deleteField()
       });
-      await batch.commit();
-      toast({ title: isBlocked ? "Usuário Ativado" : "Usuário Bloqueado" });
+      toast({ title: newStatus === 'Bloqueado' ? "Usuário Bloqueado" : "Usuário Ativado" });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na moderação" })
     }
@@ -207,7 +238,7 @@ export default function AdminUsuariosPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por nome, @username ou e-mail..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 rounded-xl h-11" />
+          <Input placeholder="Buscar por nome, @username ou e-mail..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11 rounded-xl" />
         </div>
         <div className="px-4 py-2 bg-muted/50 rounded-xl border text-[10px] font-black uppercase tracking-widest text-muted-foreground">
           {filteredUsers.length} Usuários Encontrados
@@ -228,48 +259,38 @@ export default function AdminUsuariosPage() {
           <TableBody>
             {loadingUsers ? (
               <TableRow><TableCell colSpan={5} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-secondary" /></TableCell></TableRow>
-            ) : filteredUsers.map(user => (
-              <TableRow key={user.id} className={cn("hover:bg-muted/5 transition-colors", user.status === 'Bloqueado' && "bg-destructive/[0.02] opacity-75")}>
+            ) : filteredUsers.map(u => (
+              <TableRow key={u.id} className={cn("hover:bg-muted/5 transition-colors", u.status === 'Bloqueado' && "bg-destructive/[0.02] opacity-75")}>
                 <TableCell className="p-6">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10 border shadow-sm">
-                      <AvatarImage src={user.avatar} className="object-cover" />
-                      <AvatarFallback className="font-black uppercase">{user.name?.charAt(0) || "U"}</AvatarFallback>
+                      <AvatarImage src={u.avatar} className="object-cover" />
+                      <AvatarFallback className="font-black uppercase">{u.name?.charAt(0) || "U"}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-bold text-sm">{user.name}</span>
                       <div className="flex items-center gap-2">
-                         <span className="text-[10px] text-secondary font-bold">@{user.username}</span>
+                        <span className="font-bold text-sm">{u.name}</span>
+                        {u.hasUserCoupon && <TicketPercent className="w-3.5 h-3.5 text-secondary animate-pulse" title="Possui Cupom Ativo" />}
                       </div>
+                      <span className="text-[10px] text-secondary font-bold">@{u.username}</span>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>
                    <div className="flex flex-col gap-1">
-                      <Badge variant="outline" className="w-fit text-[8px] font-black uppercase border-primary/20 text-primary">{user.plan || 'free'}</Badge>
-                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{user.status || 'Ativo'}</span>
+                      <Badge variant="outline" className="w-fit text-[8px] font-black uppercase border-primary/20 text-primary">{u.plan || 'free'}</Badge>
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase">{u.status || 'Ativo'}</span>
                    </div>
                 </TableCell>
-                <TableCell className="text-xs font-medium text-muted-foreground uppercase">{user.city || "---"}</TableCell>
+                <TableCell className="text-xs font-medium text-muted-foreground uppercase">{u.city || "---"}</TableCell>
                 <TableCell className="text-center">
-                  {user.isVerified ? (
-                    <BadgeCheck className="w-5 h-5 fill-blue-500 text-white mx-auto" />
-                  ) : (
-                    <div className="w-5 h-5 rounded-full border border-dashed border-muted-foreground/30 mx-auto" />
-                  )}
+                  {u.isVerified ? <BadgeCheck className="w-5 h-5 fill-blue-500 text-white mx-auto" /> : <div className="w-5 h-5 rounded-full border border-dashed border-muted-foreground/30 mx-auto" />}
                 </TableCell>
                 <TableCell className="p-6 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingUser({...user}); setOriginalUser(user); setTempCPF(user.cpfMasked || user.cpf || ""); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className={cn("h-8 w-8 rounded-lg", user.status === 'Bloqueado' ? "text-green-600 hover:bg-green-50" : "text-orange-500 hover:bg-orange-50")}
-                      onClick={() => handleToggleBlock(user.id, user.status)}
-                    >
-                       {user.status === 'Bloqueado' ? <CheckCircle2 className="w-4 h-4" /> : <ShieldBan className="w-4 h-4" />}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleDeleteUser(user.id, user.username)}><Trash2 className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary rounded-lg" onClick={() => { setEditingUser({...u}); setOriginalUser(u); setTempCPF(u.cpfMasked || u.cpf || ""); setIsEditUserOpen(true); }}><Edit className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-lg", u.status === 'Bloqueado' ? "text-green-600" : "text-orange-500")} onClick={() => handleToggleBlock(u.id, u.status)}><ShieldBan className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive rounded-lg hover:bg-destructive/10" onClick={() => handleDeleteUser(u.id, u.username)}><Trash2 className="w-4 h-4" /></Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -279,7 +300,7 @@ export default function AdminUsuariosPage() {
       </Card>
 
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
-        <DialogContent className="max-w-3xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
+        <DialogContent className="max-w-4xl h-[90vh] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
            <DialogHeader className="p-8 border-b bg-muted/30">
               <div className="flex justify-between items-start">
                  <div className="flex items-center gap-4">
@@ -292,140 +313,94 @@ export default function AdminUsuariosPage() {
                        <DialogDescription className="font-bold text-secondary uppercase text-[10px] tracking-widest">Gestão de Perfil Pessoal e Acessos</DialogDescription>
                     </div>
                  </div>
-                 <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="h-6 font-black uppercase text-[10px] border-secondary text-secondary">{editingUser?.plan || 'free'}</Badge>
-                    <Badge className={cn("uppercase text-[10px] font-black h-6", editingUser?.status === 'Bloqueado' ? "bg-red-500 text-white" : "bg-green-500 text-white")}>{editingUser?.status || 'Ativo'}</Badge>
-                 </div>
               </div>
            </DialogHeader>
 
            <form onSubmit={handleUpdateUser} className="flex-1 overflow-hidden flex flex-col">
-              <ScrollArea className="flex-1">
-                 <div className="p-8 space-y-8 pb-12">
-                    {/* Identidade */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
-                          <Input value={editingUser?.name || ""} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="rounded-xl h-11" required />
-                       </div>
-                       <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase opacity-60 flex items-center justify-between">Username (@) <span className="text-[8px] text-secondary font-black italic">ALTERAÇÃO ADMIN</span></Label>
-                          <div className="relative">
-                             <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-40" />
-                             <Input 
-                               value={editingUser?.username || ""} 
-                               onChange={e => setEditingUser({...editingUser, username: e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, "")})} 
-                               className="rounded-xl h-11 pl-9 border-dashed border-secondary/40 font-bold" 
-                               required
-                             />
-                          </div>
-                       </div>
-                    </div>
-
+              <ScrollArea className="flex-1 p-8 space-y-10">
+                 {/* DADOS BÁSICOS */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-black uppercase opacity-60">Bio / Descrição</Label>
-                       <Textarea 
-                         value={editingUser?.bio || ""} 
-                         onChange={e => setEditingUser({...editingUser, bio: e.target.value})} 
-                         className="min-h-[100px] rounded-xl resize-none" 
-                       />
+                       <Label className="text-[10px] font-black uppercase opacity-60">Nome Completo</Label>
+                       <Input value={editingUser?.name || ""} onChange={e => setEditingUser({...editingUser, name: e.target.value})} className="rounded-xl h-11" required />
                     </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase opacity-60">Username (@)</Label>
+                       <Input value={editingUser?.username || ""} readOnly className="rounded-xl h-11 bg-muted/50 cursor-not-allowed font-bold" />
+                    </div>
+                 </div>
 
-                    <Separator className="border-dashed" />
+                 <Separator className="border-dashed" />
 
-                    {/* CPF (Editável apenas por Super Admin para correção) */}
-                    <div className="space-y-4">
-                       <div className="flex items-center justify-between">
-                          <Label className="text-[10px] font-black uppercase opacity-60 flex items-center gap-2">
-                            <Fingerprint className="w-4 h-4 text-secondary" /> CPF de Identidade
-                          </Label>
-                          {isSuperAdmin && (
-                             <Badge variant="outline" className="text-[8px] font-black uppercase border-orange-200 text-orange-600 bg-orange-50">Master Edit Habilitado</Badge>
-                          )}
-                       </div>
-                       <div className="relative">
-                          <Input 
-                            value={tempCPF}
-                            onChange={e => isSuperAdmin && setTempCPF(e.target.value.replace(/\D/g, "").substring(0, 11))}
-                            readOnly={!isSuperAdmin}
-                            placeholder="000.000.000-00"
-                            className={cn("rounded-xl h-12 font-mono text-lg", !isSuperAdmin ? "bg-muted/30" : "border-dashed border-secondary/30")}
-                          />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                             {isSuperAdmin ? <ShieldCheck className="w-5 h-5 text-secondary" /> : <Lock className="w-4 h-4 text-muted-foreground opacity-30" />}
+                 {/* SEÇÃO CUPOM DE DESCONTO */}
+                 <div className="space-y-6">
+                    <div className="flex items-center justify-between p-6 bg-secondary/5 border-2 border-dashed border-secondary/20 rounded-[2rem]">
+                       <div className="flex items-center gap-4">
+                          <div className="p-3 bg-secondary/10 rounded-2xl text-secondary"><TicketPercent className="w-6 h-6" /></div>
+                          <div>
+                             <p className="font-black uppercase italic text-primary">Cupom de Desconto Exclusivo</p>
+                             <p className="text-[10px] text-muted-foreground uppercase font-bold">O código do cupom será: <span className="text-secondary">{editingUser?.username?.toUpperCase()}</span></p>
                           </div>
                        </div>
-                       {isSuperAdmin && (
-                          <p className="text-[9px] font-bold text-orange-700 uppercase leading-relaxed italic">
-                             Aviso: Alterar o CPF manualmente recalculará o hash e a criptografia. Use apenas para fins de suporte técnico e teste.
-                          </p>
-                       )}
+                       <Switch checked={hasCoupon} onCheckedChange={setHasCoupon} />
                     </div>
 
-                    <Separator className="border-dashed" />
+                    {hasCoupon && (
+                      <div className="grid grid-cols-1 gap-6 p-8 bg-white border rounded-[2rem] shadow-sm animate-in slide-in-from-top-2">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-4">
+                               <Label className="text-[10px] font-black uppercase opacity-60">Evento Vinculado</Label>
+                               <div className="space-y-3">
+                                  <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
+                                     <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="1. Selecione a Marca" /></SelectTrigger>
+                                     <SelectContent className="rounded-xl">
+                                        {organizations?.map(org => <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>)}
+                                     </SelectContent>
+                                  </Select>
 
-                    {/* Classificação e Planos */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                       <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase opacity-60">Cargo de Sistema</Label>
-                          <Select value={editingUser?.role || "user"} onValueChange={v => setEditingUser({...editingUser, role: v})}>
-                             <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                             <SelectContent className="rounded-xl">
-                                <SelectItem value="user">Usuário Comum</SelectItem>
-                                <SelectItem value="admin">Administrador Global</SelectItem>
-                             </SelectContent>
-                          </Select>
-                       </div>
-                       <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase opacity-60">Plano de Assinatura</Label>
-                          <Select value={editingUser?.plan || "free"} onValueChange={v => setEditingUser({...editingUser, plan: v})}>
-                             <SelectTrigger className="rounded-xl h-11"><SelectValue /></SelectTrigger>
-                             <SelectContent className="rounded-xl">
-                                <SelectItem value="free">Free (Básico)</SelectItem>
-                                <SelectItem value="pro">Pro (Intermediário)</SelectItem>
-                                <SelectItem value="top">Top (Premium)</SelectItem>
-                             </SelectContent>
-                          </Select>
-                       </div>
-                    </div>
+                                  <Select value={selectedEventId} onValueChange={setSelectedEventId}>
+                                     <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="2. Selecione o Evento" /></SelectTrigger>
+                                     <SelectContent className="rounded-xl">
+                                        {events?.map(ev => <SelectItem key={ev.id} value={ev.id}>{ev.title}</SelectItem>)}
+                                     </SelectContent>
+                                  </Select>
+                               </div>
+                            </div>
 
-                    {/* Segurança e Status */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                       <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
-                          <div className="space-y-0.5">
-                             <p className="font-bold text-sm flex items-center gap-2">
-                                <ShieldCheck className="w-4 h-4 text-blue-500" /> Selo Verificado
-                             </p>
-                             <p className="text-[10px] font-black uppercase font-black">Identidade confirmada</p>
-                          </div>
-                          <Switch 
-                            checked={editingUser?.isVerified || false} 
-                            onCheckedChange={v => setEditingUser({...editingUser, isVerified: v})} 
-                          />
-                       </div>
-                       <div className="flex items-center justify-between p-4 bg-muted/20 rounded-2xl border border-dashed">
-                          <div className="space-y-0.5">
-                             <p className="font-bold text-sm flex items-center gap-2 text-primary">
-                                <Mail className="w-4 h-4" /> E-mail Público
-                             </p>
-                             <p className="text-[10px] font-black uppercase font-black">Exibir no perfil</p>
-                          </div>
-                          <Switch 
-                            checked={editingUser?.showEmail ?? true} 
-                            onCheckedChange={v => setEditingUser({...editingUser, showEmail: v})} 
-                          />
-                       </div>
-                    </div>
+                            <div className="space-y-4">
+                               <div className="space-y-2">
+                                  <Label className="text-[10px] font-black uppercase opacity-60">OU Digite o UID do Evento</Label>
+                                  <Input value={manualEventId} onChange={e => setManualEventId(e.target.value)} placeholder="UID do Firestore" className="rounded-xl h-11 font-mono text-xs" />
+                               </div>
+                               <div className="space-y-2">
+                                  <Label className="text-[10px] font-black uppercase opacity-60">Valor do Desconto (R$)</Label>
+                                  <div className="relative">
+                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-secondary">R$</span>
+                                     <Input type="number" step="0.01" value={discountValue} onChange={e => setDiscountValue(e.target.value)} className="rounded-xl h-12 pl-9 font-black text-primary text-lg" />
+                                  </div>
+                               </div>
+                            </div>
+                         </div>
 
-                    <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200 flex items-start gap-4">
-                       <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
-                       <div className="space-y-1">
-                          <h4 className="font-black uppercase text-xs italic text-orange-800">Privacidade dos Dados</h4>
-                          <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
-                            Alterações em campos críticos como @username ou selos de verificação impactam a indexação global. A edição manual de CPF é restrita a Super Admins para fins de restauração técnica.
-                          </p>
-                       </div>
-                    </div>
+                         {couponData && (
+                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border-t border-dashed pt-8">
+                              <StatCard label="Ingressos Vendidos" value={couponData.uses || 0} icon={Users} />
+                              <StatCard label="Pontuação" value={calculateUserCouponPoints(couponData.uses || 0)} icon={Zap} />
+                              <StatCard label="Criação" value={new Date(couponData.createdAt?.seconds * 1000).toLocaleDateString('pt-BR')} icon={Calendar} />
+                              <StatCard label="Último Uso" value={couponData.lastUsedAt ? new Date(couponData.lastUsedAt?.seconds * 1000).toLocaleDateString('pt-BR') : "---"} icon={Clock} />
+                           </div>
+                         )}
+                      </div>
+                    )}
+                 </div>
+
+                 <Separator className="border-dashed" />
+
+                 <div className="p-4 bg-orange-50 rounded-2xl border border-orange-200 flex items-start gap-4">
+                    <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-orange-700 font-bold uppercase leading-relaxed">
+                       Cuidado: Alterações em cupons e permissões impactam diretamente o faturamento e a validade de compras externas.
+                    </p>
                  </div>
               </ScrollArea>
 
@@ -438,6 +413,16 @@ export default function AdminUsuariosPage() {
            </form>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function StatCard({ label, value, icon: Icon }: any) {
+  return (
+    <div className="p-4 bg-muted/30 rounded-2xl border text-center">
+       <div className="p-1.5 bg-white rounded-lg w-fit mx-auto mb-2 shadow-sm text-secondary"><Icon className="w-3.5 h-3.5" /></div>
+       <p className="text-[8px] font-black uppercase text-muted-foreground mb-0.5">{label}</p>
+       <p className="text-sm font-black text-primary italic">{value}</p>
     </div>
   )
 }

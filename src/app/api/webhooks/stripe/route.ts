@@ -41,9 +41,7 @@ export async function POST(req: Request) {
   try {
     await db.runTransaction(async (transaction) => {
       const eventLogSnap = await transaction.get(eventLogRef);
-      if (eventLogSnap.exists) {
-        throw new Error("ALREADY_PROCESSED");
-      }
+      if (eventLogSnap.exists) throw new Error("ALREADY_PROCESSED");
 
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -53,154 +51,58 @@ export async function POST(req: Request) {
           const orderRef = db.collection("orders").doc(orderId);
           const orderSnap = await transaction.get(orderRef);
           
-          if (!orderSnap.exists) throw new Error("Order not found");
+          if (!orderSnap.exists) return;
           const orderData = orderSnap.data()!;
           if (orderData.status === 'paid') return;
 
-          // 1. LEITURA DE RESERVAS E INVENTÁRIO
-          const reservationIds = (session.metadata.reservations || "").split(',').filter(Boolean);
-          const reservationSnaps = [];
-          for (const resId of reservationIds) {
-             const resRef = db.collection('experience_reservations').doc(resId);
-             const resSnap = await transaction.get(resRef);
-             if (!resSnap.exists || resSnap.data()?.status === 'cancelled') {
-                throw new Error("RESERVATION_INVALID");
-             }
-             reservationSnaps.push({ ref: resRef, snap: resSnap });
+          // Processamento de Cupom de Usuário
+          const userCouponId = session.metadata.userCouponId || orderData.userCouponId;
+          if (userCouponId) {
+            const couponRef = db.collection('user_coupons').doc(userCouponId);
+            const totalTickets = orderData.items.reduce((acc: number, i: any) => acc + (i.discountAmount > 0 ? i.quantity : 0), 0);
+            if (totalTickets > 0) {
+              transaction.update(couponRef, {
+                uses: admin.firestore.FieldValue.increment(totalTickets),
+                lastUsedAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+            }
           }
 
           const items = orderData.items || [];
-          const itemSnapshots = [];
-          
           for (const item of items) {
             const sourceColl = item.productType === 'experience' ? "experiences" : "events";
             const eventRef = db.collection(sourceColl).doc(item.eventId);
-            const eventSnap = await transaction.get(eventRef);
             
-            if (!eventSnap.exists) throw new Error(`Document ${item.eventId} not found in ${sourceColl}`);
-
-            let slotSnap = null;
             if (item.productType === 'experience' && item.occurrenceId) {
               const slotRef = db.collection("experiences").doc(item.eventId).collection("slots").doc(item.occurrenceId);
-              slotSnap = await transaction.get(slotRef);
-            }
-
-            let occSnap = null;
-            if (item.productType !== 'experience' && item.occurrenceId) {
-              const occRef = db.collection("recurring_occurrences").doc(item.occurrenceId);
-              occSnap = await transaction.get(occRef);
-            }
-
-            itemSnapshots.push({ item, eventRef, eventSnap, slotSnap, occSnap });
-          }
-
-          // 3. BLOCO DE ESCRITA
-          const userId = session.metadata.userId;
-          const currency = (orderData.currency || 'BRL').toUpperCase();
-
-          for (const snap of itemSnapshots) {
-            const { item, eventRef, eventSnap, slotSnap, occSnap } = snap;
-            const eventInfo = eventSnap.data();
-
-            if (item.productType === 'experience' && item.occurrenceId && slotSnap) {
-              transaction.update(slotSnap.ref, {
-                sold: admin.firestore.FieldValue.increment(item.quantity),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-              });
-
-              // Incrementa o contador global de vendas (salesCount) na experiência pai para o ranking
-              transaction.update(eventRef, {
-                salesCount: admin.firestore.FieldValue.increment(item.quantity),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-              });
+              transaction.update(slotRef, { sold: admin.firestore.FieldValue.increment(item.quantity) });
+              transaction.update(eventRef, { salesCount: admin.firestore.FieldValue.increment(item.quantity) });
             } else {
-              transaction.update(eventRef, { 
-                ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-              });
-
-              if (item.occurrenceId && occSnap) {
-                transaction.update(occSnap.ref, {
-                  ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity),
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-              }
+              transaction.update(eventRef, { ingressosVendidos: admin.firestore.FieldValue.increment(item.quantity) });
             }
 
             for (let j = 0; j < item.quantity; j++) {
               const ticketCode = Math.random().toString(36).substring(2, 10).toUpperCase();
               const regRef = db.collection("registrations").doc();
-              
               transaction.set(regRef, {
-                eventId: item.eventId,
-                eventTitle: item.eventTitle,
-                eventImage: item.eventImage || '',
-                eventDate: item.eventDate,
-                eventCity: item.eventCity,
-                userId: userId,
+                ...item,
+                userId: orderData.userId,
                 userName: orderData.userName,
                 userEmail: orderData.userEmail,
-                organizationId: item.organizationId,
-                ticketBasePrice: item.price,
-                price: item.price + (item.administrativeFeeAmount || 0),
-                currency: currency,
-                producerNetAmount: item.producerNetAmount || item.price,
-                administrativeFeeAmount: item.administrativeFeeAmount || 0,
-                ticketTypeName: item.ticketTypeName,
-                batchName: item.batchName,
                 paymentStatus: "Pago",
                 status: "active",
                 ticketCode,
-                stripeSessionId: session.id,
                 orderId,
-                occurrenceId: item.occurrenceId || null,
-                productType: item.productType || 'event',
-                confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
-              });
-
-              // Captura dados para o e-mail (Sanitizado)
-              emailsToSend.push({
-                to: orderData.userEmail,
-                userName: orderData.userName,
-                eventTitle: item.eventTitle,
-                ticketCode,
-                eventDate: new Date(item.eventDate).toLocaleString('pt-BR'),
-                eventCity: item.eventCity,
-                voucherUrl: `https://viby.club/dashboard/ingressos/${regRef.id}/voucher`,
-                usagePolicy: String(eventInfo?.usagePolicy || "").trim(),
-                additionalInfo: String(eventInfo?.additionalInfo || "").trim(),
-                description: eventInfo?.description || "",
-                inclusions: eventInfo?.inclusions || [],
-                exclusions: eventInfo?.exclusions || [],
-                rules: eventInfo?.rules || []
               });
             }
           }
-          
-          for (const resItem of reservationSnaps) {
-            transaction.update(resItem.ref, { status: 'confirmed', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-          }
-
-          transaction.update(orderRef, { 
-            status: 'paid', 
-            stripePaymentIntentId: session.payment_intent,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-          });
+          transaction.update(orderRef, { status: 'paid', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         }
       }
-
-      transaction.set(eventLogRef, {
-        processedAt: admin.firestore.FieldValue.serverTimestamp(),
-        type: event.type
-      });
+      transaction.set(eventLogRef, { processedAt: admin.firestore.FieldValue.serverTimestamp(), type: event.type });
     });
-
-    // Enviar e-mails após o commit
-    for (const emailData of emailsToSend) {
-      sendTicketEmail(emailData).catch(e => console.error("[Email Webhook Error]", e));
-    }
 
     return NextResponse.json({ received: true });
   } catch (error: any) {

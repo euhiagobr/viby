@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from "react"
@@ -24,7 +25,8 @@ import {
   ShieldCheck,
   TicketPercent,
   CheckCircle2,
-  X
+  X,
+  UserCheck
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -164,43 +166,51 @@ export default function CarrinhoPage() {
     if (!db || !couponInput.trim() || isValidatingCoupon) return;
 
     setIsValidatingCoupon(true);
+    const code = couponInput.trim().toUpperCase();
     try {
+      // 1. Tenta Cupom Geral
       const q = query(
         collection(db, "coupons"), 
-        where("code", "==", couponInput.trim().toUpperCase()),
+        where("code", "==", code),
         where("status", "==", "Ativo"),
         limit(1)
       );
       const snap = await getDocs(q);
 
-      if (snap.empty) {
-        toast({ variant: "destructive", title: "Cupom inválido", description: "O código informado não existe ou está expirado." });
-        setAppliedCoupon(null);
+      if (!snap.empty) {
+        const coupon = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
+        const matchedItem = items.find(i => i.eventId === coupon.eventId);
+        if (!matchedItem) {
+          toast({ variant: "destructive", title: "Cupom inválido", description: "Este código não é válido para este evento." });
+          return;
+        }
+        setAppliedCoupon(coupon);
+        toast({ title: "Cupom aplicado!" });
         return;
       }
 
-      const coupon = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
-      const now = new Date();
-      const expires = coupon.validUntil ? new Date(coupon.validUntil) : null;
+      // 2. Tenta Cupom de Usuário (Username)
+      const uq = query(
+        collection(db, "user_coupons"),
+        where("code", "==", code),
+        where("status", "==", "active"),
+        limit(1)
+      );
+      const uSnap = await getDocs(uq);
 
-      if (expires && now > expires) {
-        toast({ variant: "destructive", title: "Cupom expirado" });
+      if (!uSnap.empty) {
+        const uCoupon = { id: uSnap.docs[0].id, ...uSnap.docs[0].data() } as any;
+        const matchedItem = items.find(i => i.eventId === uCoupon.eventId);
+        if (!matchedItem) {
+          toast({ variant: "destructive", title: "Restrição de Evento", description: "Este cupom exclusivo é válido apenas para outro evento." });
+          return;
+        }
+        setAppliedCoupon({ ...uCoupon, discountType: 'fixed', discountValue: uCoupon.discountValue, isUserCoupon: true });
+        toast({ title: "Cupom exclusivo aplicado!" });
         return;
       }
 
-      if (coupon.maxUses > 0 && coupon.currentUses >= coupon.maxUses) {
-        toast({ variant: "destructive", title: "Cupom esgotado" });
-        return;
-      }
-
-      const matchedItem = items.find(i => i.eventId === coupon.eventId);
-      if (!matchedItem) {
-        toast({ variant: "destructive", title: "Restrição de Cupom", description: "Este código não é válido para os itens no seu carrinho." });
-        return;
-      }
-
-      setAppliedCoupon(coupon);
-      toast({ title: "Desconto aplicado!" });
+      toast({ variant: "destructive", title: "Cupom inválido", description: "Código não encontrado ou expirado." });
     } catch (e) {
       toast({ variant: "destructive", title: "Erro na validação" });
     } finally {
@@ -234,17 +244,15 @@ export default function CarrinhoPage() {
             discVal = item.price;
           }
           
-          discount += discVal; // Desconto de apenas 1 unidade
+          discount += discVal; 
           const discountedUnitPrice = Math.max(0, item.price - discVal);
 
-          // Calcula taxas separadamente: 1 unidade com desconto + (N-1) unidades normais
           const resDiscounted = calculateVibyOfficialSplit(discountedUnitPrice, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, (item.productType as ProductType) || 'event');
           const resFull = calculateVibyOfficialSplit(item.price, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, (item.productType as ProductType) || 'event');
           
           fees += (resDiscounted?.buyerFee || 0);
           fees += (resFull?.buyerFee || 0) * (item.quantity - 1);
         } else {
-          // Itens sem cupom: Taxas normais para todas as unidades
           const res = calculateVibyOfficialSplit(item.price, primaryCurrency as CurrencyCode, rates, org, globalFees, promotions, (item.productType as ProductType) || 'event');
           fees += (res?.buyerFee || 0) * (item.quantity || 0);
         }
@@ -331,7 +339,7 @@ export default function CarrinhoPage() {
                                      <div className="flex flex-col">
                                         <div className="flex items-center gap-2 justify-end">
                                            <span className="text-[10px] line-through opacity-30 font-black">{formatPrice(item.price, (item.currency || 'BRL') as CurrencyCode)}</span>
-                                           <span className="text-sm font-black text-green-600 italic">Cupom Ativo (1 un.)</span>
+                                           <span className="text-sm font-black text-green-600 italic">Cupom Ativo</span>
                                         </div>
                                         <p className="font-black text-lg">{formatPrice(item.price * item.quantity, (item.currency || 'BRL') as CurrencyCode)}</p>
                                      </div>
@@ -400,7 +408,8 @@ export default function CarrinhoPage() {
                 </div>
                 {appliedCoupon && (
                    <p className="text-[9px] font-black uppercase text-green-600 flex items-center gap-1.5 animate-in zoom-in-95">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Desconto aplicado em 1 unidade.
+                      {appliedCoupon.isUserCoupon ? <UserCheck className="w-3 h-3" /> : <CheckCircle2 className="w-3.5 h-3.5" />} 
+                      {appliedCoupon.isUserCoupon ? "Cupom exclusivo aplicado!" : "Desconto aplicado!"}
                    </p>
                 )}
              </Card>
@@ -414,7 +423,7 @@ export default function CarrinhoPage() {
                    </div>
                    {cartTotals.discount > 0 && (
                      <div className="flex justify-between text-xs font-black text-green-600 uppercase">
-                        <span>Desconto (1 un.)</span>
+                        <span>Desconto</span>
                         <span>-{formatPrice(cartTotals.discount, cartTotals.currency as CurrencyCode)}</span>
                      </div>
                    )}
@@ -443,13 +452,6 @@ export default function CarrinhoPage() {
                   rates={rates}
                   appliedCoupon={appliedCoupon}
                 />
-                
-                <div className="p-4 bg-muted/20 rounded-2xl flex items-start gap-3">
-                   <ShieldCheck className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-                   <p className="text-[9px] font-bold text-muted-foreground uppercase leading-relaxed text-center">
-                     Ambiente seguro. Sua reserva garante a vaga por 10 minutos.
-                   </p>
-                </div>
              </Card>
           </div>
         )}
