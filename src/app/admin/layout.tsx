@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -49,7 +48,8 @@ import {
   User,
   Star,
   Code2,
-  Cpu
+  Cpu,
+  Key
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -118,7 +118,7 @@ export default function AdminLayout({
         { title: 'Eventos', url: '/admin/eventos', icon: CalendarDays, permission: 'events.view' as any },
         { title: 'Recorrentes', url: '/admin/eventos-recorrentes', icon: RefreshCw, permission: 'events.view' as any },
         { title: 'Operação Ingressos', url: '/admin/ingressos', icon: Ticket, permission: 'tickets.view' as any },
-        { title: 'Scanner QR', url: '/dashboard/scanner', icon: ScanQrCode, permission: 'tickets.view' as any },
+        { title: 'Scanner Portaria', url: '/dashboard/scanner', icon: ScanQrCode, permission: 'tickets.view' as any },
         { title: 'Presença', url: '/admin/presenca', icon: UserCheck, permission: 'dashboard.view' as any },
         { title: 'Lixeira Eventos', url: '/admin/lixeira-eventos', icon: History, permission: 'events.approve' as any },
       ]
