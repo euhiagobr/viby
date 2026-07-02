@@ -1,0 +1,19 @@
+{
+  "audit_version": "1.0.0",
+  "endpoint": "/api/integrations/tickets/find",
+  "method": "POST",
+  "security": {
+    "auth": "Bearer Token (via INTEGRATION_TOKEN env)",
+    "cors": "Restrito a AUTHORIZED_DOMAINS",
+    "privacy": "Consulta via SHA256(CPF). Dados financeiros omitidos."
+  },
+  "logic_flow": [
+    "1. Limpeza de caracteres não numéricos do CPF",
+    "2. Geração de Hash para busca em /users",
+    "3. Busca de documento em /registrations filtrando por eventId + userId",
+    "4. Validação de paymentStatus (Pago|Disponível) e status (active)",
+    "5. Enriquecimento de metadados via /events ou /experiences",
+    "6. Retorno de objeto higienizado para o parceiro"
+  ],
+  "monitoring": "Logs de falha ocultam CPF completo, exibindo apenas sufixo do hash para depuração segura."
+}
