@@ -1,0 +1,43 @@
+{
+  "audit_version": "1.0.0",
+  "timestamp": "2024-06-21T14:30:00Z",
+  "objective": "Verificar paridade de obrigatoriedade do Stripe Connect entre Eventos e Experiências.",
+  "findings": {
+    "event_flow": {
+      "creation": "Permitida sem Connect (Draft mode).",
+      "publication": "Visualmente bloqueada no frontend se stripeAccountId estiver ausente, conforme metadados de 'event-publication-requirements.json'.",
+      "checkout": "Bloqueio funcional rígido em 'pay-button-service.ts'.",
+      "status": "Obrigatório"
+    },
+    "experience_flow": {
+      "creation": "Permitida sem Connect (Draft mode).",
+      "publication": "Permitida. 'publishExperienceAction' em 'actions/experiences.ts' valida apenas a existência de slots, ignorando o status do Stripe da organização.",
+      "checkout": "Bloqueio funcional rígido em 'pay-button-service.ts'. Como o serviço é compartilhado, a compra falha no momento final.",
+      "status": "Obrigatório (Técnico), Opcional (Publicação)"
+    },
+    "critical_validation_point": {
+      "file": "src/services/payments/pay-button-service.ts",
+      "line": 104,
+      "logic": "if (!stripeAccountId) throw new Error('Organizador sem conta Stripe.')",
+      "impact": "Aplica-se a qualquer item no carrinho (Eventos ou Experiências)."
+    },
+    "inconsistencies_detected": [
+      {
+        "issue": "Falta de bloqueio na publicação de Experiências.",
+        "risk": "Alta. Um organizador pode publicar uma Experiência paga, mas nenhum usuário conseguirá completar a compra, gerando erro 500 no checkout.",
+        "severity": "MÉDIA"
+      },
+      {
+        "issue": "Divergência de UX.",
+        "risk": "Baixa. Eventos possuem alertas preventivos sobre o Connect, enquanto o fluxo de Experiências é silencioso até a falha no pagamento.",
+        "severity": "BAIXA"
+      }
+    ]
+  },
+  "technical_diagnosis": {
+    "eventos_exigem_stripe_connect": "Sim",
+    "experiencias_exigem_stripe_connect": "Sim",
+    "comportamento_consistente": "Não",
+    "risco_encontrado": "Sim"
+  }
+}
