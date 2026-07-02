@@ -20,13 +20,13 @@ import {
   PowerOff,
   Terminal,
   Activity,
-  Calendar,
   Zap,
   ChevronRight,
   ShieldCheck,
   AlertTriangle,
   Info,
-  Inbox
+  Inbox,
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useAuth, useUser } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { 
   Key, 
@@ -20,13 +20,13 @@ import {
   PowerOff,
   Terminal,
   Activity,
-  Calendar,
   Zap,
   ChevronRight,
   ShieldCheck,
   AlertTriangle,
   Info,
-  Inbox
+  Inbox,
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,10 +100,10 @@ export default function AdminApiTokensPage() {
 
       if (res.success && res.token) {
         setNewTokenResult(res.token);
-        toast({ title: "Token gerado com sucesso!" });
+        toast({ title: "Token generated successfully!" });
       } else throw new Error(res.error);
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Erro ao criar", description: e.message });
+      toast({ variant: "destructive", title: "Error creating", description: e.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -124,18 +124,18 @@ export default function AdminApiTokensPage() {
   "cpf": "12345678900"
 }'`;
     handleCopy(curl, setCopiedExample);
-    toast({ title: "Exemplo copiado para o clipboard!" });
+    toast({ title: "Example copied to clipboard!" });
   };
 
   const handleToggleStatus = async (id: string, current: string) => {
     const next = current === 'active' ? 'revoked' : 'active';
     const res = await toggleTokenStatusAction(id, next);
-    if (res.success) toast({ title: `Token ${next === 'active' ? 'ativado' : 'revogado'}!` });
+    if (res.success) toast({ title: `Token ${next === 'active' ? 'activated' : 'revoked'}!` });
   };
 
   const handleDelete = async (id: string) => {
     const res = await deleteApiTokenAction(id);
-    if (res.success) toast({ title: "Token excluído." });
+    if (res.success) toast({ title: "Token deleted." });
   };
 
   return (
@@ -143,41 +143,41 @@ export default function AdminApiTokensPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-primary flex items-center gap-3">
-              <Code2 className="w-8 h-8 text-secondary" /> Tokens de API
+              <Code2 className="w-8 h-8 text-secondary" /> API Tokens
            </h1>
-           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Integrações de Terceiros e Credenciais Externas</p>
+           <p className="text-muted-foreground font-medium uppercase text-[10px] tracking-widest">Third-party Integrations and External Credentials</p>
         </div>
         
         <Dialog open={isCreateOpen} onOpenChange={(v) => { setIsCreateOpen(v); if(!v) setNewTokenResult(null); }}>
            <DialogTrigger asChild>
               <Button className="bg-secondary text-white font-black rounded-full px-8 h-12 shadow-lg gap-2 uppercase italic transition-all hover:scale-105">
-                 <Plus className="w-5 h-5" /> Gerar Novo Token
+                 <Plus className="w-5 h-5" /> Generate New Token
               </Button>
            </DialogTrigger>
            <DialogContent className="max-w-md rounded-[2.5rem] p-0 overflow-hidden">
               {!newTokenResult ? (
                 <form onSubmit={handleCreate}>
                    <DialogHeader className="p-8 border-b bg-muted/30">
-                      <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">Nova Credencial</DialogTitle>
-                      <DialogDescription className="font-bold text-secondary uppercase text-[10px]">Crie um token de acesso para um parceiro externo.</DialogDescription>
+                      <DialogTitle className="text-2xl font-black italic uppercase tracking-tighter text-primary">New Credential</DialogTitle>
+                      <DialogDescription className="font-bold text-secondary uppercase text-[10px]">Create an access token for an external partner.</DialogDescription>
                    </DialogHeader>
                    <div className="p-8 space-y-6">
                       <div className="space-y-2">
-                         <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Nome da Integração</Label>
-                         <Input name="name" required placeholder="Ex: App Ranking Troféu" className="rounded-xl h-11" />
+                         <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Integration Name</Label>
+                         <Input name="name" required placeholder="Ex: Trophy Ranking App" className="rounded-xl h-11" />
                       </div>
                       <div className="space-y-2">
-                         <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Descrição (Opcional)</Label>
-                         <Input name="description" placeholder="Finalidade deste acesso..." className="rounded-xl h-11" />
+                         <Label className="text-[10px] font-black uppercase opacity-60 ml-1">Description (Optional)</Label>
+                         <Input name="description" placeholder="Purpose of this access..." className="rounded-xl h-11" />
                       </div>
                       <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
                          <ShieldCheck className="w-3.5 h-3.5 text-secondary shrink-0 mt-0.5" />
-                         <p className="text-[9px] text-secondary font-bold uppercase leading-relaxed">O token será gerado com permissões de leitura restrita à consulta de ingressos (tickets.find).</p>
+                         <p className="text-[9px] text-secondary font-bold uppercase leading-relaxed">The token will be generated with restricted read permissions for ticket queries (tickets.find).</p>
                       </div>
                    </div>
                    <DialogFooter className="p-8 bg-muted/10 border-t">
                       <Button type="submit" disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                         {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Gerar Credencial Live"}
+                         {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Generate Live Credential"}
                       </Button>
                    </DialogFooter>
                 </form>
@@ -187,8 +187,8 @@ export default function AdminApiTokensPage() {
                       <Zap className="w-10 h-10 fill-current" />
                    </div>
                    <div className="space-y-2">
-                      <h3 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Token Gerado!</h3>
-                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">Copie-o agora. Por segurança, ele **não será exibido novamente** após fechar esta janela.</p>
+                      <h3 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Token Generated!</h3>
+                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">Copy it now. For security, it **will not be shown again** after closing this window.</p>
                    </div>
                    
                    <div className="relative group">
@@ -200,10 +200,10 @@ export default function AdminApiTokensPage() {
 
                    <div className="p-6 bg-orange-50 rounded-[1.5rem] border-2 border-dashed border-orange-200 flex items-start gap-3 text-left">
                       <AlertTriangle className="w-6 h-6 text-orange-600 shrink-0" />
-                      <p className="text-[10px] text-orange-800 font-bold uppercase leading-tight">Mantenha esta chave em segredo. Ela concede acesso a dados protegidos da plataforma.</p>
+                      <p className="text-[10px] text-orange-800 font-bold uppercase leading-tight">Keep this key secret. It grants access to protected platform data.</p>
                    </div>
                    
-                   <Button onClick={() => setIsCreateOpen(false)} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Concluído</Button>
+                   <Button onClick={() => setIsCreateOpen(false)} className="w-full bg-primary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">Done</Button>
                 </div>
               )}
            </DialogContent>
@@ -214,18 +214,18 @@ export default function AdminApiTokensPage() {
         <div className="lg:col-span-8 space-y-6">
            <div className="relative max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Buscar por nome da integração..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-12 rounded-xl" />
+              <Input placeholder="Search by integration name..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-12 rounded-xl" />
            </div>
 
            <Card className="border-none shadow-sm rounded-[2rem] overflow-hidden bg-white">
               <Table>
                  <TableHeader className="bg-muted/30">
                     <TableRow>
-                       <TableHead className="font-black uppercase text-[9px] tracking-widest p-6">Integração / Token</TableHead>
+                       <TableHead className="font-black uppercase text-[9px] tracking-widest p-6">Integration / Token</TableHead>
                        <TableHead className="font-black uppercase text-[9px] tracking-widest">Status</TableHead>
-                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Requisições</TableHead>
-                       <TableHead className="font-black uppercase text-[9px] tracking-widest">Último Uso</TableHead>
-                       <TableHead className="text-right font-black uppercase text-[9px] tracking-widest p-6">Gestão</TableHead>
+                       <TableHead className="font-black uppercase text-[9px] tracking-widest text-center">Requests</TableHead>
+                       <TableHead className="font-black uppercase text-[9px] tracking-widest">Last Used</TableHead>
+                       <TableHead className="text-right font-black uppercase text-[9px] tracking-widest p-6">Management</TableHead>
                     </TableRow>
                  </TableHeader>
                  <TableBody>
@@ -244,7 +244,7 @@ export default function AdminApiTokensPage() {
                            </TableCell>
                            <TableCell>
                               <Badge className={cn("text-[8px] font-black uppercase h-5", t.status === 'active' ? "bg-green-600 text-white" : "bg-red-500 text-white")}>
-                                 {t.status === 'active' ? "ATIVO" : "REVOGADO"}
+                                 {t.status === 'active' ? "ACTIVE" : "REVOKED"}
                               </Badge>
                            </TableCell>
                            <TableCell className="text-center font-black text-xs text-primary">{t.requestCount || 0}</TableCell>
@@ -265,17 +265,17 @@ export default function AdminApiTokensPage() {
                                     <AlertDialogContent className="rounded-[2.5rem]">
                                        <AlertDialogHeader>
                                           <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">
-                                             {t.status === 'active' ? 'REVOGAR ACESSO?' : 'REATIVAR TOKEN?'}
+                                             {t.status === 'active' ? 'REVOKE ACCESS?' : 'REACTIVATE TOKEN?'}
                                           </AlertDialogTitle>
                                           <AlertDialogDescription className="font-medium text-foreground/70">
                                              {t.status === 'active' 
-                                               ? `A integração "${t.name}" deixará de funcionar imediatamente em todos os sistemas externos.` 
-                                               : `O acesso será restabelecido para as chaves já distribuídas de "${t.name}".`}
+                                               ? `The integration "${t.name}" will stop working immediately across all external systems.` 
+                                               : `Access will be restored for the keys already distributed for "${t.name}".`}
                                           </AlertDialogDescription>
                                        </AlertDialogHeader>
                                        <AlertDialogFooter>
-                                          <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Desistir</AlertDialogCancel>
-                                          <AlertDialogAction onClick={() => handleToggleStatus(t.id, t.status)} className={cn("rounded-xl font-black uppercase text-[10px] text-white", t.status === 'active' ? "bg-orange-600" : "bg-green-600")}>Confirmar</AlertDialogAction>
+                                          <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Cancel</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleToggleStatus(t.id, t.status)} className={cn("rounded-xl font-black uppercase text-[10px] text-white", t.status === 'active' ? "bg-orange-600" : "bg-green-600")}>Confirm</AlertDialogAction>
                                        </AlertDialogFooter>
                                     </AlertDialogContent>
                                  </AlertDialog>
@@ -286,12 +286,12 @@ export default function AdminApiTokensPage() {
                                     </AlertDialogTrigger>
                                     <AlertDialogContent className="rounded-[2.5rem]">
                                        <AlertDialogHeader>
-                                          <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">EXCLUIR DEFINITIVAMENTE?</AlertDialogTitle>
-                                          <AlertDialogDescription className="font-medium text-foreground/70">Esta ação apagará o hash do banco. O token nunca mais poderá ser reativado. **Isso é irreversível.**</AlertDialogDescription>
+                                          <AlertDialogTitle className="text-xl font-black italic uppercase tracking-tighter">DELETE PERMANENTLY?</AlertDialogTitle>
+                                          <AlertDialogDescription className="font-medium text-foreground/70">This action will delete the hash from the database. The token can never be reactivated. **This is irreversible.**</AlertDialogDescription>
                                        </AlertDialogHeader>
                                        <AlertDialogFooter>
-                                          <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Manter</AlertDialogCancel>
-                                          <AlertDialogAction onClick={() => handleDelete(t.id)} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px]">Sim, Excluir</AlertDialogAction>
+                                          <AlertDialogCancel className="rounded-xl font-bold uppercase text-[10px]">Keep</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleDelete(t.id)} className="bg-destructive text-white rounded-xl font-black uppercase text-[10px]">Yes, Delete</AlertDialogAction>
                                        </AlertDialogFooter>
                                     </AlertDialogContent>
                                  </AlertDialog>
@@ -300,7 +300,7 @@ export default function AdminApiTokensPage() {
                         </TableRow>
                       ))
                     ) : (
-                      <TableRow><TableCell colSpan={5} className="py-32 text-center opacity-30 italic"><Inbox className="w-12 h-12 mx-auto mb-4" />Nenhum token cadastrado na base real.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="py-32 text-center opacity-30 italic"><Inbox className="w-12 h-12 mx-auto mb-4" />No tokens registered in the database.</TableCell></TableRow>
                     )}
                  </TableBody>
               </Table>
@@ -336,17 +336,17 @@ export default function AdminApiTokensPage() {
                     <div className="space-y-4">
                        <div className="flex items-center gap-3">
                           <Activity className="w-4 h-4 text-secondary" />
-                          <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Status do Endpoint</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Endpoint Status</span>
                           <Badge className="ml-auto bg-green-500/20 text-green-400 border-none text-[8px] font-black uppercase h-5 px-2">ONLINE</Badge>
                        </div>
                        <Separator className="bg-white/5" />
                        <div className="space-y-1">
-                          <p className="text-[9px] font-bold text-white/40 uppercase">Resposta Esperada:</p>
+                          <p className="text-[9px] font-bold text-white/40 uppercase">Expected Response:</p>
                           <p className="text-[10px] font-mono text-emerald-500/80">{`{ "success": true, "ticket": { ... } }`}</p>
                        </div>
                     </div>
                     <Button variant="outline" onClick={handleCopyExample} className="w-full h-11 rounded-xl border-white/10 text-white hover:bg-white/5 font-black uppercase text-[10px] gap-2">
-                       Copiar Exemplo cURL
+                       Copy cURL Example
                     </Button>
                  </div>
               </CardContent>
@@ -355,11 +355,11 @@ export default function AdminApiTokensPage() {
            <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 space-y-4">
               <div className="flex items-center gap-2">
                  <Info className="w-4 h-4 text-secondary" />
-                 <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Segurança Ativa</h4>
+                 <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Active Security</h4>
               </div>
-              <p className="text-[10px] text-muted-foreground font-medium uppercase leading-relaxed uppercase">
-                 O sistema não armazena tokens em texto puro. O hash gerado é irreversível e verificado em tempo real no servidor (D+0). 
-                 A revogação desconecta a integração instantaneamente sem afetar outras chaves.
+              <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
+                 The system does not store tokens in plain text. The generated hash is irreversible and verified in real-time on the server (D+0). 
+                 Revocation disconnects the integration instantly without affecting other keys.
               </p>
            </div>
         </aside>
