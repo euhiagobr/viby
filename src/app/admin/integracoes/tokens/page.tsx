@@ -58,6 +58,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
 import { createApiTokenAction, toggleTokenStatusAction, deleteApiTokenAction } from '@/app/actions/api-tokens';
 import { cn } from '@/lib/utils';
@@ -175,7 +176,7 @@ export default function AdminApiTokensPage() {
                    </div>
                    <DialogFooter className="p-8 bg-muted/10 border-t">
                       <Button type="submit" disabled={isSubmitting} className="w-full bg-secondary text-white font-black h-14 rounded-2xl shadow-xl uppercase italic">
-                         {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Gerar Credencial Live"}
+                         {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : "Gerar Credencial Live"}
                       </Button>
                    </DialogFooter>
                 </form>
@@ -185,7 +186,7 @@ export default function AdminApiTokensPage() {
                       <Zap className="w-10 h-10 fill-current" />
                    </div>
                    <div className="space-y-2">
-                      <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">Token Gerado!</h3>
+                      <h3 className="text-2xl font-black italic uppercase tracking-tighter text-primary">Token Gerado!</h3>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">Copie-o agora. Por segurança, ele **não será exibido novamente** após fechar esta janela.</p>
                    </div>
                    
@@ -351,8 +352,8 @@ export default function AdminApiTokensPage() {
            </Card>
 
            <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 space-y-4">
-              <div className="flex items-center gap-3">
-                 <Info className="w-5 h-5 text-secondary" />
+              <div className="flex items-center gap-2">
+                 <Info className="w-4 h-4 text-secondary" />
                  <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Segurança Ativa</h4>
               </div>
               <p className="text-[10px] text-muted-foreground font-medium leading-relaxed uppercase">
