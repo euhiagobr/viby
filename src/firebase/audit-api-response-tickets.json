@@ -1,0 +1,36 @@
+
+{
+  "endpoint": "POST /api/integrations/tickets/find",
+  "audit_status": "COMPLETED",
+  "response_structure": {
+    "success": "boolean",
+    "ticket": {
+      "id": "string (regId / document id)",
+      "eventId": "string",
+      "eventTitle": "string",
+      "ticketType": "string",
+      "participantName": "string",
+      "participantCpf": "string (masked)",
+      "participantEmail": "string",
+      "orderNumber": "string (orderId ou ticketCode)",
+      "status": "string (active)",
+      "qrCode": "string (ticketCode - ex: XXXX-XXXX-XXXX-XXXX)",
+      "qrToken": "string (regId)",
+      "coverImage": "string (url)",
+      "eventStartDate": "string (ISO Date)",
+      "eventEndDate": "string (ISO Date)",
+      "location": "string"
+    }
+  },
+  "qr_code_analysis": {
+    "source_type": "string",
+    "source_field": "qrCode",
+    "ready_image_available": false,
+    "public_url_available": false,
+    "internal_validator_id": "id (regId)"
+  },
+  "technical_recommendation": {
+    "implementation": "Sistemas parceiros devem utilizar o valor exato retornado no campo 'qrCode' (string alfanumérica de 16 caracteres com hifens) para gerar o gráfico do QR Code (SVG ou PNG).",
+    "validation_consistency": "O scanner oficial da Viby (Portaria) realiza a busca no banco de dados pelo campo 'ticketCode', que corresponde ao valor de 'qrCode' da API."
+  }
+}
