@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { hashCPF, maskCPF } from '@/lib/crypto-utils';
@@ -123,7 +122,7 @@ export async function POST(req: Request) {
       participantEmail: reg.userEmail || userData.email,
       orderNumber: reg.orderId || reg.ticketCode,
       status: reg.status,
-      qrCode: reg.ticketCode,
+      qrCode: reg.ticketCode, // Valor alfanumérico para geração do QR Code
       qrToken: regId,
       coverImage: eventData?.image || reg.eventImage || "",
       eventStartDate: eventData?.date?.toDate ? eventData.date.toDate().toISOString() : (eventData?.date || reg.eventDate),

@@ -25,7 +25,7 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import { QRCodeSVG } from "qrcode.react"
-import { cn } from "@/lib/utils"
+import { cn, safeParseDate } from "@/lib/utils"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { RichText } from "@/components/ui/rich-text"
 import { Separator } from "@/components/ui/separator"
