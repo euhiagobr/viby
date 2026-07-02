@@ -52,6 +52,7 @@ export function ExperienceRevenueSimulator({ isOpen, onOpenChange, organization 
     const facePrice = parseFloat(priceInput) || 0;
     const qty = Math.max(1, parseInt(qtyInput) || 1);
     
+    // Cálculo utilizando a função oficial de split
     const split = calculateVibyOfficialSplit(
       facePrice, 
       currency as CurrencyCode, 

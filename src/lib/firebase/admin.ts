@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 
 /**
  * @fileOverview Inicialização oficial do Firebase Admin SDK.
- * Focado exclusivamente na resolução do erro de parser ASN.1.
+ * Focado na estabilidade de conexões e tratamento de propriedades indefinidas.
  */
 
 const privateKey = process.env.FIREBASE_PRIVATE_KEY;
@@ -49,10 +49,16 @@ export const getAdminApp = () => {
   }
 };
 
-export const getAdminAuth = () => {
-  return getAdminApp().auth();
-};
+let adminDb: admin.firestore.Firestore | null = null;
 
 export const getAdminDb = () => {
-  return getAdminApp().firestore();
+  if (adminDb) return adminDb;
+  adminDb = getAdminApp().firestore();
+  // REGRA DE OURO: Previne erros "Cannot use undefined as a Firestore value"
+  adminDb.settings({ ignoreUndefinedProperties: true });
+  return adminDb;
+};
+
+export const getAdminAuth = () => {
+  return getAdminApp().auth();
 };
