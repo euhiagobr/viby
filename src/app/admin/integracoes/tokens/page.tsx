@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -119,7 +118,7 @@ export default function AdminApiTokensPage() {
 -H "Authorization: Bearer viby_live_xxxxxxxxxxxxxxxxx" \\
 -H "Content-Type: application/json" \\
 -d '{
-  "eventId": "ID_DO_EVENTO",
+  "eventId": "YBrAVYPCTPoomxB9MtNz",
   "cpf": "12345678900"
 }'`;
     handleCopy(curl, setCopiedExample);
@@ -170,7 +169,7 @@ export default function AdminApiTokensPage() {
                          <Input name="description" placeholder="Finalidade deste acesso..." className="rounded-xl h-11" />
                       </div>
                       <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10 flex items-start gap-3">
-                         <ShieldCheck className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                         <ShieldCheck className="w-3.5 h-3.5 text-secondary shrink-0 mt-0.5" />
                          <p className="text-[9px] text-secondary font-bold uppercase leading-relaxed">O token será gerado com permissões de leitura restrita à consulta de ingressos (tickets.find).</p>
                       </div>
                    </div>
@@ -182,7 +181,7 @@ export default function AdminApiTokensPage() {
                 </form>
               ) : (
                 <div className="p-10 space-y-10 text-center animate-in zoom-in-95">
-                   <div className="w-20 h-20 bg-green-500 rounded-[2rem] flex items-center justify-center mx-auto text-white shadow-xl shadow-green-500/20">
+                   <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto text-white shadow-lg animate-in zoom-in-50 duration-500">
                       <Zap className="w-10 h-10 fill-current" />
                    </div>
                    <div className="space-y-2">
@@ -366,4 +365,3 @@ export default function AdminApiTokensPage() {
     </div>
   );
 }
-
