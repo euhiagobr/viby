@@ -2,40 +2,38 @@ import * as admin from 'firebase-admin';
 
 /**
  * @fileOverview Inicialização oficial do Firebase Admin SDK.
- * Focado na estabilidade de conexões e tratamento de propriedades indefinidas.
+ * Implementa padrão Singleton robusto para evitar erros de inicialização duplicada.
  */
 
 const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-// Auditoria de segurança e diagnóstico (Apenas no Servidor)
-if (typeof window === 'undefined') {
-  console.log('[FIREBASE ADMIN AUDIT]', {
-    length: privateKey?.length || 0,
-    prefix: privateKey?.substring(0, 30),
-    suffix: privateKey?.substring((privateKey?.length || 0) - 30),
-    hasHeader: privateKey?.includes('-----BEGIN PRIVATE KEY-----'),
-    hasFooter: privateKey?.includes('-----END PRIVATE KEY-----'),
-    envProjectId: !!process.env.FIREBASE_PROJECT_ID,
-    envClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL
-  });
+// Interface para estender o objeto global do Node.js
+interface GlobalAdmin {
+  adminDb?: admin.firestore.Firestore;
+  adminApp?: admin.app.App;
 }
 
+const globalAdmin = global as unknown as GlobalAdmin;
+
 export const getAdminApp = () => {
+  if (globalAdmin.adminApp) return globalAdmin.adminApp;
+
   const apps = admin.apps;
-  if (apps.length > 0) return apps[0]!;
+  if (apps.length > 0) {
+    globalAdmin.adminApp = apps[0]!;
+    return globalAdmin.adminApp;
+  }
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  
-  // Tratamento obrigatório para quebras de linha em variáveis de ambiente RSA
   const formattedKey = privateKey?.replace(/\\n/g, '\n');
 
   if (!projectId || !clientEmail || !formattedKey) {
-    throw new Error("Credenciais do Firebase Admin ausentes ou incompletas no ambiente.");
+    throw new Error("Credenciais do Firebase Admin ausentes ou incompletas.");
   }
 
   try {
-    return admin.initializeApp({
+    globalAdmin.adminApp = admin.initializeApp({
       credential: admin.credential.cert({
         projectId,
         clientEmail,
@@ -43,20 +41,24 @@ export const getAdminApp = () => {
       }),
       projectId
     });
+    return globalAdmin.adminApp;
   } catch (e: any) {
     console.error("[Admin SDK] Erro fatal de inicialização:", e.message);
     throw e;
   }
 };
 
-let adminDb: admin.firestore.Firestore | null = null;
-
 export const getAdminDb = () => {
-  if (adminDb) return adminDb;
-  adminDb = getAdminApp().firestore();
-  // REGRA DE OURO: Previne erros "Cannot use undefined as a Firestore value"
-  adminDb.settings({ ignoreUndefinedProperties: true });
-  return adminDb;
+  if (globalAdmin.adminDb) return globalAdmin.adminDb;
+
+  const app = getAdminApp();
+  const db = app.firestore();
+
+  // Configurações aplicadas apenas uma vez na criação da instância singleton
+  db.settings({ ignoreUndefinedProperties: true });
+  
+  globalAdmin.adminDb = db;
+  return globalAdmin.adminDb;
 };
 
 export const getAdminAuth = () => {
