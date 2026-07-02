@@ -5,6 +5,10 @@ import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { revalidatePath } from 'next/cache';
 
+/**
+ * @fileOverview Server Action para gerenciar cupons exclusivos de usuários.
+ * Garante que o desconto seja sempre do tipo 'fixed' conforme regra de negócio.
+ */
 export async function upsertUserCoupon(params: {
   userId: string;
   username: string;
@@ -23,7 +27,8 @@ export async function upsertUserCoupon(params: {
       userId,
       code: username.toUpperCase(),
       eventId,
-      discountValue,
+      discountType: 'fixed', // OBRIGATÓRIO: Garante que o checkout trate como valor em R$
+      discountValue: Number(discountValue),
       status: active ? 'active' : 'inactive',
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };

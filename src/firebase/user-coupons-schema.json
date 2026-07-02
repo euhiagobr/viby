@@ -1,3 +1,4 @@
+
 {
   "collection": "user_coupons",
   "description": "Vínculo de cupons exclusivos a usuários específicos para eventos determinados. O ID do documento é o UID do usuário (relação 1:1).",
@@ -5,6 +6,7 @@
     "userId": "string (UID do dono do cupom)",
     "code": "string (Username em maiúsculas - Única fonte de verdade para aplicação)",
     "eventId": "string (ID do evento onde o cupom é válido)",
+    "discountType": "string (fixed - valor em R$)",
     "discountValue": "number (Valor fixo em R$ de desconto por ingresso)",
     "status": "active | inactive",
     "uses": "number (Contador total de ingressos vendidos com este cupom)",

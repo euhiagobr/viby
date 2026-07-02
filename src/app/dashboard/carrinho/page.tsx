@@ -168,7 +168,29 @@ export default function CarrinhoPage() {
     setIsValidatingCoupon(true);
     const code = couponInput.trim().toUpperCase();
     try {
-      // 1. Tenta Cupom Geral
+      // PRIORIDADE: Tenta Cupom de Usuário (Exclusivo)
+      const uq = query(
+        collection(db, "user_coupons"),
+        where("code", "==", code),
+        where("status", "==", "active"),
+        limit(1)
+      );
+      const uSnap = await getDocs(uq);
+
+      if (!uSnap.empty) {
+        const uCoupon = { id: uSnap.docs[0].id, ...uSnap.docs[0].data() } as any;
+        const matchedItem = items.find(i => i.eventId === uCoupon.eventId);
+        if (!matchedItem) {
+          toast({ variant: "destructive", title: "Restrição de Evento", description: "Este cupom exclusivo é válido apenas para outro evento." });
+          return;
+        }
+        // Força o tipo 'fixed' para cupons de usuário
+        setAppliedCoupon({ ...uCoupon, discountType: 'fixed', isUserCoupon: true });
+        toast({ title: "Cupom exclusivo aplicado!" });
+        return;
+      }
+
+      // 2. Tenta Cupom Geral
       const q = query(
         collection(db, "coupons"), 
         where("code", "==", code),
@@ -186,27 +208,6 @@ export default function CarrinhoPage() {
         }
         setAppliedCoupon(coupon);
         toast({ title: "Cupom aplicado!" });
-        return;
-      }
-
-      // 2. Tenta Cupom de Usuário (Username)
-      const uq = query(
-        collection(db, "user_coupons"),
-        where("code", "==", code),
-        where("status", "==", "active"),
-        limit(1)
-      );
-      const uSnap = await getDocs(uq);
-
-      if (!uSnap.empty) {
-        const uCoupon = { id: uSnap.docs[0].id, ...uSnap.docs[0].data() } as any;
-        const matchedItem = items.find(i => i.eventId === uCoupon.eventId);
-        if (!matchedItem) {
-          toast({ variant: "destructive", title: "Restrição de Evento", description: "Este cupom exclusivo é válido apenas para outro evento." });
-          return;
-        }
-        setAppliedCoupon({ ...uCoupon, discountType: 'fixed', discountValue: uCoupon.discountValue, isUserCoupon: true });
-        toast({ title: "Cupom exclusivo aplicado!" });
         return;
       }
 
@@ -236,10 +237,12 @@ export default function CarrinhoPage() {
         // Lógica de Cupom: Aplica em apenas 1 unidade do item correspondente
         if (appliedCoupon && appliedCoupon.eventId === item.eventId) {
           let discVal = 0;
+          const couponVal = Number(appliedCoupon.discountValue) || 0;
+
           if (appliedCoupon.discountType === 'percentage') {
-            discVal = Number((item.price * (appliedCoupon.discountValue / 100)).toFixed(2));
+            discVal = Number((item.price * (couponVal / 100)).toFixed(2));
           } else if (appliedCoupon.discountType === 'fixed') {
-            discVal = Math.min(item.price, appliedCoupon.discountValue);
+            discVal = Math.min(item.price, couponVal);
           } else if (appliedCoupon.discountType === 'free_ticket') {
             discVal = item.price;
           }

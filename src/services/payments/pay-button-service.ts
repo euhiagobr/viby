@@ -62,11 +62,13 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     const org = orgsSnapMap[item.organizationId];
 
     let discVal = 0;
+    const couponVal = Number(coupon?.discountValue) || 0;
+
     if (coupon && coupon.eventId === item.eventId) {
       if (coupon.discountType === 'percentage') {
-        discVal = Number((item.price * (coupon.discountValue / 100)).toFixed(2));
+        discVal = Number((item.price * (couponVal / 100)).toFixed(2));
       } else if (coupon.discountType === 'fixed') {
-        discVal = Math.min(item.price, coupon.discountValue);
+        discVal = Math.min(item.price, couponVal);
       } else if (coupon.discountType === 'free_ticket') {
         discVal = item.price;
       }
