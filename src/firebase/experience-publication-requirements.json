@@ -1,0 +1,12 @@
+{
+  "business_rules": {
+    "stripe_connect_requirement": {
+      "description": "Organizadores podem publicar experiências gratuitas livremente. No entanto, a conta Stripe Connect é mandatória para qualquer experiência que possua horários (slots) com valor maior que zero.",
+      "validation_field": "organizations/{orgId}/stripeAccountId",
+      "error_message": "Para publicar experiências pagas, é necessário concluir a configuração da sua conta Stripe Connect para receber pagamentos.",
+      "enforcement_points": [
+        "src/app/actions/experiences.ts (publishExperienceAction)"
+      ]
+    }
+  }
+}

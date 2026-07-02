@@ -1,4 +1,3 @@
-
 'use server';
 
 import * as admin from 'firebase-admin';
@@ -91,7 +90,8 @@ export async function saveDraftAction(eventId: string, step: number, data: any) 
 }
 
 /**
- * Publica um evento a partir de um rascunho, movendo dados para a raiz e definindo o slug canônico.
+ * Publica um evento a partir de um rascunho.
+ * Valida obrigatoriedade de Stripe Connect para eventos pagos.
  */
 export async function publishEventAction(eventId: string, finalData: any) {
   const db = getAdminDb();
@@ -104,9 +104,15 @@ export async function publishEventAction(eventId: string, finalData: any) {
     const draftData = eventSnap.data() || {};
     const orgId = finalData.organizationId || draftData.organizationId;
     
-    // Buscar dados reais da organização para garantir o username na URL
+    // Buscar dados reais da organização
     const orgSnap = await db.collection('organizations').doc(orgId).get();
-    const org = orgSnap.exists ? orgSnap.data() : null;
+    const orgData = orgSnap.exists ? orgSnap.data() : null;
+
+    // Validação de paridade: Exige Stripe Connect para publicação de itens pagos
+    const isPaid = (finalData.type === 'interno') && (finalData.batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0)) || false);
+    if (isPaid && !orgData?.stripeAccountId) {
+      throw new Error("Para publicar eventos pagos, é necessário concluir a configuração da sua conta Stripe Connect para receber pagamentos.");
+    }
 
     const title = finalData.title || "";
     const baseSlug = slugify(title);
@@ -126,9 +132,9 @@ export async function publishEventAction(eventId: string, finalData: any) {
       organizationId: orgId,
       organizer: {
         id: orgId,
-        name: org?.name || "Organizador",
-        username: org?.username || "evento",
-        avatar: org?.avatar || ""
+        name: orgData?.name || "Organizador",
+        username: orgData?.username || "evento",
+        avatar: orgData?.avatar || ""
       },
       title,
       city,
@@ -150,7 +156,7 @@ export async function publishEventAction(eventId: string, finalData: any) {
       success: true, 
       id: eventId, 
       slug: baseSlug, 
-      username: org?.username || 'evento' 
+      username: orgData?.username || 'evento' 
     };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -170,13 +176,20 @@ export async function updateEventAction(params: {
     const { eventId, orgId, eventData } = params;
     
     const orgSnap = await db.collection('organizations').doc(orgId).get();
-    const org = orgSnap.exists ? orgSnap.data() : null;
+    const orgData = orgSnap.exists ? orgSnap.data() : null;
 
     const eventRef = db.collection('events').doc(eventId);
     const eventSnap = await eventRef.get();
     if (!eventSnap.exists) throw new Error("Evento não localizado.");
 
     const oldData = eventSnap.data()!;
+
+    // Validação de paridade: Exige Stripe Connect para publicação de itens pagos
+    const isPaid = (eventData.type === 'interno') && (eventData.batches?.some((b: any) => b.ticketTypes?.some((t: any) => (t.price || 0) > 0)) || false);
+    if (isPaid && !orgData?.stripeAccountId) {
+      throw new Error("Para publicar eventos pagos, é necessário concluir a configuração da sua conta Stripe Connect para receber pagamentos.");
+    }
+
     let slug = eventData.slug || oldData.slug || slugify(eventData.title);
     
     const startStr = eventData.startDate || eventData.date;
@@ -186,9 +199,9 @@ export async function updateEventAction(params: {
       ...eventData,
       organizer: {
         id: orgId,
-        name: org?.name || oldData.organizer?.name,
-        username: org?.username || oldData.organizer?.username,
-        avatar: org?.avatar || oldData.organizer?.avatar
+        name: orgData?.name || oldData.organizer?.name,
+        username: orgData?.username || oldData.organizer?.username,
+        avatar: orgData?.avatar || oldData.organizer?.avatar
       },
       date: eventDate, 
       status: eventData.status || oldData.status || 'Ativo',
@@ -199,7 +212,7 @@ export async function updateEventAction(params: {
     await eventRef.update(updatePayload);
     
     revalidatePath('/');
-    return serializeData({ success: true, slug, username: org?.username || oldData.organizer?.username });
+    return serializeData({ success: true, slug, username: orgData?.username || oldData.organizer?.username });
   } catch (e: any) {
     return { success: false, error: e.message };
   }

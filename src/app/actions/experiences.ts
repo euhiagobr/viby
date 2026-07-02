@@ -106,35 +106,46 @@ export async function saveExperienceAction(id: string, data: any) {
 
 /**
  * Publica uma experiência garantindo que tenha pelo menos um slot ativo.
+ * Valida obrigatoriedade de Stripe Connect para experiências pagas.
  */
 export async function publishExperienceAction(id: string, finalData: any) {
   const db = getAdminDb();
   try {
     const expRef = db.collection('experiences').doc(id);
     
-    const slotsSnap = await expRef.collection('slots').where('status', '==', 'active').limit(1).get();
+    // 1. Validar slots ativos e coletar preços
+    const slotsSnap = await expRef.collection('slots').where('status', '==', 'active').get();
     if (slotsSnap.empty) {
       throw new Error("Adicione pelo menos um horário na agenda para publicar.");
     }
 
+    const slots = slotsSnap.docs.map(d => d.data());
+    const isPaid = slots.some(s => (s.price || 0) > 0 || (s.hasPromo && (s.promoPrice || 0) > 0));
+
+    // 2. Buscar dados da organização
     const orgSnap = await db.collection('organizations').doc(finalData.organizationId).get();
-    const org = orgSnap.exists ? orgSnap.data() : null;
+    const orgData = orgSnap.exists ? orgSnap.data() : null;
+
+    // 3. Validação de paridade com Eventos: Exige Stripe Connect para publicação de itens pagos
+    if (isPaid && !orgData?.stripeAccountId) {
+      throw new Error("Para publicar experiências pagas, é necessário concluir a configuração da sua conta Stripe Connect para receber pagamentos.");
+    }
 
     const updatePayload = {
       ...finalData,
       status: 'active',
       organizer: {
         id: finalData.organizationId,
-        name: org?.name || "Organizador",
-        username: org?.username || "marca",
-        avatar: org?.avatar || ""
+        name: orgData?.name || "Organizador",
+        username: orgData?.username || "marca",
+        avatar: orgData?.avatar || ""
       },
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
     await expRef.update(updatePayload);
     revalidatePath('/');
-    return { success: true, slug: finalData.slug, username: org?.username };
+    return { success: true, slug: finalData.slug, username: orgData?.username };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
