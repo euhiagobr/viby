@@ -298,7 +298,7 @@ export function MenuManagement({ orgId }: MenuManagementProps) {
                            onClick={() => handleToggleAlergenico(opt)}
                            className={cn(
                              "cursor-pointer h-7 px-3 font-black uppercase text-[8px] transition-all", 
-                             itemForm.alergenicos.includes(opt) ? "bg-red-50 text-white" : "bg-muted text-muted-foreground hover:bg-red-100"
+                             itemForm.alergenicos.includes(opt) ? "bg-red-600 text-white" : "bg-muted text-muted-foreground hover:bg-red-100"
                            )}
                          >
                            {opt}
@@ -358,64 +358,67 @@ export function MenuManagement({ orgId }: MenuManagementProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-12">
-           {sections.map(section => (
-             <section key={section.id} className="space-y-6">
-                <div className="flex items-center justify-between px-4 border-b-2 border-primary/5 pb-4">
-                   <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-primary/5 rounded-xl text-primary"><Layers className="w-5 h-5" /></div>
-                      <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">{section.nome}</h3>
-                   </div>
-                   <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-[10px] font-black uppercase h-6 px-3">{items.filter((i:any) => i.sectionId === section.id).length} itens</Badge>
-                      <Button variant="ghost" size="icon" onClick={() => { if(confirm("Deseja excluir este agrupamento? Os itens vinculados serão mantidos sem categoria.")) deleteMenuSectionAction(orgId, section.id) }} className="text-destructive opacity-20 hover:opacity-100"><Trash2 className="w-4 h-4" /></Button>
-                   </div>
-                </div>
+           {sections.map(section => {
+             const sectionItems = items?.filter((i:any) => i.sectionId === section.id) || [];
+             return (
+               <section key={section.id} className="space-y-6">
+                  <div className="flex items-center justify-between px-4 border-b-2 border-primary/5 pb-4">
+                     <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-primary/5 rounded-xl text-primary"><Layers className="w-5 h-5" /></div>
+                        <h3 className="text-2xl font-black uppercase italic tracking-tighter text-primary">{section.nome}</h3>
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] font-black uppercase h-6 px-3">{sectionItems.length} itens</Badge>
+                        <Button variant="ghost" size="icon" onClick={() => { if(confirm("Deseja excluir este agrupamento? Os itens vinculados serão mantidos sem categoria.")) deleteMenuSectionAction(orgId, section.id) }} className="text-destructive opacity-20 hover:opacity-100"><Trash2 className="w-4 h-4" /></Button>
+                     </div>
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                   {items.filter((i:any) => i.sectionId === section.id).map((item: any) => (
-                     <Card key={item.id} className="border-none shadow-sm rounded-[2rem] bg-white group hover:shadow-xl transition-all relative overflow-hidden">
-                        {item.promocional && <div className="absolute top-0 right-0 p-3"><Zap className="w-4 h-4 text-secondary fill-secondary" /></div>}
-                        <CardContent className="p-8 space-y-4">
-                           <div className="flex justify-between items-start">
-                              <div className="space-y-1">
-                                 <h4 className="font-black text-base uppercase italic text-primary leading-none truncate max-w-[180px]">{item.nome}</h4>
-                                 <p className="text-[10px] font-bold text-muted-foreground uppercase">{item.porcao || "Porção Individual"}</p>
-                              </div>
-                              <div className="text-right">
-                                 {item.promocional ? (
-                                   <div className="flex flex-col items-end">
-                                      <span className="text-[10px] line-through opacity-30 font-black text-red-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor)}</span>
-                                      <span className="text-base font-black text-secondary italic">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valorPromocional)}</span>
-                                   </div>
-                                 ) : (
-                                   <span className="text-base font-black text-primary italic">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor)}</span>
-                                 )}
-                              </div>
-                           </div>
-                           <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed font-medium min-h-[32px]">{item.descricao}</p>
-                           <div className="flex justify-between items-center pt-6 border-t border-dashed border-border/40">
-                              <div className="flex flex-wrap gap-1">
-                                 {item.alergenicos?.slice(0, 3).map((a: string) => <Badge key={a} variant="outline" className="text-[7px] h-4 font-black uppercase border-red-100 text-red-500 bg-red-50">{a}</Badge>)}
-                                 {item.alergenicos?.length > 3 && <span className="text-[7px] font-black opacity-30">+{item.alergenicos.length - 3}</span>}
-                              </div>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/5 rounded-full" onClick={() => handleOpenEdit(item)}><Edit className="w-3.5 h-3.5" /></Button>
-                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/5 rounded-full" onClick={() => { if(confirm("Remover item?")) deleteMenuItemAction(orgId, item.id) }}><Trash2 className="w-3.5 h-3.5" /></Button>
-                              </div>
-                           </div>
-                        </CardContent>
-                     </Card>
-                   ))}
-                   <button 
-                     onClick={() => { resetItemForm(); setItemForm(prev => ({...prev, sectionId: section.id})); setIsItemDialogOpen(true); }}
-                     className="rounded-[2rem] border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 p-8 opacity-40 hover:opacity-100 hover:border-secondary transition-all group"
-                   >
-                      <Plus className="w-8 h-8 text-secondary group-hover:scale-110 transition-transform" />
-                      <span className="text-[10px] font-black uppercase tracking-widest">Adicionar nesta seção</span>
-                   </button>
-                </div>
-             </section>
-           ))}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                     {sectionItems.map((item: any) => (
+                       <Card key={item.id} className="border-none shadow-sm rounded-[2rem] bg-white group hover:shadow-xl transition-all relative overflow-hidden">
+                          {item.promocional && <div className="absolute top-0 right-0 p-3"><Zap className="w-4 h-4 text-secondary fill-secondary" /></div>}
+                          <CardContent className="p-8 space-y-4">
+                             <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                   <h4 className="font-black text-base uppercase italic text-primary leading-none truncate max-w-[180px]">{item.nome}</h4>
+                                   <p className="text-[10px] font-bold text-muted-foreground uppercase">{item.porcao || "Porção Individual"}</p>
+                                </div>
+                                <div className="text-right">
+                                   {item.promocional ? (
+                                     <div className="flex flex-col items-end">
+                                        <span className="text-[10px] line-through opacity-30 font-black text-red-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor)}</span>
+                                        <span className="text-base font-black text-secondary italic">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valorPromocional)}</span>
+                                     </div>
+                                   ) : (
+                                     <span className="text-base font-black text-primary italic">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor)}</span>
+                                   )}
+                                </div>
+                             </div>
+                             <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed font-medium min-h-[32px]">{item.descricao}</p>
+                             <div className="flex justify-between items-center pt-6 border-t border-dashed border-border/40">
+                                <div className="flex flex-wrap gap-1">
+                                   {item.alergenicos?.slice(0, 3).map((a: string) => <Badge key={a} variant="outline" className="text-[7px] h-4 font-black uppercase border-red-100 text-red-500 bg-red-50">{a}</Badge>)}
+                                   {item.alergenicos?.length > 3 && <span className="text-[7px] font-black opacity-30">+{item.alergenicos.length - 3}</span>}
+                                </div>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/5 rounded-full" onClick={() => handleOpenEdit(item)}><Edit className="w-3.5 h-3.5" /></Button>
+                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/5 rounded-full" onClick={() => { if(confirm("Remover item?")) deleteMenuItemAction(orgId, item.id) }}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                </div>
+                             </div>
+                          </CardContent>
+                       </Card>
+                     ))}
+                     <button 
+                       onClick={() => { resetItemForm(); setItemForm(prev => ({...prev, sectionId: section.id})); setIsItemDialogOpen(true); }}
+                       className="rounded-[2rem] border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 p-8 opacity-40 hover:opacity-100 hover:border-secondary transition-all group"
+                     >
+                        <Plus className="w-8 h-8 text-secondary group-hover:scale-110 transition-transform" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Adicionar nesta seção</span>
+                     </button>
+                  </div>
+               </section>
+             );
+           })}
         </div>
       )}
     </div>
