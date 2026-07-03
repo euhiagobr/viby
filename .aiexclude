@@ -1,0 +1,26 @@
+# Pastas de dependências (Gigantescas)
+node_modules/
+
+# Pastas de build e compilação
+.next/
+dist/
+build/
+out/
+
+# Arquivos de cache e configuração do Firebase
+.firebase/
+firebase-export/
+
+# Arquivos de log e lock (Muito texto inútil para a IA)
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Assets estáticos (Imagens, vídeos)
+public/
+assets/
+
+# Histórico do Git
+.git/

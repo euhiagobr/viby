@@ -1,0 +1,32 @@
+
+{
+  "collections": {
+    "organizations/{orgId}/menu_sections": {
+      "description": "Seções de agrupamento do cardápio (ex: Bebidas, Sobremesas).",
+      "fields": {
+        "id": "string (auto-id)",
+        "nome": "string (obrigatório)",
+        "ordem": "number (para ordenação visual)",
+        "updatedAt": "timestamp"
+      }
+    },
+    "organizations/{orgId}/menu_items": {
+      "description": "Itens individuais do cardápio vinculados a uma organização e seção.",
+      "fields": {
+        "id": "string (auto-id)",
+        "sectionId": "string (ref: menu_sections)",
+        "nome": "string (obrigatório)",
+        "descricao": "string (longa)",
+        "temAlergenicos": "boolean",
+        "alergenicos": "array of strings",
+        "porcao": "string (ex: 500ml)",
+        "valor": "number (float)",
+        "promocional": "boolean",
+        "valorPromocional": "number (opcional)",
+        "promoInicio": "timestamp (opcional, UTC-3)",
+        "promoFim": "timestamp (opcional, UTC-3)",
+        "updatedAt": "timestamp"
+      }
+    }
+  }
+}

@@ -137,6 +137,17 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isAdmin() || isOwner(orgId) || isOwner(memberId);
       }
+
+      // --- MÓDULO DE CARDÁPIO ---
+      match /menu_sections/{sectionId} {
+        allow read: if true;
+        allow write: if isAdmin() || isOrgMember(orgId);
+      }
+
+      match /menu_items/{itemId} {
+        allow read: if true;
+        allow write: if isAdmin() || isOrgMember(orgId);
+      }
     }
 
     // Perfis de Usuários (Dados básicos)

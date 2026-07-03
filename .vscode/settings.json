@@ -1,0 +1,8 @@
+{
+    "chat.commandCenter.enabled": false,
+    "chat.useFileStorage": false,
+    "chat.agent.enabled": false,
+    "chat.agent.maxRequests": 0,
+    "idx.ai.enableCodebaseIndexing": false,
+    "chat.implicitContext.enabled": false
+}
