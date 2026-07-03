@@ -42,6 +42,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
 import { cn } from "@/lib/utils";
 import { 
@@ -297,7 +298,7 @@ export function MenuManagement({ orgId }: MenuManagementProps) {
                            onClick={() => handleToggleAlergenico(opt)}
                            className={cn(
                              "cursor-pointer h-7 px-3 font-black uppercase text-[8px] transition-all", 
-                             itemForm.alergenicos.includes(opt) ? "bg-red-500 text-white" : "bg-muted text-muted-foreground hover:bg-red-100"
+                             itemForm.alergenicos.includes(opt) ? "bg-red-50 text-white" : "bg-muted text-muted-foreground hover:bg-red-100"
                            )}
                          >
                            {opt}
