@@ -1,9 +1,10 @@
+
 'use client';
 
 import * as React from "react";
 import { useFirestore, useAuth, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase";
 import { doc, getDoc, collection, query, where, getDocs, collectionGroup, orderBy, limit } from "firebase/firestore";
-import { Loader2, Lock as LockIcon, ArrowLeft, Home, ShieldAlert, Share2, Inbox, Trophy, Sparkles } from "lucide-react";
+import { Loader2, Lock as LockIcon, ArrowLeft, Home, ShieldAlert, Share2, Inbox, Trophy, Sparkles, UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdsRenderer } from "@/components/ads/AdsRenderer";
 import { EventCard } from "@/components/events/EventCard";
@@ -18,12 +19,14 @@ import { useSearchParams } from "next/navigation";
 import { useAdminPermissions } from "@/hooks/use-admin-permissions";
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils";
 import { format, startOfToday, addDays } from "date-fns"
+import { hasFoodCategory } from "@/lib/organization-utils";
 
 // Components - Organization
 import { OrganizerHero } from "@/components/organizer/OrganizerHero";
 import { OrganizerEvents } from "@/components/organizer/OrganizerEvents";
 import { OrganizerAbout } from "@/components/organizer/OrganizerAbout";
 import { OrganizerGallery } from "@/components/organizer/OrganizerGallery";
+import { PublicMenu } from "@/components/organizer/PublicMenu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Components - User (Social/Gamified)
@@ -189,7 +192,6 @@ export default function ProfilePageClient({ username }: { username: string }) {
 
   const orgExperiencesQuery = useMemoFirebase(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return null;
-    // Resolução robusta de status para experiências da marca
     return query(
       collection(db, "experiences"),
       where("organizationId", "==", profileData.id),
@@ -210,6 +212,8 @@ export default function ProfilePageClient({ username }: { username: string }) {
     )
   }, [db, profileData?.id, profileType])
   const { data: allOccurrences } = useCollection<any>(occurrencesQuery)
+
+  const isFoodRelated = profileType === 'organization' && profileData?.type && hasFoodCategory(profileData.type);
 
   React.useEffect(() => {
     if (!db || !profileData?.id || profileType !== 'organization') return;
@@ -377,6 +381,11 @@ export default function ProfilePageClient({ username }: { username: string }) {
                     <TabsList className="bg-muted/50 p-1 rounded-xl h-14 overflow-x-auto flex-nowrap scrollbar-hide">
                       <TabsTrigger value="upcoming" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Agenda</TabsTrigger>
                       <TabsTrigger value="experiences" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Experiências</TabsTrigger>
+                      {isFoodRelated && (
+                        <TabsTrigger value="menu" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 gap-2">
+                           <UtensilsCrossed className="w-3.5 h-3.5" /> Cardápio
+                        </TabsTrigger>
+                      )}
                       <TabsTrigger value="partnerships" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Co-organizadores</TabsTrigger>
                       <TabsTrigger value="past" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Histórico</TabsTrigger>
                       <TabsTrigger value="about" className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8">Sobre</TabsTrigger>
@@ -441,6 +450,17 @@ export default function ProfilePageClient({ username }: { username: string }) {
                        )}
                     </div>
                   </TabsContent>
+                  {isFoodRelated && (
+                    <TabsContent value="menu" className="animate-in fade-in duration-500">
+                       <div className="space-y-12">
+                          <div className="text-center space-y-2">
+                             <h2 className="text-4xl font-black uppercase italic tracking-tighter text-primary">Nosso Cardápio</h2>
+                             <p className="text-muted-foreground font-medium uppercase text-xs tracking-widest">Delícias preparadas especialmente para você</p>
+                          </div>
+                          <PublicMenu orgId={profileData.id} />
+                       </div>
+                    </TabsContent>
+                  )}
                   <TabsContent value="partnerships" className="animate-in fade-in duration-500">
                     <OrganizerEvents events={partnershipEvents} title="Eventos em Co-realização" userLocation={userLocation} />
                   </TabsContent>

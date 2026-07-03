@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -22,7 +23,8 @@ import {
   ImageIcon,
   Sparkles,
   Star,
-  ScanQrCode
+  ScanQrCode,
+  UtensilsCrossed
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -31,6 +33,7 @@ import { useCurrentOrganization } from "@/contexts/OrganizationContext"
 import { signOut } from "firebase/auth"
 import { doc } from "firebase/firestore"
 import Image from "next/image"
+import { hasFoodCategory } from "@/lib/organization-utils"
 
 import {
   Sidebar,
@@ -95,17 +98,28 @@ export function AppSidebar() {
     { title: t('nav.support'), url: "/suporte", icon: LifeBuoy, badge: unreadSupportCount || null },
   ];
 
-  const orgItems = currentOrg ? [
-    { title: "Dashboard da Marca", url: `/dashboard/organizacoes/${currentOrg.username}`, icon: LayoutGrid, exact: true },
-    { title: "Scanner Portaria", url: "/dashboard/scanner", icon: ScanQrCode, roles: ['owner', 'admin', 'editor', 'checkin'] },
-    { title: "Eventos da Marca", url: `/dashboard/organizacoes/${currentOrg.username}/events`, icon: Megaphone },
-    { title: "Experiências", url: `/dashboard/organizacoes/${currentOrg.username}/experiencias`, icon: Sparkles },
-    { title: "Avaliações", url: `/dashboard/organizacoes/${currentOrg.username}/avaliacoes`, icon: Star },
-    { title: "Financeiro", url: `/dashboard/organizacoes/${currentOrg.username}/finance`, icon: Wallet, roles: ['owner', 'admin', 'finance'] },
-    { title: "Anúncios", url: `/dashboard/organizacoes/${currentOrg.username}/anuncios`, icon: Coins, roles: ['owner', 'admin', 'editor', 'marketing'] },
-    { title: "Equipe", url: `/dashboard/organizacoes/${currentOrg.username}/equipe`, icon: Users, roles: ['owner', 'admin'] },
-    { title: "Configurações", url: `/dashboard/organizacoes/${currentOrg.username}/settings`, icon: Settings, roles: ['owner', 'admin'] },
-  ].filter(item => !item.roles || item.roles.includes(userRole || '')) : [];
+  const orgItems = React.useMemo(() => {
+    if (!currentOrg) return [];
+    
+    const items = [
+      { title: "Dashboard da Marca", url: `/dashboard/organizacoes/${currentOrg.username}`, icon: LayoutGrid, exact: true },
+      { title: "Scanner Portaria", url: "/dashboard/scanner", icon: ScanQrCode, roles: ['owner', 'admin', 'editor', 'checkin'] },
+      { title: "Eventos da Marca", url: `/dashboard/organizacoes/${currentOrg.username}/events`, icon: Megaphone },
+      { title: "Experiências", url: `/dashboard/organizacoes/${currentOrg.username}/experiencias`, icon: Sparkles },
+      { title: "Cardápio", url: `/dashboard/organizacoes/${currentOrg.username}/menu`, icon: UtensilsCrossed, condition: hasFoodCategory(currentOrg.type || "") },
+      { title: "Avaliações", url: `/dashboard/organizacoes/${currentOrg.username}/avaliacoes`, icon: Star },
+      { title: "Financeiro", url: `/dashboard/organizacoes/${currentOrg.username}/finance`, icon: Wallet, roles: ['owner', 'admin', 'finance'] },
+      { title: "Anúncios", url: `/dashboard/organizacoes/${currentOrg.username}/anuncios`, icon: Coins, roles: ['owner', 'admin', 'editor', 'marketing'] },
+      { title: "Equipe", url: `/dashboard/organizacoes/${currentOrg.username}/equipe`, icon: Users, roles: ['owner', 'admin'] },
+      { title: "Configurações", url: `/dashboard/organizacoes/${currentOrg.username}/settings`, icon: Settings, roles: ['owner', 'admin'] },
+    ];
+
+    return items.filter(item => {
+      if (item.roles && !item.roles.includes(userRole || '')) return false;
+      if (item.condition === false) return false;
+      return true;
+    });
+  }, [currentOrg, userRole]);
 
   return (
     <Sidebar className="border-r border-border">
