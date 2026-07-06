@@ -32,8 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const hasCheckedRedirect = useRef(false);
+  const isInitializingRef = useRef(false);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    // Previne inicialização dupla em React 18+ StrictMode
+    if (isInitializingRef.current) {
+      return;
+    }
+    isInitializingRef.current = true;
+
     console.log(`[${nowTs()}] [AUTH-PROVIDER] 1. AuthProvider mounted`);
     console.log(`[${nowTs()}] [AUTH-PROVIDER] - URL:`, window.location.href);
     console.log(`[${nowTs()}] [AUTH-PROVIDER] - Referrer:`, document.referrer);
@@ -105,14 +113,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2. Listener de Mudança de Estado
     console.log(`[${nowTs()}] [AUTH-PROVIDER] 4. Registering onAuthStateChanged listener`);
-    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+    
+    // Cleanup listener anterior se existir
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+    }
+    
+    unsubscribeRef.current = onAuthStateChanged(auth, (authUser) => {
       console.log(`[${nowTs()}] [AUTH-PROVIDER] -> onAuthStateChanged triggered. AuthUser:`, authUser?.email || 'null');
       handleProfile(authUser, 'AUTH_STATE_CHANGED');
     });
 
     return () => {
       console.log(`[${nowTs()}] [AUTH-PROVIDER] Unmounting...`);
-      unsubscribe();
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
     };
   }, []);
 

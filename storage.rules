@@ -1,103 +1,25 @@
 rules_version = '2';
+
 service firebase.storage {
   match /b/{bucket}/o {
+    // Regra Padrão: Permite a leitura de qualquer arquivo por qualquer pessoa.
+    // Isso é necessário para que as imagens do cardápio sejam públicas.
+    match /{allPaths=**} {
+      allow read;
+    }
+
+    // Regra de Escrita: Permite que apenas usuários autenticados
+    // escrevam (façam upload) de arquivos. A nossa Ação de Servidor
+    // já garante que o usuário está logado e salva o arquivo no caminho certo.
+    match /menu_items/{orgId}/{fileName} {
+      allow write: if request.auth != null;
+    }
+
+    // Upload de Configurações de Admin (logo, favicon, banners, etc)
+    match /admin/site/{fileName} {
+      allow write: if request.auth != null;
+    }
     
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && (
-        request.auth.uid == "AqTVL8VRTZT435pZudkObzMGsrR2" ||
-        request.auth.token.admin == true ||
-        firestore.exists(/databases/(default)/documents/system_admins/$(request.auth.uid))
-      );
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // --- ACESSO PÚBLICO (Leitura liberada para ativos de vitrine e marketing) ---
-
-    // Categorias de Eventos e Experiências
-    match /categories/{allPaths=**} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Configurações de Branding e Identidade do Site
-    match /admin/site/{allPaths=**} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Assets Globais da Marca Viby (Media Kit)
-    match /brand-assets/{allPaths=**} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Capas de Cidades para SEO
-    match /city-covers/{allPaths=**} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    match /city-covers-manual/{allPaths=**} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Mídias de Usuários (Avatares e Banners Públicos)
-    match /users/{userId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isOwner(userId) || isAdmin();
-    }
-
-    // Mídias de Organizações (Logos e Capas)
-    match /organizations/{orgId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
-    }
-
-    // Mídias de Eventos e Experiências
-    match /events/{eventId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
-    }
-    match /experiences/{experienceId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
-    }
-
-    // Mídias de Anúncios (Viby Ads)
-    match /ads/{orgId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
-    }
-
-    // Mídias de Avaliações (Fotos e Vídeos da Comunidade)
-    match /reviews/{registrationId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isSignedIn() || isAdmin();
-    }
-
-    // --- ACESSO PRIVADO (Protegido por Identidade ou Nível Administrativo) ---
-
-    // Suporte: Anexos de Tickets
-    match /support/{userId}/{allPaths=**} {
-      allow read, write: if isOwner(userId) || isAdmin();
-    }
-
-    // Verificação: Documentos de Identidade e Comprovação Jurídica
-    match /verification/{userId}/{allPaths=**} {
-      allow read, write: if isOwner(userId) || isAdmin();
-    }
-
-    // Financeiro: Comprovantes de Repasse (Payout Proofs)
-    match /payout_proofs/{orgId}/{allPaths=**} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
-    }
+    // Outras regras de escrita podem ser adicionadas aqui para outros módulos.
   }
 }

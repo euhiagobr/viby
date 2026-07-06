@@ -12,3 +12,4 @@ export * from './Bilheteria';
 export * from './EventInterest';
 export * from './EventCoOrganizers';
 export * from './EventRecurrence';
+export * from './EventCardAirbnb';

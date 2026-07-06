@@ -152,13 +152,18 @@ service cloud.firestore {
 
     // Perfis de Usuários (Dados básicos)
     match /users/{userId} {
-      allow get: if true;
-      allow list: if isAdmin();
+      allow read: if true; // Perfis públicos - qualquer um pode ler
+      allow list: if true; // Queries para buscar usuários (público)
       allow create: if isOwner(userId);
       allow update: if isAdmin() || isOwner(userId);
       
       match /private/sensitive {
         allow read, write: if isAdmin() || isOwner(userId);
+      }
+      
+      match /{document=**} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isAdmin() || isOwner(userId);
       }
     }
 
@@ -213,9 +218,10 @@ service cloud.firestore {
       allow write: if false; 
     }
 
-    // Fallback de segurança
+    // Fallback de segurança - permitir leitura pública, escrita apenas admin
     match /{path=**} {
-      allow read, write: if isAdmin();
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

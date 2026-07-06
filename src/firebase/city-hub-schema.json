@@ -1,0 +1,114 @@
+{
+  "collections": {
+    "experiences": {
+      "id": "auto-id",
+      "fields": {
+        "title": "string",
+        "description": "string",
+        "city": "string",
+        "status": "string (published | draft)",
+        "image": "url",
+        "price": "number",
+        "rating": "number",
+        "reviewCount": "number",
+        "createdAt": "timestamp"
+      }
+    },
+    "organizations": {
+      "note": "Collection existente com field 'type' que identifica restaurantes, bares, cafés, etc",
+      "id": "auto-id",
+      "fields": {
+        "name": "string",
+        "username": "string",
+        "city": "string",
+        "type": "string (restaurant | bar | cafe | produtora | ong | etc)",
+        "avatar": "url",
+        "phone": "string",
+        "website": "string",
+        "instagram": "string",
+        "rating": "number",
+        "reviewCount": "number",
+        "createdAt": "timestamp"
+      }
+    },
+    "coupons": {
+      "id": "auto-id",
+      "fields": {
+        "title": "string",
+        "description": "string",
+        "code": "string",
+        "city": "string",
+        "discountPercentage": "number",
+        "discountValue": "number",
+        "expiryDate": "timestamp",
+        "isActive": "boolean",
+        "createdAt": "timestamp"
+      }
+    },
+    "giftCards": {
+      "id": "auto-id",
+      "fields": {
+        "title": "string",
+        "description": "string",
+        "city": "string",
+        "image": "url",
+        "minValue": "number",
+        "maxValue": "number",
+        "isActive": "boolean",
+        "createdAt": "timestamp"
+      }
+    },
+    "reservations": {
+      "id": "auto-id",
+      "fields": {
+        "title": "string",
+        "description": "string",
+        "city": "string",
+        "image": "url",
+        "availableSlots": "number",
+        "isAvailable": "boolean",
+        "createdAt": "timestamp"
+      }
+    },
+    "tourismAttractions": {
+      "id": "auto-id",
+      "fields": {
+        "name": "string",
+        "description": "string",
+        "city": "string",
+        "category": "string (monument | museum | park | landmark | etc)",
+        "image": "url",
+        "latitude": "number",
+        "longitude": "number",
+        "isActive": "boolean",
+        "createdAt": "timestamp"
+      }
+    }
+  },
+  "indexesRequired": [
+    {
+      "collection": "experiences",
+      "fields": ["city", "status", "createdAt"]
+    },
+    {
+      "collection": "organizations",
+      "fields": ["city", "type", "createdAt"]
+    },
+    {
+      "collection": "coupons",
+      "fields": ["city", "isActive", "createdAt"]
+    },
+    {
+      "collection": "giftCards",
+      "fields": ["city", "isActive", "createdAt"]
+    },
+    {
+      "collection": "reservations",
+      "fields": ["city", "isAvailable", "createdAt"]
+    },
+    {
+      "collection": "tourismAttractions",
+      "fields": ["city", "isActive", "createdAt"]
+    }
+  ]
+}

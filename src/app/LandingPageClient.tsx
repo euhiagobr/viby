@@ -4,7 +4,6 @@ import * as React from "react";
 import { useState, useEffect, useRef } from "react";
 import { getCurrentLocation, type Coordinates } from "@/lib/location-utils";
 import { useTranslation } from "@/i18n/i18n-context";
-import { PublicHeader } from "@/components/layout/PublicHeader";
 import Footer from "@/components/layout/Footer";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -78,8 +77,6 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col">
-      <PublicHeader />
-
       <HomeHero 
         searchName={searchName}
         setSearchName={setSearchName}
@@ -144,7 +141,7 @@ export default function LandingPageClient({ initialEvents = [] }: { initialEvent
           )}
 
           <HomeSection 
-            title={t('home.upcoming_title')} 
+            title={t('home.upcoming_title')}
             subtitle={t('home.upcoming_subtitle')}
           >
             <HomeFeed 

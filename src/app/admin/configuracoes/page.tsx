@@ -87,6 +87,7 @@ export default function AdminConfiguracoesPage() {
   const [siteForm, setSiteForm] = React.useState({ 
     siteName: 'Viby', 
     logoUrl: '', 
+    whiteLogoUrl: '',
     siteIconUrl: '', 
     headerImages: ['', '', '', '', ''] as string[] 
   });
@@ -138,6 +139,7 @@ export default function AdminConfiguracoesPage() {
       setSiteForm({ 
         siteName: siteSettings.siteName || 'Viby', 
         logoUrl: siteSettings.logoUrl || '', 
+        whiteLogoUrl: siteSettings.whiteLogoUrl || '',
         siteIconUrl: siteSettings.siteIconUrl || siteSettings.iconUrl || '',
         headerImages: normalizedHeaders.slice(0, 5)
       });
@@ -220,7 +222,7 @@ export default function AdminConfiguracoesPage() {
     });
   }, [googleAdsSettings]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logoUrl' | 'siteIconUrl') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logoUrl' | 'whiteLogoUrl' | 'siteIconUrl') => {
     const file = e.target.files?.[0];
     if (!file || !storage || !user) return;
 
@@ -389,7 +391,7 @@ export default function AdminConfiguracoesPage() {
                 <Input value={siteForm.siteName} onChange={e => setSiteForm({...siteForm, siteName: e.target.value})} className="rounded-xl h-11" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                  <div className="space-y-4">
                     <Label className="text-[10px] font-black uppercase opacity-60">Logotipo Principal</Label>
                     <div className="relative h-24 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex items-center justify-center overflow-hidden group">
@@ -401,6 +403,19 @@ export default function AdminConfiguracoesPage() {
                        </label>
                        <input id="logo-up" type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'logoUrl')} />
                        {uploadProgress.logoUrl !== null && uploadProgress.logoUrl !== undefined && <Progress value={uploadProgress.logoUrl} className="absolute bottom-0 h-1" />}
+                    </div>
+                 </div>
+                 <div className="space-y-4">
+                    <Label className="text-[10px] font-black uppercase opacity-60">Logotipo Branco</Label>
+                    <div className="relative h-24 bg-muted/20 rounded-2xl border-2 border-dashed border-border flex items-center justify-center overflow-hidden group">
+                       {siteForm.whiteLogoUrl ? (
+                         <img src={siteForm.whiteLogoUrl} className="max-h-full object-contain" alt="White Logo" />
+                       ) : <ImageIcon className="w-8 h-8 opacity-10" />}
+                       <label htmlFor="white-logo-up" className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-white">
+                          <Upload className="w-6 h-6" />
+                       </label>
+                       <input id="white-logo-up" type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'whiteLogoUrl')} />
+                       {uploadProgress.whiteLogoUrl !== null && uploadProgress.whiteLogoUrl !== undefined && <Progress value={uploadProgress.whiteLogoUrl} className="absolute bottom-0 h-1" />}
                     </div>
                  </div>
                  <div className="space-y-4">

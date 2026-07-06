@@ -59,8 +59,14 @@ export async function createMenuItemAction(orgId: string, data: any) {
     
     // Tratamento de Timestamps para datas promocionais
     const finalData = { ...data };
-    if (data.promoInicio) finalData.promoInicio = admin.firestore.Timestamp.fromDate(new Date(data.promoInicio));
-    if (data.promoFim) finalData.promoFim = admin.firestore.Timestamp.fromDate(new Date(data.promoFim));
+    delete finalData.updatedAt;
+    delete finalData.createdAt;
+    delete finalData.id;
+    delete finalData.promoInicio;
+    delete finalData.promoFim;
+    
+    if (data.promoInicio && typeof data.promoInicio === 'string') finalData.promoInicio = admin.firestore.Timestamp.fromDate(new Date(data.promoInicio));
+    if (data.promoFim && typeof data.promoFim === 'string') finalData.promoFim = admin.firestore.Timestamp.fromDate(new Date(data.promoFim));
 
     await itemRef.set({
       ...finalData,
@@ -77,8 +83,15 @@ export async function updateMenuItemAction(orgId: string, itemId: string, data: 
   const db = getAdminDb();
   try {
     const finalData = { ...data };
-    if (data.promoInicio) finalData.promoInicio = admin.firestore.Timestamp.fromDate(new Date(data.promoInicio));
-    if (data.promoFim) finalData.promoFim = admin.firestore.Timestamp.fromDate(new Date(data.promoFim));
+    // Remove campos que não devem ser serializados (objetos Firestore com toJSON)
+    delete finalData.updatedAt;
+    delete finalData.createdAt;
+    delete finalData.id;
+    delete finalData.promoInicio;
+    delete finalData.promoFim;
+    
+    if (data.promoInicio && typeof data.promoInicio === 'string') finalData.promoInicio = admin.firestore.Timestamp.fromDate(new Date(data.promoInicio));
+    if (data.promoFim && typeof data.promoFim === 'string') finalData.promoFim = admin.firestore.Timestamp.fromDate(new Date(data.promoFim));
 
     await db.collection('organizations').doc(orgId).collection('menu_items').doc(itemId).update({
       ...finalData,
@@ -98,4 +111,37 @@ export async function deleteMenuItemAction(orgId: string, itemId: string) {
   } catch (e: any) {
     return { success: false, error: e.message };
   }
+}
+
+// --- CONFIGURAÇÕES DE LAYOUT E ORDENAÇÃO ---
+
+export async function updateOrganizationMenuLayoutAction(orgId: string, menuLayout: 'lista' | 'grid') {
+  const db = getAdminDb();
+  try {
+    await db.collection('organizations').doc(orgId).update({
+      menuLayout: menuLayout,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function reorderItemsAction(orgId: string, collectionName: 'menu_sections' | 'menu_items', itemAId: string, itemAOrder: number, itemBId: string, itemBOrder: number) {
+    const db = getAdminDb();
+    const batch = db.batch();
+    try {
+        const refA = db.collection('organizations').doc(orgId).collection(collectionName).doc(itemAId);
+        batch.update(refA, { ordem: itemAOrder });
+
+        const refB = db.collection('organizations').doc(orgId).collection(collectionName).doc(itemBId);
+        batch.update(refB, { ordem: itemBOrder });
+
+        await batch.commit();
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error reordering items:", e);
+        return { success: false, error: e.message };
+    }
 }

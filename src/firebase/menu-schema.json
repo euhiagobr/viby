@@ -1,4 +1,3 @@
-
 {
   "collections": {
     "organizations/{orgId}/menu_sections": {
@@ -17,14 +16,19 @@
         "sectionId": "string (ref: menu_sections)",
         "nome": "string (obrigatório)",
         "descricao": "string (longa)",
+        "valor": "number (float, obrigatório)",
+        "priceDisplayMode": "string ('value' | 'consult' | 'hidden', default: 'value')",
+        "imageUrl": "string (url)",
+        "featured": "boolean (default: false)",
+        "porcao": "string (ex: 500ml)",
+        "serves": "string (ex: '1 pessoa', '2 pessoas')",
         "temAlergenicos": "boolean",
         "alergenicos": "array of strings",
-        "porcao": "string (ex: 500ml)",
-        "valor": "number (float)",
         "promocional": "boolean",
         "valorPromocional": "number (opcional)",
         "promoInicio": "timestamp (opcional, UTC-3)",
         "promoFim": "timestamp (opcional, UTC-3)",
+        "ordem": "number (para ordenação visual)",
         "updatedAt": "timestamp"
       }
     }

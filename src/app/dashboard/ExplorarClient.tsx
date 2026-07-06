@@ -112,10 +112,16 @@ export default function ExplorarClient({ initialEvents = [] }: { initialEvents?:
     
     setIsFetching(true)
     try {
-      // Busca Eventos
+      // Janela de 30 dias para capturar eventos ativos (igual ao servidor)
+      const thresholdDate = new Date();
+      thresholdDate.setDate(thresholdDate.getDate() - 30);
+      const dateThreshold = format(thresholdDate, 'yyyy-MM-dd');
+
+      // Busca Eventos COM date filter
       const qEvents = query(
         collection(db, "events"),
         where("status", "==", "Ativo"),
+        where("date", ">=", dateThreshold),
         orderBy("date", "asc"),
         ...(isInitial ? [limit(9)] : [startAfter(lastVisible), limit(6)])
       )

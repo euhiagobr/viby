@@ -4,34 +4,34 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 0 0% 0%;
+    --background: 230 100% 98%; /* Pale Mist #F5F7FF */
+    --foreground: 231 40% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 0%;
+    --card-foreground: 231 40% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 0%;
-    --primary: 0 0% 0%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 210 100% 50%;
+    --popover-foreground: 231 40% 10%;
+    --primary: 231 99% 62%; /* Vivid Indigo #3D5AFE */
+    --primary-foreground: 230 100% 98%;
+    --secondary: 199 100% 50%; /* Electric Cyan #00B0FF */
     --secondary-foreground: 0 0% 100%;
-    --muted: 210 20% 96%;
-    --muted-foreground: 210 10% 40%;
-    --accent: 210 100% 50%;
+    --muted: 231 20% 94%;
+    --muted-foreground: 231 10% 40%;
+    --accent: 199 100% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 210 20% 90%;
-    --input: 210 20% 90%;
-    --ring: 210 100% 50%;
+    --border: 231 20% 90%;
+    --input: 231 20% 90%;
+    --ring: 231 99% 62%;
     --radius: 0.75rem;
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 210 10% 20%;
-    --sidebar-primary: 0 0% 0%;
+    --sidebar-foreground: 231 10% 20%;
+    --sidebar-primary: 231 99% 62%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 20% 96%;
-    --sidebar-accent-foreground: 0 0% 0%;
-    --sidebar-border: 210 20% 92%;
-    --sidebar-ring: 210 100% 50%;
+    --sidebar-accent: 231 20% 96%;
+    --sidebar-accent-foreground: 231 99% 62%;
+    --sidebar-border: 231 20% 92%;
+    --sidebar-ring: 231 99% 62%;
   }
 }
 
@@ -41,6 +41,12 @@
   }
   body {
     @apply bg-background text-foreground font-body;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-headline;
+  }
+  code, pre {
+    @apply font-code;
   }
 }
 
@@ -52,130 +58,4 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-
-  /* Animação Arco-Íris para a página LGBT */
-  @keyframes rainbow-bg {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-
-  .animate-rainbow-bg {
-    background: linear-gradient(
-      -45deg, 
-      #ee7752, #e73c7e, #23a6d5, #23d5ab, #ff0000, #ff8000, #ffff00, #008000, #0000ff, #8b00ff
-    );
-    background-size: 400% 400%;
-    animation: rainbow-bg 15s ease infinite;
-  }
-
-  /* Halloween Animations */
-  @keyframes mist-drift {
-    0% { transform: translateX(-20%) translateY(0); opacity: 0.3; }
-    50% { transform: translateX(20%) translateY(5px); opacity: 0.5; }
-    100% { transform: translateX(-20%) translateY(0); opacity: 0.3; }
-  }
-  .animate-mist {
-    animation: mist-drift 20s ease-in-out infinite;
-  }
-
-  @keyframes bat-flight {
-    0% { transform: translate(-100vw, 20vh) scale(0.5) rotate(5deg); }
-    25% { transform: translate(-50vw, 10vh) scale(1) rotate(-5deg); }
-    50% { transform: translate(0, 25vh) scale(0.8) rotate(5deg); }
-    75% { transform: translate(50vw, 15vh) scale(1.2) rotate(-5deg); }
-    100% { transform: translate(120vw, 30vh) scale(0.5) rotate(5deg); }
-  }
-  .animate-bat {
-    animation: bat-flight 12s linear infinite;
-  }
-
-  @keyframes spooky-eyes {
-    0%, 90%, 100% { opacity: 0; transform: scale(0.5); }
-    92%, 98% { opacity: 1; transform: scale(1); }
-  }
-  .animate-eyes {
-    animation: spooky-eyes 15s ease-in-out infinite;
-  }
-
-  @keyframes pulse-orange {
-    0%, 100% { filter: drop-shadow(0 0 5px #FF6B00); }
-    50% { filter: drop-shadow(0 0 20px #FF6B00); }
-  }
-  .animate-glow-orange {
-    animation: pulse-orange 4s ease-in-out infinite;
-  }
-
-  /* Animação de luzes para Oktoberfest */
-  @keyframes twinkle {
-    0%, 100% { opacity: 0.3; transform: scale(0.8); }
-    50% { opacity: 1; transform: scale(1.1); }
-  }
-  .animate-twinkle {
-    animation: twinkle 3s ease-in-out infinite;
-  }
-
-  /* Padrão Bávaro (Losangos Azul/Branco) */
-  .bg-bavarian {
-    background-color: #ffffff;
-    background-image: linear-gradient(45deg, #0057B8 25%, transparent 25%, transparent 75%, #0057B8 75%, #0057B8),
-                      linear-gradient(45deg, #0057B8 25%, transparent 25%, transparent 75%, #0057B8 75%, #0057B8);
-    background-size: 40px 40px;
-    background-position: 0 0, 20px 20px;
-  }
-
-  /* Textura de Madeira para Oktoberfest */
-  .bg-wood {
-    background-color: #1c0d02;
-    background-image: 
-      linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(0,0,0,0.3) 1px, transparent 1px);
-    background-size: 80px 100%, 100% 4px;
-  }
-
-  /* Custom Calendar Status Styles */
-  .rdp-day_available {
-    background-color: rgba(44, 82, 238, 0.1) !important;
-    color: #2C52EE !important;
-    font-weight: 900 !important;
-  }
-  .rdp-day_available:hover {
-    background-color: #2C52EE !important;
-    color: #ffffff !important;
-  }
-  .rdp-day_full {
-    background-color: rgba(0, 0, 0, 0.05) !important;
-    color: rgba(0, 0, 0, 0.3) !important;
-    text-decoration: line-through !important;
-  }
-}
-
-.circular-timer-progress {
-  transition: stroke-dashoffset 1s linear;
-}
-
-/* Supressão total de indicadores de desenvolvimento do Next.js */
-nextjs-portal,
-#nextjs-portal,
-#nextjs-dev-indicator,
-.__next-dev-indicator,
-[data-nextjs-toast-wrapper],
-[data-nextjs-portal],
-#nextjs-build-activity {
-  display: none !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
-  opacity: 0 !important;
-  z-index: -99999 !important;
-}
-
-/* Estilos Globais do Leaflet */
-.leaflet-container {
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-}
-
-.leaflet-default-icon-path {
-  background-image: url(https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png);
 }

@@ -1,0 +1,39 @@
+{
+  "collection": "configurations",
+  "document": "default",
+  "fields": {
+    "logoUrl": {
+      "type": "string",
+      "description": "URL da logo principal da aplicação",
+      "optional": true
+    },
+    "brandName": {
+      "type": "string",
+      "description": "Nome da marca",
+      "optional": true,
+      "default": "Viby"
+    },
+    "primaryColor": {
+      "type": "string",
+      "description": "Cor primária em hex",
+      "optional": true,
+      "default": "#002776"
+    },
+    "secondaryColor": {
+      "type": "string",
+      "description": "Cor secundária em hex",
+      "optional": true,
+      "default": "#ffdf00"
+    },
+    "siteUrl": {
+      "type": "string",
+      "description": "URL principal do site",
+      "optional": true,
+      "default": "https://viby.club"
+    },
+    "updatedAt": {
+      "type": "timestamp",
+      "description": "Data da última atualização"
+    }
+  }
+}

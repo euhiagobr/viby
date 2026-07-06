@@ -12,19 +12,16 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 
 export const revalidate = 0;
 
-const DEFAULT_FAVICON = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FiconUrl_1780427863977?alt=media&token=1ab99264-b05c-4d1d-ab5a-0c27b7bfb77b";
-const VIBY_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2Fvibycapa.jpeg?alt=media&token=352689b1-73e0-409b-ad29-e1c5e660bac0";
-
 export const viewport: Viewport = {
-  themeColor: '#000000',
+  themeColor: '#3D5AFE',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
 };
 
 export const metadata: Metadata = {
-  title: 'Viby | Experiências Memoráveis',
-  description: 'Descubra eventos, experiências e comunidades na Viby.',
+  title: 'Viby',
+  description: 'AI-powered component search and project structure visualization.',
 };
 
 export default function RootLayout({
@@ -33,8 +30,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <body className="font-body antialiased bg-[#f8fafc] text-[#000000] flex flex-col min-h-screen">
+    <html lang="en">
+      <head>
+        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet" />
+      </head>
+      <body className="font-body antialiased bg-background text-foreground flex flex-col min-h-screen">
         <GoogleAdsTag />
         <AuthProvider>
           <I18nProvider>

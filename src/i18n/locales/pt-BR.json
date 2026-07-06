@@ -40,6 +40,11 @@
     "settings": "Configurações",
     "user_panel": "Painel de Usuário"
   },
+  "header": {
+    "announce": "Anunciar",
+    "dashboard": "Dashboard",
+    "login": "Entrar"
+  },
   "home": {
     "badge": "Descubra o que acontece agora",
     "hero_title_1": "VIVA O",

@@ -39,7 +39,7 @@ export function HomeHero({ searchName, setSearchName, searchCity, setSearchCity 
             {t('home.hero_subtitle')}
           </p>
 
-          <Card className="bg-white/10 backdrop-blur-2xl border-white/10 rounded-[3rem] p-6 md:p-8 shadow-2xl mt-12 w-full text-left">
+          <Card className="bg-black/70 backdrop-blur-2xl border-white/10 rounded-[3rem] p-6 md:p-8 shadow-2xl mt-12 w-full text-left">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
               <div className="md:col-span-4 relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />

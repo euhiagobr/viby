@@ -40,6 +40,11 @@
     "settings": "Settings",
     "user_panel": "User Panel"
   },
+  "header": {
+    "announce": "Announce",
+    "dashboard": "Dashboard",
+    "login": "Login"
+  },
   "home": {
     "badge": "Discover what's happening now",
     "hero_title_1": "LIVE THE",

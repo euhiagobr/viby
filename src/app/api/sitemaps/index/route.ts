@@ -1,4 +1,3 @@
-
 import { buildSitemapIndex, BASE_URL } from '@/lib/sitemap-utils';
 
 export const dynamic = 'force-dynamic';
@@ -12,11 +11,11 @@ export async function GET() {
   const lastmod = new Date().toISOString();
 
   const sitemaps = [
-    { loc: `${BASE_URL}/sitemap-static.xml`, lastmod },
-    { loc: `${BASE_URL}/sitemap-events.xml`, lastmod },
-    { loc: `${BASE_URL}/sitemap-experiences.xml`, lastmod },
-    { loc: `${BASE_URL}/sitemap-users.xml`, lastmod },
-    { loc: `${BASE_URL}/sitemap-cities.xml`, lastmod },
+    { loc: `${BASE_URL}/api/sitemaps/static`, lastmod },
+    { loc: `${BASE_URL}/api/sitemaps/events`, lastmod },
+    { loc: `${BASE_URL}/api/sitemaps/experiences`, lastmod },
+    { loc: `${BASE_URL}/api/sitemaps/users`, lastmod },
+    { loc: `${BASE_URL}/api/sitemaps/cities`, lastmod },
   ];
 
   return new Response(buildSitemapIndex(sitemaps), {

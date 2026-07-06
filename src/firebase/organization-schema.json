@@ -28,6 +28,7 @@
     "customOrganizerMinFee": "number (Taxa mínima em BRL customizada)",
     "customFeeStartAt": "timestamp (Início da vigência das taxas customizadas)",
     "customFeeEndAt": "timestamp (Fim da vigência das taxas customizadas)",
+    "menuLayout": "string ('lista' | 'grid')",
     "createdAt": "timestamp",
     "updatedAt": "timestamp"
   }
