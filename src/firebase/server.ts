@@ -1,7 +1,4 @@
-
 import { getAdminDb } from '@/lib/firebase/admin';
-
-const db = getAdminDb();
 
 /**
  * Busca os dados de uma organização pelo seu nome de usuário.
@@ -9,17 +6,21 @@ const db = getAdminDb();
  * @returns Os dados da organização ou null se não for encontrada.
  */
 export const getOrganizationByUsername = async (username: string) => {
+  const db = getAdminDb();
+
   const orgsCollection = db.collection('organizations');
-  const snapshot = await orgsCollection.where('username', '==', username).limit(1).get();
+  const snapshot = await orgsCollection
+    .where('username', '==', username)
+    .limit(1)
+    .get();
 
   if (snapshot.empty) {
     return null;
   }
-  
+
   const orgDoc = snapshot.docs[0];
   const orgData = orgDoc.data();
 
-  // CORREÇÃO: Construir o objeto de forma explícita para garantir a estrutura
   const organization = {
     id: orgDoc.id,
     nome: orgData.name || orgData.nome || null,
@@ -43,7 +44,6 @@ export const getOrganizationByUsername = async (username: string) => {
     preferredCurrency: orgData.preferredCurrency || 'BRL',
   };
 
-  // Garante que o objeto retornado é serializável para o client component
   return JSON.parse(JSON.stringify(organization));
 };
 
@@ -53,20 +53,35 @@ export const getOrganizationByUsername = async (username: string) => {
  * @returns Um objeto com as seções e os itens do cardápio.
  */
 export const getMenuByOrgId = async (orgId: string) => {
-    const sectionsRef = db.collection('organizations').doc(orgId).collection('menu_sections');
-    const itemsRef = db.collection('organizations').doc(orgId).collection('menu_items');
+  const db = getAdminDb();
 
-    const sectionsQuery = sectionsRef.orderBy('ordem', 'asc');
-    const itemsQuery = itemsRef.orderBy('ordem', 'asc');
+  const sectionsRef = db
+    .collection('organizations')
+    .doc(orgId)
+    .collection('menu_sections');
 
-    const [sectionsSnapshot, itemsSnapshot] = await Promise.all([
-        sectionsQuery.get(),
-        itemsQuery.get(),
-    ]);
+  const itemsRef = db
+    .collection('organizations')
+    .doc(orgId)
+    .collection('menu_items');
 
-    const sections = sectionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const items = itemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const sectionsQuery = sectionsRef.orderBy('ordem', 'asc');
+  const itemsQuery = itemsRef.orderBy('ordem', 'asc');
 
-    // Garante que os dados são serializáveis
-    return JSON.parse(JSON.stringify({ sections, items }));
-}
+  const [sectionsSnapshot, itemsSnapshot] = await Promise.all([
+    sectionsQuery.get(),
+    itemsQuery.get(),
+  ]);
+
+  const sections = sectionsSnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  const items = itemsSnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  return JSON.parse(JSON.stringify({ sections, items }));
+};

@@ -188,3 +188,21 @@ export async function dispatchCrmCampaignAction(campaignId: string, adminUid: st
     return { success: false, error: e.message };
   }
 }
+
+export async function toggleAutomationAction(ruleId: string, active: boolean) {
+  const db = getAdminDb();
+
+  try {
+    await db.collection("crm_automation_rules").doc(ruleId).update({
+      active,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (e: any) {
+    return {
+      success: false,
+      error: e.message,
+    };
+  }
+}
