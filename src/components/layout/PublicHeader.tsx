@@ -119,9 +119,14 @@ export function PublicHeader({ texts = {}, showBack = false }: PublicHeaderProps
               </button>
             </div>
           ) : (
-            <Button asChild variant="outline" className="rounded-full h-10 border-white/20 text-white hover:bg-white/10 font-black uppercase text-[10px] px-6">
-              <Link href="/login">{headerTexts.login}</Link>
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button asChild variant="outline" className="rounded-full h-10 border-white/20 text-black hover:bg-white/10 font-black uppercase text-[10px] px-6">
+                <Link href="/login">{headerTexts.login}</Link>
+              </Button>
+              <Button asChild variant="outline" className="rounded-full h-10 border-white/20 text-black hover:bg-white/10 font-black uppercase text-[10px] px-6">
+                <Link href="/cadastro">Cadastre-se</Link>
+              </Button>
+            </div>
           )}
 
           {/* Mobile Menu Toggle */}
