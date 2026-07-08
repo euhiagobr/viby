@@ -4,6 +4,7 @@
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { calculateRefundAmount, calculateRetainedGatewayFee } from '@/lib/financial-utils';
+import { hasEventEnded } from '@/lib/ticket-expiry';
 import { recordAuditLog } from './audit';
 
 /**
@@ -35,6 +36,13 @@ export async function processTicketRefund(registrationId: string, executorUid: s
       if (!isAdmin && !isOrgManager) throw new Error("Acesso negado.");
       if (regData.status === 'cancelled' || regData.status === 'refunded' || regData.paymentStatus === 'Estornado' || regData.paymentStatus === 'Cancelado') throw new Error("Já estornado ou cancelado.");
       if (regData.checkedIn) throw new Error("Ingresso já utilizado.");
+
+      // Validar se evento já terminou
+      const eventEndDate = regData.eventEndDate || regData.eventDate;
+      const eventEndTime = regData.eventEndTime;
+      if (eventEndDate && hasEventEnded(eventEndDate, eventEndTime)) {
+        throw new Error("Ingressos de eventos finalizados não podem ser estornados.");
+      }
 
       const occurrenceId = regData.occurrenceId;
       const productType = regData.productType || 'event';

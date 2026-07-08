@@ -22,14 +22,21 @@ import Link from "next/link"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { hasEventEnded } from "@/lib/ticket-expiry"
 import { resendTicketAction } from "@/app/actions/tickets"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { ReviewModal } from "@/components/experiences/ReviewModal"
+import { TransferTicketModal } from "@/components/tickets/TransferTicketModal"
+import { TicketTransferCard } from "@/components/tickets/TicketTransferCard"
+import { Send } from "lucide-react"
 
 export default function MeusIngressosPage() {
   const db = useFirestore()
   const auth = useAuth()
   const { user, profile } = useUser(auth)
+  const [transferModalOpen, setTransferModalOpen] = React.useState(false)
+  const [selectedRegistration, setSelectedRegistration] = React.useState<any>(null)
+  const [refreshKey, setRefreshKey] = React.useState(0)
 
   const registrationsQuery = useMemoFirebase(() => {
     if (!db || !user) return null
@@ -64,6 +71,9 @@ export default function MeusIngressosPage() {
         <p className="text-muted-foreground font-medium">Sua coleção de experiências e histórico de acessos.</p>
       </div>
 
+      {/* Seção de Transferências Pendentes */}
+      {user && <TransfersPendingSection userId={user.uid} refreshKey={refreshKey} />}
+
       {myOwned.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[2.5rem] border-2 border-dashed border-border gap-6 shadow-sm">
           <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center">
@@ -80,15 +90,75 @@ export default function MeusIngressosPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {myOwned.map((reg) => (
-            <TicketListItem key={reg.id} registration={reg} isAdmin={isAdmin} />
+            <TicketListItem 
+              key={reg.id} 
+              registration={reg} 
+              isAdmin={isAdmin}
+              onTransferClick={() => {
+                setSelectedRegistration(reg)
+                setTransferModalOpen(true)
+              }}
+            />
           ))}
         </div>
+      )}
+
+      {/* Transfer Modal */}
+      {selectedRegistration && user && (
+        <TransferTicketModal
+          isOpen={transferModalOpen}
+          onOpenChange={setTransferModalOpen}
+          registrationId={selectedRegistration.id}
+          userId={user.uid}
+          eventTitle={selectedRegistration.eventTitle}
+          userCountry={profile?.country || 'BR'}
+          onSuccess={() => {
+            setTransferModalOpen(false)
+            setSelectedRegistration(null)
+            setRefreshKey(prev => prev + 1)
+          }}
+        />
       )}
     </div>
   )
 }
 
-function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin: boolean }) {
+function TransfersPendingSection({ userId, refreshKey }: { userId: string, refreshKey: number }) {
+  const db = useFirestore()
+
+  const transfersQuery = useMemoFirebase(() => {
+    if (!db || !userId) return null
+    return query(
+      collection(db, "ticket_transfers"),
+      where("status", "==", "pending")
+    )
+  }, [db, userId, refreshKey])
+
+  const { data: allTransfers, loading: transfersLoading } = useCollection<any>(transfersQuery)
+
+  if (transfersLoading) return null
+  if (!allTransfers || allTransfers.length === 0) return null
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-lg font-black uppercase italic text-primary">Transferências Recebidas</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {allTransfers.map((transfer) => (
+          <TicketTransferCard
+            key={transfer.id}
+            transfer={transfer}
+            userId={userId}
+            onActionSuccess={() => {
+              // Refresh happens through Firestore subscription
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function TicketListItem({ registration, isAdmin, onTransferClick }: { registration: any, isAdmin: boolean, onTransferClick?: () => void }) {
   const { formatPriceWithOriginal } = useCurrency()
   const [isSendingEmail, setIsSendingEmail] = React.useState(false)
   const [isReviewOpen, setIsReviewOpen] = React.useState(false)
@@ -97,9 +167,18 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
   const isCancelled = registration.status === 'cancelled' || registration.paymentStatus === 'Cancelado';
   const isCheckedIn = registration.checkedIn === true;
   const isPending = registration.paymentStatus === 'Pendente';
+  
+  // Validar se evento já terminou (mas NUNCA se já foi utilizado)
+  const eventEndDate = registration.eventEndDate || registration.eventDate;
+  const eventEndTime = registration.eventEndTime;
+  const isExpired = React.useMemo(() => {
+    // PRIORIDADE: Se foi utilizado, nunca é expirado
+    if (isCheckedIn) return false;
+    return eventEndDate ? hasEventEnded(eventEndDate, eventEndTime) : false;
+  }, [eventEndDate, eventEndTime, isCheckedIn]);
 
   const canReview = React.useMemo(() => {
-    if (isRefunded || isCancelled || registration.ratingSubmitted) return false;
+    if (isRefunded || isCancelled || isExpired || registration.ratingSubmitted) return false;
     if (registration.productType !== 'experience') return false;
     
     // MODO TESTE: Administradores podem avaliar a qualquer momento
@@ -112,10 +191,10 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
     const now = new Date();
     const diff = now.getTime() - checkinDate.getTime();
     return diff >= 24 * 60 * 60 * 1000;
-  }, [isCheckedIn, isRefunded, isCancelled, registration, isAdmin]);
+  }, [isCheckedIn, isRefunded, isCancelled, isExpired, registration, isAdmin]);
 
   const handleResend = async () => {
-    if (isRefunded || isCancelled || isSendingEmail) return;
+    if (isRefunded || isCancelled || isExpired || isSendingEmail) return;
     setIsSendingEmail(true);
     try {
       const result = await resendTicketAction(registration.id);
@@ -135,7 +214,7 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
   return (
     <Card className={cn(
       "overflow-hidden border-none shadow-sm transition-all rounded-[1.5rem] bg-white flex flex-col sm:flex-row group",
-      (isRefunded || isCancelled) && "opacity-60 grayscale-[0.5] bg-muted/20"
+      (isRefunded || isCancelled || isExpired) && "opacity-60 grayscale-[0.5] bg-muted/20"
     )}>
       <div className="relative w-full sm:w-44 h-40 sm:h-auto bg-muted">
         <Image 
@@ -148,13 +227,14 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
         <div className="absolute bottom-3 left-3">
            <Badge className={cn(
              "border-none text-[10px] font-black uppercase px-3 shadow-md",
+             isExpired ? "bg-slate-400 text-white" :
              isRefunded ? "bg-red-500 text-white" : 
              isCancelled ? "bg-slate-600 text-white" :
              isCheckedIn ? "bg-primary text-white" :
              isPending ? "bg-orange-50 text-orange-600" :
              "bg-green-600 text-white"
            )}>
-             {isRefunded ? "Estornado" : isCancelled ? "Cancelado" : isCheckedIn ? "Utilizado" : isPending ? "Pendente" : "Confirmado"}
+             {isExpired ? "Expirado" : isRefunded ? "Estornado" : isCancelled ? "Cancelado" : isCheckedIn ? "Utilizado" : isPending ? "Pendente" : "Confirmado"}
            </Badge>
         </div>
       </div>
@@ -164,7 +244,7 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
           <div className="flex justify-between items-start">
             <h3 className={cn(
               "font-black text-lg leading-tight uppercase italic text-primary leading-tight line-clamp-2",
-              !(isRefunded || isCancelled) && "group-hover:text-secondary"
+              !(isRefunded || isCancelled || isExpired) && "group-hover:text-secondary"
             )}>
               {registration.eventTitle}
             </h3>
@@ -201,16 +281,21 @@ function TicketListItem({ registration, isAdmin }: { registration: any, isAdmin:
                 <Star className="w-3 h-3 mr-1.5 fill-current" /> Avaliar Experiência
               </Button>
             )}
-            {!(isRefunded || isCancelled) && !isPending && (
-              <Button size="sm" variant="outline" onClick={handleResend} disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
-                {isSendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-              </Button>
+            {!(isRefunded || isCancelled || isExpired) && !isPending && (
+              <>
+                <Button size="sm" onClick={onTransferClick} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl bg-secondary text-white hover:bg-secondary/90">
+                  <Send className="w-3.5 h-3.5" />
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleResend} disabled={isSendingEmail} className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-secondary text-secondary">
+                  {isSendingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
+                </Button>
+              </>
             )}
             <Button size="sm" className={cn(
               "h-9 px-4 text-[10px] font-black uppercase rounded-xl",
-              (isRefunded || isCancelled) ? "bg-muted text-muted-foreground" : "bg-primary text-white"
-            )} asChild={!(isRefunded || isCancelled)}>
-              {(isRefunded || isCancelled) ? (
+              (isRefunded || isCancelled || isExpired) ? "bg-muted text-muted-foreground" : "bg-primary text-white"
+            )} asChild={!(isRefunded || isCancelled || isExpired)}>
+              {(isRefunded || isCancelled || isExpired) ? (
                 <span className="flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5" /> Inválido</span>
               ) : (
                 <Link href={`/dashboard/ingressos/${registration.id}/voucher`}>

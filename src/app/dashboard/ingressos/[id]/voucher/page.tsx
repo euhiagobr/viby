@@ -7,6 +7,7 @@ import { doc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { hasEventEnded } from "@/lib/ticket-expiry"
 import { 
   Loader2, 
   ArrowLeft, 
@@ -87,7 +88,17 @@ export default function VoucherPage() {
 
   const isCancelled = registration.status === 'cancelled' || registration.status === 'refunded' || registration.status === 'Cancelado' || registration.paymentStatus === 'Estornado';
   const isUsed = registration.status === 'used' || registration.checkedIn === true;
-  const canShowQR = registration.userId === user?.uid && !isCancelled;
+  
+  // Validar se evento já terminou (mas NUNCA se já foi utilizado)
+  const eventEndDate = registration.eventEndDate || registration.eventDate;
+  const eventEndTime = registration.eventEndTime;
+  const isExpired = React.useMemo(() => {
+    // PRIORIDADE: Se foi utilizado, nunca é expirado
+    if (isUsed) return false;
+    return eventEndDate ? hasEventEnded(eventEndDate, eventEndTime) : false;
+  }, [eventEndDate, eventEndTime, isUsed]);
+  
+  const canShowQR = registration.userId === user?.uid && !isCancelled && !isExpired && !isUsed;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 pt-6 px-4">
@@ -115,30 +126,14 @@ export default function VoucherPage() {
               <Image src={registration.eventImage || "https://picsum.photos/seed/event/800/600"} alt={registration.eventTitle} fill className="object-cover" unoptimized />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
               <div className="absolute bottom-6 left-8">
-                <Badge className={cn("text-[10px] font-black uppercase px-3 h-5 border-none shadow-lg", isCancelled ? "bg-destructive text-white" : isUsed ? "bg-primary text-white" : "bg-secondary text-white")}>
-                  {isCancelled ? "Cancelado" : isUsed ? "Utilizado" : (registration.batchName || "Ativo")}
+                <Badge className={cn("text-[10px] font-black uppercase px-3 h-5 border-none shadow-lg", isExpired ? "bg-slate-400 text-white" : isCancelled ? "bg-destructive text-white" : isUsed ? "bg-primary text-white" : "bg-secondary text-white")}>
+                  {isExpired ? "Expirado" : isCancelled ? "Cancelado" : isUsed ? "Utilizado" : (registration.batchName || "Ativo")}
                 </Badge>
                 <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter mt-2 line-clamp-2">{registration.eventTitle}</h1>
               </div>
             </div>
 
             <CardContent className="p-8 space-y-8">
-              <div className="grid grid-cols-2 gap-8">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Data</p>
-                  <div className="flex items-center gap-2 font-bold text-xs text-primary"><Calendar className="w-3.5 h-3.5 text-secondary" /> {formatDate(registration.eventDate)}</div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Horário</p>
-                  <div className="flex items-center gap-2 font-bold text-xs text-primary"><Clock className="w-3.5 h-3.5 text-secondary" /> {formatTime(registration.eventDate)}</div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Local</p>
-                <div className="flex items-start gap-2 font-bold text-sm text-primary"><MapPin className="w-3.5 h-3.5 text-secondary shrink-0 mt-0.5" /> <span className="line-clamp-1">{registration.eventCity}</span></div>
-              </div>
-
               <div className="pt-6 border-t border-dashed border-border/60 space-y-6">
                 <div className="flex justify-between items-end">
                   <div className="space-y-1">

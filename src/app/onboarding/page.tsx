@@ -13,7 +13,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Check, X, ShieldCheck, Fingerprint, Lock as LockIcon, AtSign } from "lucide-react";
 import { cn, validateCPF, validateUsername } from "@/lib/utils";
-import { hashCPF } from "@/lib/crypto-utils";
+import { hashCPF, hashDocument } from "@/lib/identity-utils";
+import { hashCPF as hashCPFLegacy } from "@/lib/crypto-utils";
 import { updateUserCPF } from "@/app/actions/user";
 import { Separator } from "@/components/ui/separator";
 
@@ -110,10 +111,41 @@ export default function OnboardingPage() {
     const timer = setTimeout(async () => {
       try {
         const hash = hashCPF(cleanCPF);
-        const q = query(collection(db, "users"), where("cpfHash", "==", hash), limit(1));
-        const snap = await getDocs(q);
-        const isMine = !snap.empty && snap.docs[0].id === user?.uid;
-        setCPFStatus((snap.empty || isMine) ? 'valid' : 'taken');
+        const hashLegacy = hashCPFLegacy(cleanCPF);
+        
+        // Buscar em /users (legacy) com hash NOVO
+        const usersQuery = query(collection(db, "users"), where("cpfHash", "==", hash), limit(1));
+        const usersSnap = await getDocs(usersQuery);
+        const isMine = !usersSnap.empty && usersSnap.docs[0].id === user?.uid;
+        
+        if (!usersSnap.empty && !isMine) {
+          setCPFStatus('taken');
+          return;
+        }
+        
+        // Buscar em /users com hash LEGADO (compatibilidade com contas antigas)
+        const usersQueryLegacy = query(collection(db, "users"), where("cpfHash", "==", hashLegacy), limit(1));
+        const usersSnapLegacy = await getDocs(usersQueryLegacy);
+        const isMineLegacy = !usersSnapLegacy.empty && usersSnapLegacy.docs[0].id === user?.uid;
+        
+        if (!usersSnapLegacy.empty && !isMineLegacy) {
+          setCPFStatus('taken');
+          return;
+        }
+        
+        // Buscar em /user_identities (BR:CPF modern)
+        const docHash = hashDocument(cleanCPF, 'BR', 'CPF');
+        const identitiesQuery = query(collection(db, "user_identities"), where("documentHash", "==", docHash), limit(1));
+        const identitiesSnap = await getDocs(identitiesQuery);
+        
+        if (!identitiesSnap.empty) {
+          // Verifica se a identidade é do usuário atual
+          const identityUserId = identitiesSnap.docs[0].data().userId;
+          const isMyIdentity = identityUserId === user?.uid;
+          setCPFStatus(isMyIdentity ? 'valid' : 'taken');
+        } else {
+          setCPFStatus('valid');
+        }
       } catch (e) {
         setCPFStatus('idle');
       } finally {

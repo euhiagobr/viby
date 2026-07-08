@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { hashCPF, maskCPF } from '@/lib/crypto-utils';
+import { hashCPF as hashCPFLegacy, maskCPF } from '@/lib/crypto-utils';
+import { hashCPF } from '@/lib/identity-utils';
+import { hasEventEnded } from '@/lib/ticket-expiry';
 import crypto from 'crypto';
 import * as admin from 'firebase-admin';
 
@@ -70,13 +72,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Invalid CPF format" }, { status: 400 });
     }
 
-    const hashedCpf = hashCPF(cleanCpf);
+    const hashedCpfNew = hashCPF(cleanCpf);
+    const hashedCpfLegacy = hashCPFLegacy(cleanCpf);
 
-    // 4. Localizar Usuário pelo CPF Hash
-    const usersSnap = await db.collection("users")
-      .where("cpfHash", "==", hashedCpf)
+    // 4. Localizar Usuário pelo CPF Hash (novo e legado)
+    let usersSnap = await db.collection("users")
+      .where("cpfHash", "==", hashedCpfNew)
       .limit(1)
       .get();
+
+    if (usersSnap.empty) {
+      usersSnap = await db.collection("users")
+        .where("cpfHash", "==", hashedCpfLegacy)
+        .limit(1)
+        .get();
+    }
 
     if (usersSnap.empty) {
       return NextResponse.json({ success: false }, { status: 404 });
@@ -110,6 +120,20 @@ export async function POST(req: Request) {
     } else {
       const expDoc = await db.collection("experiences").doc(eventId).get();
       if (expDoc.exists) eventData = expDoc.data();
+    }
+
+    // 7. Validar se Evento Já Terminou (mas NÃO se ingresso já foi utilizado)
+    // PRIORIDADE: Utilizado > Expirado
+    const isCheckedIn = reg.checkedIn === true;
+    const eventEndDate = eventData?.endDate || eventData?.date;
+    const eventEndTime = eventData?.endTime;
+    
+    if (!isCheckedIn && eventEndDate && hasEventEnded(eventEndDate, eventEndTime)) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Este evento já terminou",
+        ticketStatus: "expired"
+      }, { status: 410 }); // 410 Gone - recurso não disponível
     }
 
     const ticketResponse = {

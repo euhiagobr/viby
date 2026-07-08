@@ -38,6 +38,56 @@ service cloud.firestore {
       );
     }
 
+    // --- NOVAS REGRAS: IDENTIDADES INTERNACIONAIS (Phase 1) ---
+
+    // Identidades Internacionais de Usuários
+    match /user_identities/{identityId} {
+      // Usuário lê suas próprias identidades (mascaradas)
+      allow read: if isOwner(resource.data.userId);
+      
+      // Usuário cria suas próprias identidades (inicialmente inativas)
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      
+      // Usuário atualiza APENAS campos de perfil (BLOQUEADO: userId, documentHash, documentMasked, verificationStatus, verificationLevel, isActive, createdAt, verifiedAt)
+      allow update: if isOwner(resource.data.userId) && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'userId',              // Imutável: vinculação à conta
+          'documentHash',        // Imutável: identificação do documento
+          'documentMasked',      // Imutável: identificação mascarada
+          'verificationStatus',  // Imutável: apenas Cloud Functions/Admin
+          'verificationLevel',   // Imutável: apenas Cloud Functions/Admin
+          'isActive',            // Imutável: apenas Cloud Functions/Admin
+          'createdAt',           // Imutável: auditoria
+          'verifiedAt'           // Imutável: auditoria
+        ]);
+      
+      // Admin: leitura para validação de unicidade (via documentHash)
+      allow read: if isAdmin();
+      
+      // Admin/Cloud Functions: atualização de verificationStatus, verificationLevel, isActive, verifiedAt
+      allow update: if isAdmin();
+      
+      // Admin: deleção para auditoria
+      allow delete: if isAdmin();
+    }
+
+    // Transferências de Ingressos (Phase 1: estrutura vazia, bloqueada)
+    match /ticket_transfers/{transferId} {
+      // Leitura permitida para usuários com stake (futuro: Phase 5)
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.fromUserId || 
+        request.auth.uid == resource.data.toUserId
+      );
+      // Admin pode ler tudo
+      allow read: if isAdmin();
+      // Criação BLOQUEADA até Phase 5
+      allow create: if false;
+      // Atualização BLOQUEADA até Phase 5
+      allow update: if false;
+      // Admin pode deletar (auditoria)
+      allow delete: if isAdmin();
+    }
+
     // --- REGRAS PÚBLICAS (Acesso de leitura para todos) ---
 
     // Avaliações de Experiência

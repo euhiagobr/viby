@@ -8,15 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth, useUser, useFirestore } from "@/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Check, X, AtSign, Fingerprint, Lock as LockIcon, User, Mail } from "lucide-react";
+import { Loader2, Check, X, AtSign, Fingerprint, Lock as LockIcon, User, Mail, Globe } from "lucide-react";
 import { FirebaseError } from "firebase/app";
 import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { validateCPF, validateUsername } from "@/lib/utils";
-import { hashCPF } from "@/lib/crypto-utils";
-import { finalizeUserRegistration } from "@/app/actions/user";
+import { hashCPF, hashDocument } from "@/lib/identity-utils";
+import { hashCPF as hashCPFLegacy } from "@/lib/crypto-utils";
+import { createUserWithValidation } from "@/app/actions/user";
 import {
   Select,
   SelectContent,
@@ -25,16 +25,63 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { InternationalDocumentField } from "./InternationalDocumentField";
+import { isSupportedCountry, isSupportedDocumentType, isValidDocumentFormat } from "@/lib/identity-utils";
+import { getDocumentTypesForCountry, getSupportedCountries } from "@/lib/identity-validation";
 
+// Zod schema com campos opcionais para identidade internacional
 const formSchema = z.object({
   name: z.string().min(2, { message: "Informe seu nome completo." }),
   username: z.string()
     .min(5, "O nome de usuário deve ter no mínimo 5 caracteres.")
     .regex(/^[a-z0-9._]+$/, "Somente minúsculas, números, ponto e underline"),
-  cpf: z.string().length(11, "CPF deve ter 11 dígitos"),
+  cpf: z.string().length(11, "CPF deve ter 11 dígitos").optional().or(z.literal("")),
   email: z.string().email({ message: "E-mail inválido." }),
   gender: z.string().min(1, "Selecione seu gênero"),
   password: z.string().min(6, { message: "A senha deve ter pelo menos 6 caracteres." }),
+  // Phase 3: Novos campos para cadastro internacional
+  country: z.string().optional(),
+  documentType: z.string().optional(),
+  documentValue: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // Se feature flag está ativa e país é Brasil, exigir CPF
+  if (isFeatureEnabled('enableInternationalSignup') && data.country === 'BR') {
+    if (!data.cpf || data.cpf.length !== 11) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['cpf'],
+        message: 'CPF deve ter 11 dígitos',
+      });
+    }
+  }
+  // Se feature flag está ativa e país não é Brasil, exigir documento
+  else if (isFeatureEnabled('enableInternationalSignup') && data.country && data.country !== 'BR') {
+    if (!data.documentType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['documentType'],
+        message: 'Selecione o tipo de documento',
+      });
+    }
+    if (!data.documentValue) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['documentValue'],
+        message: 'Informe o número do documento',
+      });
+    }
+  }
+  // Se feature flag está desativa, exigir CPF (compatibilidade)
+  else if (!isFeatureEnabled('enableInternationalSignup')) {
+    if (!data.cpf || data.cpf.length !== 11) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['cpf'],
+        message: 'CPF deve ter 11 dígitos',
+      });
+    }
+  }
 });
 
 interface SignUpFormProps {
@@ -46,11 +93,14 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
   const db = useFirestore();
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(false);
+  const internationalSignupEnabled = isFeatureEnabled('enableInternationalSignup');
   
   const [checkingUsername, setCheckingUsername] = React.useState(false);
   const [usernameStatus, setUsernameStatus] = React.useState<'idle' | 'valid' | 'taken' | 'invalid'>('idle');
-  const [checkingCPF, setCheckingCPF] = React.useState(false);
-  const [cpfStatus, setCPFStatus] = React.useState<'idle' | 'valid' | 'taken' | 'invalid'>('idle');
+  const [checkingDocument, setCheckingDocument] = React.useState(false);
+  const [documentStatus, setDocumentStatus] = React.useState<'idle' | 'valid' | 'taken' | 'invalid'>('idle');
+
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -61,11 +111,141 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
       email: "",
       gender: "",
       password: "",
+      country: internationalSignupEnabled ? "BR" : undefined,
+      documentType: "",
+      documentValue: "",
     },
   });
 
   const watchUsername = form.watch("username");
+  const watchCountry = form.watch("country");
+  const watchDocumentType = form.watch("documentType");
+  const watchDocumentValue = form.watch("documentValue");
   const watchCPF = form.watch("cpf");
+
+  // Validação de Username
+  React.useEffect(() => {
+    const cleanUsername = watchUsername?.toLowerCase().trim();
+    
+    if (!db || !cleanUsername || cleanUsername.length < 5) {
+      setUsernameStatus('idle');
+      return;
+    }
+    
+    if (!validateUsername(cleanUsername)) {
+      setUsernameStatus('invalid');
+      return;
+    }
+
+    setCheckingUsername(true);
+    const timer = setTimeout(async () => {
+      try {
+        const usernameRef = doc(db, "usernames", cleanUsername);
+        const snap = await getDoc(usernameRef);
+        setUsernameStatus(snap.exists() ? 'taken' : 'valid');
+      } catch (e) {
+        setUsernameStatus('idle');
+      } finally {
+        setCheckingUsername(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [watchUsername, db]);
+
+  // Validação de Documento (CPF ou Internacional)
+  React.useEffect(() => {
+    if (!db) return;
+
+    const documentToCheck = internationalSignupEnabled && watchCountry && watchCountry !== 'BR'
+      ? watchDocumentValue
+      : watchCPF;
+
+    if (!documentToCheck) {
+      setDocumentStatus('idle');
+      return;
+    }
+
+    // Validação básica de formato
+    if (internationalSignupEnabled && watchCountry && watchCountry !== 'BR') {
+      if (!watchDocumentType || !isValidDocumentFormat(documentToCheck, watchCountry, watchDocumentType)) {
+        setDocumentStatus('invalid');
+        return;
+      }
+    } else {
+      // CPF
+      const cleanCPF = documentToCheck.replace(/\D/g, "");
+      if (!validateCPF(cleanCPF)) {
+        setDocumentStatus('invalid');
+        return;
+      }
+    }
+
+    setCheckingDocument(true);
+    const timer = setTimeout(async () => {
+      try {
+        if (internationalSignupEnabled && watchCountry && watchCountry !== 'BR') {
+          // CPF INTERNACIONAL
+          const hash = hashDocument(documentToCheck, watchCountry, watchDocumentType);
+          const q = query(
+            collection(db, "user_identities"),
+            where("documentHash", "==", hash),
+            limit(1)
+          );
+          const snap = await getDocs(q);
+          setDocumentStatus(snap.empty ? 'valid' : 'taken');
+        } else {
+          // CPF BRASIL - BUSCAR EM AMBAS AS COLEÇÕES + HASHES (compatibilidade legada)
+          const cleanCPF = documentToCheck.replace(/\D/g, "");
+          const hashNew = hashCPF(cleanCPF);
+          const hashLegacy = hashCPFLegacy(cleanCPF);
+          
+          // Buscar em /users com hash NOVO
+          const usersQueryNew = query(
+            collection(db, "users"),
+            where("cpfHash", "==", hashNew),
+            limit(1)
+          );
+          const usersSnapNew = await getDocs(usersQueryNew);
+          
+          // Buscar em /users com hash LEGADO (compatibilidade)
+          const usersQueryLegacy = query(
+            collection(db, "users"),
+            where("cpfHash", "==", hashLegacy),
+            limit(1)
+          );
+          const usersSnapLegacy = await getDocs(usersQueryLegacy);
+          
+          if (!usersSnapNew.empty || !usersSnapLegacy.empty) {
+            setDocumentStatus('taken');
+            return;
+          }
+
+          // Buscar em /user_identities (BR:CPF modern)
+          const docHash = hashDocument(cleanCPF, 'BR', 'CPF');
+          const identitiesQuery = query(
+            collection(db, "user_identities"),
+            where("documentHash", "==", docHash),
+            limit(1)
+          );
+          const identitiesSnap = await getDocs(identitiesQuery);
+          
+          // Verifica se a identidade está ativa (isActive: true)
+          if (!identitiesSnap.empty && identitiesSnap.docs[0].data().isActive !== false) {
+            setDocumentStatus('taken');
+          } else {
+            setDocumentStatus('valid');
+          }
+        }
+      } catch (e) {
+        console.error('[SignUpForm] Erro ao verificar documento:', e);
+        // Se houver erro, não deixa passar! Fica como 'invalid' pra bloquear o botão
+        setDocumentStatus('invalid');
+      } finally {
+        setCheckingDocument(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [watchCPF, watchCountry, watchDocumentType, watchDocumentValue, db, internationalSignupEnabled]);
 
   React.useEffect(() => {
     const cleanUsername = watchUsername?.toLowerCase().trim();
@@ -95,57 +275,44 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
     return () => clearTimeout(timer);
   }, [watchUsername, db]);
 
-  React.useEffect(() => {
-    if (!db || !watchCPF || watchCPF.length < 11) {
-      setCPFStatus('idle');
-      return;
-    }
-    const clean = watchCPF.replace(/\D/g, "");
-    if (!validateCPF(clean)) {
-      setCPFStatus('invalid');
-      return;
-    }
-    setCheckingCPF(true);
-    const timer = setTimeout(async () => {
-      try {
-        const hash = hashCPF(clean);
-        const q = query(collection(db, "users"), where("cpfHash", "==", hash), limit(1));
-        const snap = await getDocs(q);
-        setCPFStatus(snap.empty ? 'valid' : 'taken');
-      } catch (e) {
-        setCPFStatus('idle');
-      } finally {
-        setCheckingCPF(false);
-      }
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [watchCPF, db]);
-
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (usernameStatus !== 'valid' || cpfStatus !== 'valid') {
-      toast({ variant: "destructive", title: "Verifique os dados", description: "Username ou CPF inválidos." });
+    // Validar status
+    if (usernameStatus !== 'valid' || documentStatus !== 'valid') {
+      toast({ variant: "destructive", title: "Verifique os dados", description: "Dados do cadastro inválidos ou em uso." });
       return;
     }
 
     setIsLoading(true);
     try {
-      if (!auth || !db) throw new Error("Serviço de rede indisponível.");
-      
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-
-      const registrationRes = await finalizeUserRegistration({
-        uid: user.uid,
+      // Preparar payload para createUserWithValidation
+      const createPayload: any = {
         email: values.email,
+        password: values.password,
         name: values.name,
         username: values.username,
-        cpf: values.cpf,
         gender: values.gender,
-        referredBy: referredBy || undefined
-      });
+        referredBy: referredBy || undefined,
+      };
 
-      if (!registrationRes.success) {
-        throw new Error(registrationRes.error);
+      // Adicionar documento conforme tipo
+      if (internationalSignupEnabled && values.country && values.country !== 'BR') {
+        // Phase 3: Cadastro internacional
+        createPayload.country = values.country;
+        createPayload.documentType = values.documentType;
+        createPayload.documentValue = values.documentValue;
+      } else {
+        // Phase 1/2: Cadastro CPF (Brasil)
+        createPayload.cpf = values.cpf;
+      }
+
+      // Chamar ação no servidor que faz TUDO:
+      // 1. Validação de CPF duplicado
+      // 2. Criar usuário no Firebase Auth
+      // 3. Salvar no Firestore
+      const createRes = await createUserWithValidation(createPayload);
+
+      if (!createRes.success) {
+        throw new Error(createRes.error);
       }
 
       toast({ title: "Bem-vindo à Viby!", description: "Sua conta foi criada com sucesso." });
@@ -211,33 +378,99 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="cpf"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">CPF (11 dígitos)</FormLabel>
-                <div className="relative">
-                  <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
-                  <FormControl>
-                    <Input 
-                      placeholder="000.000.000-00" 
-                      className="h-14 rounded-2xl pl-12 pr-10 font-mono border-dashed border-primary/20" 
-                      {...field} 
-                      onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").substring(0, 11))}
-                    />
-                  </FormControl>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {checkingCPF ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
-                    cpfStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
-                    (cpfStatus === 'taken' || cpfStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
-                  </div>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {/* Phase 3: País (se flag ativa) */}
+          {internationalSignupEnabled && (
+            <FormField
+              control={form.control}
+              name="country"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">País</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="h-14 rounded-2xl border-dashed border-primary/20">
+                        <div className="flex items-center gap-2">
+                          <Globe className="w-4 h-4" />
+                          <SelectValue placeholder="Selecione seu país" />
+                        </div>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {getSupportedCountries().map((country) => {
+                        const countryNames: Record<string, string> = {
+                          BR: '🇧🇷 Brasil',
+                          AR: '🇦🇷 Argentina',
+                          US: '🇺🇸 Estados Unidos',
+                          ES: '🇪🇸 Espanha',
+                          PT: '🇵🇹 Portugal',
+                        };
+                        return (
+                          <SelectItem key={country} value={country}>
+                            {countryNames[country] || country}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
+
+        {/* Phase 3: Renderização condicional - CPF ou Documento Internacional */}
+        {internationalSignupEnabled && watchCountry && watchCountry !== 'BR' ? (
+          <InternationalDocumentField
+            country={watchCountry}
+            form={form}
+            isChecking={checkingDocument}
+            validationStatus={documentStatus}
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="cpf"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">CPF (11 dígitos)</FormLabel>
+                  <div className="relative">
+                    <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
+                    <FormControl>
+                      <Input 
+                        placeholder="000.000.000-00" 
+                        className="h-14 rounded-2xl pl-12 pr-10 font-mono border-dashed border-primary/20" 
+                        {...field} 
+                        onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").substring(0, 11))}
+                      />
+                    </FormControl>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {checkingDocument ? <Loader2 className="w-4 h-4 animate-spin text-secondary" /> : 
+                      documentStatus === 'valid' ? <Check className="w-4 h-4 text-green-500" /> : 
+                      (documentStatus === 'taken' || documentStatus === 'invalid') ? <X className="w-4 h-4 text-destructive" /> : null}
+                    </div>
+                  </div>
+                  <FormMessage />
+                  {documentStatus === 'valid' && (
+                    <p className="text-xs text-muted-foreground px-1">
+                      ℹ️ Seu CPF será usado para identificar seus ingressos
+                    </p>
+                  )}
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+
+        {/* Mensagem informativa para cadastro internacional */}
+        {internationalSignupEnabled && watchCountry && watchCountry !== 'BR' && documentStatus === 'valid' && (
+          <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+            <p className="text-xs text-blue-900">
+              ℹ️ Usaremos seu documento nacional para garantir a segurança da sua conta e ingressos.
+            </p>
+          </div>
+        )}
 
         <FormField
           control={form.control}
@@ -299,7 +532,7 @@ export function SignUpForm({ referredBy }: SignUpFormProps) {
 
         <Button 
           type="submit" 
-          disabled={isLoading || usernameStatus !== 'valid' || cpfStatus !== 'valid'} 
+          disabled={isLoading || usernameStatus !== 'valid' || documentStatus !== 'valid'} 
           className="w-full bg-secondary text-white font-black h-20 rounded-[2rem] shadow-xl uppercase italic text-xl transition-all hover:scale-[1.02] shadow-secondary/30 mt-4 active:scale-95"
         >
           {isLoading ? <Loader2 className="mr-2 h-8 w-8 animate-spin" /> : "Concluir Cadastro"}

@@ -1,0 +1,55 @@
+{
+  "startTime": 1783461826578,
+  "endTime": 1783461828109,
+  "durationMs": 1531,
+  "dryRun": true,
+  "batchSize": 50,
+  "totalProcessed": 6,
+  "migrated": 0,
+  "skipped": 6,
+  "errors": 0,
+  "results": [
+    {
+      "userId": "AYDfrxSFQrZpj3zLg7m9eTQaq7a2",
+      "status": "skipped",
+      "reason": "Já migrado"
+    },
+    {
+      "userId": "AqTVL8VRTZT435pZudkObzMGsrR2",
+      "status": "skipped",
+      "reason": "Já migrado"
+    },
+    {
+      "userId": "ESqCjgcHGGUK4kqSFC1DcVHn78C2",
+      "status": "skipped",
+      "reason": "Já migrado"
+    },
+    {
+      "userId": "TnpilUkUFyblIIjNfWcngBTj40u1",
+      "status": "skipped",
+      "reason": "Já migrado"
+    },
+    {
+      "userId": "czkelayGimSMfoYLi4HETEsnizZ2",
+      "status": "skipped",
+      "reason": "Já migrado"
+    },
+    {
+      "userId": "lCdC2F3AAlNUyGTbV0un0BcDstH3",
+      "status": "skipped",
+      "reason": "Sem cpfHash válido"
+    }
+  ],
+  "summary": {
+    "migratedDetails": [],
+    "skippedDetails": [
+      "⏭️  AYDfrxSFQrZpj3zLg7m9eTQaq7a2: Já migrado",
+      "⏭️  AqTVL8VRTZT435pZudkObzMGsrR2: Já migrado",
+      "⏭️  ESqCjgcHGGUK4kqSFC1DcVHn78C2: Já migrado",
+      "⏭️  TnpilUkUFyblIIjNfWcngBTj40u1: Já migrado",
+      "⏭️  czkelayGimSMfoYLi4HETEsnizZ2: Já migrado",
+      "⏭️  lCdC2F3AAlNUyGTbV0un0BcDstH3: Sem cpfHash válido"
+    ],
+    "errorDetails": []
+  }
+}

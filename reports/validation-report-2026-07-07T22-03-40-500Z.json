@@ -1,0 +1,28 @@
+{
+  "timestamp": "2026-07-07T22:03:40.500Z",
+  "stats": {
+    "totalUsers": 6,
+    "migratedUsers": 5,
+    "pendingUsers": 1,
+    "percentageMigrated": 83
+  },
+  "validation": {
+    "totalMigrated": 5,
+    "orphaned": 0,
+    "hashMismatches": 0,
+    "statusMismatches": 0,
+    "validIdentities": 5,
+    "details": {
+      "orphans": [],
+      "mismatches": [],
+      "statusIssues": []
+    }
+  },
+  "consistency": {
+    "duplicateIdentities": [],
+    "multipleIdentitiesPerUser": [],
+    "invalidCountries": [],
+    "inactiveIdentities": [],
+    "orphanIdentities": []
+  }
+}

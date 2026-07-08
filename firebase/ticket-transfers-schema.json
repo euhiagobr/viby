@@ -1,0 +1,155 @@
+{
+  "collection": "ticket_transfers",
+  "description": "Estrutura para futuras transferências de ingressos nominais. Phase 1 é apenas schema (vazio).",
+  "document_structure": "/ticket_transfers/{transferId}",
+  "phase": 1,
+  "status": "Schema only - NO LOGIC - Blocked until Phase 5",
+  "fields": {
+    "ticketId": {
+      "type": "string",
+      "required": true,
+      "description": "Referência ao ingresso (registrations/{regId})",
+      "indexed": true
+    },
+    "eventId": {
+      "type": "string",
+      "required": true,
+      "description": "Referência ao evento"
+    },
+    "fromUserId": {
+      "type": "string",
+      "required": true,
+      "description": "Firebase UID do usuário dono atual do ingresso"
+    },
+    "fromIdentityId": {
+      "type": "string",
+      "required": false,
+      "description": "Identidade do proprietário (será preenchida em Phase 2+)"
+    },
+    "toUserId": {
+      "type": "string",
+      "required": false,
+      "description": "Firebase UID do usuário destinatário (null até aceitar)"
+    },
+    "toIdentityId": {
+      "type": "string",
+      "required": false,
+      "description": "Identidade do destinatário (null até aceitar)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "accepted", "rejected", "expired", "cancelled"],
+      "default": "pending",
+      "description": "Estado da transferência"
+    },
+    "requestedAt": {
+      "type": "serverTimestamp",
+      "required": true,
+      "description": "Timestamp quando foi solicitada"
+    },
+    "respondedAt": {
+      "type": "timestamp",
+      "required": false,
+      "description": "Timestamp da resposta (accept/reject)"
+    },
+    "acceptedAt": {
+      "type": "timestamp",
+      "required": false,
+      "description": "Timestamp da aceitação"
+    },
+    "expiresAt": {
+      "type": "timestamp",
+      "required": true,
+      "description": "Timestamp de expiração (7 dias após requestedAt)"
+    },
+    "auditTrail": {
+      "type": "array",
+      "items": {
+        "action": {
+          "type": "string",
+          "enum": ["created", "notified", "accepted", "rejected", "expired", "cancelled"]
+        },
+        "by": {
+          "type": "string",
+          "description": "Firebase UID ou 'system'"
+        },
+        "when": {
+          "type": "timestamp"
+        }
+      },
+      "required": true,
+      "description": "Histórico de eventos"
+    }
+  },
+  "indexes": [
+    {
+      "fields": [
+        {"fieldPath": "fromUserId", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"}
+      ],
+      "description": "Transferências saindo de um usuário"
+    },
+    {
+      "fields": [
+        {"fieldPath": "toUserId", "order": "ASCENDING"},
+        {"fieldPath": "status", "order": "ASCENDING"}
+      ],
+      "description": "Transferências chegando para um usuário"
+    },
+    {
+      "fields": ["ticketId"],
+      "description": "Buscar histórico de transferências de um ingresso"
+    }
+  ],
+  "security": {
+    "principles": [
+      "Apenas usuários autenticados podem acessar",
+      "Usuários veem apenas suas próprias transferências (entrada/saída)",
+      "Admin pode consultar todas",
+      "Status é imutável após aceitar/rejeitar"
+    ],
+    "firestore_rules": {
+      "current": "Criação e atualização BLOQUEADAS (Phase 1)",
+      "phase_5": "Lógica de transferência será implementada"
+    }
+  },
+  "operations": {
+    "create": "BLOQUEADO (Phase 5)",
+    "read": "Permitido via Firestore Rules (Phase 5)",
+    "update": "BLOQUEADO (Phase 5)",
+    "delete": "Apenas admin"
+  },
+  "relationships": {
+    "registrations": {
+      "collection": "registrations",
+      "type": "one-to-one",
+      "description": "Uma transferência por ingresso"
+    },
+    "users": {
+      "collection": "users",
+      "type": "many-to-one",
+      "description": "De/para usuários"
+    },
+    "user_identities": {
+      "collection": "user_identities",
+      "type": "many-to-one",
+      "description": "De/para identidades (Phase 2+)"
+    }
+  },
+  "future_features": [
+    "Cloud Function onTransferAccepted (Phase 5)",
+    "Cloud Function expireTransfersDaily (Phase 5)",
+    "Email notifications (Phase 5)",
+    "Frontend UI for transfer requests (Phase 5)",
+    "Admin dashboard (Phase 6)"
+  ],
+  "notes": [
+    "This collection is EMPTY in Phase 1",
+    "Only structure and indexes are created",
+    "NO Cloud Functions",
+    "NO business logic",
+    "NO frontend interface",
+    "Creation is blocked by Firestore Rules",
+    "Will be fully implemented in Phase 5"
+  ]
+}

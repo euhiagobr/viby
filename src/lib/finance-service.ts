@@ -13,6 +13,7 @@ import {
   limit
 } from "firebase/firestore";
 import { calculateRefundAmount, calculateRetainedGatewayFee } from "./financial-utils";
+import { hasEventEnded } from "./ticket-expiry";
 
 /**
  * @fileOverview Serviço client-side para processamento de estornos transacionais.
@@ -39,6 +40,13 @@ export async function processTicketRefundClient(
       }
       if (regData.checkedIn) {
         throw new Error("Ingressos já utilizados não podem ser estornados.");
+      }
+
+      // Validar se evento já terminou
+      const eventEndDate = regData.eventEndDate || regData.eventDate;
+      const eventEndTime = regData.eventEndTime;
+      if (eventEndDate && hasEventEnded(eventEndDate, eventEndTime)) {
+        throw new Error("Ingressos de eventos finalizados não podem ser estornados.");
       }
 
       const userId = regData.userId;

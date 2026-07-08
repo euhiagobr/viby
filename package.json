@@ -9,7 +9,13 @@
     "build": "next build --debug",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "backfill:dry-run": "ts-node -P tsconfig.backfill.json scripts/backfill-user-identities.ts --dry-run",
+    "backfill:execute": "ts-node -P tsconfig.backfill.json scripts/backfill-user-identities.ts --execute",
+    "backfill:test": "vitest run scripts/backfill-user-identities.test.ts",
+    "backfill:validate": "ts-node -P tsconfig.backfill.json scripts/validate-backfill.ts",
+    "backfill:rollback:dry-run": "ts-node -P tsconfig.backfill.json scripts/rollback-backfill.ts --dry-run",
+    "backfill:rollback:execute": "ts-node -P tsconfig.backfill.json scripts/rollback-backfill.ts --execute --force-confirm"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.28.0",

@@ -1,0 +1,161 @@
+{
+  "collection": "user_identities",
+  "description": "Identidades internacionais de usuários. Suporta múltiplos documentos por país.",
+  "document_structure": "/user_identities/{identityId}",
+  "phase": 1,
+  "status": "Foundation - Schema only (no logic yet)",
+  "fields": {
+    "userId": {
+      "type": "string",
+      "required": true,
+      "description": "Firebase Auth UID do usuário proprietário",
+      "indexed": true
+    },
+    "country": {
+      "type": "string",
+      "required": true,
+      "enum": ["BR", "AR", "US", "ES", "PT"],
+      "description": "Código do país (ISO 3166-1 alpha-2)"
+    },
+    "documentType": {
+      "type": "string",
+      "required": true,
+      "enum": ["CPF", "RG", "DNI", "PASSPORT", "SSN", "DRIVER_LICENSE", "NIE", "CARTAO_CIDADAO"],
+      "description": "Tipo de documento de identidade"
+    },
+    "documentHash": {
+      "type": "string",
+      "required": true,
+      "description": "SHA256 do documento normalizado. Determinístico. Irreversível. ÚNICO.",
+      "indexed": true,
+      "unique": true
+    },
+    "documentMasked": {
+      "type": "string",
+      "required": true,
+      "description": "Documento mascarado para exibição (ex: ***.***.789-00)",
+      "security": "Safe to display to user"
+    },
+    "verificationStatus": {
+      "type": "string",
+      "enum": ["pending", "verified", "expired", "revoked"],
+      "default": "pending",
+      "description": "Estado da verificação da identidade"
+    },
+    "verificationLevel": {
+      "type": "string",
+      "enum": ["self", "document_upload", "kyc"],
+      "default": "self",
+      "description": "Nível de verificação: auto-declarado, upload de documento, ou KYC completo"
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se é a identidade primária do usuário",
+      "indexed": true
+    },
+    "expiresAt": {
+      "type": "timestamp",
+      "required": false,
+      "description": "Data de expiração (para passaportes, RGs, etc). Null se não expira."
+    },
+    "createdAt": {
+      "type": "serverTimestamp",
+      "required": true,
+      "description": "Timestamp de criação"
+    },
+    "updatedAt": {
+      "type": "serverTimestamp",
+      "required": true,
+      "description": "Timestamp da última atualização"
+    },
+    "verifiedAt": {
+      "type": "timestamp",
+      "required": false,
+      "description": "Timestamp quando foi verificada (null se status=pending)"
+    }
+  },
+  "indexes": [
+    {
+      "fields": ["documentHash"],
+      "unique": true,
+      "description": "Garantir unicidade global de documento"
+    },
+    {
+      "fields": [
+        {"fieldPath": "userId", "order": "ASCENDING"},
+        {"fieldPath": "isActive", "order": "ASCENDING"}
+      ],
+      "description": "Query rápida: encontrar identidade ativa de um usuário"
+    },
+    {
+      "fields": [
+        {"fieldPath": "userId", "order": "ASCENDING"},
+        {"fieldPath": "verificationStatus", "order": "ASCENDING"}
+      ],
+      "description": "Query: identidades pendentes de verificação de um usuário"
+    },
+    {
+      "fields": [
+        {"fieldPath": "country", "order": "ASCENDING"},
+        {"fieldPath": "verificationStatus", "order": "ASCENDING"}
+      ],
+      "description": "Admin query: identidades por país e status"
+    }
+  ],
+  "security": {
+    "principles": [
+      "documentHash é único globalmente",
+      "documentMasked é seguro para exibição",
+      "Nunca armazenar documento completo",
+      "Nunca armazenar documento em texto claro",
+      "Nunca armazenar documento criptografado",
+      "Admin não tem acesso direto ao documento"
+    ],
+    "firestore_rules": {
+      "user_read": "Usuário pode ler suas próprias identidades (mascaradas)",
+      "user_create": "Usuário pode criar suas próprias identidades",
+      "user_update": "Usuário pode atualizar algumas campos de suas identidades",
+      "admin_read": "Admin pode consultar documentHash (para verificação de unicidade)",
+      "admin_verify": "Admin pode marcar como verified via Cloud Function (futuro)"
+    }
+  },
+  "relationships": {
+    "users": {
+      "collection": "users",
+      "type": "one-to-many",
+      "description": "Um usuário pode ter múltiplas identidades, uma marcada como ativa",
+      "foreign_key": "userId"
+    },
+    "registrations": {
+      "collection": "registrations",
+      "type": "one-to-many",
+      "description": "Ingressos podem referenciar a identidade do comprador (futuro)",
+      "status": "Planned for Phase 4"
+    },
+    "ticket_transfers": {
+      "collection": "ticket_transfers",
+      "type": "one-to-many",
+      "description": "Transferências de ingressos referenciam identidades (futuro)",
+      "status": "Planned for Phase 5"
+    }
+  },
+  "compliance": {
+    "lgpd": "documentHash é irreversível (não recuperável do hash). Nunca armazena documento completo.",
+    "data_minimization": "Apenas dados essenciais para identificação são armazenados",
+    "audit": "Mudanças de verificationStatus devem ser auditadas (futuro: Cloud Functions)"
+  },
+  "future_features": [
+    "documentEncrypted em subcoleção private/sensitive (Phase 2)",
+    "externalVerificationProvider para integração com KYC (Phase 3+)",
+    "documentExpiration automation via Cloud Tasks (Phase 5+)",
+    "Webhooks para notificações de vencimento (Phase 5+)"
+  ],
+  "notes": [
+    "Esta coleção é puramente estrutural na Phase 1",
+    "Sem Cloud Functions, sem lógica de negócio ainda",
+    "Dados existentes (CPF) não são migrados automaticamente",
+    "Identidades são criadas manualmente ou via novo signup (futuro)",
+    "Sistema de CPF legado continua 100% funcional"
+  ]
+}

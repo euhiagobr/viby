@@ -1,0 +1,35 @@
+{
+  "dryRun": true,
+  "timestamp": "2026-07-07T22:04:31.597Z",
+  "durationMs": 1597,
+  "totalProcessed": 5,
+  "successful": 5,
+  "failed": 0,
+  "results": [
+    {
+      "userId": "AYDfrxSFQrZpj3zLg7m9eTQaq7a2",
+      "identityId": "AYDfrxSFQrZpj3zLg7m9eTQaq7a2:BR:CPF",
+      "status": "success"
+    },
+    {
+      "userId": "AqTVL8VRTZT435pZudkObzMGsrR2",
+      "identityId": "AqTVL8VRTZT435pZudkObzMGsrR2:BR:CPF",
+      "status": "success"
+    },
+    {
+      "userId": "ESqCjgcHGGUK4kqSFC1DcVHn78C2",
+      "identityId": "ESqCjgcHGGUK4kqSFC1DcVHn78C2:BR:CPF",
+      "status": "success"
+    },
+    {
+      "userId": "TnpilUkUFyblIIjNfWcngBTj40u1",
+      "identityId": "TnpilUkUFyblIIjNfWcngBTj40u1:BR:CPF",
+      "status": "success"
+    },
+    {
+      "userId": "czkelayGimSMfoYLi4HETEsnizZ2",
+      "identityId": "czkelayGimSMfoYLi4HETEsnizZ2:BR:CPF",
+      "status": "success"
+    }
+  ]
+}

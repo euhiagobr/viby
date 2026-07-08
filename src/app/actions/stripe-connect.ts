@@ -33,6 +33,42 @@ function handleStripeError(error: any): string {
   return message || 'Erro desconhecido na comunicação com o Stripe.';
 }
 
+/**
+ * Extrai o documento fiscal para enviar ao Stripe
+ * Usa documentType/documentNumber se disponível, caso contrário usa cpf/cnpj legados
+ */
+function extractDocumentForStripe(
+  orgData: any,
+  isIndividual: boolean
+): { idNumber?: string; taxId?: string } {
+  // Preferir novos campos documentType/documentNumber
+  if (orgData.documentType && orgData.documentNumber) {
+    const docNumber = orgData.documentNumber.replace(/\D/g, '');
+    
+    // Mapear para campos corretos do Stripe conforme tipo
+    const documentType = orgData.documentType.toUpperCase();
+    
+    // Para pessoa física: usar id_number
+    if (isIndividual) {
+      return { idNumber: docNumber };
+    }
+    
+    // Para pessoa jurídica: usar tax_id
+    return { taxId: docNumber };
+  }
+  
+  // Fallback para campos legados (retrocompatibilidade)
+  if (isIndividual && orgData.cpf) {
+    return { idNumber: orgData.cpf.replace(/\D/g, '') };
+  }
+  
+  if (!isIndividual && orgData.cnpj) {
+    return { taxId: orgData.cnpj.replace(/\D/g, '') };
+  }
+  
+  return {};
+}
+
 export async function createStripeConnectAccount(orgId: string) {
   try {
     const db = getAdminDb();
@@ -66,6 +102,7 @@ export async function createStripeConnectAccount(orgId: string) {
 
     if (!accountId) {
       const isIndividual = orgData.tipoOrganizacao === 'individual';
+      const { idNumber, taxId } = extractDocumentForStripe(orgData, isIndividual);
       
       const accountParams: Stripe.AccountCreateParams = {
         type: 'express',
@@ -82,13 +119,13 @@ export async function createStripeConnectAccount(orgId: string) {
       if (!isIndividual) {
         accountParams.company = {
           name: orgData.razaoSocial || orgData.name,
-          tax_id: orgData.cnpj?.replace(/\D/g, ''),
+          tax_id: taxId,
         };
       } else {
         accountParams.individual = {
           first_name: orgData.name.split(' ')[0],
           last_name: orgData.name.split(' ').slice(1).join(' ') || 'User',
-          id_number: orgData.cpf?.replace(/\D/g, ''),
+          id_number: idNumber,
         };
       }
 

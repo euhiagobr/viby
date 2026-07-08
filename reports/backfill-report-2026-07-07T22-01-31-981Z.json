@@ -1,0 +1,56 @@
+{
+  "startTime": 1783461684924,
+  "endTime": 1783461691979,
+  "durationMs": 7055,
+  "dryRun": false,
+  "batchSize": 50,
+  "totalProcessed": 6,
+  "migrated": 5,
+  "skipped": 1,
+  "errors": 0,
+  "results": [
+    {
+      "userId": "AYDfrxSFQrZpj3zLg7m9eTQaq7a2",
+      "status": "success",
+      "identityId": "AYDfrxSFQrZpj3zLg7m9eTQaq7a2:BR:CPF"
+    },
+    {
+      "userId": "AqTVL8VRTZT435pZudkObzMGsrR2",
+      "status": "success",
+      "identityId": "AqTVL8VRTZT435pZudkObzMGsrR2:BR:CPF"
+    },
+    {
+      "userId": "ESqCjgcHGGUK4kqSFC1DcVHn78C2",
+      "status": "success",
+      "identityId": "ESqCjgcHGGUK4kqSFC1DcVHn78C2:BR:CPF"
+    },
+    {
+      "userId": "TnpilUkUFyblIIjNfWcngBTj40u1",
+      "status": "success",
+      "identityId": "TnpilUkUFyblIIjNfWcngBTj40u1:BR:CPF"
+    },
+    {
+      "userId": "czkelayGimSMfoYLi4HETEsnizZ2",
+      "status": "success",
+      "identityId": "czkelayGimSMfoYLi4HETEsnizZ2:BR:CPF"
+    },
+    {
+      "userId": "lCdC2F3AAlNUyGTbV0un0BcDstH3",
+      "status": "skipped",
+      "reason": "Sem cpfHash válido"
+    }
+  ],
+  "summary": {
+    "migratedDetails": [
+      "✅ AYDfrxSFQrZpj3zLg7m9eTQaq7a2 → AYDfrxSFQrZpj3zLg7m9eTQaq7a2:BR:CPF",
+      "✅ AqTVL8VRTZT435pZudkObzMGsrR2 → AqTVL8VRTZT435pZudkObzMGsrR2:BR:CPF",
+      "✅ ESqCjgcHGGUK4kqSFC1DcVHn78C2 → ESqCjgcHGGUK4kqSFC1DcVHn78C2:BR:CPF",
+      "✅ TnpilUkUFyblIIjNfWcngBTj40u1 → TnpilUkUFyblIIjNfWcngBTj40u1:BR:CPF",
+      "✅ czkelayGimSMfoYLi4HETEsnizZ2 → czkelayGimSMfoYLi4HETEsnizZ2:BR:CPF"
+    ],
+    "skippedDetails": [
+      "⏭️  lCdC2F3AAlNUyGTbV0un0BcDstH3: Sem cpfHash válido"
+    ],
+    "errorDetails": []
+  }
+}

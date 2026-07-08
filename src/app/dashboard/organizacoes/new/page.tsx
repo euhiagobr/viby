@@ -40,6 +40,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { cn, validateCPF, validateCNPJ } from "@/lib/utils"
+import { getDocumentTypesForCountry, getDefaultDocumentType, getValidationRule } from "@/lib/identity-validation"
 import Image from "next/image"
 import { EventLocation } from "@/components/events"
 
@@ -106,6 +107,11 @@ export default function NovaOrganizacaoPage() {
     contactEmail: "",
     website: "",
     instagram: "",
+    documentType: "",
+    documentNumber: "",
+    representanteLegalDocumentType: "",
+    representanteLegalDocumentNumber: "",
+    // Manter para retrocompatibilidade (preenchidos no submit se necessário)
     cpf: "",
     cnpj: "",
     razaoSocial: "",
@@ -140,6 +146,20 @@ export default function NovaOrganizacaoPage() {
     if (!app) return null;
     return getStorage(app);
   }, [app])
+
+  // Quando o país muda, atualizar documentType para o padrão do país
+  useEffect(() => {
+    const countryCode = formData.address.countryCode || 'BR';
+    const defaultDocType = getDefaultDocumentType(countryCode);
+    
+    if (defaultDocType && defaultDocType !== formData.documentType) {
+      setFormData(prev => ({
+        ...prev,
+        documentType: defaultDocType,
+        representanteLegalDocumentType: defaultDocType
+      }));
+    }
+  }, [formData.address.countryCode])
 
   useEffect(() => {
     if (!db || !formData.username) {
@@ -226,19 +246,55 @@ export default function NovaOrganizacaoPage() {
         return
     }
 
+    const countryCode = formData.address.countryCode || 'BR';
+
     if (!skipFiscal) {
-      if (formData.tipoOrganizacao === 'individual') {
-        if (!validateCPF(formData.cpf)) {
-          toast({ variant: "destructive", title: "CPF Inválido" });
+      // Validar documentType
+      if (!formData.documentType) {
+        toast({ variant: "destructive", title: "Selecione o tipo de documento" });
+        return;
+      }
+
+      // Validar documentNumber
+      if (!formData.documentNumber) {
+        toast({ variant: "destructive", title: "Informe o número do documento" });
+        return;
+      }
+
+      // Validar formato usando regra do país/tipo
+      const validationRule = getValidationRule(countryCode, formData.documentType);
+      if (!validationRule) {
+        toast({ variant: "destructive", title: "Tipo de documento inválido para este país" });
+        return;
+      }
+
+      const docNumberClean = formData.documentNumber.replace(/\D/g, '');
+      if (!validationRule.regex.test(docNumberClean)) {
+        toast({ variant: "destructive", title: `Formato inválido para ${validationRule.name}` });
+        return;
+      }
+
+      // Se PJ, validar documento do representante legal
+      if (formData.tipoOrganizacao === 'company') {
+        if (!formData.representanteLegalDocumentType) {
+          toast({ variant: "destructive", title: "Selecione o tipo de documento do representante" });
           return;
         }
-      } else {
-        if (!validateCNPJ(formData.cnpj)) {
-          toast({ variant: "destructive", title: "CNPJ Inválido" });
+
+        if (!formData.representanteLegalDocumentNumber) {
+          toast({ variant: "destructive", title: "Informe o número do documento do representante" });
           return;
         }
-        if (!validateCPF(formData.representanteLegalCpf)) {
-          toast({ variant: "destructive", title: "CPF do Representante Inválido" });
+
+        const repValidationRule = getValidationRule(countryCode, formData.representanteLegalDocumentType);
+        if (!repValidationRule) {
+          toast({ variant: "destructive", title: "Tipo de documento do representante inválido" });
+          return;
+        }
+
+        const repDocNumberClean = formData.representanteLegalDocumentNumber.replace(/\D/g, '');
+        if (!repValidationRule.regex.test(repDocNumberClean)) {
+          toast({ variant: "destructive", title: `Formato inválido para ${repValidationRule.name} do representante` });
           return;
         }
       }
@@ -296,6 +352,10 @@ export default function NovaOrganizacaoPage() {
 
         const finalData = { ...formData, ...autoFees };
         if (skipFiscal) {
+          finalData.documentType = "";
+          finalData.documentNumber = "";
+          finalData.representanteLegalDocumentType = "";
+          finalData.representanteLegalDocumentNumber = "";
           finalData.cpf = "";
           finalData.cnpj = "";
           finalData.razaoSocial = "";
@@ -541,67 +601,142 @@ export default function NovaOrganizacaoPage() {
                   <div className="space-y-1">
                      <h4 className="font-black uppercase text-xs italic text-orange-800">Atenção: Recebimentos Bloqueados</h4>
                      <p className="text-[10px] text-orange-700 font-medium leading-relaxed uppercase">
-                        Você pode criar a marca agora, mas não poderá lançar eventos pagos ou receber repasses financeiros até que o CPF/CNPJ seja vinculado e aprovado.
+                        Você pode criar a marca agora, mas não poderá lançar eventos pagos ou receber repasses financeiros até que o documento seja vinculado e aprovado.
                      </p>
                   </div>
                </div>
              ) : (
-               <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                 {isIndividual ? (
+               <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF (Titular)</Label>
-                      <Input 
-                        value={formData.cpf}
-                        onChange={e => {
-                          const numbers = e.target.value.replace(/\D/g, "");
-                          setFormData(prev => ({ ...prev, cpf: numbers.substring(0, 11) }))
-                        }}
-                        placeholder="000.000.000-00" 
-                        className="rounded-xl h-11 font-mono"
-                        required
-                      />
+                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                       Tipo de Documento
+                     </Label>
+                     <Select 
+                       value={formData.documentType} 
+                       onValueChange={(val) => setFormData(prev => ({ ...prev, documentType: val }))}
+                     >
+                       <SelectTrigger className="rounded-xl h-11">
+                         <SelectValue placeholder="Selecione o tipo" />
+                       </SelectTrigger>
+                       <SelectContent className="rounded-xl">
+                         {getDocumentTypesForCountry(formData.address.countryCode || 'BR').map((type) => {
+                           const rule = getValidationRule(formData.address.countryCode || 'BR', type);
+                           return (
+                             <SelectItem key={type} value={type} className="text-xs">
+                               {rule?.name} - {rule?.description}
+                             </SelectItem>
+                           );
+                         })}
+                       </SelectContent>
+                     </Select>
                    </div>
-                 ) : (
-                   <div className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social</Label>
-                          <Input 
-                            value={formData.razaoSocial}
-                            onChange={e => setFormData(prev => ({ ...prev, razaoSocial: e.target.value }))}
-                            placeholder="Nome oficial da empresa" 
-                            className="rounded-xl h-11"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CNPJ</Label>
-                          <Input 
-                            value={formData.cnpj}
-                            onChange={e => {
-                              const numbers = e.target.value.replace(/\D/g, "");
-                              setFormData(prev => ({ ...prev, cnpj: numbers.substring(0, 14) }))
-                            }}
-                            placeholder="00.000.000/0000-00" 
-                            className="rounded-xl h-11 font-mono"
-                            required
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">CPF do Representante Legal</Label>
-                        <Input 
-                          value={formData.representanteLegalCpf}
-                          onChange={e => {
-                            const numbers = e.target.value.replace(/\D/g, "");
-                            setFormData(prev => ({ ...prev, representanteLegalCpf: numbers.substring(0, 11) }))
-                          }}
-                          placeholder="000.000.000-00" 
-                          className="rounded-xl h-11 font-mono"
-                          required
-                        />
-                      </div>
+
+                   <div className="space-y-2">
+                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                       Número do Documento
+                     </Label>
+                     <Input 
+                       value={formData.documentNumber}
+                       onChange={e => {
+                         const rule = getValidationRule(formData.address.countryCode || 'BR', formData.documentType);
+                         const maxLength = rule?.maxLength || 14;
+                         setFormData(prev => ({ 
+                           ...prev, 
+                           documentNumber: e.target.value.replace(/\D/g, "").substring(0, maxLength)
+                         }))
+                       }}
+                       placeholder={getValidationRule(formData.address.countryCode || 'BR', formData.documentType)?.formatExample || "Ex: 123.456.789-00"} 
+                       className="rounded-xl h-11 font-mono"
+                       required
+                     />
                    </div>
+                 </div>
+
+                 {isIndividual && (
+                   <div className="space-y-2">
+                     <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                       {formData.name ? `Nome Completo (${formData.name})` : "Nome Completo"}
+                     </Label>
+                     <div className="p-3 bg-muted/40 rounded-xl text-xs text-muted-foreground">
+                       Preenchido automaticamente do perfil acima
+                     </div>
+                   </div>
+                 )}
+
+                 {!isIndividual && (
+                   <>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                       <div className="space-y-2">
+                         <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Razão Social</Label>
+                         <Input 
+                           value={formData.razaoSocial}
+                           onChange={e => setFormData(prev => ({ ...prev, razaoSocial: e.target.value }))}
+                           placeholder="Nome oficial da empresa" 
+                           className="rounded-xl h-11"
+                           required
+                         />
+                       </div>
+                       <div className="space-y-2">
+                         <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Nome Fantasia</Label>
+                         <Input 
+                           value={formData.nomeFantasia}
+                           onChange={e => setFormData(prev => ({ ...prev, nomeFantasia: e.target.value }))}
+                           placeholder="Ex: Viby Entretenimento" 
+                           className="rounded-xl h-11"
+                         />
+                       </div>
+                     </div>
+
+                     <div className="border-t border-border pt-6">
+                       <h4 className="text-sm font-black uppercase mb-4 text-muted-foreground">Representante Legal</h4>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                             Tipo de Documento
+                           </Label>
+                           <Select 
+                             value={formData.representanteLegalDocumentType} 
+                             onValueChange={(val) => setFormData(prev => ({ ...prev, representanteLegalDocumentType: val }))}
+                           >
+                             <SelectTrigger className="rounded-xl h-11">
+                               <SelectValue placeholder="Selecione o tipo" />
+                             </SelectTrigger>
+                             <SelectContent className="rounded-xl">
+                               {getDocumentTypesForCountry(formData.address.countryCode || 'BR').map((type) => {
+                                 const rule = getValidationRule(formData.address.countryCode || 'BR', type);
+                                 return (
+                                   <SelectItem key={type} value={type} className="text-xs">
+                                     {rule?.name}
+                                   </SelectItem>
+                                 );
+                               })}
+                             </SelectContent>
+                           </Select>
+                         </div>
+
+                         <div className="space-y-2">
+                           <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                             Número do Documento
+                           </Label>
+                           <Input 
+                             value={formData.representanteLegalDocumentNumber}
+                             onChange={e => {
+                               const rule = getValidationRule(formData.address.countryCode || 'BR', formData.representanteLegalDocumentType);
+                               const maxLength = rule?.maxLength || 14;
+                               setFormData(prev => ({ 
+                                 ...prev, 
+                                 representanteLegalDocumentNumber: e.target.value.replace(/\D/g, "").substring(0, maxLength)
+                               }))
+                             }}
+                             placeholder={getValidationRule(formData.address.countryCode || 'BR', formData.representanteLegalDocumentType)?.formatExample || "Ex: 123.456.789-00"} 
+                             className="rounded-xl h-11 font-mono"
+                             required
+                           />
+                         </div>
+                       </div>
+                     </div>
+                   </>
                  )}
                </div>
              )}
