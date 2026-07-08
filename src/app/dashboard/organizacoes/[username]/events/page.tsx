@@ -147,34 +147,20 @@ export default function OrganizationEventsPage() {
             effectiveDate = nextValid._dt;
             _nextOccurrence = nextValid;
             isEventPast = false;
-            if (isProblematic) console.log(`[TRACE] Próxima ocorrência encontrada: ${nextValid._dt}`);
           } else {
             isEventPast = true;
-            if (isProblematic) console.log(`[TRACE] Nenhuma próxima ocorrência (todas no passado)`);
           }
         } else {
-          if (isProblematic) console.log(`[TRACE] AVISO: Evento recorrente SEM ocorrências! Usando baseDate...`);
           const baseDate = safeParseDate(effectiveDate);
           if (baseDate) {
             isEventPast = refTime >= baseDate.getTime();
-            if (isProblematic) {
-              console.log(`[TRACE] baseDate: ${baseDate.toISOString()}, refTime >= baseDate: ${isEventPast}`);
-            }
           } else {
             isEventPast = false;
-            if (isProblematic) console.log(`[TRACE] Erro parseando baseDate!`);
           }
         }
       } else {
-        if (isProblematic) console.log(`[TRACE] Evento é NÃO-RECORRENTE`);
         // Para eventos não-recorrentes: usar hora de início se disponível
         const dateWithTime = e.startTime ? `${effectiveDate}T${e.startTime}:00` : effectiveDate;
-        if (isProblematic) {
-          console.log(`[TRACE] dateWithTime construído como:`, {
-            template: e.startTime ? `\${effectiveDate}T\${e.startTime}:00` : 'effectiveDate',
-            resultado: dateWithTime?.toString?.() || dateWithTime
-          });
-        }
         const start = safeParseDate(dateWithTime);
         if (!start) {
            isEventPast = false;
@@ -198,26 +184,11 @@ export default function OrganizationEventsPage() {
            if (e.endDate && endMs < start.getTime()) {
              endMs += 24 * 60 * 60 * 1000;
            }
-           isEventPast = refTime > endMs; // Usar > ao invés de >= para não considerar passado se terminou agora
-           
-           // DEBUG LOG para eventos específicos
-           if (e.title?.includes('Improvisa') || e.title?.includes('Espetáculo')) {
-             console.log(`[FILTER] ${e.title}:`, {
-               agora: new Date(refTime).toISOString(),
-               fimEvento: new Date(endMs).toISOString(),
-               refTime_maior_que_endMs: refTime > endMs,
-               resultado_isEventPast: isEventPast,
-               aba: isEventPast ? 'HISTÓRICO ✓' : 'ATIVO ✗'
-             });
-           }
+           isEventPast = refTime > endMs;
         }
       }
 
       const enrichedEvent = { ...e, _effectiveDate: effectiveDate, _nextOccurrence };
-      
-      if (isProblematic) {
-        console.log(`[TRACE] Resultado final: isEventPast=${isEventPast} -> ${isEventPast ? 'HISTÓRICO' : 'ATIVOS'}`);
-      }
 
       if (isEventPast) {
         past.push(enrichedEvent);
