@@ -19,6 +19,26 @@ service firebase.storage {
     match /admin/site/{fileName} {
       allow write: if request.auth != null;
     }
+
+    // Upload de Imagens de Eventos
+    match /events/{userId}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Upload de Fotos de Perfil
+    match /users/{userId}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Upload de Imagens de Categorias
+    match /categories/{fileName} {
+      allow write: if request.auth != null;
+    }
+
+    // Upload de Arquivos de Verificação
+    match /verification/{userId}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
     
     // Outras regras de escrita podem ser adicionadas aqui para outros módulos.
   }

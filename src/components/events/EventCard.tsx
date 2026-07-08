@@ -42,8 +42,36 @@ export function EventCard({ event, thematicTheme = 'default' }: EventCardProps) 
   }, []);
 
   const eventDates = React.useMemo(() => {
-    const start = safeParseDate(event.date) || new Date();
-    let end = safeParseDate(event.endDate);
+    // Se o evento tem próxima ocorrência (é recorrente e tem futuras), usar ela
+    let effectiveDate = event.date;
+    let effectiveEndDate = event.endDate;
+    let effectiveStartTime = event.startTime;
+    let effectiveEndTime = event.endTime;
+    
+    if ((event as any)._nextOccurrence) {
+      const occ = (event as any)._nextOccurrence;
+      effectiveDate = occ.date || event.date;
+      effectiveEndDate = occ.endDate || event.endDate;
+      effectiveStartTime = occ.startTime || event.startTime;
+      effectiveEndTime = occ.endTime || event.endTime;
+      
+      console.log(`[EventCard] Usando próxima ocorrência para ${event.title}: ${effectiveDate}`);
+    }
+    
+    // Usar hora de início se disponível
+    const dateWithTime = effectiveStartTime 
+      ? `${effectiveDate}T${effectiveStartTime}:00`
+      : effectiveDate;
+    const start = safeParseDate(dateWithTime) || new Date();
+    
+    // Usar hora de término se disponível
+    let end: Date | null = null;
+    if (effectiveEndDate) {
+      const endWithTime = effectiveEndTime 
+        ? `${effectiveEndDate}T${effectiveEndTime}:00`
+        : effectiveEndDate;
+      end = safeParseDate(endWithTime);
+    }
     
     if (end && start && end <= start) {
       if (start.toDateString() === end.toDateString()) {
@@ -55,8 +83,22 @@ export function EventCard({ event, thematicTheme = 'default' }: EventCardProps) 
       end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
     }
     
-    return { start, end: end || start };
-  }, [event.date, event.endDate]);
+    const result = { start, end: end || start };
+    
+    // DEBUG LOG
+    console.log(`[EventCard DEBUG] ${event.title || 'Sem título'}`, {
+      rawDate: event.date,
+      rawTime: event.startTime,
+      rawEndDate: event.endDate,
+      rawEndTime: event.endTime,
+      dateWithTime,
+      startParsed: start.toISOString(),
+      endParsed: (end || result.end).toISOString(),
+      eventId: event.id || 'sem-id'
+    });
+    
+    return result;
+  }, [event.date, event.endDate, event.startTime, event.endTime, event.title, event.id, (event as any)._nextOccurrence]);
 
   const isEnded = React.useMemo(() => {
     if (!mounted) return false;
@@ -70,8 +112,24 @@ export function EventCard({ event, thematicTheme = 'default' }: EventCardProps) 
     }
 
     const threshold = new Date(eventDates.end.getTime() + 6 * 60 * 60 * 1000);
-    return new Date() > threshold;
-  }, [eventDates.end, mounted, event.isRecurring, event.recurringEndDate]);
+    const now = new Date();
+    const ended = now > threshold;
+    
+    // DEBUG LOG - só para eventos que parecem estar terminados
+    if (ended || eventDates.end.getTime() < now.getTime()) {
+      console.log(`[EventCard ENDED CHECK] ${event.title || 'Sem título'}`, {
+        now: now.toISOString(),
+        eventEnd: eventDates.end.toISOString(),
+        threshold: threshold.toISOString(),
+        nowVsEnd: now.getTime() - eventDates.end.getTime(),
+        nowVsThreshold: now.getTime() - threshold.getTime(),
+        isEnded: ended,
+        eventId: event.id || 'sem-id'
+      });
+    }
+    
+    return ended;
+  }, [eventDates.end, mounted, event.isRecurring, event.recurringEndDate, event.title, event.id]);
 
   const isCuradoria = event.curationType === 'curadoria' || 
                       event.curatorProfile === 'viby' || 
@@ -88,8 +146,20 @@ export function EventCard({ event, thematicTheme = 'default' }: EventCardProps) 
 
       if (isEnded) {
         setLiveStatus({ label: t('event.finished'), colorClass: "bg-muted text-muted-foreground border-none" });
+        console.log(`[EventCard STATUS] ${event.title || 'Sem título'} -> FINISHED (isEnded=true)`, {
+          now: now.toISOString(),
+          start: start.toISOString(),
+          end: end.toISOString(),
+          eventId: event.id || 'sem-id'
+        });
       } else if (now >= start && now < end) {
         setLiveStatus({ label: t('event.live_now'), colorClass: "bg-green-600 animate-pulse text-white shadow-lg", icon: Zap });
+        console.log(`[EventCard STATUS] ${event.title || 'Sem título'} -> LIVE NOW`, {
+          now: now.toISOString(),
+          start: start.toISOString(),
+          end: end.toISOString(),
+          eventId: event.id || 'sem-id'
+        });
       } else if (diffStart <= 2 * 60 * 60 * 1000 && diffStart > 0) {
         setLiveStatus({ label: t('event.starting_soon'), colorClass: "bg-secondary text-white shadow-lg", icon: Clock });
       } else if (isToday) {

@@ -88,6 +88,22 @@ export default function MeusEventosPage() {
   const { upcomingEvents, pastEvents, deletedEvents } = React.useMemo(() => {
     if (!rawEvents) return { upcomingEvents: [], pastEvents: [], deletedEvents: [] };
 
+    // DEBUG: Log eventos que chegam
+    const problematicEvents = rawEvents.filter(e => 
+      e.title?.includes('Improvisa') || e.title?.includes('Espetáculo')
+    );
+    if (problematicEvents.length > 0) {
+      console.table(problematicEvents.map(e => ({
+        title: e.title,
+        date: e.date?.toString?.() || e.date,
+        startTime: e.startTime,
+        endDate: e.endDate?.toString?.() || e.endDate,
+        endTime: e.endTime,
+        status: e.status,
+        id: e.id.substring(0, 8)
+      })));
+    }
+
     const upcoming: any[] = [];
     const past: any[] = [];
     const deleted: any[] = [];
@@ -97,6 +113,18 @@ export default function MeusEventosPage() {
     );
 
     filtered.forEach(e => {
+      // DEBUG: Rastrear eventos problemáticos
+      const isProblematic = e.title?.includes('Improvisa') || e.title?.includes('Espetáculo');
+      if (isProblematic) {
+        console.log(`\n[TRACE PROJETOS] Iniciando processamento de: ${e.title}`, {
+          id: e.id.substring(0, 8),
+          status: e.status,
+          isRecurring: e.isRecurring,
+          date_type: e.date?.constructor?.name || typeof e.date,
+          endDate_type: e.endDate?.constructor?.name || typeof e.endDate
+        });
+      }
+
       if (e.status === 'Excluído' || e.status === 'Oculto') {
         deleted.push({ ...e, _effectiveDate: e.date || e.startDate });
         return;
@@ -104,10 +132,19 @@ export default function MeusEventosPage() {
 
       let isEventPast = false;
       let effectiveDate = e.date || e.startDate;
+      let _nextOccurrence: any = null;
       const refTime = now.getTime();
+      
+      if (isProblematic) {
+        console.log(`[TRACE PROJETOS] Após status check, effectiveDate:`, effectiveDate?.toString?.() || effectiveDate);
+      }
 
       if (e.isRecurring) {
+        if (isProblematic) console.log(`[TRACE PROJETOS] Evento é RECORRENTE`);
         const myOccs = allOccurrences?.filter((o: any) => o.parentId === e.id) || [];
+        if (isProblematic) {
+          console.log(`[TRACE PROJETOS] myOccs encontradas: ${myOccs.length}`);
+        }
         if (myOccs.length > 0) {
           const sorted = [...myOccs]
             .map(o => ({ ...o, _dt: safeParseDate(`${o.date}T${o.startTime || '19:00'}:00`) }))
@@ -121,33 +158,80 @@ export default function MeusEventosPage() {
 
           if (nextValid) {
             effectiveDate = nextValid._dt;
+            _nextOccurrence = nextValid;
             isEventPast = false;
+            if (isProblematic) console.log(`[TRACE PROJETOS] Próxima ocorrência encontrada: ${nextValid._dt}`);
           } else {
             isEventPast = true;
+            if (isProblematic) console.log(`[TRACE PROJETOS] Nenhuma próxima ocorrência (todas no passado)`);
           }
         } else {
+          if (isProblematic) console.log(`[TRACE PROJETOS] AVISO: Evento recorrente SEM ocorrências! Usando baseDate...`);
           const baseDate = safeParseDate(effectiveDate);
           if (baseDate) {
             isEventPast = refTime >= baseDate.getTime();
+            if (isProblematic) {
+              console.log(`[TRACE PROJETOS] baseDate: ${baseDate.toISOString()}, refTime >= baseDate: ${isEventPast}`);
+            }
           } else {
             isEventPast = false;
+            if (isProblematic) console.log(`[TRACE PROJETOS] Erro parseando baseDate!`);
           }
         }
       } else {
-        const start = safeParseDate(effectiveDate);
+        if (isProblematic) console.log(`[TRACE PROJETOS] Evento é NÃO-RECORRENTE`);
+        // Para eventos não-recorrentes: usar hora de início se disponível
+        const dateWithTime = e.startTime ? `${effectiveDate}T${e.startTime}:00` : effectiveDate;
+        if (isProblematic) {
+          console.log(`[TRACE PROJETOS] dateWithTime construído como:`, {
+            template: e.startTime ? `\${effectiveDate}T\${e.startTime}:00` : 'effectiveDate',
+            resultado: dateWithTime?.toString?.() || dateWithTime
+          });
+        }
+        const start = safeParseDate(dateWithTime);
         if (!start) {
            isEventPast = false;
         } else {
-           const end = safeParseDate(e.endDate) || start;
+           // Se não houver endDate, usar endTime do evento. Se não houver endTime, usar meia-noite do mesmo dia
+           let end: Date;
+           if (e.endDate) {
+             const endWithTime = e.endTime ? `${e.endDate}T${e.endTime}:00` : e.endDate;
+             end = safeParseDate(endWithTime) || start;
+           } else {
+             // Se não houver endDate, criar um fim padrão no mesmo dia com endTime ou fim do dia
+             if (e.endTime) {
+               end = safeParseDate(`${effectiveDate}T${e.endTime}:00`) || start;
+             } else {
+               // Usar meia-noite do próximo dia como fim padrão
+               end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+             }
+           }
+           
            let endMs = end.getTime();
            if (e.endDate && endMs < start.getTime()) {
              endMs += 24 * 60 * 60 * 1000;
            }
-           isEventPast = refTime >= endMs;
+           isEventPast = refTime > endMs; // Usar > ao invés de >= para não considerar passado se terminou agora
+           
+           // DEBUG LOG para eventos específicos
+           if (e.title?.includes('Improvisa') || e.title?.includes('Espetáculo')) {
+             console.log(`[FILTER PROJETOS] ${e.title}:`, {
+               agora: new Date(refTime).toISOString(),
+               fimEvento: new Date(endMs).toISOString(),
+               refTime_maior_que_endMs: refTime > endMs,
+               resultado_isEventPast: isEventPast,
+               aba: isEventPast ? 'HISTÓRICO ✓' : 'ATIVO ✗'
+             });
+           }
         }
       }
 
-      const enrichedEvent = { ...e, _effectiveDate: effectiveDate };
+      const enrichedEvent = { ...e, _effectiveDate: effectiveDate, _nextOccurrence };
+      
+      if (isProblematic) {
+        console.log(`[TRACE PROJETOS] Resultado final: isEventPast=${isEventPast} -> ${isEventPast ? 'HISTÓRICO' : 'ATIVOS'}`);
+      }
+
       if (isEventPast) {
         past.push(enrichedEvent);
       } else {
@@ -164,6 +248,25 @@ export default function MeusEventosPage() {
     upcoming.sort(sortByDate);
     past.sort((a, b) => sortByDate(b, a)); // Histórico invertido
     deleted.sort(sortByDate);
+
+    // DEBUG: Log resultado final
+    const finalProblematic = upcoming.filter(e => 
+      e.title?.includes('Improvisa') || e.title?.includes('Espetáculo')
+    );
+    const finalPastProblematic = past.filter(e => 
+      e.title?.includes('Improvisa') || e.title?.includes('Espetáculo')
+    );
+    if (finalProblematic.length > 0 || finalPastProblematic.length > 0) {
+      console.log(`\n=== [DASHBOARD PROJETOS FINAL] Categorização de Eventos ===`);
+      if (finalProblematic.length > 0) {
+        console.log('✗ ATIVOS (Upstream - ERRADO):');
+        console.table(finalProblematic.map(e => ({ title: e.title, id: e.id.substring(0, 8) })));
+      }
+      if (finalPastProblematic.length > 0) {
+        console.log('✓ HISTÓRICO (Correto):');
+        console.table(finalPastProblematic.map(e => ({ title: e.title, id: e.id.substring(0, 8) })));
+      }
+    }
 
     return { upcomingEvents: upcoming, pastEvents: past, deletedEvents: deleted };
   }, [rawEvents, allOccurrences, search, now]);

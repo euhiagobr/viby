@@ -28,22 +28,48 @@ export function isEventVisible(event: any, nowOverride?: Date | null): boolean {
   
   const now = nowOverride ? nowOverride.getTime() : new Date().getTime();
 
-  // Captura a data de início
-  const startDate = safeParseDate(event.date || event.startDate || event.eventDate);
+  // Captura a data de início com hora se disponível
+  const dateWithTime = event.startTime
+    ? `${event.date || event.startDate || event.eventDate}T${event.startTime}:00`
+    : (event.date || event.startDate || event.eventDate);
+  const startDate = safeParseDate(dateWithTime);
   if (!startDate) return false; 
 
   const startMs = startDate.getTime();
-  const endDate = safeParseDate(event.endDate);
   
-  // RESOLUÇÃO DE FIM: Prioriza endDate. Se não existir, utiliza o startDate.
-  let endMs = endDate ? endDate.getTime() : startMs;
+  // Captura a data de fim com hora se disponível
+  let endMs: number;
+  if (event.endDate) {
+    const endWithTime = event.endTime
+      ? `${event.endDate}T${event.endTime}:00`
+      : event.endDate;
+    const endDate = safeParseDate(endWithTime);
+    endMs = endDate ? endDate.getTime() : startMs;
+  } else {
+    // Se não houver endDate, fim padrão é 4h após o início
+    endMs = startMs + (4 * 60 * 60 * 1000);
+  }
   
   // Tratamento de virada de noite (ex: Início 22h, Fim 04h do dia seguinte)
-  if (endDate && endMs < startMs) {
+  if (event.endDate && endMs < startMs) {
     // Se o fim é numericamente menor que o início (ex: 04:00 < 22:00), assumimos dia seguinte
     endMs += 24 * 60 * 60 * 1000;
   }
 
   // Visibilidade estrita: some assim que termina.
-  return now < endMs;
+  const isVisible = now < endMs;
+  
+  // DEBUG LOG
+  if (!isVisible) {
+    console.log(`[isEventVisible] ${event.title || 'Sem título'} NÃO VISÍVEL`, {
+      now: new Date(now).toISOString(),
+      startMs: new Date(startMs).toISOString(),
+      endMs: new Date(endMs).toISOString(),
+      nowVsEnd: now - endMs,
+      status: event.status,
+      eventId: event.id || 'sem-id'
+    });
+  }
+  
+  return isVisible;
 }
