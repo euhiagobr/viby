@@ -250,8 +250,6 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                   </CardContent>
                </Card>
             </section>
-            
-            <EventCoOrganizers eventId={id} currentOrgId={event.organizationId} isPublic className="mt-12" />
           </div>
 
           <aside className="lg:col-span-4 space-y-8">
@@ -281,6 +279,8 @@ export default function EventoPublicoClient({ id, username }: EventoPublicoClien
                      <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-2" onClick={() => setIsShareModalOpen(true)}><Share2 className="w-5 h-5" /></Button>
                   </div>
                </Card>
+               
+               <EventCoOrganizers eventId={id} currentOrgId={event.organizationId} isPublic />
 
                <div className="flex items-center justify-center">
                   <Button variant="link" className="text-[9px] font-black uppercase text-muted-foreground opacity-30 hover:opacity-100" onClick={() => setIsActionModalOpen(true)}>Problemas com este evento?</Button>

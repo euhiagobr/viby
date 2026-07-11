@@ -262,8 +262,6 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
                   </CardContent>
                </Card>
             </section>
-            
-            <EventCoOrganizers eventId={id} currentOrgId={event.organizationId} isPublic />
           </div>
 
           <aside className="lg:col-span-4 space-y-8">
@@ -295,6 +293,8 @@ export default function EventoPublicoClient({ id, username, initialData }: Event
                      <Button variant="outline" size="icon" className="h-12 w-12 rounded-full border-2" onClick={() => setIsShareModalOpen(true)}><Share2 className="w-5 h-5" /></Button>
                   </div>
                </Card>
+               
+               <EventCoOrganizers eventId={id} currentOrgId={event.organizationId} isPublic />
                
                <EventRelatedEvents currentEventId={id} currentTags={event.tags || []} />
 

@@ -155,24 +155,29 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     });
 
     // 3. Parcerias de Eventos
-    const partnersCG = query(collectionGroup(db, 'partners'), where('orgId', '==', user.uid), where('status', '==', 'pending'));
-    const unsubPartners = onSnapshot(partnersCG, async (partnerSnap) => {
-      const pInvites = await Promise.all(partnerSnap.docs.map(async (pDoc) => {
-        const pData = pDoc.data();
-        const eventId = pDoc.ref.parent.parent?.id;
-        if (!eventId) return null;
+    let unsubPartners: (() => void) | undefined;
+    if (currentOrg?.id) {
+      const partnersCG = query(collectionGroup(db, 'partners'), where('orgId', '==', currentOrg.id), where('status', '==', 'pending'));
+      unsubPartners = onSnapshot(partnersCG, async (partnerSnap) => {
+        const pInvites = await Promise.all(partnerSnap.docs.map(async (pDoc) => {
+          const pData = pDoc.data();
+          const eventId = pDoc.ref.parent.parent?.id;
+          if (!eventId) return null;
 
-        const eventSnap = await getDoc(doc(db, 'events', eventId));
-        return { 
-          id: pDoc.id, 
-          ...pData, 
-          eventId, 
-          eventTitle: eventSnap.exists() ? eventSnap.data().title : "Evento Desconhecido",
-          type: 'partnership'
-        };
-      }));
-      setPendingPartnerships(pInvites.filter(p => p !== null));
-    });
+          const eventSnap = await getDoc(doc(db, 'events', eventId));
+          return { 
+            id: pDoc.id, 
+            ...pData, 
+            eventId, 
+            eventTitle: eventSnap.exists() ? eventSnap.data().title : "Evento Desconhecido",
+            type: 'partnership'
+          };
+        }));
+        setPendingPartnerships(pInvites.filter(p => p !== null));
+      });
+    } else {
+      setPendingPartnerships([]);
+    }
 
     const unsubSupport = onSnapshot(query(collection(db, "support_tickets"), where("userId", "==", user.uid), where("status", "==", "Respondida")), (snap) => setUnreadSupportCount(snap.size));
     const unsubNotifications = onSnapshot(query(collection(db, "notifications"), where("targetUid", "==", user.uid), where("read", "==", false)), (snap) => setUnreadNotificationsCount(snap.size));
@@ -180,11 +185,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     return () => {
       unsubOwner();
       unsubMembers();
-      unsubPartners();
+      if (unsubPartners) unsubPartners();
       unsubSupport();
       unsubNotifications();
     };
-  }, [db, user, isInitialized]);
+  }, [db, user, isInitialized, currentOrg?.id]);
 
   // Efeito para sincronizar context com a URL [username]
   // AGORA: Só sincroniza se for realmente diferente, para evitar loops
