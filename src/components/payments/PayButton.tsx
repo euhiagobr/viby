@@ -63,12 +63,21 @@ export function PayButton({
 
       const result = await executeCheckoutFlow(sanitizedOptions);
 
+      if (!result) {
+        throw new Error("Nenhuma resposta do servidor de pagamento.");
+      }
+
       if (result.type === 'free') {
         onSuccess()
         toast({ title: "Reserva confirmada!", description: "Seus ingressos gratuitos já estão disponíveis." })
         router.push("/dashboard/ingressos")
-      } else if (result.type === 'stripe' && result.url) {
+      } else if (result.type === 'stripe') {
+        if (!result.url) {
+          throw new Error("URL de pagamento não foi gerada. Tente novamente.");
+        }
         window.location.href = result.url
+      } else {
+        throw new Error(`Tipo de resultado desconhecido: ${result.type}`);
       }
     } catch (e: any) {
       console.error("[Checkout Failure]", e);
@@ -77,6 +86,11 @@ export function PayButton({
         type: 'checkout_pipeline_error',
         severity: 'error',
         metadata: { itemsCount: items.length, total: totals.total }
+      })
+      toast({ 
+        title: "Erro no Pagamento", 
+        description: e.message || "Não foi possível processar seu pagamento. Tente novamente.",
+        variant: "destructive"
       })
     } finally {
       setLoading(false)

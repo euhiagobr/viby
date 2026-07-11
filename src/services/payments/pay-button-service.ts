@@ -118,18 +118,26 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     return { type: 'free', success: true };
   }
 
-  const stripeLineItems = orderItems.map((item) => ({
-    price_data: {
-      currency: eventCurrency.toLowerCase(),
-      product_data: {
-        name: `${item.eventTitle} - ${item.ticketTypeName}`,
-        description: item.couponCode ? `Cupom: ${item.couponCode}` : "",
+  const stripeLineItems = orderItems.map((item) => {
+    const productData: any = {
+      name: `${item.eventTitle} - ${item.ticketTypeName}`,
+    };
+    
+    // Apenas adiciona description se houver cupom
+    if (item.couponCode) {
+      productData.description = `Cupom: ${item.couponCode}`;
+    }
+
+    return {
+      price_data: {
+        currency: eventCurrency.toLowerCase(),
+        product_data: productData,
+        // O preço unitário enviado ao Stripe já contempla o desconto e a taxa Viby
+        unit_amount: toCents(item.price + item.administrativeFeeAmount),
       },
-      // O preço unitário enviado ao Stripe já contempla o desconto e a taxa Viby
-      unit_amount: toCents(item.price + item.administrativeFeeAmount),
-    },
-    quantity: item.quantity,
-  }));
+      quantity: item.quantity,
+    };
+  });
 
   const stripeAccountId = orgsSnapMap[items[0].organizationId]?.stripeAccountId;
   if (!stripeAccountId) throw new Error("Organizador sem conta Stripe.");
@@ -146,6 +154,10 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
       userCouponId: coupon?.isUserCoupon ? coupon.id : ""
     }
   });
+
+  if (!stripeResult.success) {
+    throw new Error(stripeResult.error || "Falha ao criar sessão de pagamento.");
+  }
 
   return { type: 'stripe', url: stripeResult.url };
 }

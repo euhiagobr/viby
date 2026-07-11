@@ -13,6 +13,8 @@ export type AuditAction =
   | 'event_create' | 'event_update' | 'event_delete'
   | 'coupon_create' | 'coupon_update' | 'coupon_delete'
   | 'ticket_purchase' | 'ticket_transfer' | 'ticket_cancel' | 'ticket_checkin'
+  | 'cdc_refund_auto' | 'org_cancellation' | 'manual_refund_approval'
+  | 'chargeback_created' | 'chargeback_updated' | 'chargeback_closed'
   | 'admin_access' | 'admin_change' | 'permission_change' | 'finance_change'
   | 'payout_request' | 'stripe_operation'
   | 'ad_topup_init' | 'ad_topup_success';

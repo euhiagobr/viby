@@ -23,9 +23,10 @@ function CheckoutSucessoContent() {
   
   const [status, setStatus] = React.useState<'polling' | 'success' | 'timeout'>('polling')
   const [orderId, setOrderId] = React.useState<string | null>(null)
+  const hasCleared = React.useRef(false)
 
   React.useEffect(() => {
-    if (!db || !sessionId) return;
+    if (!db || !sessionId || hasCleared.current) return;
 
     // Remove fulfillment do client. Apenas observa o status do pedido via Webhook.
     const interval = setTimeout(() => setStatus('timeout'), 60000); // 1 min timeout
@@ -37,6 +38,7 @@ function CheckoutSucessoContent() {
     // Simplificação: Polling no banco para confirmar se o fulfillment ocorreu
     const checkFulfillment = async () => {
        clearCart(); // Limpa visualmente o carrinho imediatamente após pagar
+       hasCleared.current = true;
     };
     checkFulfillment();
 

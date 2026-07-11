@@ -170,9 +170,13 @@ export async function processPayNow(_dbUnused: any, options: CheckoutOptions) {
     }
   });
 
-  if (stripeResult.url) {
-    return { type: 'stripe', url: stripeResult.url };
-  } else {
+  if (!stripeResult.success) {
     throw new Error(stripeResult.error || "Falha ao gerar link de pagamento.");
   }
+
+  if (!stripeResult.url) {
+    throw new Error("URL de pagamento não foi gerada pelo servidor.");
+  }
+
+  return { type: 'stripe', url: stripeResult.url };
 }
