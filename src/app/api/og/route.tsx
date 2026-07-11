@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
           {image && (
             <img
               src={image}
+              alt="Event background"
               style={{
                 position: 'absolute',
                 top: 0,

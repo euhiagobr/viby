@@ -214,7 +214,7 @@ export function EventCard({ event, thematicTheme = 'default' }: EventCardProps) 
         )}
 
         <div className="relative aspect-[16/10] w-full bg-muted overflow-hidden shrink-0">
-          <Image src={versionedImageUrl || `https://picsum.photos/seed/${event.id}/600/400`} alt={event.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 group-hover:scale-105" unoptimized />
+          <Image src={versionedImageUrl || `https://picsum.photos/seed/${event.id}/600/400`} alt={event.title || `Event ${event.id}`} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-700 group-hover:scale-105" unoptimized />
           <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
             {liveStatus && (
               <Badge className={cn("border-none shadow-md px-3 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5", liveStatus.colorClass)}>

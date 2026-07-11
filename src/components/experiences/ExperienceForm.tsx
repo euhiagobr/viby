@@ -38,6 +38,9 @@ import {
 import { EventHeader, EventDescription, EventLocation } from '@/components/events';
 import { EXPERIENCE_CHARACTERISTICS, EXPERIENCE_RULES, EXPERIENCE_INCLUSIONS, FAQ_PRESETS } from '@/lib/experience-catalog';
 import { ExperienceSlotsAdmin } from './ExperienceSlotsAdmin';
+import { TermsAcceptanceCheckbox } from './TermsAcceptanceCheckbox';
+import { recordEventWithTermsAcceptance } from '@/app/actions/organizer-terms';
+import { useTermsAcceptance } from '@/hooks/useTermsAcceptance';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -56,6 +59,12 @@ export function ExperienceForm({ initialData, onSave, onPublish, isEditing, cate
   const [formData, setFormData] = useState(initialData);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
+  // Usar o hook centralizado de termos
+  const { termsAccepted, setTermsAccepted, isTermsUpdated } = useTermsAcceptance({
+    isEditing,
+    initialData,
+  });
+
   const handleNext = async () => {
     setLoading(true);
     try {
@@ -72,6 +81,27 @@ export function ExperienceForm({ initialData, onSave, onPublish, isEditing, cate
   const handleSave = async () => {
     setLoading(true);
     try {
+      // Verificar aceitação dos termos (obrigatório)
+      if (!termsAccepted) {
+        toast({ variant: "destructive", title: "Aceite os termos", description: "Você precisa aceitar os termos para continuar." });
+        setLoading(false);
+        return;
+      }
+
+      // Registrar evento com aceite dos termos no Firebase
+      const termsResult = await recordEventWithTermsAcceptance({
+        eventId: formData.id,
+        userId: formData.userId || 'unknown',
+        eventData: formData,
+      });
+
+      if (!termsResult.success) {
+        toast({ variant: "destructive", title: "Erro", description: termsResult.error || "Erro ao salvar evento." });
+        setLoading(false);
+        return;
+      }
+
+      // Salvar o evento
       if (onPublish && !isEditing) {
         await onPublish(formData);
       } else {
@@ -272,11 +302,23 @@ export function ExperienceForm({ initialData, onSave, onPublish, isEditing, cate
       {step === 4 && (
         <div className="space-y-8 animate-in slide-in-from-right-4">
            <ExperienceSlotsAdmin experienceId={formData.id} />
+           
+           {/* Termos e Políticas - Aceite obrigatório */}
+           <Card className="border-2 border-dashed border-secondary/30 rounded-[2rem] bg-secondary/5">
+             <CardContent className="p-8">
+               <TermsAcceptanceCheckbox 
+                 accepted={termsAccepted} 
+                 onAcceptedChange={setTermsAccepted}
+                 isTermsUpdated={isTermsUpdated}
+               />
+             </CardContent>
+           </Card>
+           
            <div className="flex gap-4 pt-10">
               <Button variant="ghost" onClick={handleBack} className="h-20 px-8 rounded-[2.5rem] font-bold uppercase text-xs">Voltar</Button>
               <Button 
                 onClick={handleSave} 
-                disabled={loading}
+                disabled={loading || !termsAccepted}
                 className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2"
               >
                  {loading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Save className="w-6 h-6 mr-2" />}

@@ -44,7 +44,8 @@ import {
   EventTags, 
   EventVisibility,
   BilheteriaAdmin,
-  EventRecurrence
+  EventRecurrence,
+  EventCoOrganizers
 } from "@/components/events"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { generateOccurrences } from "@/services/recurring-event-service"
@@ -55,6 +56,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import useSWR from 'swr'
 import { fetcher, WC_ENDPOINTS } from '@/lib/services/worldCupService'
 import { format } from "date-fns"
+import { TermsAcceptanceCheckbox } from "@/components/experiences/TermsAcceptanceCheckbox"
+import { useTermsAcceptance } from "@/hooks/useTermsAcceptance"
+import { recordEventWithTermsAcceptance } from "@/app/actions/organizer-terms"
 
 const DEFAULT_EVENT_IMAGE = "https://firebasestorage.googleapis.com/v0/b/vibyeventos.firebasestorage.app/o/admin%2Fsite%2FlogoUrl_1780427858048?alt=media&token=5bf01a27-8521-4a59-a78b-70c888aa0417";
 
@@ -124,6 +128,12 @@ export default function NovoEventoWizard() {
   const [matchSelection, setMatchSelection] = useState({ teamA: "", teamB: "" });
 
   const showWcSection = formData?.tags.includes('copa') && formData?.tags.includes('temjogo');
+
+  // Usar o hook centralizado de termos (na criação, não há initialData)
+  const { termsAccepted, setTermsAccepted, isTermsUpdated } = useTermsAcceptance({
+    isEditing: false,
+    initialData: null,
+  });
 
   // Recuperação do Rascunho
   useEffect(() => {
@@ -235,9 +245,28 @@ export default function NovoEventoWizard() {
 
   const handlePublish = async () => {
     if (!db || !user || !currentOrg || !draftId) return;
+
+    // Verificar aceitação dos termos (obrigatório)
+    if (!termsAccepted) {
+      toast({ variant: "destructive", title: "Aceite os termos", description: "Você precisa aceitar os termos para publicar o evento." });
+      return;
+    }
     
     setPublishing(true);
     try {
+      // Registrar evento com aceite dos termos no Firebase
+      const termsResult = await recordEventWithTermsAcceptance({
+        eventId: draftId,
+        userId: user.uid,
+        eventData: formData,
+      });
+
+      if (!termsResult.success) {
+        toast({ variant: "destructive", title: "Erro", description: termsResult.error || "Erro ao salvar evento." });
+        setPublishing(false);
+        return;
+      }
+
       const ageRatingConfig = getAgeRatingConfig(formData.ageRatingCode);
       const finalPayload = {
         ...formData,
@@ -557,11 +586,27 @@ export default function NovoEventoWizard() {
               </div>
            </Card>
 
+           {/* Co-Organizadores */}
+           {draftId && (
+             <EventCoOrganizers eventId={draftId} currentOrgId={currentOrg.id} className="" />
+           )}
+
+           {/* Termos e Políticas - Aceite obrigatório */}
+           <Card className="border-2 border-dashed border-secondary/30 rounded-[2rem] bg-secondary/5">
+             <CardContent className="p-8">
+               <TermsAcceptanceCheckbox 
+                 accepted={termsAccepted} 
+                 onAcceptedChange={setTermsAccepted}
+                 isTermsUpdated={isTermsUpdated}
+               />
+             </CardContent>
+           </Card>
+
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(3)} className="h-20 px-8 rounded-[2.5rem] font-bold uppercase text-xs">Voltar</Button>
               <Button 
                 onClick={handlePublish} 
-                disabled={publishing || !formData.title} 
+                disabled={publishing || !formData.title || !termsAccepted} 
                 className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 transition-all active:scale-95"
               >
                  {publishing ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Save className="w-6 h-6" />}

@@ -164,7 +164,7 @@ function EventOpRow({ event }: { event: any }) {
       <div className="px-8 py-6 grid grid-cols-12 gap-6 items-center">
         <div className="col-span-4 flex items-center gap-4">
            <div className="h-12 w-12 rounded-xl bg-muted overflow-hidden relative shrink-0">
-              {event.image && <img src={event.image} className="w-full h-full object-cover" />}
+              {event.image && <img src={event.image} alt={event.title} className="w-full h-full object-cover" />}
            </div>
            <div className="space-y-1">
               <h4 className="font-black text-sm uppercase italic text-primary truncate leading-tight">{event.title}</h4>

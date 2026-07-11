@@ -44,7 +44,8 @@ import {
   EventTags, 
   EventVisibility,
   BilheteriaAdmin,
-  EventRecurrence
+  EventRecurrence,
+  EventCoOrganizers
 } from "@/components/events"
 import { getAgeRatingConfig } from "@/lib/age-rating"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
@@ -67,6 +68,9 @@ import {
 import useSWR from 'swr'
 import { fetcher, WC_ENDPOINTS } from '@/lib/services/worldCupService'
 import { format } from "date-fns"
+import { TermsAcceptanceCheckbox } from "@/components/experiences/TermsAcceptanceCheckbox"
+import { useTermsAcceptance } from "@/hooks/useTermsAcceptance"
+import { recordEventWithTermsAcceptance } from "@/app/actions/organizer-terms"
 
 export default function EditarEventoWizard() {
   const params = useParams()
@@ -97,6 +101,12 @@ export default function EditarEventoWizard() {
     }
   }, [db, eventId])
   const { data: event, loading: eventLoading } = useDoc<any>(eventRef)
+
+  // Usar o hook centralizado de termos (chamado após 'event' estar disponível)
+  const { termsAccepted, setTermsAccepted, isTermsUpdated } = useTermsAcceptance({
+    isEditing: true,
+    initialData: event, // O hook monitora mudanças aqui
+  })
 
   const categoriesQuery = useMemoFirebase(() => db ? query(collection(db, "categories"), orderBy("name", "asc")) : null, [db])
   const { data: categories } = useCollection<any>(categoriesQuery)
@@ -332,8 +342,28 @@ export default function EditarEventoWizard() {
 
   const handleSubmit = async () => {
     if (!db || !currentOrg || !formData) return
+
+    // Verificar aceitação dos termos (obrigatório)
+    if (!termsAccepted) {
+      toast({ variant: "destructive", title: "Aceite os termos", description: "Você precisa aceitar os termos para continuar." });
+      return;
+    }
+
     setLoading(true)
     try {
+      // Registrar evento com aceite dos termos no Firebase
+      const termsResult = await recordEventWithTermsAcceptance({
+        eventId: formData.id || eventId,
+        userId: user?.uid || 'unknown',
+        eventData: formData,
+      });
+
+      if (!termsResult.success) {
+        toast({ variant: "destructive", title: "Erro", description: termsResult.error || "Erro ao salvar evento." });
+        setLoading(false);
+        return;
+      }
+
       // Normalização final das datas para UTC absoluto antes de enviar para o servidor
       const updatePayload = {
         ...formData,
@@ -636,9 +666,26 @@ export default function EditarEventoWizard() {
                  <p className="text-[10px] text-orange-800 font-bold uppercase leading-relaxed">As alterações serão aplicadas em todas as sessões futuras. Ingressos já vendidos não serão afetados, mas o estoque remanescente será recalculado.</p>
               </div>
            </Card>
+
+           {/* Co-Organizadores */}
+           {eventId && (
+             <EventCoOrganizers eventId={eventId} currentOrgId={currentOrg.id} className="" />
+           )}
+
+           {/* Termos e Políticas - Aceite obrigatório */}
+           <Card className="border-2 border-dashed border-secondary/30 rounded-[2rem] bg-secondary/5">
+             <CardContent className="p-8">
+               <TermsAcceptanceCheckbox 
+                 accepted={termsAccepted} 
+                 onAcceptedChange={setTermsAccepted}
+                 isTermsUpdated={isTermsUpdated}
+               />
+             </CardContent>
+           </Card>
+
            <div className="flex gap-4">
               <Button variant="ghost" onClick={() => setStep(3)} className="h-20 px-8 rounded-[2.5rem] font-bold uppercase text-xs">Voltar</Button>
-              <Button onClick={handleSubmit} disabled={loading} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 transition-all active:scale-95">
+              <Button onClick={handleSubmit} disabled={loading || !termsAccepted} className="flex-1 h-20 bg-secondary text-white font-black rounded-[2.5rem] shadow-xl uppercase italic text-xl gap-2 transition-all active:scale-95">
                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
                  Atualizar Evento
               </Button>

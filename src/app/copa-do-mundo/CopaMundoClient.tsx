@@ -302,7 +302,7 @@ export default function CopaMundoClient({ initialEvents = [] }: { initialEvents?
                          {availableTeams.map(t => (
                            <SelectItem key={t.name} value={t.name}>
                               <div className="flex items-center gap-2">
-                                 <img src={t.flag} className="w-4 h-4 rounded-full" />
+                                 <img src={t.flag} alt={t.name} className="w-4 h-4 rounded-full" />
                                  {t.name.toUpperCase()}
                               </div>
                            </SelectItem>
