@@ -4,7 +4,7 @@
 import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { decryptCPF, encryptCPF, hashCPF as hashCPFLegacy, maskCPF } from '@/lib/crypto-utils';
-import { validateCPF, validateUsername } from '@/lib/utils';
+import { validateCPF, validateUsername, isReservedUsername } from '@/lib/utils';
 import { recordAuditLog } from './audit';
 import { hashDocument, maskDocument, normalizeDocument, isValidDocumentFormat, isSupportedCountry, isSupportedDocumentType, hashCPF } from '@/lib/identity-utils';
 import { getInitialIdentityFields } from '@/lib/identity-service';
@@ -155,6 +155,13 @@ export async function createUserWithValidation(params: {
     // Validação de username
     const normalizedUsername = username.toLowerCase().trim();
     if (!validateUsername(normalizedUsername)) {
+      // Verificar se é um nome reservado para dar mensagem mais específica
+      if (isReservedUsername(normalizedUsername)) {
+        return {
+          success: false,
+          error: "Este @username é reservado pelo sistema e não pode ser usado."
+        };
+      }
       return {
         success: false,
         error: "Username inválido (mínimo 5 caracteres, apenas letras minúsculas, números, ponto e underline)."
@@ -323,7 +330,12 @@ export async function finalizeUserRegistration(params: {
   }
 
   const normalizedUsername = username.toLowerCase().trim();
-  if (!validateUsername(normalizedUsername)) throw new Error("Username inválido (mínimo 5 caracteres).");
+  if (!validateUsername(normalizedUsername)) {
+    if (isReservedUsername(normalizedUsername)) {
+      throw new Error("Este @username é reservado pelo sistema e não pode ser usado.");
+    }
+    throw new Error("Username inválido (mínimo 5 caracteres).");
+  }
 
   try {
     const newAffiliateCode = await generateUniqueAffiliateCode(db);

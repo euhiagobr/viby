@@ -13,7 +13,7 @@ import { Loader2, Check, X, AtSign, Fingerprint, Lock as LockIcon, User, Mail, G
 import { FirebaseError } from "firebase/app";
 import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { validateCPF, validateUsername } from "@/lib/utils";
+import { validateCPF, validateUsername, isReservedUsername } from "@/lib/utils";
 import { hashCPF, hashDocument } from "@/lib/identity-utils";
 import { hashCPF as hashCPFLegacy } from "@/lib/crypto-utils";
 import { createUserWithValidation } from "@/app/actions/user";
@@ -35,7 +35,8 @@ const formSchema = z.object({
   name: z.string().min(2, { message: "Informe seu nome completo." }),
   username: z.string()
     .min(5, "O nome de usuário deve ter no mínimo 5 caracteres.")
-    .regex(/^[a-z0-9._]+$/, "Somente minúsculas, números, ponto e underline"),
+    .regex(/^[a-z0-9._]+$/, "Somente minúsculas, números, ponto e underline")
+    .refine((username) => !isReservedUsername(username), "Este @username é reservado pelo sistema"),
   cpf: z.string().length(11, "CPF deve ter 11 dígitos").optional().or(z.literal("")),
   email: z.string().email({ message: "E-mail inválido." }),
   gender: z.string().min(1, "Selecione seu gênero"),

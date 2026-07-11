@@ -252,9 +252,67 @@ export function validateCNPJ(cnpj: string): boolean {
   return true;
 }
 
+// Lista de nomes de usuário reservados (rotas públicas e páginas do sistema)
+const RESERVED_USERNAMES = new Set([
+  'admin',
+  'api',
+  'app',
+  'auth',
+  'ajuda',
+  'cadastro',
+  'carnaval',
+  'checkout',
+  'configuracoes',
+  'dashboard',
+  'empresas',
+  'eventos',
+  'experiencias',
+  'help',
+  'login',
+  'logout',
+  'oficial',
+  'official',
+  'onboarding',
+  'para-organizadores',
+  'privacy',
+  'privacidade',
+  'reembolso',
+  'redefinir-senha',
+  'refund',
+  'reset-password',
+  'root',
+  'settings',
+  'signin',
+  'signup',
+  'status',
+  'suporte',
+  'support',
+  'sys',
+  'system',
+  'terms',
+  'termos',
+  'viby',
+]);
+
 export function validateUsername(username: string): boolean {
   const regex = /^[a-z0-9._]+$/;
-  return regex.test(username) && username.length >= 5 && username.length <= 30;
+  const normalizedUsername = username.toLowerCase();
+  
+  // Verificar formato básico
+  if (!regex.test(normalizedUsername) || normalizedUsername.length < 5 || normalizedUsername.length > 30) {
+    return false;
+  }
+  
+  // Verificar se é um nome reservado
+  if (RESERVED_USERNAMES.has(normalizedUsername)) {
+    return false;
+  }
+  
+  return true;
+}
+
+export function isReservedUsername(username: string): boolean {
+  return RESERVED_USERNAMES.has(username.toLowerCase());
 }
 
 export function formatCurrency(value: number, currency: string = 'BRL', locale: string = 'pt-BR'): string {
