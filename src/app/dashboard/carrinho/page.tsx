@@ -159,9 +159,19 @@ export default function CarrinhoPage() {
         } catch (e) {}
       }
       setOrgsData(results)
+      
+      // Log com dados garantidamente carregados
+      items.forEach((item) => {
+        const orgData = results[item.organizationId];
+        console.log('[CARRINHO]', {
+          eventId: item.eventId,
+          organizerId: item.organizerId,
+          connectCode: orgData?.stripeAccountId || 'N/A'
+        });
+      });
     }
     fetchData()
-  }, [db, items.length]);
+  }, [db, items.length, items]);
 
   const handleApplyCoupon = async () => {
     if (!db || !couponInput.trim() || isValidatingCoupon) return;
