@@ -30,6 +30,17 @@ import { cn, safeParseDate } from "@/lib/utils"
 import { useCurrency, CurrencyCode } from "@/contexts/CurrencyContext"
 import { RichText } from "@/components/ui/rich-text"
 import { Separator } from "@/components/ui/separator"
+import { requestBuyerRefundRequest, getBuyerRefundRequestState } from "@/app/actions/cdc-refund"
+import { toast } from "@/hooks/use-toast"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function VoucherPage() {
   const params = useParams()
@@ -42,13 +53,17 @@ export default function VoucherPage() {
 
   const regRef = React.useMemo(() => (db && regId) ? doc(db, "registrations", regId) : null, [db, regId])
   const { data: registration, loading: regLoading } = useDoc<any>(regRef)
+  const [showRefundDialog, setShowRefundDialog] = React.useState(false)
+  const [submittingRefundRequest, setSubmittingRefundRequest] = React.useState(false)
+  const [refundStateLoading, setRefundStateLoading] = React.useState(true)
+  const [refundRequestState, setRefundRequestState] = React.useState<{ eligible: boolean; hasRequest: boolean; status: string | null; message: string | null }>({ eligible: false, hasRequest: false, status: null, message: null })
 
   const eventRef = React.useMemo(() => {
     if (!db || !registration?.eventId) return null;
     const coll = registration.productType === 'experience' ? 'experiences' : 'events';
     return doc(db, coll, registration.eventId);
   }, [db, registration?.eventId, registration?.productType]);
-  
+
   const { data: eventDetails } = useDoc<any>(eventRef);
 
   const formatDate = (dateValue: any) => {
@@ -76,6 +91,48 @@ export default function VoucherPage() {
     } catch (e) { return ""; }
   }
 
+  const isCancelled = registration?.status === 'cancelled' || registration?.status === 'refunded' || registration?.status === 'Cancelado' || registration?.paymentStatus === 'Estornado';
+  const isUsed = registration?.status === 'used' || registration?.checkedIn === true;
+  const eventEndDate = registration?.eventEndDate || registration?.eventDate;
+  const eventEndTime = registration?.eventEndTime;
+  const isExpired = (() => {
+    if (isUsed) return false;
+    return eventEndDate ? hasEventEnded(eventEndDate, eventEndTime) : false;
+  })();
+
+  React.useEffect(() => {
+    if (!regId) return;
+
+    const loadState = async () => {
+      setRefundStateLoading(true);
+      const state = await getBuyerRefundRequestState(regId, user?.uid);
+      setRefundRequestState({
+        eligible: state.eligible,
+        hasRequest: state.hasRequest,
+        status: state.status,
+        message: state.message
+      });
+      setRefundStateLoading(false);
+    };
+
+    loadState();
+  }, [regId, user?.uid, registration?.id]);
+
+  const hasRefundRequest = refundRequestState.hasRequest;
+  const isPaidTicket = React.useMemo(() => {
+    const amount = Number(registration?.price || 0);
+    const paymentStatus = String(registration?.paymentStatus || '').toLowerCase();
+    return amount > 0 || paymentStatus === 'pago' || paymentStatus === 'paid' || paymentStatus === 'succeeded' || paymentStatus === 'completed' || Boolean(registration?.stripeSessionId);
+  }, [registration?.price, registration?.paymentStatus, registration?.stripeSessionId]);
+  const showRefundActionArea = React.useMemo(() => {
+    if (!registration || isCancelled || isUsed || isExpired || !registration.userId || registration.userId !== user?.uid) return false;
+    return isPaidTicket;
+  }, [registration, isCancelled, isUsed, isExpired, user?.uid, isPaidTicket]);
+  const canRequestRefund = React.useMemo(() => {
+    if (!registration || !isPaidTicket || hasRefundRequest || isCancelled || isUsed || isExpired) return false;
+    return refundRequestState.eligible;
+  }, [registration, isPaidTicket, hasRefundRequest, isCancelled, isUsed, isExpired, refundRequestState.eligible]);
+
   if (regLoading) return <div className="flex justify-center items-center h-[70vh]"><Loader2 className="w-10 h-10 animate-spin text-secondary" /></div>
 
   if (!registration) return (
@@ -86,19 +143,47 @@ export default function VoucherPage() {
     </div>
   )
 
-  const isCancelled = registration.status === 'cancelled' || registration.status === 'refunded' || registration.status === 'Cancelado' || registration.paymentStatus === 'Estornado';
-  const isUsed = registration.status === 'used' || registration.checkedIn === true;
-  
-  // Validar se evento já terminou (mas NUNCA se já foi utilizado)
-  const eventEndDate = registration.eventEndDate || registration.eventDate;
-  const eventEndTime = registration.eventEndTime;
-  const isExpired = React.useMemo(() => {
-    // PRIORIDADE: Se foi utilizado, nunca é expirado
-    if (isUsed) return false;
-    return eventEndDate ? hasEventEnded(eventEndDate, eventEndTime) : false;
-  }, [eventEndDate, eventEndTime, isUsed]);
-  
   const canShowQR = registration.userId === user?.uid && !isCancelled && !isExpired && !isUsed;
+
+  const handleRefundRequest = async () => {
+    if (!regId || !user?.uid) return;
+
+    setSubmittingRefundRequest(true);
+
+    try {
+      const result = await requestBuyerRefundRequest(regId, user.uid, 'Solicitação de reembolso feita pelo comprador.');
+
+      if (result.success) {
+        toast({
+          title: 'Solicitação enviada',
+          description: result.message
+        });
+        const state = await getBuyerRefundRequestState(regId, user.uid);
+        setRefundRequestState({
+          eligible: state.eligible,
+          hasRequest: state.hasRequest,
+          status: state.status,
+          message: state.message
+        });
+        setRefundStateLoading(false);
+        setShowRefundDialog(false);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Não foi possível concluir',
+          description: result.message
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro inesperado',
+        description: 'Tente novamente em alguns instantes.'
+      });
+    } finally {
+      setSubmittingRefundRequest(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 pt-6 px-4">
@@ -214,6 +299,45 @@ export default function VoucherPage() {
               </Card>
            </div>
 
+           {(showRefundActionArea || hasRefundRequest) && (
+             <div className="p-6 bg-orange-50 rounded-3xl border border-orange-200 flex items-start gap-4">
+               <AlertCircle className="w-6 h-6 text-orange-600 shrink-0 mt-0.5" />
+               <div className="space-y-3 flex-1">
+                 <div>
+                   <h4 className="font-black uppercase text-[10px] tracking-widest text-orange-700 italic">
+                     {hasRefundRequest ? 'Solicitação de reembolso enviada' : refundStateLoading ? 'Verificando reembolso' : canRequestRefund ? 'Reembolso' : 'Reembolso indisponível'}
+                   </h4>
+                   <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase mt-1">
+                     {hasRefundRequest
+                      ? 'O pedido já foi registrado e está aguardando análise do organizador.'
+                      : refundStateLoading
+                        ? 'Estamos verificando se este ingresso ainda está elegível para reembolso.'
+                        : canRequestRefund
+                          ? 'Você pode solicitar o reembolso para este ingresso. A solicitação será enviada ao organizador para análise e ainda não executa um estorno automático nesta etapa.'
+                          : refundRequestState.message || 'Não é possível solicitar reembolso para este ingresso neste momento.'}
+                   </p>
+                 </div>
+                 {!refundStateLoading && !hasRefundRequest && canRequestRefund && (
+                   <Button onClick={() => setShowRefundDialog(true)} className="rounded-full bg-secondary hover:bg-secondary/90 text-white font-black uppercase text-[10px] h-10">
+                     Solicitar reembolso
+                   </Button>
+                 )}
+               </div>
+             </div>
+           )}
+
+           {hasRefundRequest && (
+             <div className="p-6 bg-amber-50 rounded-3xl border border-amber-200 flex items-start gap-4">
+               <ShieldAlert className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+               <div className="space-y-1">
+                 <h4 className="font-black uppercase text-[10px] tracking-widest text-amber-700 italic">Solicitação de reembolso enviada</h4>
+                 <p className="text-[10px] text-muted-foreground leading-relaxed font-medium uppercase">
+                   O pedido já foi registrado e está aguardando análise do organizador.
+                 </p>
+               </div>
+             </div>
+           )}
+
            <div className="p-6 bg-secondary/5 rounded-3xl border border-secondary/10 flex items-start gap-4">
               <ShieldCheck className="w-6 h-6 text-secondary shrink-0 mt-0.5" />
               <div className="space-y-1">
@@ -225,6 +349,30 @@ export default function VoucherPage() {
            </div>
         </div>
       </div>
+
+      <AlertDialog open={showRefundDialog} onOpenChange={setShowRefundDialog}>
+        <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl max-w-md">
+          <AlertDialogHeader>
+            <div className="mx-auto w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
+              <AlertCircle className="w-7 h-7 text-orange-600" />
+            </div>
+            <AlertDialogTitle className="text-center text-xl font-black uppercase italic tracking-tighter text-primary">
+              Solicitar reembolso
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center font-medium">
+              Esta solicitação será registrada para análise do organizador. Não será feito um estorno automático agora.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="grid grid-cols-2 gap-3">
+            <AlertDialogCancel disabled={submittingRefundRequest} className="rounded-xl font-bold uppercase text-[10px] h-12 mt-0">
+              Cancelar
+            </AlertDialogCancel>
+            <Button onClick={handleRefundRequest} disabled={submittingRefundRequest} className="rounded-xl font-black uppercase text-[10px] h-12 bg-secondary">
+              {submittingRefundRequest ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

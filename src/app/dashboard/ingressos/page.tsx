@@ -177,6 +177,12 @@ function TicketListItem({ registration, isAdmin, onTransferClick }: { registrati
     return eventEndDate ? hasEventEnded(eventEndDate, eventEndTime) : false;
   }, [eventEndDate, eventEndTime, isCheckedIn]);
 
+  const canRequestRefundFromList = React.useMemo(() => {
+    if (isRefunded || isCancelled || isExpired || isCheckedIn || isPending) return false;
+    const paidAmount = Number(registration.price || 0);
+    return paidAmount > 0 && Boolean(registration.stripeSessionId);
+  }, [isRefunded, isCancelled, isExpired, isCheckedIn, isPending, registration.price, registration.stripeSessionId]);
+
   const canReview = React.useMemo(() => {
     if (isRefunded || isCancelled || isExpired || registration.ratingSubmitted) return false;
     if (registration.productType !== 'experience') return false;
@@ -279,6 +285,13 @@ function TicketListItem({ registration, isAdmin, onTransferClick }: { registrati
             {canReview && (
               <Button size="sm" onClick={() => setIsReviewOpen(true)} className="h-9 px-4 bg-orange-500 text-white font-black uppercase italic text-[9px] rounded-xl shadow-lg">
                 <Star className="w-3 h-3 mr-1.5 fill-current" /> Avaliar Experiência
+              </Button>
+            )}
+            {canRequestRefundFromList && (
+              <Button size="sm" asChild className="h-9 px-3 text-[10px] font-black uppercase rounded-xl border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100">
+                <Link href={`/dashboard/ingressos/${registration.id}/voucher`}>
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Estorno
+                </Link>
               </Button>
             )}
             {!(isRefunded || isCancelled || isExpired) && !isPending && (

@@ -5,6 +5,7 @@ import * as admin from 'firebase-admin';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { recordAuditLog } from './audit';
 import { logSystemError } from '@/lib/error-manager';
+import { createRefundRequest, getRefundRequestStateForRegistration } from '@/services/refunds/refund-request-service';
 
 async function getStripeInstance(db: admin.firestore.Firestore) {
   const snap = await db.collection('settings').doc('stripe').get();
@@ -29,6 +30,22 @@ async function getStripeInstance(db: admin.firestore.Firestore) {
  * Caso contrário:
  * - Retorna requiresApproval=true para encaminhar aprovação manual
  */
+export async function requestBuyerRefundRequest(
+  registrationId: string,
+  userId: string,
+  reason?: string
+): Promise<{
+  success: boolean;
+  message: string;
+  error?: string;
+}> {
+  return createRefundRequest({ registrationId, userId, reason });
+}
+
+export async function getBuyerRefundRequestState(registrationId: string, userId?: string) {
+  return getRefundRequestStateForRegistration({ registrationId, userId });
+}
+
 export async function requestCDCRefund(
   registrationId: string,
   userId: string,
