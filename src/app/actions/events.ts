@@ -206,6 +206,13 @@ export async function updateEventAction(params: {
       date: eventDate, 
       status: eventData.status || oldData.status || 'Ativo',
       slug,
+      // Sincroniza campos de endereço para facilitar consumo pelo Frontend
+      location: eventData.location || (eventData.address?.venueName || eventData.address?.addressLine1) || oldData.location,
+      city: eventData.city || eventData.address?.city || oldData.city,
+      state: eventData.state || eventData.address?.stateRegion || oldData.state,
+      countryCode: eventData.countryCode || eventData.address?.countryCode || oldData.countryCode,
+      latitude: (eventData.address && eventData.address.latitude) || oldData.latitude,
+      longitude: (eventData.address && eventData.address.longitude) || oldData.longitude,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     };
 

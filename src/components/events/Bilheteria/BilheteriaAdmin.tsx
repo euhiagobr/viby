@@ -36,6 +36,7 @@ interface TicketType {
   name: string
   price: number
   quantity: number
+  allowCoupon?: boolean
 }
 
 interface Batch {
@@ -98,7 +99,7 @@ export function BilheteriaAdmin({
       endDate: "",
       capacidadeInicial: 100,
       ticketTypes: [
-        { id: 't1', name: 'Inteira', price: mode === 'free' ? 0 : 50, quantity: 100 }
+        { id: 't1', name: 'Inteira', price: mode === 'free' ? 0 : 50, quantity: 100, allowCoupon: true }
       ]
     }
     onBatchesChange([...batches, newBatch])
@@ -206,6 +207,17 @@ export function BilheteriaAdmin({
                                 className="h-11 rounded-xl font-bold bg-white" 
                                />
                             </div>
+                             <div className="w-full lg:w-48 space-y-2">
+                                <Label className="text-[8px] uppercase font-black opacity-40">Permitido usar cupom de desconto</Label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={type.allowCoupon !== false}
+                                    onChange={(e) => handleUpdateTicketType(bIdx, tIdx, 'allowCoupon', e.target.checked)}
+                                  />
+                                  <span className="text-[12px] font-bold">Ativar</span>
+                                </div>
+                             </div>
                             {mode !== 'free' && (
                               <div className="w-full lg:w-36 space-y-2">
                                  <Label className="text-[8px] uppercase font-black opacity-40">Preço ({eventCurrency})</Label>

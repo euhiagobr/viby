@@ -22,6 +22,7 @@ export interface CartItem {
   poolName?: string;
   price: number; // Current price (may be discounted)
   originalPrice: number; // Price without discount
+  allowCoupon?: boolean;
   currency: string;
   quantity: number;
   requiresProof: boolean;

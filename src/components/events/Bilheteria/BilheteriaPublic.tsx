@@ -175,7 +175,8 @@ export function BilheteriaPublic({ event, occurrence, occurrenceLoading, globalF
           price: type.price, 
           quantity: amountToTake, 
           requiresProof: type.requiresProof || false,
-          occurrenceId: activeOccurrenceId
+          occurrenceId: activeOccurrenceId,
+          allowCoupon: type.allowCoupon !== false
         } as any);
         remaining -= amountToTake;
       }

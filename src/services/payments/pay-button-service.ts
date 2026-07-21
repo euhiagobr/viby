@@ -64,8 +64,8 @@ export async function executeCheckoutFlow(options: PayButtonOptions) {
     let discValPerUnit = 0;
     const couponVal = Number(coupon?.discountValue) || 0;
 
-    // A aplicação do cupom deve ser por unidade (ticket)
-    if (coupon && coupon.eventId === item.eventId) {
+    // A aplicação do cupom deve ser por unidade (ticket) e respeitar flag allowCoupon
+    if (coupon && coupon.eventId === item.eventId && item.allowCoupon !== false) {
       if (coupon.discountType === 'percentage') {
         discValPerUnit = Number((item.price * (couponVal / 100)).toFixed(2));
       } else if (coupon.discountType === 'fixed') {

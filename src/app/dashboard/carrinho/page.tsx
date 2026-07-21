@@ -190,7 +190,7 @@ export default function CarrinhoPage() {
 
       if (!uSnap.empty) {
         const uCoupon = { id: uSnap.docs[0].id, ...uSnap.docs[0].data() } as any;
-        const matchedItem = items.find(i => i.eventId === uCoupon.eventId);
+        const matchedItem = items.find(i => i.eventId === uCoupon.eventId && i.allowCoupon !== false);
         if (!matchedItem) {
           toast({ variant: "destructive", title: "Restrição de Evento", description: "Este cupom exclusivo é válido apenas para outro evento." });
           return;
@@ -211,7 +211,7 @@ export default function CarrinhoPage() {
 
       if (!snap.empty) {
         const coupon = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
-        const matchedItem = items.find(i => i.eventId === coupon.eventId);
+        const matchedItem = items.find(i => i.eventId === coupon.eventId && i.allowCoupon !== false);
         if (!matchedItem) {
           toast({ variant: "destructive", title: "Cupom inválido", description: "Este código não é válido para este evento." });
           return;
@@ -247,7 +247,7 @@ export default function CarrinhoPage() {
         let discValPerUnit = 0;
         const couponVal = Number(appliedCoupon?.discountValue) || 0;
 
-        if (appliedCoupon && appliedCoupon.eventId === item.eventId) {
+        if (appliedCoupon && appliedCoupon.eventId === item.eventId && item.allowCoupon !== false) {
           if (appliedCoupon.discountType === 'percentage') {
             discValPerUnit = Number((item.price * (couponVal / 100)).toFixed(2));
           } else if (appliedCoupon.discountType === 'fixed') {
@@ -321,7 +321,7 @@ export default function CarrinhoPage() {
            ) : (
              <div className="space-y-6">
                 {items.map((item) => {
-                  const isCouponTarget = appliedCoupon && appliedCoupon.eventId === item.eventId;
+                  const isCouponTarget = appliedCoupon && appliedCoupon.eventId === item.eventId && item.allowCoupon !== false;
                   const couponVal = Number(appliedCoupon?.discountValue) || 0;
                   
                   let itemDiscountUnit = 0;

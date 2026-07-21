@@ -23,8 +23,11 @@ export interface RefundRequestAttachment {
   uploadedAt?: admin.firestore.FieldValue | Date | string;
 }
 
+export type RefundRequestPolicy = 'automatic' | 'manual' | 'none';
+
 export interface RefundRequestEligibilityResult {
   eligible: boolean;
+  policy: RefundRequestPolicy;
   message?: string;
   reason?: string;
   request?: any | null;
@@ -83,8 +86,70 @@ function normalizeDate(value: any) {
   if (!value) return null;
   if (value?.toDate) return value.toDate();
   if (value instanceof Date) return value;
-  if (typeof value === 'string') return new Date(value);
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
+    if (isDateOnly) {
+      // Interpretar datas sem horário como meia-noite em Brasília (UTC-3),
+      // evitando que `new Date('YYYY-MM-DD')` seja tratado como meia-noite UTC.
+      const dateObj = new Date(trimmed);
+      const utcTime = dateObj.getTime();
+      const brazilOffsetMs = -3 * 60 * 60 * 1000;
+      return new Date(utcTime - brazilOffsetMs);
+    }
+
+    return new Date(trimmed);
+  }
+
   return new Date(value);
+}
+
+function calculateAutoRefundWindowEnd(purchaseDate: Date, eventStartDate: Date) {
+  const sevenDaysEnd = new Date(purchaseDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const eventBoundary = new Date(eventStartDate.getTime() - 48 * 60 * 60 * 1000);
+  return sevenDaysEnd < eventBoundary ? sevenDaysEnd : eventBoundary;
+}
+
+function determineRefundPolicy(params: {
+  purchaseDate: Date;
+  eventStartDate: Date;
+  now: Date;
+}): { policy: RefundRequestPolicy; message: string; reason?: string } {
+  const { purchaseDate, eventStartDate, now } = params;
+  const daysSincePurchase = (now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
+  const hoursUntilEvent = (eventStartDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const eventStarted = now.getTime() >= eventStartDate.getTime();
+
+  if (eventStarted) {
+    return {
+      policy: 'none',
+      message: 'O evento já começou. Não é possível solicitar reembolso.',
+      reason: 'event_started'
+    };
+  }
+
+  if (hoursUntilEvent < 48) {
+    return {
+      policy: 'manual',
+      message: 'Faltam menos de 48 horas para o evento. A solicitação será enviada para análise do organizador.',
+      reason: 'last_48_hours'
+    };
+  }
+
+  if (daysSincePurchase <= 7) {
+    return {
+      policy: 'automatic',
+      message: 'Este ingresso está elegível para reembolso automático.',
+      reason: 'automatic_refund_window'
+    };
+  }
+
+  return {
+    policy: 'manual',
+    message: 'O período de reembolso automático terminou, mas ainda é possível solicitar reembolso para análise do organizador.',
+    reason: 'manual_review'
+  };
 }
 
 function buildAuditTimelineEvent(params: {
@@ -199,24 +264,24 @@ export async function getRefundRequestEligibility(params: {
   const { db, registration, registrationId, userId } = params;
 
   if (!registration) {
-    return { eligible: false, reason: 'not_found', message: 'Ingresso não localizado.' };
+    return { eligible: false, policy: 'none', reason: 'not_found', message: 'Ingresso não localizado.' };
   }
 
   if (userId && registration.userId && registration.userId !== userId) {
-    return { eligible: false, reason: 'forbidden', message: 'Acesso negado para este ingresso.' };
+    return { eligible: false, policy: 'none', reason: 'forbidden', message: 'Acesso negado para este ingresso.' };
   }
 
   if (registration.checkedIn === true) {
-    return { eligible: false, reason: 'already_checked_in', message: 'Não é possível solicitar reembolso para um ingresso já utilizado.' };
+    return { eligible: false, policy: 'none', reason: 'already_checked_in', message: 'Não é possível solicitar reembolso para um ingresso já utilizado.' };
   }
 
   if (isCancelledRegistration(registration)) {
-    return { eligible: false, reason: 'already_refunded', message: 'Este ingresso já foi cancelado ou reembolsado.' };
+    return { eligible: false, policy: 'none', reason: 'already_refunded', message: 'Este ingresso já foi cancelado ou reembolsado.' };
   }
 
   const totalPaid = registration.price || 0;
   if (totalPaid <= 0) {
-    return { eligible: false, reason: 'free_ticket', message: 'Reembolso disponível apenas para ingressos pagos.' };
+    return { eligible: false, policy: 'none', reason: 'free_ticket', message: 'Reembolso disponível apenas para ingressos pagos.' };
   }
 
   const existingRegistrationId = registrationId || registration.id || registration.registrationId || '';
@@ -224,6 +289,7 @@ export async function getRefundRequestEligibility(params: {
   if (existingRequest) {
     return {
       eligible: false,
+      policy: 'none',
       reason: 'existing_request',
       message: 'Já existe uma solicitação de reembolso em andamento para este ingresso.',
       request: existingRequest,
@@ -231,32 +297,51 @@ export async function getRefundRequestEligibility(params: {
     };
   }
 
-  const createdAt = normalizeDate(registration.createdAt || registration.timestamp);
-  const eventDate = normalizeDate(registration.eventDate || registration.eventDateTime || registration.eventStartDate);
+  const purchaseDateCandidates = [
+    registration?.paidAt,
+    registration?.paymentConfirmedAt,
+    registration?.purchaseDate,
+    registration?.boughtAt,
+    registration?.createdAt,
+    registration?.timestamp,
+    registration?.purchasedAt,
+  ];
+
+  const createdAt = normalizeDate(
+    purchaseDateCandidates.find((value: any) => Boolean(value)) || registration?.orderCreatedAt || null
+  );
+  const eventStartDate = normalizeDate(registration.eventDate || registration.eventDateTime || registration.eventStartDate);
   const now = new Date();
 
-  if (!createdAt || !eventDate || Number.isNaN(createdAt.getTime()) || Number.isNaN(eventDate.getTime())) {
-    return { eligible: false, reason: 'invalid_dates', message: 'Não foi possível validar a elegibilidade deste ingresso.' };
+  if (!createdAt || !eventStartDate || Number.isNaN(createdAt.getTime()) || Number.isNaN(eventStartDate.getTime())) {
+    return { eligible: false, policy: 'none', reason: 'invalid_dates', message: 'Não foi possível validar a elegibilidade deste ingresso.' };
   }
 
-  const daysSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
-  const hoursUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-  if (daysSinceCreation > 7) {
-    return { eligible: false, reason: 'expired_7_days', message: 'O prazo de 7 dias para reembolso já expirou.' };
-  }
-
-  if (hoursUntilEvent < 48) {
-    return { eligible: false, reason: 'min_48_hours', message: 'A solicitação só pode ser enviada com pelo menos 48 horas de antecedência do evento.' };
-  }
-
+  const policyResult = determineRefundPolicy({ purchaseDate: createdAt, eventStartDate, now });
   const eventEndDate = registration.eventEndDate || registration.eventDate;
   const eventEndTime = registration.eventEndTime;
   if (eventEndDate && hasEventEnded(eventEndDate, eventEndTime)) {
-    return { eligible: false, reason: 'event_ended', message: 'Este evento já foi encerrado.' };
+    return { eligible: false, policy: 'none', reason: 'event_ended', message: 'Este evento já foi encerrado.' };
   }
 
-  return { eligible: true, message: 'Elegível para solicitação de reembolso. Se a compra não puder ser vinculada automaticamente, a solicitação será analisada pelo organizador.' };
+  if (policyResult.policy === 'automatic') {
+    const paymentIntentId = await resolvePaymentIntentId(db, registration);
+    if (!paymentIntentId) {
+      return {
+        eligible: true,
+        policy: 'manual',
+        reason: 'automatic_not_available',
+        message: 'O reembolso automático não pôde ser iniciado porque os dados de pagamento Stripe estão incompletos. A solicitação será enviada para análise do organizador.'
+      };
+    }
+  }
+
+  return {
+    eligible: policyResult.policy !== 'none',
+    policy: policyResult.policy,
+    reason: policyResult.reason,
+    message: policyResult.message
+  };
 }
 
 export async function createRefundRequest(params: {
@@ -283,6 +368,7 @@ export async function createRefundRequest(params: {
     }
 
     const paymentIntentId = await resolvePaymentIntentId(db, registration);
+    const canProcessAutomatically = eligibility.policy === 'automatic' && Boolean(paymentIntentId);
 
     const requestRef = db.collection('refund_requests').doc();
     const transactionResult = await db.runTransaction(async (transaction) => {
@@ -300,10 +386,16 @@ export async function createRefundRequest(params: {
       const now = admin.firestore.FieldValue.serverTimestamp();
       const initialTimeline = [
         buildAuditTimelineEvent({
-          type: 'request_created',
+          type: canProcessAutomatically ? 'refund_auto_requested' : 'refund_request_created',
           responsible: userId,
           responsibleType: 'user',
-          observations: reason ? `Solicitação criada pelo comprador. Motivo: ${reason}` : 'Solicitação criada pelo comprador.'
+          observations: reason
+            ? canProcessAutomatically
+              ? `Reembolso automático iniciado pelo comprador. Motivo: ${reason}`
+              : `Solicitação de reembolso criada pelo comprador. Motivo: ${reason}`
+            : canProcessAutomatically
+              ? 'Reembolso automático iniciado pelo comprador.'
+              : 'Solicitação de reembolso criada pelo comprador.'
         })
       ];
 
@@ -321,7 +413,8 @@ export async function createRefundRequest(params: {
         purchasedAt: registration.createdAt || registration.timestamp || now,
         userId,
         paymentIntentId: paymentIntentId || null,
-        status: 'pending',
+        refundPolicy: eligibility.policy,
+        status: canProcessAutomatically ? 'processing' : 'pending',
         reason: reason || 'Solicitação do comprador',
         requestedAt: now,
         processedAt: null,
@@ -342,6 +435,46 @@ export async function createRefundRequest(params: {
       return { requestCode };
     });
 
+    if (canProcessAutomatically && paymentIntentId) {
+      try {
+        const stripe = await getStripeInstance(db);
+        const refund = await stripe.refunds.create({
+          payment_intent: paymentIntentId,
+          reverse_transfer: true,
+          refund_application_fee: true
+        });
+
+        await db.runTransaction(async (transaction) => {
+          const latestRequestSnap = await transaction.get(requestRef);
+          if (!latestRequestSnap.exists) return;
+
+          transaction.update(requestRef, {
+            status: 'refunded',
+            stripeRefundId: refund.id,
+            processedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            auditTimeline: admin.firestore.FieldValue.arrayUnion(buildAuditTimelineEvent({
+              type: 'refund_completed',
+              responsible: userId,
+              responsibleType: 'user',
+              observations: `Reembolso automático processado no Stripe. Refund ID: ${refund.id}`
+            }))
+          });
+
+          transaction.update(regRef, {
+            status: 'refunded',
+            paymentStatus: 'Estornado',
+            refundType: 'automatic',
+            refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+            refundStripeId: refund.id,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        });
+      } catch (refundError: any) {
+        await logSystemError({ context: 'createRefundRequest.autoRefund', error: refundError.message, registrationId, userId });
+      }
+    }
+
     await recordAuditLog({
       userId,
       ticketId: registrationId,
@@ -353,14 +486,17 @@ export async function createRefundRequest(params: {
       metadata: {
         refundRequestId: requestRef.id,
         refundRequestCode: transactionResult.requestCode,
-        status: 'pending',
-        reason: reason || 'Solicitação do comprador'
+        status: canProcessAutomatically ? 'processing' : 'pending',
+        reason: reason || 'Solicitação do comprador',
+        autoProcessed: canProcessAutomatically
       }
     });
 
     return {
       success: true,
-      message: 'Solicitação de reembolso enviada com sucesso. O organizador analisará o pedido.',
+      message: canProcessAutomatically
+        ? 'Reembolso automático iniciado com sucesso.'
+        : 'Solicitação de reembolso enviada com sucesso. O organizador analisará o pedido.',
       requestId: requestRef.id,
       requestCode: transactionResult.requestCode
     };
@@ -745,6 +881,7 @@ export async function getRefundRequestStateForRegistration(params: {
 
     return {
       eligible: eligibility.eligible,
+      policy: eligibility.policy,
       hasRequest: Boolean(existingRequest),
       request: existingRequest,
       status: existingRequest?.status || null,
@@ -754,6 +891,7 @@ export async function getRefundRequestStateForRegistration(params: {
     console.error('[Refund Request State] Error:', error);
     return {
       eligible: false,
+      policy: 'none',
       hasRequest: false,
       request: null,
       status: null,

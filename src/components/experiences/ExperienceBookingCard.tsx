@@ -109,6 +109,7 @@ export function ExperienceBookingCard({ experience }: ExperienceBookingCardProps
       currency: (experience.currency || 'BRL'),
       price: selectedSlot.hasPromo ? selectedSlot.promoPrice : selectedSlot.price,
       originalPrice: selectedSlot.price,
+      allowCoupon: true,
       quantity: 1,
       requiresProof: false,
       occurrenceId: selectedSlot.id,
